@@ -36,6 +36,13 @@ changes may form one coherent dedicated PR rather than artificial task PRs.
 5. Push the dedicated branch and open a GitHub PR to the selected base. Include feature/spec reference, task ID/title, what and why, validation, applicable constitutional considerations, and known limitations/follow-up. Follow-up does not excuse unmet acceptance criteria.
 6. Report the PR number/URL and validation, then **STOP**. Do not automatically merge or start another task. Proceed only after this PR is reviewed/merged, or the user explicitly authorizes a stacked-PR workflow. Stacking still means one task and one PR per task.
 
+After any PR is confirmed merged, its source branch MUST be deleted from its remote
+and from the working clone if present. Switch off the branch before local deletion;
+preserve unmerged work and do not disrupt another worktree or dependent open PR.
+If safe deletion is blocked, report the blocker rather than discard work or silently
+skip cleanup. Verify branch deletion and include it in the merge report. This cleanup
+requirement does not authorize automatic merging.
+
 Never force-push without explicit authorization, rewrite shared history, auto-merge, bypass failing required checks, or silently discard either side of a conflict. Do not assume CI or branch protections enforce these rules.
 
 Constrain `/speckit.implement` to **one named task**. Its generic implement-all instruction
