@@ -1,4 +1,4 @@
-name: Observation live editor
+name: Live editor
 
 # No PR, pull_request_target, workflow_run, or automatic self-hosted execution.
 on:
@@ -23,7 +23,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: observation-live
+  group: live-editor
   cancel-in-progress: false
 
 jobs:
@@ -58,18 +58,18 @@ jobs:
               request = urllib.request.Request(base + path, headers=headers)
               with urllib.request.urlopen(request, timeout=20) as response:
                   return json.load(response)
-          environment = get("/environments/observation-live")
+          environment = get("/environments/live-editor")
           reviewers = [rule for rule in environment.get("protection_rules", [])
                        if rule.get("type") == "required_reviewers"]
           if not any(rule.get("reviewers") and rule.get("prevent_self_review") is True for rule in reviewers):
-              raise SystemExit("observation-live requires reviewers and prevention of self-review")
+              raise SystemExit("live-editor requires reviewers and prevention of self-review")
           policy = environment.get("deployment_branch_policy") or {}
           if policy.get("custom_branch_policies") is not True:
-              raise SystemExit("observation-live requires an exact main-only deployment policy")
-          branches = get("/environments/observation-live/deployment-branch-policies")
+              raise SystemExit("live-editor requires an exact main-only deployment policy")
+          branches = get("/environments/live-editor/deployment-branch-policies")
           rules = branches.get("branch_policies", [])
           if branches.get("total_count") != 1 or len(rules) != 1 or rules[0].get("name") != "main" or rules[0].get("type") != "branch":
-              raise SystemExit("observation-live must permit only the main branch, not tags")
+              raise SystemExit("live-editor must permit only the main branch, not tags")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write("revision=" + revision + "\n")
           PY
@@ -79,8 +79,8 @@ jobs:
     needs: trust-gate
     # Provision only a clean, dedicated one-job GUI runner under this label.
     # It must contain no human projects, credentials, or privileged network access.
-    runs-on: [self-hosted, macOS, ARM64, godot-observation-ephemeral]
-    environment: observation-live
+    runs-on: [self-hosted, macOS, ARM64, godot-live-editor-ephemeral]
+    environment: live-editor
     timeout-minutes: 20
     steps:
       - name: Check out only the approved immutable revision

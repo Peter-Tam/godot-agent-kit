@@ -245,12 +245,12 @@ Those controlled peers establish boundary semantics, not GUI observability.
 
 #### Protected live workflow
 
-[observation-live.yml](../../.github/workflows/observation-live.yml) is manually
+[live-editor.yml](../../.github/workflows/live-editor.yml) is manually
 dispatched from `main` with the exact reviewed dispatch SHA and one implemented
 group. Its hosted trust gate rejects another revision, missing reviewer protection,
 self-review, wildcard branch policies and a `main` tag policy. The GUI job requires
-the protected `observation-live` environment and a dedicated
-`godot-observation-ephemeral` macOS/ARM64 runner. Provision a clean one-job GUI
+the protected `live-editor` environment and a dedicated
+`godot-live-editor-ephemeral` macOS/ARM64 runner. Provision a clean one-job GUI
 environment with no human projects, credentials or privileged network access;
 do not register a persistent human workstation under that label.
 
