@@ -61,6 +61,62 @@ directory when needed. For read-only inspection, if installed, use
 `--paths-only` does not persist the pointer; ordinary checks may persist the override.
 Do not require an untracked local helper on a clone without it.
 
+### Task granularity and review
+
+**One-task-one-PR does NOT mean one-file-one-task, one-symbol-one-task, or
+one-layer-one-task.** Spec Kit implementation tasks MUST be sized as meaningful,
+independently reviewable implementation increments. Prefer coherent capability slices
+over file-, symbol-, layer-, or command-oriented fragments.
+
+A task SHOULD normally:
+
+- deliver one clear capability, behavior, or independently verifiable architectural increment;
+- include the directly required tests and documentation needed to prove that increment;
+- be reviewable as one focused PR;
+- have acceptance criteria sufficient to determine whether it is complete.
+
+Do not create separate tasks merely to:
+
+- create one file;
+- add one enum, struct, class, method, schema, or similar implementation fragment;
+- add tests that naturally belong with the implementation being tested;
+- add documentation required by the same implementation;
+- split work solely because it touches different files or components.
+
+Setup/foundation work MAY be a separate task only when it establishes an independently
+useful and verifiable boundary needed by later work. Otherwise, combine setup with the
+first capability that consumes it.
+
+Apply this review heuristic:
+
+> After this task is merged, can its contribution be described as a meaningful capability
+> or verifiable architectural outcome rather than merely an implementation fragment?
+
+If not, the task SHOULD normally be consolidated with an adjacent task. A large number
+of serial PRs required before the first independently useful vertical slice is a
+task-granularity design smell and MUST trigger a task-list granularity review before
+implementation begins. There is no hard maximum number of tasks or PRs: the goal is
+coherent PR-sized increments, not the fewest tasks possible. Do not combine unrelated
+capabilities merely to reduce task count.
+
+**Workflow gate:** After `/speckit.tasks` generates or materially revises `tasks.md`,
+the task list MUST receive a granularity review before `/speckit.analyze` and before
+implementation begins: **`/speckit.tasks` → granularity review → `/speckit.analyze` →
+implementation**.
+
+The review MUST check:
+
+- meaningful PR-sized increments;
+- no trivial file/symbol-only tasks;
+- tests/docs bundled with their directly related implementation where appropriate;
+- a reasonable number of serial PRs before the first useful vertical slice;
+- preserved requirement and acceptance-scenario coverage;
+- clear dependency ordering.
+
+If granularity is poor, refine `tasks.md` before continuing. This planning gate does not
+authorize batching approved tasks into a PR, bypassing dependencies, or weakening the
+post-PR STOP rule.
+
 ## Transaction and editor safety
 
 The boundary is **agent protocol adapter → protocol-independent automation/transaction
