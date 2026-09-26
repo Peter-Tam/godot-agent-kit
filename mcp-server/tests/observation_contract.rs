@@ -1,5 +1,8 @@
 use godot_agent_kit::observation::*;
 
+#[path = "observation_contract/caller.rs"]
+mod caller;
+
 const SESSION: &str = "00112233445566778899aabbccddeeff";
 const REPLACEMENT_SESSION: &str = "ffeeddccbbaa99887766554433221100";
 const SCRIPT: &str = "res://scripts/subject.gd";

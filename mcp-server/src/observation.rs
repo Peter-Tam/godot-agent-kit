@@ -322,6 +322,9 @@ impl ResolvedTarget {
             script_path: request.script_path.clone(),
         })
     }
+    pub(crate) fn request_id(&self) -> &RequestId {
+        &self.request_id
+    }
     pub fn project_root(&self) -> &ProjectRoot {
         &self.project_root
     }
@@ -1111,7 +1114,7 @@ impl<T> DocumentFact<T> {
             _ => None,
         }
     }
-    fn invalidate(&mut self, reason: FactReason) {
+    pub(crate) fn invalidate(&mut self, reason: FactReason) {
         let old = std::mem::replace(
             self,
             Self::Unknown {
@@ -1399,6 +1402,11 @@ pub enum Recheck {
     Unavailable {
         reason: RecheckReason,
     },
+    /// Some independent checks found changes before another required check failed.
+    Partial {
+        reason: RecheckReason,
+        detected_changes: Vec<DetectedChange>,
+    },
 }
 impl Recheck {
     pub fn performed(detected_changes: Vec<DetectedChange>) -> Self {
@@ -1406,6 +1414,12 @@ impl Recheck {
     }
     pub fn unavailable(reason: RecheckReason) -> Self {
         Self::Unavailable { reason }
+    }
+    pub fn partial(reason: RecheckReason, detected_changes: Vec<DetectedChange>) -> Self {
+        Self::Partial {
+            reason,
+            detected_changes,
+        }
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1646,8 +1660,12 @@ impl ObservationEvidence {
             &self.recheck,
             Recheck::Unavailable {
                 reason: RecheckReason::SessionEnded
+            } | Recheck::Partial {
+                reason: RecheckReason::SessionEnded,
+                ..
             }
-        ) || matches!(&self.recheck, Recheck::Performed { detected_changes }
+        ) || matches!(&self.recheck,
+                Recheck::Performed { detected_changes } | Recheck::Partial { detected_changes, .. }
                 if detected_changes.iter().any(|change| matches!(change, DetectedChange::SessionEnded | DetectedChange::SessionReplaced)))
             || self.document.open_state.reason() == Some(FactReason::SessionEnded)
             || self.sources.resource.reason() == Some(SourceReason::SessionEnded)
@@ -1659,6 +1677,9 @@ impl ObservationEvidence {
             self.recheck,
             Recheck::Unavailable {
                 reason: RecheckReason::DeadlineExceeded
+            } | Recheck::Partial {
+                reason: RecheckReason::DeadlineExceeded,
+                ..
             }
         ) {
             Some(TerminalFailure::Timeout)
@@ -1754,86 +1775,83 @@ impl ObservationEvidence {
         {
             return Err(EvidenceError::InvalidDocument);
         }
-        let mut consistency =
-            match self.recheck {
-                Recheck::Unavailable { reason } => Consistency {
-                    checks: Checks::Unavailable,
-                    stability: Stability::Unknown,
-                    detected_changes: Vec::new(),
-                    recheck_reason: Some(reason),
-                },
-                Recheck::Performed { detected_changes } => {
-                    for &change in &detected_changes {
-                        match change {
-                            DetectedChange::Source(authority) => {
-                                self.sources
-                                    .get_mut(authority)
-                                    .invalidate(SourceReason::SourceChanged)?;
-                            }
-                            DetectedChange::Dirty => {
-                                self.dirty.invalidate(DirtyReason::SourceChanged)?
-                            }
-                            DetectedChange::DocumentClosed => {
-                                self.document
-                                    .open_state
-                                    .invalidate(FactReason::DocumentClosed);
-                                self.sources
-                                    .buffer
-                                    .invalidate(SourceReason::DocumentClosed)?;
-                                self.dirty.invalidate(DirtyReason::DocumentClosed)?;
-                            }
-                            DetectedChange::DiskIdentityReplaced => {
-                                self.sources
-                                    .disk
-                                    .invalidate(SourceReason::IdentityChanged)?;
-                                self.document
-                                    .validity
-                                    .invalidate(FactReason::IdentityChanged);
-                            }
-                            DetectedChange::DocumentIdentityReplaced
-                            | DetectedChange::SessionReplaced => {
-                                for authority in [Authority::D, Authority::R, Authority::B] {
-                                    self.sources
-                                        .get_mut(authority)
-                                        .invalidate(SourceReason::IdentityChanged)?;
-                                }
-                                self.dirty.invalidate(DirtyReason::IdentityChanged)?;
-                                self.document
-                                    .validity
-                                    .invalidate(FactReason::IdentityChanged);
-                                self.document
-                                    .open_state
-                                    .invalidate(FactReason::IdentityChanged);
-                            }
-                            DetectedChange::SessionEnded => {
-                                self.sources
-                                    .resource
-                                    .invalidate(SourceReason::SessionEnded)?;
-                                self.sources.buffer.invalidate(SourceReason::SessionEnded)?;
-                                self.dirty.invalidate(DirtyReason::SessionEnded)?;
-                                self.document
-                                    .open_state
-                                    .invalidate(FactReason::SessionEnded);
-                                if self.document.validity.collection().is_some_and(|stamp| {
-                                    matches!(stamp.clock_id(), ClockId::Editor(_))
-                                }) {
-                                    self.document.validity.invalidate(FactReason::SessionEnded);
-                                }
-                            }
-                        }
+        let (checks, recheck_reason, detected_changes) = match self.recheck {
+            Recheck::Unavailable { reason } => (Checks::Unavailable, Some(reason), Vec::new()),
+            Recheck::Performed { detected_changes } => (Checks::Performed, None, detected_changes),
+            Recheck::Partial {
+                reason,
+                detected_changes,
+            } => (Checks::Unavailable, Some(reason), detected_changes),
+        };
+        for &change in &detected_changes {
+            match change {
+                DetectedChange::Source(authority) => {
+                    self.sources
+                        .get_mut(authority)
+                        .invalidate(SourceReason::SourceChanged)?;
+                }
+                DetectedChange::Dirty => self.dirty.invalidate(DirtyReason::SourceChanged)?,
+                DetectedChange::DocumentClosed => {
+                    self.document
+                        .open_state
+                        .invalidate(FactReason::DocumentClosed);
+                    self.sources
+                        .buffer
+                        .invalidate(SourceReason::DocumentClosed)?;
+                    self.dirty.invalidate(DirtyReason::DocumentClosed)?;
+                }
+                DetectedChange::DiskIdentityReplaced => {
+                    self.sources
+                        .disk
+                        .invalidate(SourceReason::IdentityChanged)?;
+                    self.document
+                        .validity
+                        .invalidate(FactReason::IdentityChanged);
+                }
+                DetectedChange::DocumentIdentityReplaced | DetectedChange::SessionReplaced => {
+                    for authority in [Authority::D, Authority::R, Authority::B] {
+                        self.sources
+                            .get_mut(authority)
+                            .invalidate(SourceReason::IdentityChanged)?;
                     }
-                    Consistency {
-                        checks: Checks::Performed,
-                        stability: if detected_changes.is_empty() {
-                            Stability::Unknown
-                        } else {
-                            Stability::Changed
-                        },
-                        detected_changes,
-                        recheck_reason: None,
+                    self.dirty.invalidate(DirtyReason::IdentityChanged)?;
+                    self.document
+                        .validity
+                        .invalidate(FactReason::IdentityChanged);
+                    self.document
+                        .open_state
+                        .invalidate(FactReason::IdentityChanged);
+                }
+                DetectedChange::SessionEnded => {
+                    self.sources
+                        .resource
+                        .invalidate(SourceReason::SessionEnded)?;
+                    self.sources.buffer.invalidate(SourceReason::SessionEnded)?;
+                    self.dirty.invalidate(DirtyReason::SessionEnded)?;
+                    self.document
+                        .open_state
+                        .invalidate(FactReason::SessionEnded);
+                    if self
+                        .document
+                        .validity
+                        .collection()
+                        .is_some_and(|stamp| matches!(stamp.clock_id(), ClockId::Editor(_)))
+                    {
+                        self.document.validity.invalidate(FactReason::SessionEnded);
                     }
                 }
-            };
+            }
+        }
+        let mut consistency = Consistency {
+            checks,
+            stability: if detected_changes.is_empty() {
+                Stability::Unknown
+            } else {
+                Stability::Changed
+            },
+            detected_changes,
+            recheck_reason,
+        };
         if disconnected
             && !consistency
                 .detected_changes

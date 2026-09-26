@@ -1,16 +1,20 @@
-//! Owner-private registry and source-free project/locator validation.
+//! Owner-private registry, source-free routing, and selected-session confined D reads.
+use crate::observation::{
+    Authority, ClockId, CollectionStamp, DecimalCounter, DetectedChange, DiagnosticCode,
+    FileIdentity, ObservationRequest, OutcomeKind, ProjectRoot, ResourcePath, ScriptKind,
+    SourceObservation, SourceReason, Stage, Staleness, Surface, Witness, SOURCE_LIMIT_BYTES,
+};
+use crate::target::{RoutingFailure, SelectedSession};
 use cap_std::ambient_authority;
-use cap_std::fs::{Dir, MetadataExt as CapMetadataExt, PermissionsExt as CapPermissionsExt};
+use cap_std::fs::{
+    Dir, MetadataExt as CapMetadataExt, OpenOptions as CapOpenOptions,
+    OpenOptionsExt as CapOpenOptionsExt, PermissionsExt as CapPermissionsExt,
+};
 use std::fs::{self, DirBuilder};
 use std::io::{self, Read};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
-
-use crate::observation::{
-    DecimalCounter, DiagnosticCode, FileIdentity, ObservationRequest, OutcomeKind, ProjectRoot,
-    ResourcePath, Stage,
-};
-use crate::target::RoutingFailure;
+use std::time::Instant;
 
 // POSIX unistd.h declares geteuid() with a uid_t return; uid_t is u32 on
 // the supported Unix targets. Keep the C ABI call inside effective_uid().
@@ -315,4 +319,322 @@ pub(crate) fn matching_project(
     let root = ProjectRoot::new(advertised.to_owned()).map_err(|_| unsafe_registry())?;
     let (_, dev, ino) = identity(Path::new(root.as_str()))?;
     Ok(project.dev == dev && project.ino == ino)
+}
+
+fn disk_denial(stage: Stage) -> RoutingFailure {
+    let mut failure = out_of_project();
+    failure.diagnostic =
+        crate::observation::Diagnostic::new(DiagnosticCode::OutOfProject, stage, Some(Surface::D));
+    failure
+}
+
+fn verify_selected_root(selected: &SelectedSession, stage: Stage) -> Result<(), RoutingFailure> {
+    let (canonical, dev, ino) = identity(Path::new(selected.target().project_root().as_str()))
+        .map_err(|_| disk_denial(stage))?;
+    let opened = selected
+        .project_directory
+        .dir_metadata()
+        .map_err(|_| disk_denial(stage))?;
+    if canonical.to_str() != Some(selected.target().project_root().as_str())
+        || selected
+            .target()
+            .project_file_id()
+            .device()
+            .as_str()
+            .parse::<u64>()
+            != Ok(dev)
+        || selected
+            .target()
+            .project_file_id()
+            .inode()
+            .as_str()
+            .parse::<u64>()
+            != Ok(ino)
+        || opened.dev() != dev
+        || opened.ino() != ino
+        || opened.permissions().mode() & 0o022 != 0
+        || !acl::denies_only(&selected.project_directory)
+    {
+        return Err(disk_denial(stage));
+    }
+    Ok(())
+}
+
+// Each component is resolved from an already checked directory handle. Never open a
+// symlink or pass a path containing another component to the final source open.
+fn source_parent(selected: &SelectedSession, stage: Stage) -> Result<(Dir, &str), RoutingFailure> {
+    verify_selected_root(selected, stage)?;
+    let relative = selected
+        .target()
+        .script_path()
+        .as_str()
+        .strip_prefix("res://")
+        .ok_or_else(|| disk_denial(stage))?;
+    let mut components = relative.split('/').peekable();
+    let mut parent = selected
+        .project_directory
+        .try_clone()
+        .map_err(|_| disk_denial(stage))?;
+    while let Some(component) = components.next() {
+        if component.is_empty() || component == "." || component == ".." {
+            return Err(disk_denial(stage));
+        }
+        if components.peek().is_none() {
+            return Ok((parent, component));
+        }
+        let before = match parent.symlink_metadata(component) {
+            Ok(meta) => meta,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                return Ok((parent, ""));
+            }
+            Err(_) => return Err(disk_denial(stage)),
+        };
+        if !before.is_dir() || before.permissions().mode() & 0o022 != 0 {
+            return Err(disk_denial(stage));
+        }
+        let child = parent.open_dir(component).map_err(|_| disk_denial(stage))?;
+        let after = child.dir_metadata().map_err(|_| disk_denial(stage))?;
+        if before.dev() != after.dev()
+            || before.ino() != after.ino()
+            || before.uid() != after.uid()
+            || before.permissions().mode() != after.permissions().mode()
+            || !acl::denies_only(&child)
+        {
+            return Err(disk_denial(stage));
+        }
+        parent = child;
+    }
+    Err(disk_denial(stage))
+}
+
+fn disk_unavailable(reason: SourceReason) -> SourceObservation {
+    SourceObservation::unavailable(Authority::D, reason)
+        .expect("disk source reasons are valid for D")
+}
+
+fn disk_identity(meta: &cap_std::fs::Metadata) -> FileIdentity {
+    FileIdentity::new(
+        DecimalCounter::new(meta.dev().to_string()).expect("device is decimal"),
+        DecimalCounter::new(meta.ino().to_string()).expect("inode is decimal"),
+    )
+}
+
+fn same_file_scope(a: &cap_std::fs::Metadata, b: &cap_std::fs::Metadata) -> bool {
+    a.is_file()
+        && b.is_file()
+        && a.dev() == b.dev()
+        && a.ino() == b.ino()
+        && a.uid() == b.uid()
+        && a.permissions().mode() == b.permissions().mode()
+        && a.permissions().mode() & 0o022 == 0
+}
+
+fn same_file_metadata(a: &cap_std::fs::Metadata, b: &cap_std::fs::Metadata) -> bool {
+    same_file_scope(a, b)
+        && a.len() == b.len()
+        && a.mtime() == b.mtime()
+        && a.mtime_nsec() == b.mtime_nsec()
+        && a.ctime() == b.ctime()
+        && a.ctime_nsec() == b.ctime_nsec()
+}
+
+fn disk_source(
+    selected: &SelectedSession,
+    started: Instant,
+    stage: Stage,
+) -> Result<SourceObservation, RoutingFailure> {
+    match selected.target().script_path().kind() {
+        Some(ScriptKind::BuiltinGdscript) => {
+            // The container is only a locator. It is never a standalone D source.
+            verify_selected_root(selected, stage)?;
+            validate_locator(&selected.project_directory, selected.target().script_path())
+                .map_err(|_| disk_denial(stage))?;
+            verify_selected_root(selected, stage)?;
+            return Ok(disk_unavailable(SourceReason::NoStandaloneDiskSource));
+        }
+        Some(ScriptKind::ExternalGdscript) => {}
+        None => {
+            verify_selected_root(selected, stage)?;
+            validate_locator(&selected.project_directory, selected.target().script_path())
+                .map_err(|_| disk_denial(stage))?;
+            return Err(RoutingFailure::new(
+                OutcomeKind::UnsupportedObservation,
+                DiagnosticCode::UnsupportedCapability,
+                stage,
+            ));
+        }
+    }
+    let started_tick = Instant::now()
+        .checked_duration_since(started)
+        .unwrap_or_default()
+        .as_micros() as u64;
+    let (parent, name) = source_parent(selected, stage)?;
+    if name.is_empty() {
+        verify_selected_root(selected, stage)?;
+        return Ok(disk_unavailable(SourceReason::DiskMissing));
+    }
+    let before = match parent.symlink_metadata(name) {
+        Ok(meta) => meta,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            verify_selected_root(selected, stage)?;
+            return Ok(disk_unavailable(SourceReason::DiskMissing));
+        }
+        Err(_) => {
+            verify_selected_root(selected, stage)?;
+            return Ok(disk_unavailable(SourceReason::DiskUnreadable));
+        }
+    };
+    if before.file_type().is_symlink() || before.permissions().mode() & 0o022 != 0 {
+        return Err(disk_denial(stage));
+    }
+    if !before.is_file() {
+        verify_selected_root(selected, stage)?;
+        return Ok(disk_unavailable(SourceReason::DiskUnreadable));
+    }
+    // O_NONBLOCK ensures a last-component FIFO substitution cannot stall open().
+    // O_NOFOLLOW also closes the symlink-substitution window between lstat and open.
+    #[cfg(target_os = "macos")]
+    const SAFE_OPEN_FLAGS: i32 = 0x4 | 0x100;
+    #[cfg(not(target_os = "macos"))]
+    const SAFE_OPEN_FLAGS: i32 = 0x800 | 0x20000;
+    let mut options = CapOpenOptions::new();
+    options.read(true).custom_flags(SAFE_OPEN_FLAGS);
+    let mut file = match parent.open_with(name, &options) {
+        Ok(file) => file,
+        Err(_) => {
+            if parent
+                .symlink_metadata(name)
+                .ok()
+                .as_ref()
+                .is_some_and(|m| !same_file_scope(&before, m))
+            {
+                return Err(disk_denial(stage));
+            }
+            verify_selected_root(selected, stage)?;
+            return Ok(disk_unavailable(SourceReason::DiskUnreadable));
+        }
+    };
+    let opened = file.metadata().map_err(|_| disk_denial(stage))?;
+    if !same_file_scope(&before, &opened) || !acl::denies_only(&file) {
+        return Err(disk_denial(stage));
+    }
+    let mut bytes = Vec::new();
+    let read_result = if opened.len() > SOURCE_LIMIT_BYTES as u64 {
+        Ok(0)
+    } else {
+        (&mut file)
+            .take((SOURCE_LIMIT_BYTES + 1) as u64)
+            .read_to_end(&mut bytes)
+    };
+    let after = file.metadata().map_err(|_| disk_denial(stage))?;
+    let named_after = parent
+        .symlink_metadata(name)
+        .map_err(|_| disk_denial(stage))?;
+    if !same_file_scope(&opened, &after)
+        || !same_file_scope(&after, &named_after)
+        || !acl::denies_only(&file)
+    {
+        return Err(disk_denial(stage));
+    }
+    // Revalidate all directory components, including the original project identity.
+    // A safe file inode reached through a newly substituted parent is not attributable.
+    let (checked_parent, checked_name) = source_parent(selected, stage)?;
+    let checked = checked_parent
+        .symlink_metadata(checked_name)
+        .map_err(|_| disk_denial(stage))?;
+    if !same_file_scope(&after, &checked) {
+        return Err(disk_denial(stage));
+    }
+    if !same_file_metadata(&before, &opened)
+        || !same_file_metadata(&opened, &after)
+        || !same_file_metadata(&after, &named_after)
+        || !same_file_metadata(&after, &checked)
+    {
+        return Ok(disk_unavailable(SourceReason::SourceChanged));
+    }
+    if read_result.is_err() {
+        return Ok(disk_unavailable(SourceReason::DiskUnreadable));
+    }
+    if opened.len() > SOURCE_LIMIT_BYTES as u64 || bytes.len() > SOURCE_LIMIT_BYTES {
+        return Ok(disk_unavailable(SourceReason::TooLarge));
+    }
+    let Ok(text) = String::from_utf8(bytes) else {
+        return Ok(disk_unavailable(SourceReason::InvalidUtf8));
+    };
+    let finished_tick = Instant::now()
+        .checked_duration_since(started)
+        .unwrap_or_default()
+        .as_micros() as u64;
+    let collection = CollectionStamp::new(
+        ClockId::Caller,
+        DecimalCounter::new(started_tick.to_string()).expect("caller tick is decimal"),
+        DecimalCounter::new(finished_tick.to_string()).expect("caller tick is decimal"),
+        finished_tick,
+    )
+    .expect("monotonic ticks are ordered");
+    Ok(SourceObservation::observed(
+        Authority::D,
+        text,
+        collection,
+        Witness::new(
+            selected.target().script_path().clone(),
+            None,
+            None,
+            None,
+            Some(disk_identity(&after)),
+            None,
+        ),
+        Staleness::unknown(),
+    ))
+}
+
+/// Independently reads standalone D only after a unique authenticated selection.
+/// Does not open a built-in script's scene/resource container.
+/// # Errors
+/// Refuses uncertain or unsafe scope; source-level limits remain D unavailability.
+pub fn read_disk(
+    selected: &SelectedSession,
+    started: Instant,
+) -> Result<SourceObservation, RoutingFailure> {
+    disk_source(selected, started, Stage::ReadDisk)
+}
+
+/// Freshly checks disk content, file identity and confinement against original D.
+/// The returned changes invalidate original evidence; they do not replace it.
+/// # Errors
+/// Refuses uncertain or unsafe scope even if original D was unavailable.
+pub fn recheck_disk(
+    selected: &SelectedSession,
+    initial: &SourceObservation,
+    started: Instant,
+) -> Result<Vec<DetectedChange>, RoutingFailure> {
+    if initial.authority() != Authority::D
+        || initial.witness().is_some_and(|w| {
+            w.resource_path() != selected.target().script_path() || w.disk_file_id().is_none()
+        })
+        || initial
+            .invalidated_evidence()
+            .is_some_and(|i| i.witness().resource_path() != selected.target().script_path())
+    {
+        return Err(RoutingFailure::new(
+            OutcomeKind::ProtocolError,
+            DiagnosticCode::InvalidFrame,
+            Stage::Recheck,
+        ));
+    }
+    let fresh = disk_source(selected, started, Stage::Recheck)?;
+    let mut changes = Vec::new();
+    if initial
+        .witness()
+        .and_then(Witness::disk_file_id)
+        .zip(fresh.witness().and_then(Witness::disk_file_id))
+        .is_some_and(|(before, after)| before != after)
+    {
+        changes.push(DetectedChange::DiskIdentityReplaced);
+    } else if initial.text() != fresh.text()
+        || (initial.text().is_none() && initial.reason() != fresh.reason())
+    {
+        changes.push(DetectedChange::Source(Authority::D));
+    }
+    Ok(changes)
 }

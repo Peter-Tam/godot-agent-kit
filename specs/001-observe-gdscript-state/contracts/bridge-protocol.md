@@ -1,6 +1,6 @@
 # Private Editor Observation Bridge — Version 1
 
-**Status:** T002 implements source-free bootstrap, framing, mutual authentication, unique session routing, lifecycle and export isolation. Observation/recheck and supervised source acquisition remain T003/T004 work. This is private local integration, not MCP, a remote API, or a separate safety model. The [caller contract](observation-api.md) and [data model](../data-model.md) own user-visible semantics.
+**Status:** T002 implements source-free bootstrap, authentication, routing, lifecycle and export isolation. T003 implements Rust observation/recheck validation, supervised disk acquisition, and incremental worker delivery (§8). The addon collector remains T004 work. This is private local integration, not MCP, a remote API, or a separate safety model. The [caller contract](observation-api.md) and [data model](../data-model.md) own user-visible semantics.
 
 This is the initial version-1 implementation. It has no raw-token hello or legacy authentication path. No arbitrary code, object deserialization, process command, source write, Save, open/select, reload, rescan, or runtime operation is representable on the bridge.
 
@@ -199,3 +199,41 @@ for real-editor routing, all three synthetic proof vectors, independent live
 proof checks, refusal/privacy/peer limits and export results. The source-free
 `session-boundary` group does not replace T006's later source-bearing `routing`,
 `session-loss`, `deadline` or `confinement` acceptance.
+
+## 8. T003 Rust executor boundary
+
+`mcp-server/src/bridge/wire.rs` implements §4's control tuples and typed sample/
+recheck responses on T002's retained authenticated connection. The channel is
+bound to the original request ID, requested project selector, canonical project
+identity, session and locator; another request cannot reuse it to acquire source.
+The five advertised capabilities are not invented by the caller. T002's absent
+observer is a structured unsupported result, without issuing an observe command.
+
+Sample payloads contain `document`, `R`, `B`, `dirty`, and safe diagnostics, plus
+the version/kind, echoed identities and editor collection stamp. Source records
+carry authority/availability, exact observed text, stamp, witness, staleness,
+reason, and optional invalidated evidence. Document validity/open facts use
+`value`, `collection`, `reason`, and optional invalidated evidence. Reasons are
+`{code, action}` with fixed safe actions; diagnostics additionally have fixed
+message/stage/surface fields. Instance IDs and tick counters are decimal strings.
+An editor-supplied disk identity or D witness is rejected: Rust supplies D.
+
+Recheck payloads use `checks`, `detected_changes: [{surface, code}]`, and a nullable
+reason. An unavailable recheck may retain changes from checks that did finish;
+it does not claim every required check ran. D changes belong only to the separate
+Rust disk check. Source limits remain independent and never convert dirty or
+divergent evidence into a refusal.
+
+Private worker IPC uses the same four-byte framing bound and versioned correlated
+events: `selected`, `sample`, `disk`, `rechecked`, `disk_checked`, then `done`.
+`failed` terminates any stage. The supervisor validates each event and its order,
+rejects alleged final success supplied by a worker, stamps receipt time, and runs
+the common reducer itself. It retains earlier valid partial evidence on a later
+malformed frame or interruption; denial still suppresses every source.
+`rechecked` is emitted before independently checking D, so a blocked D recheck
+cannot conceal earlier editor changes. Late frames cannot upgrade a terminal result.
+
+The addon code and export boundary are unchanged by T003. Native controlled-peer
+tests prove codec and precedence behavior, not live R/B. Actual T002-editor caller
+and confined-D consumer evidence is recorded in
+[quickstart §2.3](../quickstart.md#23-t003-executor-boundary-evidence-2026-09-26).

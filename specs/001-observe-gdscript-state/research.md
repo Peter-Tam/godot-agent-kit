@@ -180,6 +180,29 @@ template. The fixture uses the universal preset and executes only on the tested
 arm64 host; this earns no x86_64 support claim.
 
 
+### T003 executor provenance (2026-09-26)
+
+No dependency, feature, toolchain or package-version change accompanies T003.
+The lockfile remains SHA-256
+`dbba0e851819c51a4623e1b58b8cf7d583ff6ac372b66ea7e9f07b366db02fe1`;
+T002's resolved license/provenance/advisory review therefore covers the same
+dependency graph. This is not a claim that a new advisory audit ran.
+
+The final executor smoke recorded Rust/Cargo 1.98.1, Python 3.10.9, macOS 26.6.2
+arm64 and the same exact Godot version/full engine hash used by T002.
+Godot executable SHA-256 remains
+`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`;
+its prior official-binary provenance is recorded above. The exercised observer
+SHA-256 is `f1c0de92dc7424aaa0637bdfd827c682caca4631d5bac288cb8fa969aedfe564`,
+and driver SHA-256 is
+`2d834a5ad6ebac7c845f05df47af29e715fbe35414fc556bf621d92b44eb222b`.
+No export templates or addon source changed in this task.
+
+The owned GUI/session/executor evidence is in
+[quickstart §2.3](quickstart.md#23-t003-executor-boundary-evidence-2026-09-26).
+It establishes bounded refusal/execution and confined D, not real-editor source
+collection or a wider supported-version/platform matrix.
+
 ## 5. Local bridge, session bootstrap, and confinement
 
 **Decision:** A per-editor `TCPServer` listens only on `127.0.0.1`. Choose a random high port and retry bounded bind collisions during plugin bootstrap; do not rely on undocumented port-zero behavior. The caller initializes a private registry outside the project. The addon must be explicitly enabled and receive that registry path through `GODOT_AGENT_KIT_REGISTRY`; absent/unsafe configuration disables the listener, not authentication.

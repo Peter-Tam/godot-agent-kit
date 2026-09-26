@@ -1,6 +1,6 @@
 # Observation Caller Contract — Version 1
 
-**Status:** T001 implements the reusable Rust semantic library (§7). T002 implements registry bootstrap/help/version and the source-free Rust routing API (§8). The observation CLI/JSON result and source collector remain planned for T003/T004. This is **not MCP**. [Data model](../data-model.md) defines the normative observation results; [bridge contract](bridge-protocol.md) defines private integration.
+**Status:** T001 implements the reusable Rust semantic library (§7); T002 implements source-free routing (§8); T003 implements the bounded observation caller, worker, disk boundary, and result codec (§9). The addon collector remains T004 work. This is **not MCP**. [Data model](../data-model.md) defines normative results; [bridge contract](bridge-protocol.md) defines private integration.
 
 ## 1. Operations and invocation
 
@@ -148,7 +148,7 @@ raw parser payloads do not enter these error objects or their debug/display outp
 
 `project_fs::init_registry(&Path)` creates/verifies the explicit directory and
 returns its canonical path. It never repairs unsafe existing permissions or ACLs.
-The real executable accepts only the three forms below:
+T002 introduced the three forms below; T003 also implements the observation invocation in §1:
 
 ```sh
 observe-gdscript init-registry --registry /absolute/private/registry
@@ -159,8 +159,8 @@ observe-gdscript --version
 Bootstrap emits `{"schema_version":1,"status":"ready"}` and exits 0 on success;
 unsafe metadata emits source-free `denied_access`/`unsafe_registry` JSON and
 exits 3. Invalid/duplicate/missing flags emit `invalid_request` and exit 3.
-There is no placeholder observation command. The addon must separately be
-installed/enabled with the same registry environment path, outside its project.
+The addon must separately be installed/enabled with the same registry environment
+path, outside its project. T003 reports its absent collector capability explicitly.
 
 The initial filesystem/ACL integration is macOS-specific and fails closed when
 ACL observability is not implemented. The supplied monotonic deadline bounds
@@ -170,3 +170,46 @@ an editor lifetime, not a future-stability or script-observability promise.
 All collector capabilities are false in T002.
 
 See [live/native/export evidence](../quickstart.md#22-t002-source-free-boundary-evidence-2026-09-26).
+
+## 9. Implemented T003 bounded execution
+
+The real observation invocation in §1 now parses exact selectors, generates a fresh
+request ID, and emits the full version-1 result plus newline. Required top-level
+nullable fields are always present. A source's current `text` and `collection`
+appear only when observed; former text remains only under `invalidated_evidence`.
+The structured exit-code contract in §3 is implemented, including host failure 1
+and SIGINT/SIGTERM cancellation 4. No public executable, worker, timeout, or force
+override flag exists. The private worker entrypoint rejects ordinary shell pipes.
+
+`runner::AttemptClock::start()` runs before flag parsing or resolution.
+`runner::run` launches the same executable over an inherited private Unix socket
+pair. Only the worker performs filesystem/editor acquisition. The supervisor
+accepts typed, request-bound events until 4.5 seconds, classifies once using T001,
+and terminates only its owned worker. A shared nonblocking reaper does not delay
+result delivery on a blocked child. The five-second claim applies to the controlled
+consuming caller, not an arbitrary blocked stdout sink or a hard-real-time OS.
+
+`project_fs::read_disk(&SelectedSession, Instant)` and
+`recheck_disk(&SelectedSession, &SourceObservation, Instant)` are blocking library
+boundaries, used inside that worker. The selected handle cannot be constructed
+without T002's authenticated unique selection. D reads use the pinned directory,
+strict UTF-8, regular-file checks, a 512-KiB limit, and fresh confinement/content/
+identity checks. BOM, empty text, whitespace, and line endings are preserved.
+Built-in containers and non-GDScript external locators never supply script D.
+Missing, unreadable, invalid-UTF-8, and oversized D remain per-surface limitations;
+unsafe scope suppresses all source. There is no second disk-only CLI operation.
+
+The wire boundary validates editor and worker evidence before retaining it:
+identities, clocks, duplicate fields, source applicability, invalidated evidence,
+and bounded framing/collections. Separately emitted editor and disk recheck events
+prevent a later blocked disk read from erasing already detected editor changes.
+`Recheck::Partial` records those changes while final `checks` remains `unavailable`.
+Rust consumers with exhaustive `Recheck` matches must handle this new variant;
+the JSON version, outcome names, and existing availability semantics remain v1.
+
+T002 advertises `observe_gdscript: false`. Against that actual addon, the caller
+returns `unsupported_observation` with the authenticated target and null snapshot,
+without reading D. Controlled authenticated peers exercise the supported execution
+path and complete/limited result delivery, but are not evidence of actual R/B or
+dirty-state observability. T004 owns that collector and real US1 acceptance.
+See [T003 evidence](../quickstart.md#23-t003-executor-boundary-evidence-2026-09-26).

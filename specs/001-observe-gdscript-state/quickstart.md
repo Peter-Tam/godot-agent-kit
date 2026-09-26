@@ -1,6 +1,6 @@
 # Quickstart: Validate Live GDScript Observation
 
-**Status:** T001's reusable library and T002's source-free authenticated session boundary are implemented. The caller currently provides only registry bootstrap/help/version. The addon and acceptance driver implement `session-boundary` and `export-boundary`; actual script observation, its supervised caller/worker, and all story groups remain T003–T008 work. T001/T002 evidence is recorded in §2.1/§2.2; the earlier planning GUI experiment remains separate.
+**Status:** T001–T003 implement the reusable core, authenticated session boundary, and bounded local caller/worker with confined D acquisition. The addon still advertises no source collector; actual D/R/B story groups remain T004–T008 work. The driver implements `session-boundary`, `executor-boundary`, and `export-boundary`. Evidence is recorded in §2.1–§2.3; no full-feature or mutation support is claimed.
 
 This guide covers the entire observation-only specification. It does not implement the feature, derive tasks, or claim a mutation/UndoRedo/Phase 1 exit guarantee. Use the [data model](data-model.md), [caller contract](contracts/observation-api.md), and [bridge contract](contracts/bridge-protocol.md) for normative fields and outcomes instead of inferring semantics from exit status alone.
 
@@ -66,8 +66,8 @@ Constitutional review: independent authorities, dirty-state uncertainty, source-
 
 ### 2.2. T002 source-free boundary evidence (2026-09-26)
 
-T002 is not a script observer. Its executable provides `init-registry --registry
-ABSOLUTE_PATH`, `--help`, and `--version`; observation flags remain unavailable.
+At T002 delivery, its executable provided only `init-registry --registry
+ABSOLUTE_PATH`, `--help`, and `--version`; T003's caller is documented in §2.3.
 Install `godot-addon/addons/godot_agent_kit/` in a disposable project's `addons/`
 and deliberately enable it. Use a canonical, owner-private directory outside the
 project for `GODOT_AGENT_KIT_REGISTRY`; an absent or unsafe configuration opens no
@@ -137,9 +137,57 @@ durability claim is made. These are local source-free session/export results,
 not full Feature 001 acceptance, GUI-CI evidence, or additional-platform support.
 
 
+### 2.3. T003 executor boundary evidence (2026-09-26)
+
+The real CLI now accepts the observation invocation in the caller contract.
+With the current T002 addon it returns `unsupported_observation` (exit 2),
+an authenticated resolved target, and null snapshot: the missing collector is
+explicit, and no disk read manufactures a source-only public result.
+
+Run the dedicated executor boundary, independently of the unimplemented story groups:
+
+```sh
+python3 godot-addon/tests/run_observation.py \
+  --godot "$GODOT" --observer "$OBSERVER" \
+  --scenario executor-boundary --artifacts "$EXECUTOR_ARTIFACTS"
+```
+
+The group passed **11 cases** on macOS **26.6.2 arm64**, exact Godot
+`4.7.2.stable.official.ed1daf0bf` / full hash
+`ed1daf0bf001b61586d9930840f2f1394092c079`, with Rust/Cargo 1.98.1 and Python 3.10.9:
+
+| Boundary | Executed evidence |
+|---|---|
+| Native | fmt check, Clippy `-D warnings`, tests including doctest phase, API docs, library and real caller build passed. **78 tests**: 8 library/unit, 18 bridge, 21 confinement, 31 observation/caller; zero doctest cases. |
+| Actual caller/addon | Bootstrap/help/version, zero sessions, authenticated absent collector, ended-session refusal, two-session ambiguity, and exact-session selection all returned the expected correlated JSON and exit code without source. |
+| Independent D library consumer | Authenticated unique selection preceded capability-confined D read and independent recheck. Exact text and inode matched the fixture's independently read disk; no recheck change was detected. This is a library boundary, not a D-only product command. |
+| Editor stall | An owned suspended editor produced timeout in **4.510 s**. No disconnect was inferred from silence. |
+| Worker stall/cancellation | The real caller's owned worker was separately stopped. Timeout arrived in **4.512 s**; SIGINT cancellation arrived in **0.020 s**. Both workers were reaped, and neither editor was terminated by the supervisor. |
+| Non-interference/privacy | Script content hash/mtime, open paths and selected-script witnesses were unchanged. Incidental logs contained neither the synthetic source sentinel nor collected authentication secrets; source appeared only in intentional D evidence. The owned editor-window screenshot was inspected. No visible-buffer observation is claimed. |
+| Supported-peer path | Native actual-process caller tests exercised authenticated controlled peers through the worker, independent D, both rechecks, reducer and full result serialization: complete-divergent exit 0 and limited/invalidated exit 2. Simulated R/B values are protocol evidence only. |
+
+Final local artifacts: `~/.t003-acceptance-m5dvbob_/executor-final/summary.json`,
+scoped `executor-boundary.png`, safe caller/editor logs, and intentional
+`disk-consumer-evidence.json`. The summary records actual request/session/project
+identities, binary/driver/lockfile hashes and per-case timings. The earlier
+`executor/` run failed at owned-window readiness; it is not passing evidence.
+The harness now waits for the native owned-window condition under a deadline
+rather than assuming fixture readiness means the window is already visible.
+
+Retained regressions include editor-clock document validity, valid invalidated
+source/document/dirty evidence decoding, selected-channel request/project binding,
+per-source size/encoding/identity boundaries, and editor changes retained when an
+independent disk recheck is interrupted. No global source cache, automatic retry,
+editor mutation, or public worker/executable override was added.
+
+The addon/export payload and dependency lockfile are unchanged. T002 export
+evidence remains historical evidence for that unchanged boundary; no new export
+run, GUI-CI result, R/B/dirty support, US1 completion, or additional platform is
+claimed by T003. Mutation A–E and applied-edit durability remain inapplicable.
+
 ## 3. Fixture driver entrypoint
 
-The acceptance driver is `godot-addon/tests/run_observation.py`. T002 implements only the groups above; the following is the full-feature contract, with `all` deliberately refusing incomplete coverage:
+The acceptance driver is `godot-addon/tests/run_observation.py`. T002/T003 implement the boundary groups above; the following is the full-feature contract, with `all` deliberately refusing incomplete coverage:
 
 ```sh
 REPO="$PWD"
@@ -224,4 +272,4 @@ A passing implementation report includes:
 - Native baseline and dependency review results; real-editor and export evidence on the declared candidate matrix. Hosted compile-only CI cannot replace GUI acceptance. Keep privileged GUI runners isolated from untrusted PR code and secrets.
 - No claim that complete observation means D/R/B convergence, clean state, permission to edit, applied mutation durability, or actual product UndoRedo support.
 
-The original planning command exercised only its bounded GUI feasibility experiment and design-artifact checks. T001/T002 evidence is recorded in §2.1/§2.2. The full product checks above remain prerequisites for later feature/support claims.
+The original planning command exercised only its bounded GUI feasibility experiment and design-artifact checks. T001–T003 evidence is recorded in §2.1–§2.3. The full product checks above remain prerequisites for later feature/support claims.

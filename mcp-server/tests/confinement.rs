@@ -1,6 +1,6 @@
 use std::fs::{self, DirBuilder, OpenOptions};
-use std::io::Write;
-use std::net::TcpListener;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
 #[cfg(target_os = "macos")]
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::fs::{symlink, DirBuilderExt, OpenOptionsExt, PermissionsExt};
@@ -8,13 +8,16 @@ use std::path::{Path, PathBuf};
 #[cfg(target_os = "macos")]
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::thread;
 use std::time::{Duration, Instant};
 
 use godot_agent_kit::observation::{
-    DiagnosticCode, ObservationRequest, OutcomeKind, ProjectRoot, RequestId, ResourcePath,
+    Authority, Availability, DetectedChange, DiagnosticCode, ObservationRequest, OutcomeKind,
+    ProjectRoot, RequestId, ResourcePath, SourceReason, Stage, SOURCE_LIMIT_BYTES,
 };
 use godot_agent_kit::{project_fs, target};
-use serde_json::json;
+use ring::hmac;
+use serde_json::{json, Value};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 struct Fixture {
@@ -79,6 +82,122 @@ impl Drop for Fixture {
     }
 }
 const ID: &str = "00112233445566778899aabbccddeeff";
+
+const VERSION: &str = "4.7.2.stable.official.ed1daf0bf";
+const HASH: &str = "ed1daf0bf001b61586d9930840f2f1394092c079";
+const SECRET: &str = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const SERVER_NONCE: &str = "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f";
+
+fn frame(stream: &mut TcpStream, value: &Value) {
+    let bytes = serde_json::to_vec(value).unwrap();
+    stream
+        .write_all(&(bytes.len() as u32).to_be_bytes())
+        .unwrap();
+    stream.write_all(&bytes).unwrap();
+}
+
+fn receive(stream: &mut TcpStream) -> Value {
+    let mut length = [0; 4];
+    stream.read_exact(&mut length).unwrap();
+    let mut bytes = vec![0; u32::from_be_bytes(length) as usize];
+    assert!(bytes.len() <= 4096);
+    stream.read_exact(&mut bytes).unwrap();
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+fn decoded(value: &str) -> Vec<u8> {
+    value
+        .as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect()
+}
+
+fn field(bytes: &mut Vec<u8>, value: &[u8]) {
+    bytes.extend_from_slice(&(value.len() as u32).to_be_bytes());
+    bytes.extend_from_slice(value);
+}
+
+fn proof(role: &[u8], hello: &Value, capabilities: &Value) -> String {
+    let mut transcript = Vec::new();
+    field(&mut transcript, role);
+    field(&mut transcript, b"godot-agent-kit/observation-bridge/v1");
+    field(&mut transcript, hello[2].as_str().unwrap().as_bytes());
+    field(&mut transcript, &decoded(hello[3].as_str().unwrap()));
+    field(&mut transcript, hello[4].as_str().unwrap().as_bytes());
+    field(&mut transcript, VERSION.as_bytes());
+    field(&mut transcript, HASH.as_bytes());
+    for name in [
+        "observe_gdscript",
+        "open_enumeration",
+        "buffer_attribution",
+        "unsaved_paths",
+        "cached_resource_lookup",
+    ] {
+        field(
+            &mut transcript,
+            &[u8::from(capabilities[name].as_bool().unwrap())],
+        );
+    }
+    field(&mut transcript, &decoded(hello[5].as_str().unwrap()));
+    field(&mut transcript, &decoded(SERVER_NONCE));
+    let key = hmac::Key::new(hmac::HMAC_SHA256, &decoded(SECRET));
+    hmac::sign(&key, &transcript)
+        .as_ref()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+// The real selection gate is exercised once per fixture, not bypassed with a
+// forged SelectedSession. The synthetic peer proves only authentication, not R/B.
+fn select(f: &Fixture, locator: &str) -> (target::SelectedSession, thread::JoinHandle<()>) {
+    f.descriptor(ID, &f.valid_descriptor(ID));
+    let listener = f.listener.try_clone().unwrap();
+    let peer = thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        socket
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        socket
+            .set_write_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        let hello = receive(&mut socket);
+        let capabilities = json!({"observe_gdscript":false,"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false});
+        frame(
+            &mut socket,
+            &json!({
+                "v":1,"kind":"challenge","request_id":hello[2],"session_id":hello[3],
+                "project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,
+                "capabilities":capabilities,"client_nonce":hello[5],"server_nonce":SERVER_NONCE,
+                "server_proof":proof(b"server",&hello,&capabilities)
+            }),
+        );
+        let authenticate = receive(&mut socket);
+        assert_eq!(authenticate[1], "authenticate");
+        assert_eq!(authenticate[7], proof(b"client", &hello, &capabilities));
+        frame(
+            &mut socket,
+            &json!({
+                "v":1,"kind":"hello","request_id":hello[2],"session_id":hello[3],
+                "project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,
+                "capabilities":capabilities,"client_nonce":hello[5],"server_nonce":SERVER_NONCE,
+                "finish_proof":proof(b"finish",&hello,&capabilities)
+            }),
+        );
+        let mut byte = [0];
+        assert!(matches!(socket.read(&mut byte), Ok(0) | Err(_)));
+    });
+    let selected = target::resolve(
+        &f.request(locator),
+        &f.registry,
+        Instant::now() + Duration::from_secs(2),
+    )
+    .unwrap();
+    (selected, peer)
+}
 #[cfg(target_os = "macos")]
 fn acl_listing(path: &Path) -> String {
     let output = Command::new("/bin/ls")
@@ -438,4 +557,243 @@ fn bootstrap_accepts_only_private_owner_directory() {
     fs::write(&file, b"x").unwrap();
     assert!(project_fs::init_registry(&file).is_err());
     assert!(project_fs::init_registry(Path::new("relative/registry")).is_err());
+}
+
+#[test]
+fn selected_disk_reads_preserve_exact_text_and_independent_limits() {
+    let f = Fixture::new();
+    let path = f.project.join("subject.gd");
+    fs::write(&path, b"").unwrap();
+    let (selected, peer) = select(&f, "res://subject.gd");
+    let started = Instant::now();
+    let empty = project_fs::read_disk(&selected, started).unwrap();
+    assert_eq!(empty.authority(), Authority::D);
+    assert_eq!(empty.availability(), Availability::Observed);
+    assert_eq!(empty.text(), Some(""));
+    assert!(empty.collection().is_some());
+    assert!(empty.witness().unwrap().disk_file_id().is_some());
+    assert_eq!(
+        empty.collection().unwrap().clock_id(),
+        &godot_agent_kit::observation::ClockId::Caller
+    );
+
+    let exact = "\u{feff}first\r\nsecond\n  \r\n";
+    fs::write(&path, exact.as_bytes()).unwrap();
+    let text = project_fs::read_disk(&selected, started).unwrap();
+    assert_eq!(text.text(), Some(exact));
+    assert_eq!(
+        project_fs::recheck_disk(&selected, &text, started).unwrap(),
+        Vec::<DetectedChange>::new()
+    );
+
+    fs::write(&path, vec![b'x'; SOURCE_LIMIT_BYTES]).unwrap();
+    assert_eq!(
+        project_fs::read_disk(&selected, started)
+            .unwrap()
+            .text()
+            .unwrap()
+            .len(),
+        SOURCE_LIMIT_BYTES
+    );
+    fs::write(&path, vec![b'x'; SOURCE_LIMIT_BYTES + 1]).unwrap();
+    let too_large = project_fs::read_disk(&selected, started).unwrap();
+    assert_eq!(too_large.reason(), Some(SourceReason::TooLarge));
+    assert!(too_large.text().is_none());
+    assert_eq!(too_large.collection(), None);
+    assert_eq!(too_large.witness(), None);
+    assert!(project_fs::recheck_disk(&selected, &too_large, started)
+        .unwrap()
+        .is_empty());
+
+    fs::write(&path, b"\xff").unwrap();
+    assert_eq!(
+        project_fs::read_disk(&selected, started).unwrap().reason(),
+        Some(SourceReason::InvalidUtf8)
+    );
+    drop(selected);
+    peer.join().unwrap();
+}
+
+#[test]
+fn selected_disk_recheck_detects_content_identity_and_availability_transitions() {
+    let f = Fixture::new();
+    let path = f.project.join("subject.gd");
+    fs::write(&path, b"before").unwrap();
+    let (selected, peer) = select(&f, "res://subject.gd");
+    let started = Instant::now();
+    let initial = project_fs::read_disk(&selected, started).unwrap();
+    fs::write(&path, b"after").unwrap();
+    assert_eq!(
+        project_fs::recheck_disk(&selected, &initial, started).unwrap(),
+        vec![DetectedChange::Source(Authority::D)]
+    );
+    let current = project_fs::read_disk(&selected, started).unwrap();
+    fs::write(f.project.join("replacement"), b"after").unwrap();
+    fs::rename(f.project.join("replacement"), &path).unwrap();
+    assert_eq!(
+        project_fs::recheck_disk(&selected, &current, started).unwrap(),
+        vec![DetectedChange::DiskIdentityReplaced]
+    );
+    let current = project_fs::read_disk(&selected, started).unwrap();
+    fs::remove_file(&path).unwrap();
+    assert_eq!(
+        project_fs::recheck_disk(&selected, &current, started).unwrap(),
+        vec![DetectedChange::Source(Authority::D)]
+    );
+    let missing = project_fs::read_disk(&selected, started).unwrap();
+    assert_eq!(missing.reason(), Some(SourceReason::DiskMissing));
+    assert!(project_fs::recheck_disk(&selected, &missing, started)
+        .unwrap()
+        .is_empty());
+    fs::write(&path, b"new").unwrap();
+    assert_eq!(
+        project_fs::recheck_disk(&selected, &missing, started).unwrap(),
+        vec![DetectedChange::Source(Authority::D)]
+    );
+    drop(selected);
+    peer.join().unwrap();
+}
+
+#[test]
+fn selected_disk_refuses_post_selection_symlinks_and_writable_ancestors() {
+    let f = Fixture::new();
+    let scripts = f.project.join("scripts");
+    DirBuilder::new().mode(0o700).create(&scripts).unwrap();
+    fs::write(scripts.join("subject.gd"), b"safe").unwrap();
+    let outside = f.home.join("outside.gd");
+    fs::write(&outside, b"PRIVATE_SOURCE_SENTINEL").unwrap();
+    let (selected, peer) = select(&f, "res://scripts/subject.gd");
+    let started = Instant::now();
+    let initial = project_fs::read_disk(&selected, started).unwrap();
+    fs::remove_file(scripts.join("subject.gd")).unwrap();
+    symlink(&outside, scripts.join("subject.gd")).unwrap();
+    let error = project_fs::read_disk(&selected, started).unwrap_err();
+    assert_eq!(error.outcome, OutcomeKind::DeniedAccess);
+    assert_eq!(error.diagnostic.stage(), Stage::ReadDisk);
+    assert_eq!(error.diagnostic.code(), DiagnosticCode::OutOfProject);
+    assert!(!format!("{error:?}").contains("PRIVATE_SOURCE_SENTINEL"));
+    assert_eq!(
+        project_fs::recheck_disk(&selected, &initial, started)
+            .unwrap_err()
+            .outcome,
+        OutcomeKind::DeniedAccess
+    );
+
+    fs::remove_file(scripts.join("subject.gd")).unwrap();
+    fs::write(scripts.join("subject.gd"), b"safe").unwrap();
+    fs::set_permissions(&scripts, fs::Permissions::from_mode(0o777)).unwrap();
+    assert_eq!(
+        project_fs::read_disk(&selected, started)
+            .unwrap_err()
+            .outcome,
+        OutcomeKind::DeniedAccess
+    );
+    fs::set_permissions(&scripts, fs::Permissions::from_mode(0o700)).unwrap();
+    let moved = f.home.join("original-scripts");
+    fs::rename(&scripts, &moved).unwrap();
+    symlink(&f.home, &scripts).unwrap();
+    assert_eq!(
+        project_fs::read_disk(&selected, started)
+            .unwrap_err()
+            .outcome,
+        OutcomeKind::DeniedAccess
+    );
+    drop(selected);
+    peer.join().unwrap();
+}
+
+#[test]
+fn selected_disk_handles_nonregular_unreadable_and_non_script_locators() {
+    let f = Fixture::new();
+    let path = f.project.join("subject.gd");
+    fs::write(&path, b"source").unwrap();
+    let (selected, peer) = select(&f, "res://subject.gd");
+    let started = Instant::now();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).unwrap();
+    assert_eq!(
+        project_fs::read_disk(&selected, started).unwrap().reason(),
+        Some(SourceReason::DiskUnreadable)
+    );
+    fs::remove_file(&path).unwrap();
+    fs::create_dir(&path).unwrap();
+    assert_eq!(
+        project_fs::read_disk(&selected, started).unwrap().reason(),
+        Some(SourceReason::DiskUnreadable)
+    );
+    drop(selected);
+    peer.join().unwrap();
+
+    let built_in = Fixture::new();
+    fs::write(
+        built_in.project.join("level.tscn"),
+        b"PRIVATE_CONTAINER_SENTINEL",
+    )
+    .unwrap();
+    let (selected, peer) = select(&built_in, "res://level.tscn::GDScript_abc");
+    let disk = project_fs::read_disk(&selected, Instant::now()).unwrap();
+    assert_eq!(disk.reason(), Some(SourceReason::NoStandaloneDiskSource));
+    assert_eq!(disk.text(), None);
+    assert!(project_fs::recheck_disk(&selected, &disk, Instant::now())
+        .unwrap()
+        .is_empty());
+    drop(selected);
+    peer.join().unwrap();
+
+    let unsupported = Fixture::new();
+    fs::write(
+        unsupported.project.join("notes.txt"),
+        b"PRIVATE_TEXT_SENTINEL",
+    )
+    .unwrap();
+    let (selected, peer) = select(&unsupported, "res://notes.txt");
+    let error = project_fs::read_disk(&selected, Instant::now()).unwrap_err();
+    assert_eq!(error.outcome, OutcomeKind::UnsupportedObservation);
+    assert!(!format!("{error:?}").contains("PRIVATE_TEXT_SENTINEL"));
+    drop(selected);
+    peer.join().unwrap();
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn selected_disk_refuses_acl_added_after_authentication() {
+    let f = Fixture::new();
+    let path = f.project.join("subject.gd");
+    fs::write(&path, b"PRIVATE_SOURCE_SENTINEL").unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+    let (selected, peer) = select(&f, "res://subject.gd");
+    let acl = grant_acl(&path, "everyone allow read", 0o600);
+    let error = project_fs::read_disk(&selected, Instant::now()).unwrap_err();
+    assert_eq!(error.outcome, OutcomeKind::DeniedAccess);
+    assert!(!format!("{error:?}").contains("PRIVATE_SOURCE_SENTINEL"));
+    assert_eq!(acl_listing(&path), acl);
+    drop(selected);
+    peer.join().unwrap();
+}
+
+#[test]
+fn selected_disk_rejects_project_root_rebinding_without_reading_replacement() {
+    let f = Fixture::new();
+    fs::write(f.project.join("subject.gd"), b"original").unwrap();
+    let (selected, peer) = select(&f, "res://subject.gd");
+    let started = Instant::now();
+    let original = project_fs::read_disk(&selected, started).unwrap();
+    let moved = f.home.join("formerly-selected-project");
+    fs::rename(&f.project, &moved).unwrap();
+    DirBuilder::new().mode(0o700).create(&f.project).unwrap();
+    fs::write(
+        f.project.join("subject.gd"),
+        b"PRIVATE_REPLACEMENT_SENTINEL",
+    )
+    .unwrap();
+    let error = project_fs::read_disk(&selected, started).unwrap_err();
+    assert_eq!(error.outcome, OutcomeKind::DeniedAccess);
+    assert!(!format!("{error:?}").contains("PRIVATE_REPLACEMENT_SENTINEL"));
+    assert_eq!(
+        project_fs::recheck_disk(&selected, &original, started)
+            .unwrap_err()
+            .outcome,
+        OutcomeKind::DeniedAccess
+    );
+    drop(selected);
+    peer.join().unwrap();
 }
