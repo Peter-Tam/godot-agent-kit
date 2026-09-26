@@ -1,0 +1,117 @@
+name: Observation live editor
+
+# No PR, pull_request_target, workflow_run, or automatic self-hosted execution.
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Full reviewed main commit SHA (must equal the dispatch revision)
+        required: true
+        type: string
+      scenario:
+        description: Implemented acceptance group (not full feature acceptance)
+        required: true
+        default: clean-open
+        type: choice
+        options:
+          - clean-open
+          - session-boundary
+          - executor-boundary
+          - export-boundary
+
+permissions:
+  contents: read
+
+concurrency:
+  group: observation-live
+  cancel-in-progress: false
+
+jobs:
+  trust-gate:
+    name: Verify revision and required environment approval
+    if: github.repository == 'Peter-Tam/godot-agent-kit' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      revision: ${{ steps.verify.outputs.revision }}
+    steps:
+      # No checkout or repository code runs before the protection check.
+      - name: Fail closed without the protected GUI environment
+        id: verify
+        env:
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import urllib.request
+
+          revision = os.environ["REVIEWED_SHA"]
+          if not re.fullmatch(r"[0-9a-f]{40}", revision) or revision != os.environ["GITHUB_SHA"]:
+              raise SystemExit("Dispatch must name its exact reviewed main revision")
+          base = "https://api.github.com/repos/" + os.environ["GITHUB_REPOSITORY"]
+          headers = {"Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                     "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
+          def get(path):
+              request = urllib.request.Request(base + path, headers=headers)
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  return json.load(response)
+          environment = get("/environments/observation-live")
+          reviewers = [rule for rule in environment.get("protection_rules", [])
+                       if rule.get("type") == "required_reviewers"]
+          if not any(rule.get("reviewers") and rule.get("prevent_self_review") is True for rule in reviewers):
+              raise SystemExit("observation-live requires reviewers and prevention of self-review")
+          policy = environment.get("deployment_branch_policy") or {}
+          if policy.get("custom_branch_policies") is not True:
+              raise SystemExit("observation-live requires an exact main-only deployment policy")
+          branches = get("/environments/observation-live/deployment-branch-policies")
+          rules = branches.get("branch_policies", [])
+          if branches.get("total_count") != 1 or len(rules) != 1 or rules[0].get("name") != "main" or rules[0].get("type") != "branch":
+              raise SystemExit("observation-live must permit only the main branch, not tags")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write("revision=" + revision + "\n")
+          PY
+
+  live-editor:
+    name: Reviewed exact-version GUI acceptance
+    needs: trust-gate
+    # Provision only a clean, dedicated one-job GUI runner under this label.
+    # It must contain no human projects, credentials, or privileged network access.
+    runs-on: [self-hosted, macOS, ARM64, godot-observation-ephemeral]
+    environment: observation-live
+    timeout-minutes: 20
+    steps:
+      - name: Check out only the approved immutable revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.trust-gate.outputs.revision }}
+          persist-credentials: false
+      - name: Verify provisioned GUI candidate and build the caller
+        working-directory: mcp-server
+        run: |
+          test "$(sw_vers -productVersion)" = 26.6.2
+          test "$(uname -m)" = arm64
+          test "$(godot --version)" = 4.7.2.stable.official.ed1daf0bf
+          test "$(rustc --version)" = 'rustc 1.98.1 (48a229cea 2026-09-01)'
+          test "$(rustc --print host-tuple)" = aarch64-apple-darwin
+          cargo build --locked --lib --bin observe-gdscript
+      - name: Exercise the real editor with independent witnesses
+        env:
+          SCENARIO: ${{ inputs.scenario }}
+        run: |
+          umask 077
+          mkdir "$RUNNER_TEMP/observation-evidence"
+          python3 godot-addon/tests/run_observation.py \
+            --godot "$(command -v godot)" \
+            --observer "$GITHUB_WORKSPACE/mcp-server/target/debug/observe-gdscript" \
+            --scenario "$SCENARIO" --artifacts "$RUNNER_TEMP/observation-evidence"
+      - name: Retain explicit synthetic evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: observation-${{ inputs.scenario }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/observation-evidence/
+          if-no-files-found: error
+          retention-days: 14

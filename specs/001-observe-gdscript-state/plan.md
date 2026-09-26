@@ -113,6 +113,36 @@ positive R/B/dirty or US1 support. Actual native/executor evidence and the
 unchanged dependency baseline are recorded in [quickstart §2.3](quickstart.md#23-t003-executor-boundary-evidence-2026-09-26)
 and [research](research.md#t003-executor-provenance-2026-09-26).
 
+### T004 implementation compliance
+
+T004 preserves I/II/III/IV/VII: existing public editor getters independently supply
+R, actual attributed CodeEdit B, open state and unsaved evidence; the common core
+alone classifies completeness. No product mutation, document opening/selection,
+forced resource load, Save, reparse/rescan or history operation is added. Array,
+identity, source/version and dirty rechecks withhold completeness on detected
+change. Unsigned object-ID strings and same-clock interval validation preserve
+actual attribution without numeric truncation.
+
+V/X/XII: authenticated unique selection remains source-free; the addon checks
+scope around getter passes and the existing Rust directory capability owns D.
+Specific source-free scope refusals suppress earlier samples. Per-source limits,
+request-local reference cleanup and bounded caller supervision remain in force.
+The test driver uses independently sampled synthetic authorities and owned-window
+evidence, not the product collector as its oracle.
+
+VIII/XI: the expanded addon/driver remains under existing export exclusions and
+requires renewed artifact/actual-export regression evidence. No dependency is
+added. The protected manual live workflow checks its exact main revision and
+required environment protections on a hosted runner before a GUI job is eligible;
+it has no PR trigger, no persisted checkout credentials, and no repository secrets.
+The dedicated GUI runner must be clean, isolated and single-job, not a persistent
+human workstation. Missing provisioning is not a passing CI/support gate.
+
+Mutation A–E and applied-edit durability remain inapplicable because no mutation
+or product UndoRedo capability exists. T004 is the US1 development increment,
+not completion of Feature 001 or roadmap Phase 1. Native/live/export evidence and
+limits are recorded in [quickstart §2.4](quickstart.md#24-t004-clean-open-evidence-2026-09-26).
+
 ## Project Structure
 
 ### Documentation (this feature)

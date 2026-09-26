@@ -203,6 +203,55 @@ The owned GUI/session/executor evidence is in
 It establishes bounded refusal/execution and confined D, not real-editor source
 collection or a wider supported-version/platform matrix.
 
+### T004 collector and verification provenance (2026-09-26)
+
+No dependency, feature, toolchain or package-version change accompanies T004.
+The tracked lockfile still hashes to
+`dbba0e851819c51a4623e1b58b8cf7d583ff6ac372b66ea7e9f07b366db02fe1`;
+T002's recorded license/provenance/advisory review covers that unchanged graph.
+No new advisory audit or additional platform support is claimed.
+
+The exercised tools are Rust/Cargo 1.98.1, Python 3.10.9 and exact Godot
+`4.7.2.stable.official.ed1daf0bf`, full engine hash
+`ed1daf0bf001b61586d9930840f2f1394092c079`, on macOS 26.6.2 arm64.
+Godot SHA-256 remains
+`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`,
+and the official `macos.zip` template remains
+`88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`.
+Their official provenance is recorded under T002; these are fresh checksum
+comparisons, not a new signing assessment. The built observer SHA-256 is
+`09e34011ea641f298ffff1c1377c5cf0af1b9e5708972a4141c20622bda08e93`.
+Per-run summaries identify the exact Python-driver hash exercised by each group.
+
+Real GDScript instance IDs exposed their reference-counted high bit as negative
+GDScript integers. [String.num_uint64](https://docs.godotengine.org/en/4.7/classes/class_string.html#class-string-method-num-uint64)
+preserves that complete ObjectID as a decimal string accepted by the Rust model;
+converting through float or stripping a sign would not. The independent fixture
+also uses this representation. Clean-open acceptance catches the previous
+signed-string rejection on actual Script objects.
+
+Initial cap preparation observed native R changes during background validation.
+The pinned [ScriptTextEditor::_validate_script](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_text_editor.cpp#L841-L880)
+copies valid non-tool B into R. The cap-only fixtures therefore use a deliberately
+syntax-invalid B: its failed native validation does not replace the independently
+prepared R. Both R and B remain actual Godot objects read through the unchanged
+product getters, with strict before/after source, dirty, version and history
+assertions. No native processing is disabled and no source limit is bypassed.
+Normal clean/empty US1 fixtures are unchanged. Visibility waits use the actual
+owned native-window condition, not a keyboard-focus assumption or fixed sleep.
+
+The new live workflow uses the existing full checkout SHA and
+`actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02`,
+resolved from the upstream `v4.6.2` tag. Actionlint 1.7.12 validates both workflows;
+the dedicated self-hosted label is declared in `.github/actionlint.yaml`.
+[Environment protection metadata](https://docs.github.com/en/rest/deployments/environments#get-an-environment)
+is checked before any GUI job is eligible. Provisioning must follow
+[GitHub's isolated, single-job runner guidance](https://docs.github.com/en/actions/reference/security/secure-use#hardening-for-self-hosted-runners).
+At implementation time the repository had **zero environments and zero registered
+runners**. No settings were changed and no trusted GUI-CI run is claimed.
+See [quickstart §2.4](quickstart.md#24-t004-clean-open-evidence-2026-09-26) for local
+behavioral evidence and the remaining CI/support boundary.
+
 ## 5. Local bridge, session bootstrap, and confinement
 
 **Decision:** A per-editor `TCPServer` listens only on `127.0.0.1`. Choose a random high port and retry bounded bind collisions during plugin bootstrap; do not rely on undocumented port-zero behavior. The caller initializes a private registry outside the project. The addon must be explicitly enabled and receive that registry path through `GODOT_AGENT_KIT_REGISTRY`; absent/unsafe configuration disables the listener, not authentication.

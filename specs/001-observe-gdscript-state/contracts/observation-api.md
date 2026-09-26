@@ -1,6 +1,6 @@
 # Observation Caller Contract — Version 1
 
-**Status:** T001 implements the reusable Rust semantic library (§7); T002 implements source-free routing (§8); T003 implements the bounded observation caller, worker, disk boundary, and result codec (§9). The addon collector remains T004 work. This is **not MCP**. [Data model](../data-model.md) defines normative results; [bridge contract](bridge-protocol.md) defines private integration.
+**Status:** T001 implements the reusable Rust semantic library (§7); T002 implements source-free routing (§8); T003 implements the bounded caller/worker and confined disk boundary (§9); T004 adds the passive live-editor collector and clean-open vertical slice (§10). This is **not MCP**. [Data model](../data-model.md) defines normative results; [bridge contract](bridge-protocol.md) defines private integration.
 
 ## 1. Operations and invocation
 
@@ -160,7 +160,7 @@ Bootstrap emits `{"schema_version":1,"status":"ready"}` and exits 0 on success;
 unsafe metadata emits source-free `denied_access`/`unsafe_registry` JSON and
 exits 3. Invalid/duplicate/missing flags emit `invalid_request` and exit 3.
 The addon must separately be installed/enabled with the same registry environment
-path, outside its project. T003 reports its absent collector capability explicitly.
+path, outside its project. T004 installs the source collector on that boundary.
 
 The initial filesystem/ACL integration is macOS-specific and fails closed when
 ACL observability is not implemented. The supplied monotonic deadline bounds
@@ -207,9 +207,44 @@ prevent a later blocked disk read from erasing already detected editor changes.
 Rust consumers with exhaustive `Recheck` matches must handle this new variant;
 the JSON version, outcome names, and existing availability semantics remain v1.
 
-T002 advertises `observe_gdscript: false`. Against that actual addon, the caller
-returns `unsupported_observation` with the authenticated target and null snapshot,
-without reading D. Controlled authenticated peers exercise the supported execution
-path and complete/limited result delivery, but are not evidence of actual R/B or
-dirty-state observability. T004 owns that collector and real US1 acceptance.
+At T003 delivery, the then-current T002 addon advertised `observe_gdscript: false`.
+The caller returned `unsupported_observation` with an authenticated target and
+null snapshot, without reading D. Its controlled-peer tests established execution
+and result semantics, not actual R/B/dirty observability. T004 adds that real
+collector without changing the caller flags or public version-1 outcomes.
 See [T003 evidence](../quickstart.md#23-t003-executor-boundary-evidence-2026-09-26).
+
+## 10. Implemented T004 clean-open observation
+
+The enabled addon now serves the standard request through actual editor getters.
+It independently samples the existing GDScript's `source_code`, the attributed
+CodeEdit's text, and document-specific `get_unsaved_files()` evidence. Rust then
+reads confined D, requests an editor recheck, independently rechecks D, and runs
+the same core reducer. The observer never opens/selects/loads/saves a document.
+
+An open-script/editor array mismatch, duplicate/empty path, unsupported control,
+or unstable association cannot manufacture B or clean state. Applicable source
+limits remain independent: exactly 512 KiB is readable; above that, only that
+source becomes unavailable/`too_large`. Oversized text is not retained or hashed
+for a synthetic revision. Rechecks compare originally observed text, document
+identity/order, buffer versions and attributable dirty state; changed facts are
+invalidated by the core. No atomicity, mutation permission or future stability
+is claimed.
+
+Rust integration consumers must now retain `bridge::wire::EditorSample.collection`
+and pass that stamp to `wire::recheck` between the request and clock arguments.
+Every editor fact must fall within its sample's editor-clock interval; the
+recheck must start no earlier than the sample finishes. Private worker events
+carry the sample interval through supervision. Update callers directly; no old
+signature alias is retained. Public JSON fields, exit codes and outcome meanings
+remain version 1.
+
+Godot object IDs are encoded as unsigned decimal strings without floating-point
+conversion, preserving the high bit of reference-counted Script IDs. An
+authenticated addon scope refusal is source-free `denied_access`, including when
+it occurs after a valid sample; no earlier source survives that denial.
+
+The `clean-open` driver owns all opening, presentation and synthetic preparation.
+Its independent disk/Script/CodeEdit/dirty/history witnesses are not obtained from
+the product collector. See [T004 evidence](../quickstart.md#24-t004-clean-open-evidence-2026-09-26).
+This is a development slice, not full-feature or supported-version acceptance.

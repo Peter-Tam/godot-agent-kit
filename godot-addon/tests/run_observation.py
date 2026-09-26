@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Owned, synthetic session/executor and production-export acceptance.
+"""Owned real-editor observation, boundary and production-export acceptance.
 
-This is test infrastructure, not an editor-control or source-observation API.
+This is test infrastructure, not a product editor-control/source API.
 The Rust probes are temporary library consumers, not additional product operations.
 """
 from __future__ import annotations
@@ -31,10 +31,11 @@ VERSION = "4.7.2.stable.official.ed1daf0bf"
 ENGINE_HASH = "ed1daf0bf001b61586d9930840f2f1394092c079"
 CAPABILITIES = ("observe_gdscript", "open_enumeration", "buffer_attribution",
                 "unsaved_paths", "cached_resource_lookup")
-MISSING_GROUPS = ("clean-open", "dirty-divergent", "dirty-unavailable", "changing-document",
+MISSING_GROUPS = ("dirty-divergent", "dirty-unavailable", "changing-document",
                   "routing", "session-loss", "deadline", "confinement", "closed-and-invalid",
                   "surface-limits", "sequential-readonly", "redaction")
 SOURCE_SENTINEL = b"T002_SYNTHETIC_SOURCE_ONLY"
+CAP_SENTINELS = (b"# " + b"r" * 64, b"# " + b"b" * 64)
 
 
 class Failure(Exception):
@@ -44,6 +45,18 @@ class Failure(Exception):
 def require(condition, stage):
     if not condition:
         raise Failure(stage)
+
+
+def require_outcome(result, expected, stage):
+    # Do not let a malformed source-bearing payload become failure/log text.
+    known = {"complete_observation", "limited_observation", "not_open", "editor_unavailable",
+             "ambiguous_target", "disconnected_editor", "timeout", "cancelled",
+             "unsupported_observation", "denied_access", "protocol_error", "invalid_target",
+             "missing_target", "invalid_request"}
+    actual = result.get("outcome")
+    require(actual == expected,
+            stage + "_expected_" + expected + "_observed_" +
+            (actual if isinstance(actual, str) and actual in known else "invalid"))
 
 
 def digest(path):
@@ -57,6 +70,24 @@ def _digest(stream):
         value.update(block)
     return value.hexdigest()
 
+
+
+def disk_witness(path):
+    before = path.stat()
+    require(stat.S_ISREG(before.st_mode), "independent_disk_regular_file")
+    raw = path.read_bytes()
+    after = path.stat()
+    require((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns) ==
+            (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns) and
+            len(raw) == before.st_size, "independent_disk_stable_read")
+    try:
+        text = raw.decode("utf-8", "strict")
+    except UnicodeDecodeError as error:
+        raise Failure("independent_disk_invalid_utf8") from error
+    return {"text": text, "sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw),
+            "device": str(before.st_dev), "inode": str(before.st_ino),
+            "mtime_ns": before.st_mtime_ns, "ctime_ns": before.st_ctime_ns,
+            "mode": stat.S_IMODE(before.st_mode)}
 
 def run(command, *, env=None, timeout=60):
     try:
@@ -112,9 +143,9 @@ def exact(stream, length):
     return bytes(result)
 
 
-def receive(stream):
+def receive(stream, limit=4096):
     length = struct.unpack(">I", exact(stream, 4))[0]
-    require(0 < length <= 4096, "control_frame_size")
+    require(0 < length <= limit, "control_frame_size")
     body = exact(stream, length)
     return json.loads(body), body
 
@@ -206,8 +237,10 @@ class Harness:
         self.counter = 0
         self.probe = work / "route-probe"
         self.window_probe = work / "owned-window"
-        self.summary = {"task": "T002", "scenario": args.scenario, "cases": self.cases,
-                        "source_observation": False, "support_claim": False,
+        self.summary = {"task": "T004" if args.scenario == "clean-open" else "T002",
+                        "scenario": args.scenario, "cases": self.cases,
+                        "source_observation": args.scenario in ("clean-open", "executor-boundary"),
+                        "support_claim": False,
                         "host": {"os": platform.mac_ver()[0], "arch": platform.machine()},
                         "godot_sha256": digest(args.godot),
                         "observer_sha256": digest(args.observer),
@@ -215,7 +248,9 @@ class Harness:
                         "lockfile_sha256": digest(REPO / "mcp-server" / "Cargo.lock")}
 
     def safe_log(self, name, payload):
-        require(SOURCE_SENTINEL not in payload, "redaction_source_" + name)
+        require(SOURCE_SENTINEL not in payload and
+                all(marker not in payload for marker in CAP_SENTINELS),
+                "redaction_source_" + name)
         for value in self.secrets:
             require(value not in payload, "redaction_authentication_" + name)
         (self.artifacts / name).write_bytes(payload)
@@ -252,6 +287,9 @@ class Harness:
                       "-o", self.probe])
         self.safe_log("library-consumer-compile.stderr", result.stderr)
         require(result.returncode == 0, "library_consumer_compile")
+        self.compile_window_probe()
+
+    def compile_window_probe(self):
         swift = self.work / "owned-window.swift"
         swift.write_text(WINDOW_SOURCE)
         result = run(["swiftc", swift, "-o", self.window_probe], timeout=120)
@@ -265,7 +303,7 @@ class Harness:
                         project / "addons" / "godot_agent_kit")
         driver = project / "addons" / "fixture_driver"
         driver.mkdir(parents=True)
-        (driver / "plugin.cfg").write_text('[plugin]\nname="T002 Fixture Driver"\ndescription="Owned test preparation"\nauthor="godot-agent-kit"\nversion="1"\nscript="plugin.gd"\n')
+        (driver / "plugin.cfg").write_text('[plugin]\nname="Observation Fixture Driver"\ndescription="Owned test preparation"\nauthor="godot-agent-kit"\nversion="1"\nscript="plugin.gd"\n')
         (driver / "plugin.gd").write_text('@tool\nextends "res://fixture_driver.gd"\n')
         config = project / "project.godot"
         text = config.read_text()
@@ -344,6 +382,7 @@ class Harness:
         self.safe_log(editor["log"].name, editor["log"].read_bytes())
 
     def screenshot(self, editor, name):
+        self.action(editor, "present")
         def visible_window():
             require(editor["process"].poll() is None, "owned_editor_exited_before_capture")
             window = run([self.window_probe, editor["process"].pid], timeout=2)
@@ -364,7 +403,7 @@ class Harness:
         require(elapsed <= 5, "routing_five_second_deadline")
         if expected == "selected":
             require(response["project_root"] == str(project.resolve()), "canonical_project_identity")
-            require(response["observe_gdscript"] is False, "no_uninstalled_observation_capability")
+            require(response["observe_gdscript"] is True, "installed_observation_capability")
             if session != "-":
                 require(response["session_id"] == session, "exact_session_identity")
         if case:
@@ -536,20 +575,355 @@ class Harness:
                                     elapsed, expected, exit_code, name or expected)
 
     def observer_result(self, code, stdout, stderr, elapsed, expected, exit_code, name):
-        require(code == exit_code, "caller_exit_" + name)
         require(stdout.endswith(b"\n") and stdout.count(b"\n") == 1, "caller_single_json_" + name)
         result = json.loads(stdout)
         require(set(result) == {"schema_version", "request_id", "outcome", "interval",
                                "resolved_target", "snapshot", "diagnostics", "selection"},
                 "caller_result_fields_" + name)
-        require(result["outcome"] == expected and result["schema_version"] == 1, "caller_outcome_" + name)
-        require(result["snapshot"] is None, "absent_collector_no_source_" + name)
-        require(elapsed < 5 and result["interval"]["elapsed_us"] < 5_000_000, "caller_deadline_" + name)
-        self.safe_log(name + ".json", stdout)
+        if result["snapshot"] is None:
+            self.safe_log(name + ".json", stdout)
+        else:
+            for secret in self.secrets:
+                require(secret not in stdout, "source_result_authentication_redaction_" + name)
+            (self.artifacts / (name + ".json")).write_bytes(stdout)  # Intentional source evidence.
         self.safe_log(name + ".stderr", stderr)
-        self.case(name, outcome=expected, exit_code=code, elapsed_seconds=elapsed,
+        require_outcome(result, expected, "caller_" + name + "_res_scripts_subject_gd")
+        require(code == exit_code, "caller_exit_" + name)
+        require(result["schema_version"] == 1, "caller_schema_" + name)
+        if expected in ("editor_unavailable", "ambiguous_target", "denied_access"):
+            require(result["snapshot"] is None, "caller_source_free_" + name)
+        elif expected in ("not_open", "complete_observation", "limited_observation"):
+            require(result["snapshot"] is not None, "caller_snapshot_" + name)
+        require(elapsed < 5 and result["interval"]["elapsed_us"] < 5_000_000, "caller_deadline_" + name)
+        self.case(name, source_surfaces="/".join(
+            key for key, source in result["snapshot"]["sources"].items()
+            if source["availability"] == "observed") if result["snapshot"] else "not_acquired",
+                  outcome=expected, exit_code=code, elapsed_seconds=elapsed,
                   request_id=result["request_id"], target=result["resolved_target"])
         return result
+
+    def live_witness(self, editor, path, disk):
+        witness = self.action(editor, "witness")
+        key = "subject" if path.name == "subject.gd" else "empty"
+        doc = witness[key]
+        resource_path = "res://scripts/" + path.name
+        require(witness["current_script"] == resource_path and doc["associated"] and
+                doc["path"] == resource_path and doc["matches"] == 1 and
+                witness["script_count"] == witness["editor_count"] and
+                witness["script_count"] == len(witness["open_paths"]) ==
+                len(witness["script_ids"]) == len(witness["script_types"]) ==
+                len(witness["editor_ids"]) == len(witness["editor_types"]) and
+                len(set(witness["open_paths"])) == witness["script_count"] and
+                len(set(witness["script_ids"])) == witness["script_count"] and
+                len(set(witness["editor_ids"])) == witness["editor_count"] and
+                all(value and value.startswith("res://") for value in witness["open_paths"]) and
+                all(kind == "GDScript" for kind in witness["script_types"]) and
+                witness["open_paths"].count(resource_path) == 1 and
+                witness["script_ids"][doc["index"]] == doc["script_id"] and
+                witness["editor_ids"][doc["index"]] == doc["editor_id"] and
+                witness["editor_types"][doc["index"]] == doc["editor_type"] and
+                doc["script_type"] == "GDScript" and doc["buffer_type"] == "CodeEdit" and
+                doc["script_id"] != doc["editor_id"] != doc["buffer_id"],
+                "independent_document_association_" + path.stem)
+        require(doc["R"] == disk["text"] and doc["B"] == disk["text"] and
+                not doc["dirty"] and resource_path not in witness["unsaved_paths"],
+                "independent_clean_authorities_" + path.stem)
+        return witness
+
+    def authenticated_peer(self, descriptor):
+        stream, challenge = self.challenge(descriptor)
+        try:
+            client = proof(descriptor, challenge, "client")
+            self.secrets.add(client.encode())
+            stream.sendall(packet(self.authenticate(descriptor, challenge, client)))
+            finish, raw = receive(stream)
+            require(finish.get("kind") == "hello" and
+                    finish.get("finish_proof") == proof(descriptor, challenge, "finish"),
+                    "observation_peer_mutual_proof")
+            self.secrets.add(finish["finish_proof"].encode())
+            require(descriptor["token"].encode() not in raw,
+                    "observation_peer_secret_free_finish")
+            require(all(challenge["capabilities"].get(name) is True for name in CAPABILITIES),
+                    "live_collector_capabilities")
+            return stream, challenge["request_id"]
+        except (Failure, OSError, EOFError):
+            stream.close()
+            raise
+
+    def peer_operation(self, stream, descriptor, request_id, operation, path):
+        stream.sendall(packet([1, operation, request_id, descriptor["session_id"],
+                               descriptor["project_root"], "res://scripts/" + path.name]))
+        result, raw = receive(stream, 12 * 1024 * 1024)
+        require(result.get("v") == 1 and result.get("kind") ==
+                ("sample" if operation == "observe" else "recheck") and
+                result.get("request_id") == request_id and
+                result.get("session_id") == descriptor["session_id"] and
+                result.get("project_root") == descriptor["project_root"] and
+                result.get("script_path") == "res://scripts/" + path.name,
+                "authenticated_" + operation + "_correlation")
+        require(all(secret not in raw for secret in self.secrets),
+                "authenticated_" + operation + "_secret_free")
+        return result
+
+    def compare_snapshot(self, result, descriptor, witness, disk, path):
+        snapshot = result["snapshot"]
+        doc = witness["subject" if path.name == "subject.gd" else "empty"]
+        identity = snapshot["document"]["identity"]
+        sources = snapshot["sources"]
+        require(snapshot["target"] == result["resolved_target"] and
+                snapshot["target"]["project_root"] == descriptor["project_root"] and
+                snapshot["target"]["session_id"] == descriptor["session_id"] and
+                snapshot["target"]["script_path"] == "res://scripts/" + path.name,
+                "actual_resolved_project_session_resource")
+        require(identity["kind"] == "external_gdscript" and
+                identity["resource_path"] == "res://scripts/" + path.name and
+                identity["script_instance_id"] == doc["script_id"] and
+                identity["editor_instance_id"] == doc["editor_id"] and
+                identity["buffer_instance_id"] == doc["buffer_id"] and
+                identity["disk_file_id"] == {"device": disk["device"], "inode": disk["inode"]} and
+                snapshot["document"]["validity"]["value"] == "valid" and
+                snapshot["document"]["open_state"]["value"] == "open",
+                "actual_document_identity_and_open_state")
+        for authority, text in (("D", disk["text"]), ("R", doc["R"]), ("B", doc["B"])):
+            source = sources[authority]
+            require(source["authority"] == authority and source["availability"] == "observed" and
+                    source["text"] == text and source["witness"]["resource_path"] ==
+                    "res://scripts/" + path.name and
+                    source["collection"] is not None and
+                    source["staleness"]["state"] == "unknown" and
+                    source["invalidated_evidence"] is None, "actual_source_" + authority)
+            stamp = source["collection"]
+            require(stamp["clock_id"] ==
+                    ("caller" if authority == "D" else "editor:" + descriptor["session_id"]) and
+                    0 <= int(stamp["started_tick_us"]) <= int(stamp["finished_tick_us"]) and
+                    0 <= stamp["received_elapsed_us"] <= result["interval"]["elapsed_us"],
+                    "actual_source_stamp_" + authority)
+        require(sources["D"]["witness"]["disk_file_id"] ==
+                {"device": disk["device"], "inode": disk["inode"]} and
+                sources["R"]["witness"]["script_instance_id"] == doc["script_id"] and
+                sources["B"]["witness"]["editor_instance_id"] == doc["editor_id"] and
+                sources["B"]["witness"]["buffer_instance_id"] == doc["buffer_id"] and
+                sources["B"]["witness"]["source_version"] == str(doc["version"]) and
+                snapshot["dirty"]["witness"]["source_version"] == str(doc["version"]) and
+                snapshot["dirty"]["availability"] == "observed" and
+                snapshot["dirty"]["state"] == ("dirty" if doc["dirty"] else "clean") and
+                snapshot["dirty"]["witness"]["buffer_instance_id"] == doc["buffer_id"],
+                "independent_disk_resource_buffer_dirty_witnesses")
+        comparisons = snapshot["comparisons"]
+        require(comparisons == {
+            "disk_resource": "equal" if disk["text"] == doc["R"] else "different",
+            "disk_buffer": "equal" if disk["text"] == doc["B"] else "different",
+            "resource_buffer": "equal" if doc["R"] == doc["B"] else "different"} and
+                snapshot["agreement"] == "agree" and
+                snapshot["consistency"]["checks"] == "performed" and
+                snapshot["consistency"]["detected_changes"] == [] and
+                snapshot["consistency"]["atomic"] is False,
+                "actual_independent_comparisons_and_rechecks")
+
+    def clean_read(self, editor, descriptor, project, path, name):
+        shot = self.screenshot(editor, name + ".png")
+        disk = disk_witness(path)
+        before = self.live_witness(editor, path, disk)
+        command = [self.args.observer, "--registry", self.registry, "--project", project,
+                   "--script", "res://scripts/" + path.name, "--session", descriptor["session_id"]]
+        started = time.monotonic()
+        process = run(command, timeout=5.2)
+        elapsed = time.monotonic() - started
+        self.safe_log(name + ".stderr", process.stderr)
+        require(all(secret not in process.stdout for secret in self.secrets),
+                "caller_secret_free_" + name)
+        result = json.loads(process.stdout)
+        # Retain intentional synthetic evidence even when a real boundary fails.
+        json_file(self.artifacts / (name + ".json"), {
+            "disk": disk, "before": before, "result": result})
+        require_outcome(result, "complete_observation", "D_R_B_res_scripts_" + path.name + "_" + name)
+        require(process.returncode == 0 and process.stdout.endswith(b"\n") and
+                process.stdout.count(b"\n") == 1 and elapsed < 5,
+                "actual_complete_caller_" + name)
+        require(result["schema_version"] == 1 and result["interval"]["elapsed_us"] < 5_000_000 and
+                result["interval"]["started_unix_ms"] <= result["interval"]["finished_unix_ms"] and
+                result["selection"] is None, "actual_complete_interval_" + name)
+        self.compare_snapshot(result, descriptor, before, disk, path)
+        after_disk = disk_witness(path)
+        after = self.live_witness(editor, path, after_disk)
+        require(before == after and disk == after_disk,
+                "observer_editor_and_disk_noninterference_" + name)
+        json_file(self.artifacts / (name + ".json"), {
+            "disk": disk, "before": before, "after": after, "result": result})
+        self.case(name, source_surfaces="D/R/B", request_id=result["request_id"],
+                  session_id=descriptor["session_id"], project_root=descriptor["project_root"],
+                  resource_path="res://scripts/" + path.name, screenshot=shot,
+                  elapsed_seconds=elapsed, disk_sha256=disk["sha256"],
+                  disk_size=disk["size"], disk_mtime_ns=disk["mtime_ns"],
+                  interval=result["interval"], evidence=name + ".json")
+        return result
+
+    def clean_open(self):
+        self.compile_window_probe()
+        project = self.fixture("clean-open")
+        editor = self.start_editor(project)
+        descriptor = wait_for(lambda: self.descriptors(project), "clean_open_advertisement")[0]
+        previous = None
+        for path, action, cases in (
+                (project / "scripts" / "subject.gd", "prepare_subject",
+                 ("us1_1_clean_open", "us1_2_fresh_repeat")),
+                (project / "scripts" / "empty.gd", "prepare_empty",
+                 ("us1_3_empty_observed", "us1_3_empty_fresh_repeat"))):
+            prepared = self.action(editor, action)
+            require(prepared["ready"], "owned_fixture_preparation_" + path.stem)
+            disk = disk_witness(path)
+            require((path.name != "empty.gd" or disk["text"] == "") and
+                    disk["size"] <= 512 * 1024, "prepared_strict_disk_" + path.stem)
+            resource_path = "res://scripts/" + path.name
+            wait_for(lambda: (lambda w: w if w["current_script"] == resource_path and
+                     w["subject" if path.name == "subject.gd" else "empty"]["associated"]
+                     else None)(self.action(editor, "witness")),
+                     "independent_editor_ready_" + path.stem)
+            self.live_witness(editor, path, disk)
+            if path.name == "subject.gd":
+                history = self.action(editor, "seed_history")
+                require(history["has_redo"] and history["B"] == disk["text"] and
+                        history["R"] == disk["text"] and not history["dirty"],
+                        "fixture_prior_undo_redo_history_and_clean_source")
+            for name in cases:
+                result = self.clean_read(editor, descriptor, project, path, name)
+                if previous is not None:
+                    require(result["request_id"] != previous["request_id"] and
+                            result["interval"] != previous["interval"],
+                            "fresh_request_identity_and_interval_" + name)
+                    for authority in ("R", "B"):
+                        current_stamp = result["snapshot"]["sources"][authority]["collection"]
+                        prior_stamp = previous["snapshot"]["sources"][authority]["collection"]
+                        require(int(current_stamp["started_tick_us"]) > int(prior_stamp["finished_tick_us"]),
+                                "fresh_editor_collection_" + authority + "_" + name)
+                previous = result
+        self.collector_boundaries()
+
+    def collector_boundaries(self):
+        for authority in ("R", "B"):
+            project = self.fixture("cap-" + authority.lower())
+            editor = self.start_editor(project)
+            descriptor = wait_for(lambda: self.descriptors(project), "cap_advertisement_" + authority)[0]
+            self.action(editor, "prepare_subject")
+            wait_for(lambda: (lambda w: w if w["subject"]["associated"] else None)(
+                     self.action(editor, "witness")), "cap_editor_ready_" + authority)
+            path = project / "scripts" / "subject.gd"
+            mode = "resource" if authority == "R" else "buffer"
+            other = "B" if authority == "R" else "R"
+            for boundary, size, outcome, code in (
+                    ("exact", 512 * 1024, "complete_observation", 0),
+                    ("over", 512 * 1024 + 1, "limited_observation", 2)):
+                label = "cap-" + authority.lower() + "-" + boundary
+                # Window activation can make Godot apply editor text to R. Finish
+                # that preparation BEFORE seeding the distinct source authority.
+                self.screenshot(editor, label + "-prepared.png")
+                doc = self.action(editor, "cap_" + mode + "_" + boundary)
+                disk = disk_witness(path)
+                require(len(doc[authority].encode()) == size and
+                        len(doc[other].encode()) <= 512 * 1024 and disk["size"] < 512 * 1024,
+                        "independent_source_preparation_" + label)
+                before = self.action(editor, "witness")
+                result = self.observe(project, outcome, code, name=label)
+                after = self.action(editor, "witness")
+                evidence = label + "-witness.json"
+                json_file(self.artifacts / evidence, {
+                    "disk": disk, "before": before, "after": after, "result": result})
+                snapshot = result["snapshot"]
+                sources = snapshot["sources"]
+                require(sources["D"]["text"] == disk["text"] and
+                        sources[other]["availability"] == "observed" and
+                        sources[other]["text"] == doc[other] and
+                        snapshot["document"]["identity"]["script_instance_id"] == doc["script_id"] and
+                        snapshot["document"]["identity"]["buffer_instance_id"] == doc["buffer_id"] and
+                        snapshot["dirty"]["state"] == ("dirty" if doc["dirty"] else "clean") and
+                        snapshot["consistency"]["checks"] == "performed" and
+                        snapshot["consistency"]["detected_changes"] == [],
+                        "independent_sources_and_rechecks_" + label)
+                if boundary == "exact":
+                    require(sources[authority]["availability"] == "observed" and
+                            sources[authority]["text"] == doc[authority] and
+                            snapshot["agreement"] == "divergent",
+                            "exact_inclusive_source_limit_" + label)
+                else:
+                    require(sources[authority]["availability"] == "unavailable" and
+                            sources[authority]["reason"]["code"] == "too_large" and
+                            sources[authority].get("text") is None,
+                            "independent_source_limit_" + label)
+                require(before == after and disk == disk_witness(path),
+                        "source_cap_noninterference_" + label)
+                shot = self.screenshot(editor, label + ".png")
+                self.cases[-1].update(screenshot=shot, evidence=evidence)
+        self.recheck_boundaries()
+
+    def recheck_boundaries(self):
+        project = self.fixture("recheck-boundaries")
+        editor = self.start_editor(project)
+        descriptor = wait_for(lambda: self.descriptors(project), "recheck_advertisement")[0]
+        self.action(editor, "prepare_subject")
+        wait_for(lambda: (lambda w: w if w["subject"]["associated"] else None)(
+                 self.action(editor, "witness")), "recheck_editor_ready")
+        path = project / "scripts" / "subject.gd"
+        disk = disk_witness(path)
+        original = self.live_witness(editor, path, disk)
+        refused, refusal_id = self.authenticated_peer(descriptor)
+        with refused:
+            refused.sendall(packet([1, "observe", refusal_id, descriptor["session_id"],
+                                   descriptor["project_root"], "res://../outside.gd"]))
+            failure, raw = receive(refused)
+            require(failure == {
+                "v": 1, "kind": "failure", "request_id": refusal_id,
+                "session_id": descriptor["session_id"], "project_root": descriptor["project_root"],
+                "script_path": "res://../outside.gd", "code": "out_of_project", "stage": "read_editor"},
+                "authenticated_locator_refusal_has_no_source")
+            require(all(secret not in raw for secret in self.secrets),
+                    "authenticated_locator_refusal_has_no_credentials")
+        self.case("authenticated_locator_refusal", outcome="denied_access", source_surfaces="not_acquired")
+        stream, request_id = self.authenticated_peer(descriptor)
+        with stream:
+            sample = self.peer_operation(stream, descriptor, request_id, "observe", path)
+            require(sample["R"]["text"] == original["subject"]["R"] and
+                    sample["B"]["text"] == original["subject"]["B"] and
+                    sample["dirty"]["state"] == "clean", "recheck_actual_initial_sources")
+            busy = self.observe(project, "unsupported_observation", 2, name="active_collection_bound")
+            require(busy["snapshot"] is None and
+                    any(item["code"] == "unsupported_observation" for item in busy["diagnostics"]),
+                    "busy_collector_is_source_free_not_disconnected")
+            self.action(editor, "append_subject")  # Owned preparation between real bridge frames.
+            changed = wait_for(lambda: (lambda w: w if
+                               w["subject"]["B"] != original["subject"]["B"] and
+                               w["subject"]["dirty"] else None)(
+                               self.action(editor, "witness")), "recheck_real_buffer_dirty_barrier")
+            require(changed["subject"]["B"] != original["subject"]["B"] and
+                    changed["subject"]["dirty"] and
+                    path == project / "scripts" / "subject.gd" and disk == disk_witness(path),
+                    "recheck_real_buffer_change")
+            rechecked = self.peer_operation(stream, descriptor, request_id, "recheck", path)
+            changes = {(item["surface"], item["code"]) for item in rechecked["detected_changes"]}
+            require(("B", "source_changed") in changes and
+                    ("dirty", "source_changed") in changes and
+                    rechecked["checks"] in ("performed", "unavailable"),
+                    "recheck_changed_real_document_detected")
+        shot = self.screenshot(editor, "recheck-boundaries.png")
+        json_file(self.artifacts / "recheck-changed-evidence.json", {
+            "before": original, "after": changed, "sample": sample, "recheck": rechecked})
+        self.case("actual_changed_editor_recheck", source_surfaces="R/B",
+                  screenshot=shot, changes=rechecked["detected_changes"],
+                  session_id=descriptor["session_id"], evidence="recheck-changed-evidence.json")
+        stream, request_id = self.authenticated_peer(descriptor)
+        with stream:
+            self.peer_operation(stream, descriptor, request_id, "observe", path)
+            self.action(editor, "disable")
+            try:
+                self.peer_operation(stream, descriptor, request_id, "recheck", path)
+            except (EOFError, ConnectionResetError, BrokenPipeError):
+                pass
+            else:
+                raise Failure("failed_recheck_cannot_claim_performed")
+        require(disk == disk_witness(path) and
+                not (self.registry / (descriptor["session_id"] + ".json")).exists(),
+                "failed_recheck_no_disk_write_or_stale_session")
+        self.case("actual_failed_editor_recheck", source_surfaces="R/B",
+                  session_id=descriptor["session_id"], reason="known_session_ended")
 
     def executor_boundary(self):
         self.summary["task"] = "T003"
@@ -560,12 +934,20 @@ class Harness:
         self.observe(project, "editor_unavailable", 3, name="zero_sessions")
         first = self.start_editor(project)
         descriptor = wait_for(lambda: self.descriptors(project), "executor_advertisement")[0]
+        self.action(first, "cache_subject")
         witness = self.action(first, "witness")
-        result = self.observe(project, "unsupported_observation", 2, name="absent_live_collector")
+        require(witness["subject_cached_id"] and not witness["subject"]["associated"],
+                "explicit_cached_closed_fixture")
+        result = self.observe(project, "not_open", 0, name="closed_live_collector")
         require(result["resolved_target"]["session_id"] == descriptor["session_id"],
-                "unsupported_retains_authenticated_target")
-        require(any(item["code"] == "unsupported_capability" for item in result["diagnostics"]),
-                "absent_capability_reason")
+                "closed_retains_authenticated_target")
+        require(result["snapshot"]["document"]["open_state"]["value"] == "not_open" and
+                result["snapshot"]["sources"]["B"]["availability"] == "not_applicable" and
+                result["snapshot"]["dirty"]["availability"] == "not_applicable" and
+                result["snapshot"]["sources"]["D"]["text"] == subject.read_text() and
+                result["snapshot"]["document"]["identity"]["script_instance_id"] ==
+                witness["subject_cached_id"],
+                "closed_document_not_manufactured_buffer")
         self.observe(project, "editor_unavailable", 3, session="f" * 32, name="ended_session_no_fallback")
         source = self.work / "disk-probe.rs"
         source.write_text(DISK_PROBE_SOURCE)
@@ -597,8 +979,8 @@ class Harness:
         ambiguous = self.observe(project, "ambiguous_target", 3, name="two_sessions_no_source")
         require(ambiguous["resolved_target"] is None and ambiguous["selection"] is not None,
                 "ambiguous_selector_feedback")
-        self.observe(project, "unsupported_observation", 2, session=descriptor["session_id"],
-                     name="exact_session_missing_capability")
+        self.observe(project, "not_open", 0, session=descriptor["session_id"],
+                     name="exact_session_closed_document")
         first["process"].send_signal(signal.SIGSTOP)
         first["suspended"] = True
         try:
@@ -902,7 +1284,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--godot", required=True, type=Path)
     parser.add_argument("--observer", required=True, type=Path)
-    parser.add_argument("--scenario", required=True, choices=("all", "session-boundary", "executor-boundary", "export-boundary", *MISSING_GROUPS))
+    parser.add_argument("--scenario", required=True, choices=("all", "clean-open", "session-boundary", "executor-boundary", "export-boundary", *MISSING_GROUPS))
     parser.add_argument("--artifacts", required=True, type=Path)
     args = parser.parse_args()
     os.umask(0o077)
@@ -915,7 +1297,7 @@ def main():
             not list(args.artifacts.iterdir()), "empty_private_artifact_directory")
     if args.scenario == "all" or args.scenario in MISSING_GROUPS:
         missing = list(MISSING_GROUPS) if args.scenario == "all" else [args.scenario]
-        json_file(args.artifacts / "summary.json", {"task": "T002", "status": "failed",
+        json_file(args.artifacts / "summary.json", {"task": "T004", "status": "failed",
                   "stage": "coverage", "missing_groups": missing, "support_claim": False})
         print("Missing coverage: " + ", ".join(missing))
         return 1
@@ -929,6 +1311,8 @@ def main():
                 harness.session_boundary()
             elif args.scenario == "executor-boundary":
                 harness.executor_boundary()
+            elif args.scenario == "clean-open":
+                harness.clean_open()
             else:
                 harness.export_boundary()
             harness.summary["status"] = "passed"
