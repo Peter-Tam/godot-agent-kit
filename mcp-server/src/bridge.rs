@@ -1,4 +1,4 @@
-//! Private source-free, mutually authenticated version-one editor bridge.
+//! Private mutually authenticated version-one editor bridge and observation wire boundary.
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream};
 use std::time::{Duration, Instant};
@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::observation::{DiagnosticCode, EngineVersion, OutcomeKind, ProjectRoot, Stage};
 use crate::target::RoutingFailure;
+pub mod wire;
 
 const FRAME_LIMIT: usize = 4096;
 pub(crate) const GODOT_VERSION: &str = "4.7.2.stable.official.ed1daf0bf";

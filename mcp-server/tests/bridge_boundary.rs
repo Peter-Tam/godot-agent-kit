@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use godot_agent_kit::bridge::wire::{self, Event};
 use godot_agent_kit::observation::{
     DiagnosticCode, ObservationRequest, OutcomeKind, ProjectRoot, RequestId, ResourcePath,
     SessionId,
@@ -141,8 +142,31 @@ fn proof(role: &[u8], hello: &Value, caps: &Value, key: &str) -> String {
     let key = hmac::Key::new(hmac::HMAC_SHA256, &hex_decode(key));
     hex(hmac::sign(&key, &bytes).as_ref())
 }
+fn editor_stamp(hello: &Value) -> Value {
+    json!({"clock_id":format!("editor:{}",hello[3].as_str().unwrap()),"started_tick_us":"9007199254740993","finished_tick_us":"9007199254740994","received_elapsed_us":0})
+}
+
+fn observation_sample(hello: &Value) -> Value {
+    let stamp = editor_stamp(hello);
+    let path = "res://scripts/subject.gd";
+    let resource_witness = json!({"resource_path":path,"script_instance_id":"9007199254740993","editor_instance_id":null,"buffer_instance_id":null,"disk_file_id":null,"source_version":"9007199254740994"});
+    let buffer_witness = json!({"resource_path":path,"script_instance_id":"9007199254740993","editor_instance_id":"9007199254740994","buffer_instance_id":"9007199254740995","disk_file_id":null,"source_version":"9007199254740996"});
+    json!({
+        "v":1,"kind":"sample","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":path,
+        "collection":stamp,
+        "document":{"identity":{"kind":"external_gdscript","resource_path":path,"script_instance_id":"9007199254740993","editor_instance_id":"9007199254740994","buffer_instance_id":"9007199254740995","disk_file_id":null},
+            "validity":{"value":"valid","collection":stamp,"reason":null,"invalidated_evidence":null},
+            "open_state":{"value":"open","collection":stamp,"reason":null,"invalidated_evidence":null}},
+        "R":{"authority":"R","availability":"observed","text":"\u{feff}x\r\n","collection":stamp,"witness":resource_witness,"staleness":{"state":"unknown"},"reason":null,"invalidated_evidence":null},
+        "B":{"authority":"B","availability":"observed","text":"x\n","collection":stamp,"witness":buffer_witness,"staleness":{"state":"unknown"},"reason":null,"invalidated_evidence":null},
+        "dirty":{"availability":"observed","state":"dirty","collection":stamp,"witness":buffer_witness,"reason":null,"invalidated_evidence":null},
+        "diagnostics":[]
+    })
+}
+
 #[derive(Clone, Copy)]
 enum Mode {
+    Observation(ObservationMode),
     Valid,
     WrongSecret,
     Reflection,
@@ -156,6 +180,23 @@ enum Mode {
     SilentFinish,
     Oversized,
     Silence,
+}
+#[derive(Clone, Copy)]
+enum ObservationMode {
+    Valid,
+    Stable,
+    WrongIdentity,
+    DuplicateRequired,
+    Nested,
+    WrongWitness,
+    WrongClock,
+    SecretUnknownField,
+    ExcessDiagnostics,
+    ExcessSource,
+    ExcessSourceWrongWitness,
+    OverlargeFrame,
+    Disconnect,
+    Silent,
 }
 fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
     thread::spawn(move || {
@@ -194,7 +235,7 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
             socket.write_all(&4097u32.to_be_bytes()).unwrap();
             return;
         }
-        let caps = json!({"observe_gdscript":false,"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false});
+        let caps = json!({"observe_gdscript":matches!(mode, Mode::Observation(_)),"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false});
         let key = if matches!(mode, Mode::WrongSecret) {
             "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         } else {
@@ -263,6 +304,120 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
             finish["capabilities"]["unsaved_paths"] = json!(true);
         }
         frame(&mut socket, &finish);
+        if let Mode::Observation(reply) = mode {
+            let observe = read_frame(&mut socket);
+            assert_eq!(
+                observe,
+                json!([
+                    1,
+                    "observe",
+                    hello[2],
+                    hello[3],
+                    hello[4],
+                    "res://scripts/subject.gd"
+                ])
+            );
+            match reply {
+                ObservationMode::Disconnect => return,
+                ObservationMode::Silent => {
+                    thread::sleep(Duration::from_millis(350));
+                    return;
+                }
+                ObservationMode::OverlargeFrame => {
+                    socket
+                        .write_all(&((wire::RESULT_LIMIT + 1) as u32).to_be_bytes())
+                        .unwrap();
+                    return;
+                }
+                _ => {}
+            }
+            let mut sample = observation_sample(&hello);
+            if matches!(reply, ObservationMode::WrongIdentity) {
+                sample["session_id"] = json!(ID2);
+            }
+            if matches!(reply, ObservationMode::WrongWitness) {
+                sample["R"]["witness"]["script_instance_id"] = json!("123");
+            }
+            if matches!(reply, ObservationMode::WrongClock) {
+                sample["B"]["collection"]["clock_id"] = json!("caller");
+            }
+            if matches!(reply, ObservationMode::SecretUnknownField) {
+                sample["leaked_secret"] = json!(SECRET);
+            }
+            if matches!(reply, ObservationMode::ExcessDiagnostics) {
+                sample["diagnostics"] = json!(vec![
+                    json!({"code":"too_large","stage":"read_editor","surface":"R","message":"Source exceeded its independent observation limit","action":"Inspect this source through a separately authorized bounded workflow"});
+                    65
+                ]);
+            }
+            if matches!(
+                reply,
+                ObservationMode::ExcessSource | ObservationMode::ExcessSourceWrongWitness
+            ) {
+                sample["R"]["text"] =
+                    json!("Q".repeat(godot_agent_kit::observation::SOURCE_LIMIT_BYTES + 1));
+            }
+            if matches!(reply, ObservationMode::ExcessSourceWrongWitness) {
+                sample["R"]["witness"]["script_instance_id"] = json!("123");
+            }
+            if matches!(reply, ObservationMode::Nested) {
+                let mut nested = json!(0);
+                for _ in 0..33 {
+                    nested = json!([nested]);
+                }
+                sample["extension"] = nested;
+            }
+            if matches!(reply, ObservationMode::DuplicateRequired) {
+                let mut encoded = sample.to_string();
+                encoded.pop();
+                encoded.push_str(",\"session_id\":\"00112233445566778899aabbccddeeff\"}");
+                socket
+                    .write_all(&(encoded.len() as u32).to_be_bytes())
+                    .unwrap();
+                socket.write_all(encoded.as_bytes()).unwrap();
+                return;
+            }
+            if matches!(reply, ObservationMode::Stable) {
+                // Deliberately split both the length header and UTF-8/JSON body.
+                // No delay or assumption about TCP packet coalescing is required.
+                socket.set_nodelay(true).unwrap();
+                let bytes = serde_json::to_vec(&sample).unwrap();
+                let header = (bytes.len() as u32).to_be_bytes();
+                socket.write_all(&header[..1]).unwrap();
+                socket.write_all(&header[1..]).unwrap();
+                let (chunks, remainder) = bytes.as_chunks::<7>();
+                for chunk in chunks {
+                    socket.write_all(chunk).unwrap();
+                }
+                socket.write_all(remainder).unwrap();
+            } else {
+                frame(&mut socket, &sample);
+            }
+            if matches!(reply, ObservationMode::Valid | ObservationMode::Stable) {
+                let recheck = read_frame(&mut socket);
+                assert_eq!(
+                    recheck,
+                    json!([
+                        1,
+                        "recheck",
+                        hello[2],
+                        hello[3],
+                        hello[4],
+                        "res://scripts/subject.gd"
+                    ])
+                );
+                let changes = if matches!(reply, ObservationMode::Stable) {
+                    json!([])
+                } else {
+                    json!([{"surface":"B","code":"source_changed"}])
+                };
+                frame(
+                    &mut socket,
+                    &json!({"v":1,"kind":"recheck","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":"res://scripts/subject.gd","collection":editor_stamp(&hello),"checks":"performed","detected_changes":changes,"reason":null}),
+                );
+            }
+            return;
+        }
         // A selected session must not receive a source-bearing frame during T002 routing.
         socket
             .set_read_timeout(Some(Duration::from_millis(150)))
@@ -509,4 +664,509 @@ fn live_plus_unresolved_is_timeout_not_unique() {
     assert_eq!(error.outcome, OutcomeKind::Timeout);
     first.join().unwrap();
     second.join().unwrap();
+}
+
+#[test]
+fn controlled_peer_framing_preserves_exact_editor_text_and_independent_recheck() {
+    use godot_agent_kit::observation::{
+        Authority, Comparison, DetectedChange, ObservationEvidence, ObservationInterval,
+        ObservationOutcome, Recheck, SourceObservation, SourceReason, Sources,
+    };
+    let fixture = Fixture::new();
+    let peer = attach(&fixture, ID1, Mode::Observation(ObservationMode::Valid));
+    let request = fixture.request(None);
+    let mut selected = fixture.resolve(None, Duration::from_secs(2)).unwrap();
+    let started = Instant::now();
+    let sample = wire::observe(
+        &mut selected,
+        &request,
+        started,
+        started + Duration::from_secs(2),
+    )
+    .unwrap();
+    assert_eq!(sample.resource.text(), Some("\u{feff}x\r\n"));
+    assert_eq!(sample.buffer.text(), Some("x\n"));
+    assert_eq!(
+        sample
+            .document
+            .identity()
+            .unwrap()
+            .script_instance_id()
+            .unwrap()
+            .as_str(),
+        "9007199254740993"
+    );
+    assert!(
+        matches!(wire::recheck(&mut selected, &request, started, started + Duration::from_secs(2)).unwrap(), Recheck::Performed { detected_changes } if detected_changes == vec![DetectedChange::Source(Authority::B)])
+    );
+    let target = selected.target().clone();
+    drop(selected);
+    peer.join().unwrap();
+    let worker_sample = wire::EditorSample {
+        document: sample.document.clone(),
+        resource: sample.resource.clone(),
+        buffer: sample.buffer.clone(),
+        dirty: sample.dirty.clone(),
+        diagnostics: sample.diagnostics.clone(),
+    };
+    let encoded_sample = wire::encode_event(
+        &Event::Sample(Box::new(worker_sample)),
+        request.request_id(),
+    )
+    .unwrap();
+    let receipt = started.elapsed().as_micros() as u64 + 1_000_000;
+    assert!(
+        matches!(wire::decode_event(&encoded_sample, &request, Some(&target), receipt).unwrap(),
+        Event::Sample(s) if s.resource.text() == Some("\u{feff}x\r\n") && s.resource.collection().unwrap().received_elapsed_us() == receipt)
+    );
+    let identity_change = ObservationEvidence::new(
+        target.clone(),
+        sample.document.clone(),
+        Sources::new(
+            SourceObservation::unavailable(Authority::D, SourceReason::DiskMissing).unwrap(),
+            sample.resource.clone(),
+            sample.buffer.clone(),
+        )
+        .unwrap(),
+        sample.dirty.clone(),
+        Recheck::performed(vec![DetectedChange::DocumentIdentityReplaced]),
+    );
+    let invalidated = ObservationOutcome::classify(
+        request.clone(),
+        ObservationInterval::new(1, 2, started.elapsed().as_micros() as u64 + 1000),
+        Some(target.clone()),
+        Some(identity_change),
+        vec![],
+        vec![],
+    )
+    .unwrap();
+    let invalidated_json: Value =
+        serde_json::from_slice(&wire::encode_outcome(&invalidated).unwrap()).unwrap();
+    assert!(invalidated_json["snapshot"]["document"]["validity"]["value"].is_null());
+    assert_eq!(
+        invalidated_json["snapshot"]["document"]["validity"]["invalidated_evidence"]["value"],
+        "valid"
+    );
+    assert_eq!(
+        invalidated_json["snapshot"]["document"]["open_state"]["invalidated_evidence"]
+            ["collection"]["clock_id"],
+        format!("editor:{ID1}")
+    );
+    assert!(invalidated_json["snapshot"]["sources"]["R"]["text"].is_null());
+    assert_eq!(
+        invalidated_json["snapshot"]["sources"]["R"]["invalidated_evidence"]["text"],
+        "\u{feff}x\r\n"
+    );
+    assert_eq!(
+        invalidated_json["snapshot"]["sources"]["R"]["invalidated_evidence"]["witness"]
+            ["source_version"],
+        "9007199254740994"
+    );
+    assert_eq!(invalidated_json["snapshot"]["dirty"]["state"], "unknown");
+    assert_eq!(
+        invalidated_json["snapshot"]["dirty"]["invalidated_evidence"]["state"],
+        "dirty"
+    );
+    assert_eq!(
+        invalidated_json["snapshot"]["dirty"]["invalidated_evidence"]["reason"]["code"],
+        "identity_changed"
+    );
+
+    // This controlled peer proves only the protocol boundary, not live-editor collection.
+    let evidence = ObservationEvidence::new(
+        target.clone(),
+        sample.document,
+        Sources::new(
+            SourceObservation::unavailable(Authority::D, SourceReason::DiskMissing).unwrap(),
+            sample.resource,
+            sample.buffer,
+        )
+        .unwrap(),
+        sample.dirty,
+        Recheck::performed(vec![DetectedChange::Source(Authority::B)]),
+    );
+    let outcome = ObservationOutcome::classify(
+        request,
+        ObservationInterval::new(1, 2, started.elapsed().as_micros() as u64 + 1000),
+        Some(target),
+        Some(evidence),
+        vec![],
+        sample.diagnostics,
+    )
+    .unwrap();
+    assert_eq!(outcome.outcome(), OutcomeKind::LimitedObservation);
+    assert_eq!(
+        outcome.snapshot().unwrap().comparisons().resource_buffer(),
+        Comparison::Unknown
+    );
+    let serialized = wire::encode_outcome(&outcome).unwrap();
+    let value: Value = serde_json::from_slice(&serialized).unwrap();
+    assert_eq!(value["schema_version"], 1);
+    assert_eq!(value["resolved_target"]["session_id"], ID1);
+    assert_eq!(
+        value["snapshot"]["document"]["identity"]["script_instance_id"],
+        "9007199254740993"
+    );
+    assert_eq!(value["snapshot"]["sources"]["R"]["text"], "\u{feff}x\r\n");
+    assert!(value["snapshot"]["sources"]["B"]["text"].is_null());
+    assert_eq!(
+        value["snapshot"]["sources"]["B"]["invalidated_evidence"]["text"],
+        "x\n"
+    );
+    assert_eq!(
+        value["snapshot"]["sources"]["B"]["reason"]["code"],
+        "source_changed"
+    );
+    assert_eq!(value["snapshot"]["consistency"]["atomic"], false);
+    assert_eq!(
+        value["snapshot"]["comparisons"]["resource_buffer"],
+        "unknown"
+    );
+    assert_eq!(value["snapshot"]["dirty"]["state"], "dirty");
+    assert!(value["selection"].is_null());
+    assert!(!String::from_utf8(serialized).unwrap().contains(SECRET));
+}
+
+#[test]
+fn controlled_peer_rejects_wrong_identity_duplicates_depth_and_oversized_frames() {
+    for (mode, expected) in [
+        (ObservationMode::WrongIdentity, OutcomeKind::ProtocolError),
+        (
+            ObservationMode::DuplicateRequired,
+            OutcomeKind::ProtocolError,
+        ),
+        (ObservationMode::WrongWitness, OutcomeKind::ProtocolError),
+        (ObservationMode::WrongClock, OutcomeKind::ProtocolError),
+        (
+            ObservationMode::SecretUnknownField,
+            OutcomeKind::ProtocolError,
+        ),
+        (
+            ObservationMode::ExcessDiagnostics,
+            OutcomeKind::ProtocolError,
+        ),
+        (
+            ObservationMode::ExcessSourceWrongWitness,
+            OutcomeKind::ProtocolError,
+        ),
+        (ObservationMode::Nested, OutcomeKind::ProtocolError),
+        (ObservationMode::OverlargeFrame, OutcomeKind::ProtocolError),
+        (ObservationMode::Disconnect, OutcomeKind::DisconnectedEditor),
+        (ObservationMode::Silent, OutcomeKind::Timeout),
+    ] {
+        let fixture = Fixture::new();
+        let peer = attach(&fixture, ID1, Mode::Observation(mode));
+        let request = fixture.request(Some(ID1));
+        let mut selected = fixture.resolve(Some(ID1), Duration::from_secs(2)).unwrap();
+        let started = Instant::now();
+        let error = wire::observe(
+            &mut selected,
+            &request,
+            started,
+            started + Duration::from_millis(140),
+        )
+        .err()
+        .unwrap();
+        assert_eq!(error.outcome, expected);
+        assert_eq!(
+            error.diagnostic.code(),
+            if expected == OutcomeKind::ProtocolError {
+                DiagnosticCode::InvalidFrame
+            } else if expected == OutcomeKind::Timeout {
+                DiagnosticCode::DeadlineExceeded
+            } else {
+                DiagnosticCode::SessionEnded
+            }
+        );
+        assert!(!format!("{error:?}").contains(SECRET));
+        drop(selected);
+        peer.join().unwrap();
+    }
+}
+
+#[test]
+fn excess_resource_text_limits_only_r_and_retains_independent_b() {
+    use godot_agent_kit::observation::{Availability, SourceReason};
+    let fixture = Fixture::new();
+    let peer = attach(
+        &fixture,
+        ID1,
+        Mode::Observation(ObservationMode::ExcessSource),
+    );
+    let request = fixture.request(Some(ID1));
+    let mut selected = fixture.resolve(Some(ID1), Duration::from_secs(2)).unwrap();
+    let started = Instant::now();
+    let sample = wire::observe(
+        &mut selected,
+        &request,
+        started,
+        started + Duration::from_secs(2),
+    )
+    .unwrap();
+    assert_eq!(sample.resource.availability(), Availability::Unavailable);
+    assert_eq!(sample.resource.reason(), Some(SourceReason::TooLarge));
+    assert!(sample.resource.text().is_none());
+    assert_eq!(sample.buffer.text(), Some("x\n"));
+    assert!(sample.document.identity().is_some());
+    drop(selected);
+    peer.join().unwrap();
+}
+
+#[test]
+fn ipc_events_validate_target_identity_and_reject_claimed_success() {
+    use godot_agent_kit::observation::{
+        DecimalCounter, DetectedChange, Diagnostic, EngineVersion, FileIdentity, Recheck,
+        RecheckReason, Stage, Surface,
+    };
+    let fixture = Fixture::new();
+    let request = fixture.request(Some(ID1));
+    let target = godot_agent_kit::observation::ResolvedTarget::for_request(
+        &request,
+        request.project_root().clone(),
+        FileIdentity::new(
+            DecimalCounter::new("9007199254740993").unwrap(),
+            DecimalCounter::new("9007199254740994").unwrap(),
+        ),
+        SessionId::new(ID1).unwrap(),
+        EngineVersion::new(VERSION, HASH).unwrap(),
+    )
+    .unwrap();
+    let event = wire::encode_event(&Event::Selected(target.clone()), request.request_id()).unwrap();
+    assert!(
+        matches!(wire::decode_event(&event, &request, None, 1).unwrap(), Event::Selected(t) if t.project_file_id().inode().as_str() == "9007199254740994")
+    );
+    let mut wrong: Value = serde_json::from_slice(&event).unwrap();
+    wrong["target"]["session_id"] = json!(ID2);
+    assert_eq!(
+        wire::decode_event(wrong.to_string().as_bytes(), &request, None, 1)
+            .err()
+            .unwrap()
+            .outcome,
+        OutcomeKind::ProtocolError
+    );
+    let mut wrong = serde_json::from_slice::<Value>(&event).unwrap();
+    wrong["target"]["script_path"] = json!("res://scripts/other.gd");
+    assert!(wire::decode_event(wrong.to_string().as_bytes(), &request, None, 1).is_err());
+    let failed = json!({"v":1,"request_id":request.request_id().as_str(),"kind":"failed",
+        "failure":{"outcome":"complete_observation","diagnostic":{"code":"invalid_frame","stage":"read_editor","surface":"session","message":"Bridge response was invalid","action":"Inspect the affected stage and authority before a new observation"},"selection":null}});
+    assert!(wire::decode_event(failed.to_string().as_bytes(), &request, Some(&target), 1).is_err());
+    let diagnostic = Diagnostic::new(
+        DiagnosticCode::DeadlineExceeded,
+        Stage::Recheck,
+        Some(Surface::Session),
+    );
+    let failure = target::RoutingFailure {
+        outcome: OutcomeKind::Timeout,
+        diagnostic,
+        selection: None,
+    };
+    let event = wire::encode_event(&Event::Failed(failure), request.request_id()).unwrap();
+    assert!(
+        matches!(wire::decode_event(&event, &request, Some(&target), 1).unwrap(), Event::Failed(f) if f.outcome == OutcomeKind::Timeout)
+    );
+    let partial = wire::encode_event(
+        &Event::Rechecked(Recheck::partial(
+            RecheckReason::Unavailable,
+            vec![DetectedChange::Source(
+                godot_agent_kit::observation::Authority::B,
+            )],
+        )),
+        request.request_id(),
+    )
+    .unwrap();
+    assert!(
+        matches!(wire::decode_event(&partial, &request, Some(&target), 1).unwrap(),
+        Event::Rechecked(Recheck::Partial { reason: RecheckReason::Unavailable, detected_changes }) if detected_changes == vec![DetectedChange::Source(godot_agent_kit::observation::Authority::B)])
+    );
+    let valid = wire::encode_event(
+        &Event::DiskChecked(vec![DetectedChange::DiskIdentityReplaced]),
+        request.request_id(),
+    )
+    .unwrap();
+    assert!(
+        matches!(wire::decode_event(&valid, &request, Some(&target), 1).unwrap(), Event::DiskChecked(changes) if changes == vec![DetectedChange::DiskIdentityReplaced])
+    );
+    let mut wrong = serde_json::from_slice::<Value>(&valid).unwrap();
+    wrong["disk_checked"][0]["surface"] = json!("B");
+    assert!(wire::decode_event(wrong.to_string().as_bytes(), &request, Some(&target), 1).is_err());
+}
+
+#[test]
+fn denied_result_is_source_free_with_required_nullables_and_safe_diagnostics() {
+    use godot_agent_kit::observation::{
+        Diagnostic, ObservationInterval, ObservationOutcome, Stage, Surface, TerminalFailure,
+    };
+    let fixture = Fixture::new();
+    let request = fixture.request(Some(ID1));
+    let diagnostic = Diagnostic::new(
+        DiagnosticCode::DeniedAccess,
+        Stage::ResolveTarget,
+        Some(Surface::Session),
+    );
+    let outcome = ObservationOutcome::classify(
+        request,
+        ObservationInterval::new(1, 2, 3),
+        None,
+        None,
+        vec![TerminalFailure::DeniedAccess],
+        vec![diagnostic],
+    )
+    .unwrap();
+    let bytes = wire::encode_outcome(&outcome).unwrap();
+    let value: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(value.as_object().unwrap().len(), 8);
+    assert_eq!(value["outcome"], "denied_access");
+    assert!(value["resolved_target"].is_null());
+    assert!(value["snapshot"].is_null());
+    assert!(value["selection"].is_null());
+    assert_eq!(value["diagnostics"][0]["code"], "denied_access");
+    assert_eq!(
+        value["diagnostics"][0]["message"],
+        "Access to target was denied"
+    );
+    assert_eq!(
+        value["diagnostics"][0]["action"],
+        "Check access and explicit target selection"
+    );
+    assert!(!String::from_utf8(bytes).unwrap().contains(SECRET));
+}
+
+#[test]
+fn invalidated_worker_evidence_is_preserved_without_becoming_current_text() {
+    use godot_agent_kit::observation::{
+        DecimalCounter, DirtyReason, EngineVersion, FactReason, FileIdentity, SourceReason,
+    };
+    let fixture = Fixture::new();
+    let request = fixture.request(Some(ID1));
+    let selected = godot_agent_kit::observation::ResolvedTarget::for_request(
+        &request,
+        request.project_root().clone(),
+        FileIdentity::new(
+            DecimalCounter::new("1").unwrap(),
+            DecimalCounter::new("2").unwrap(),
+        ),
+        SessionId::new(ID1).unwrap(),
+        EngineVersion::new(VERSION, HASH).unwrap(),
+    )
+    .unwrap();
+    let mut sample = observation_sample(&json!([
+        1,
+        "hello",
+        request.request_id().as_str(),
+        ID1,
+        request.project_root().as_str()
+    ]));
+    let source_reason =
+        json!({"code":"source_changed","action":SourceReason::SourceChanged.action()});
+    let dirty_reason =
+        json!({"code":"source_changed","action":DirtyReason::SourceChanged.action()});
+    let fact_reason = json!({"code":"source_changed","action":FactReason::SourceChanged.action()});
+    let resource = sample["R"].take();
+    sample["R"] = json!({"authority":"R","availability":"unavailable","text":null,"collection":null,"witness":null,"staleness":null,
+        "reason":source_reason,"invalidated_evidence":{"text":resource["text"],"collection":resource["collection"],"witness":resource["witness"],"staleness":resource["staleness"],"reason":source_reason}});
+    let dirty = sample["dirty"].take();
+    sample["dirty"] = json!({"availability":"unavailable","state":"unknown","collection":null,"witness":null,"reason":dirty_reason,
+        "invalidated_evidence":{"state":dirty["state"],"collection":dirty["collection"],"witness":dirty["witness"],"reason":dirty_reason}});
+    let validity = sample["document"]["validity"].take();
+    sample["document"]["validity"] = json!({"value":null,"collection":null,"reason":fact_reason,
+        "invalidated_evidence":{"value":validity["value"],"collection":validity["collection"],"reason":fact_reason}});
+    let event = json!({"v":1,"request_id":request.request_id().as_str(),"kind":"sample","sample":{
+        "document":sample["document"],"R":sample["R"],"B":sample["B"],"dirty":sample["dirty"],"diagnostics":[]}});
+    let decoded =
+        wire::decode_event(event.to_string().as_bytes(), &request, Some(&selected), 100).unwrap();
+    let Event::Sample(sample) = decoded else {
+        panic!("expected validated partial sample")
+    };
+    assert_eq!(sample.resource.text(), None);
+    assert_eq!(
+        sample.resource.invalidated_evidence().unwrap().text(),
+        "\u{feff}x\r\n"
+    );
+    assert_eq!(sample.buffer.text(), Some("x\n"));
+    assert!(sample.dirty.state().is_none());
+    assert!(sample.dirty.invalidated_evidence().is_some());
+    assert!(sample.document.validity().value().is_none());
+    assert!(sample.document.validity().invalidated_evidence().is_some());
+    let mut wrong = event;
+    wrong["sample"]["R"]["invalidated_evidence"]["witness"]["script_instance_id"] = json!("999");
+    assert!(
+        wire::decode_event(wrong.to_string().as_bytes(), &request, Some(&selected), 100).is_err()
+    );
+}
+
+#[test]
+fn actual_caller_completes_supported_peer_and_preserves_rechecked_partial_evidence() {
+    // These peers test the real caller/worker pipeline, not Godot's R/B observability.
+    for (mode, expected, exit) in [
+        (ObservationMode::Stable, "complete_observation", 0),
+        (ObservationMode::Valid, "limited_observation", 2),
+    ] {
+        let fixture = Fixture::new();
+        fs::create_dir(fixture.project.join("scripts")).unwrap();
+        let sentinel = "# T003_INTENTIONAL_DISK_RESULT_ONLY\n";
+        fs::write(fixture.project.join("scripts/subject.gd"), sentinel).unwrap();
+        let peer = attach(&fixture, ID1, Mode::Observation(mode));
+        let began = Instant::now();
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_observe-gdscript"))
+            .args([
+                "--registry",
+                fixture.registry.to_str().unwrap(),
+                "--project",
+                fixture.project.to_str().unwrap(),
+                "--script",
+                "res://scripts/subject.gd",
+            ])
+            .output()
+            .unwrap();
+        assert!(began.elapsed() < Duration::from_secs(5));
+        assert_eq!(output.status.code(), Some(exit));
+        assert!(output.stderr.is_empty());
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(result["outcome"], expected);
+        assert_eq!(result["resolved_target"]["session_id"], ID1);
+        assert_eq!(result["snapshot"]["sources"]["D"]["text"], sentinel);
+        assert_eq!(result["snapshot"]["sources"]["R"]["text"], "\u{feff}x\r\n");
+        assert_eq!(result["snapshot"]["agreement"], "divergent");
+        if matches!(mode, ObservationMode::Valid) {
+            assert!(result["snapshot"]["sources"]["B"].get("text").is_none());
+            assert_eq!(
+                result["snapshot"]["sources"]["B"]["invalidated_evidence"]["text"],
+                "x\n"
+            );
+        } else {
+            assert_eq!(result["snapshot"]["sources"]["B"]["text"], "x\n");
+        }
+        assert!(!String::from_utf8(output.stdout).unwrap().contains(SECRET));
+        peer.join().unwrap();
+    }
+}
+
+#[test]
+fn selected_channel_cannot_be_reused_for_another_request_or_project() {
+    let fixture = Fixture::new();
+    let peer = attach(&fixture, ID1, Mode::Valid);
+    let mut selected = fixture.resolve(None, Duration::from_secs(2)).unwrap();
+    for (id, root) in [
+        ("another_request", fixture.project.to_str().unwrap()),
+        ("try_1", "/different_project"),
+    ] {
+        let request = ObservationRequest::new(
+            RequestId::new(id).unwrap(),
+            ProjectRoot::new(root).unwrap(),
+            None,
+            ResourcePath::new("res://scripts/subject.gd").unwrap(),
+        );
+        let start = Instant::now();
+        let failure = wire::observe(
+            &mut selected,
+            &request,
+            start,
+            start + Duration::from_secs(1),
+        )
+        .err()
+        .unwrap();
+        assert_eq!(failure.outcome, OutcomeKind::ProtocolError);
+    }
+    drop(selected);
+    peer.join().unwrap();
 }

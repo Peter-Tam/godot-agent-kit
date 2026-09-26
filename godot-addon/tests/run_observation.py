@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Owned, synthetic T002 live-session and production-export acceptance.
+"""Owned, synthetic session/executor and production-export acceptance.
 
 This is test infrastructure, not an editor-control or source-observation API.
-The Rust probe is a temporary library consumer; the product CLI remains bootstrap-only.
+The Rust probes are temporary library consumers, not additional product operations.
 """
 from __future__ import annotations
 
@@ -156,6 +156,31 @@ fn main() {
                 .iter().map(|session| session.as_str()).collect::<Vec<_>>())}),
     };
     println!("{}", result);
+}
+'''
+
+DISK_PROBE_SOURCE = r'''
+use godot_agent_kit::{observation::*, project_fs, target};
+use std::{path::Path, time::{Duration, Instant}};
+fn main() {
+    let started = Instant::now();
+    let args: Vec<String> = std::env::args().collect();
+    let request = ObservationRequest::new(RequestId::new("t003-disk-consumer").unwrap(),
+        ProjectRoot::new(args[2].clone()).unwrap(), None,
+        ResourcePath::new("res://scripts/subject.gd").unwrap());
+    let selected = target::resolve(&request, Path::new(&args[1]),
+        started + Duration::from_millis(4500)).expect("owned authenticated target");
+    let disk = project_fs::read_disk(&selected, started).expect("confined D");
+    let changes = project_fs::recheck_disk(&selected, &disk, started).expect("confined D recheck");
+    assert!(changes.is_empty(), "unchanged owned source");
+    let id = disk.witness().unwrap().disk_file_id().unwrap();
+    println!("{}", serde_json::json!({
+        "session_id":selected.target().session_id().as_str(),
+        "project_root":selected.target().project_root().as_str(),
+        "authority":"D", "availability":"observed", "text":disk.text().unwrap(),
+        "file_id":{"device":id.device().as_str(), "inode":id.inode().as_str()},
+        "checks":"performed", "detected_changes":[], "elapsed_us":started.elapsed().as_micros()
+    }));
 }
 '''
 
@@ -319,10 +344,13 @@ class Harness:
         self.safe_log(editor["log"].name, editor["log"].read_bytes())
 
     def screenshot(self, editor, name):
-        window = run([self.window_probe, editor["process"].pid])
-        require(window.returncode == 0 and window.stdout.strip().isdigit(), "owned_visible_window")
+        def visible_window():
+            require(editor["process"].poll() is None, "owned_editor_exited_before_capture")
+            window = run([self.window_probe, editor["process"].pid], timeout=2)
+            return window.stdout.decode().strip() if window.returncode == 0 and window.stdout.strip().isdigit() else None
+        window = wait_for(visible_window, "owned_visible_window", timeout=20)
         path = self.artifacts / name
-        result = run(["/usr/sbin/screencapture", "-x", "-l", window.stdout.decode().strip(), path])
+        result = run(["/usr/sbin/screencapture", "-x", "-l", window, path])
         require(result.returncode == 0 and path.is_file(), "owned_window_capture")
         return name
 
@@ -495,6 +523,135 @@ class Harness:
         require(acl_after.returncode == 0 and b"everyone allow" in acl_after.stdout,
                 "unsafe_registry_acl_not_repaired")
 
+
+    def observe(self, project, expected, exit_code, *, session=None, name=None):
+        command = [self.args.observer, "--registry", self.registry, "--project", project,
+                   "--script", "res://scripts/subject.gd"]
+        if session is not None:
+            command += ["--session", session]
+        started = time.monotonic()
+        response = run(command, timeout=5.2)
+        elapsed = time.monotonic() - started
+        return self.observer_result(response.returncode, response.stdout, response.stderr,
+                                    elapsed, expected, exit_code, name or expected)
+
+    def observer_result(self, code, stdout, stderr, elapsed, expected, exit_code, name):
+        require(code == exit_code, "caller_exit_" + name)
+        require(stdout.endswith(b"\n") and stdout.count(b"\n") == 1, "caller_single_json_" + name)
+        result = json.loads(stdout)
+        require(set(result) == {"schema_version", "request_id", "outcome", "interval",
+                               "resolved_target", "snapshot", "diagnostics", "selection"},
+                "caller_result_fields_" + name)
+        require(result["outcome"] == expected and result["schema_version"] == 1, "caller_outcome_" + name)
+        require(result["snapshot"] is None, "absent_collector_no_source_" + name)
+        require(elapsed < 5 and result["interval"]["elapsed_us"] < 5_000_000, "caller_deadline_" + name)
+        self.safe_log(name + ".json", stdout)
+        self.safe_log(name + ".stderr", stderr)
+        self.case(name, outcome=expected, exit_code=code, elapsed_seconds=elapsed,
+                  request_id=result["request_id"], target=result["resolved_target"])
+        return result
+
+    def executor_boundary(self):
+        self.summary["task"] = "T003"
+        self.compile_probes()
+        project = self.fixture("executor")
+        subject = project / "scripts" / "subject.gd"
+        before = (digest(subject), subject.stat().st_mtime_ns)
+        self.observe(project, "editor_unavailable", 3, name="zero_sessions")
+        first = self.start_editor(project)
+        descriptor = wait_for(lambda: self.descriptors(project), "executor_advertisement")[0]
+        witness = self.action(first, "witness")
+        result = self.observe(project, "unsupported_observation", 2, name="absent_live_collector")
+        require(result["resolved_target"]["session_id"] == descriptor["session_id"],
+                "unsupported_retains_authenticated_target")
+        require(any(item["code"] == "unsupported_capability" for item in result["diagnostics"]),
+                "absent_capability_reason")
+        self.observe(project, "editor_unavailable", 3, session="f" * 32, name="ended_session_no_fallback")
+        source = self.work / "disk-probe.rs"
+        source.write_text(DISK_PROBE_SOURCE)
+        debug = self.args.observer.parent
+        libraries = list((debug / "deps").glob("libserde_json-*.rlib"))
+        disk_probe = self.work / "disk-probe"
+        compilation = run(["rustc", "+1.98.1", "--edition=2021", source, "--extern",
+                           "godot_agent_kit=" + str(debug / "libgodot_agent_kit.rlib"), "--extern",
+                           "serde_json=" + str(libraries[0]), "-L", "dependency=" + str(debug / "deps"),
+                           "-o", disk_probe])
+        self.safe_log("disk-consumer-compile.stderr", compilation.stderr)
+        require(compilation.returncode == 0, "disk_consumer_compile")
+        sampled = run([disk_probe, self.registry, project], timeout=5)
+        require(sampled.returncode == 0, "authenticated_disk_consumer")
+        disk = json.loads(sampled.stdout)
+        require(disk["session_id"] == descriptor["session_id"] and
+                disk["text"].encode() == subject.read_bytes() and
+                int(disk["file_id"]["inode"]) == subject.stat().st_ino and
+                disk["checks"] == "performed" and disk["detected_changes"] == [],
+                "independent_disk_read_recheck")
+        # Intentional synthetic D evidence, not an incidental source log.
+        json_file(self.artifacts / "disk-consumer-evidence.json", disk)
+        self.safe_log("disk-consumer.stderr", sampled.stderr)
+        self.case("authenticated_confined_disk_read_recheck", source_surfaces="D",
+                  session_id=descriptor["session_id"], file_id=disk["file_id"])
+        shot = self.screenshot(first, "executor-boundary.png")
+        second = self.start_editor(project)
+        wait_for(lambda: len(self.descriptors(project)) == 2, "executor_ambiguous_advertisements")
+        ambiguous = self.observe(project, "ambiguous_target", 3, name="two_sessions_no_source")
+        require(ambiguous["resolved_target"] is None and ambiguous["selection"] is not None,
+                "ambiguous_selector_feedback")
+        self.observe(project, "unsupported_observation", 2, session=descriptor["session_id"],
+                     name="exact_session_missing_capability")
+        first["process"].send_signal(signal.SIGSTOP)
+        first["suspended"] = True
+        try:
+            self.observe(project, "timeout", 4, session=descriptor["session_id"], name="silent_editor")
+            for cancel in (False, True):
+                command = [self.args.observer, "--registry", self.registry, "--project", project,
+                           "--session", descriptor["session_id"], "--script", "res://scripts/subject.gd"]
+                started = time.monotonic()
+                process = subprocess.Popen([str(arg) for arg in command], stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE)
+                owned_worker = None
+                try:
+                    def child_pid():
+                        children = run(["/usr/bin/pgrep", "-P", process.pid])
+                        values = children.stdout.split()
+                        require(len(values) <= 1, "exactly_one_owned_worker")
+                        return int(values[0]) if values else None
+                    owned_worker = wait_for(child_pid, "owned_worker_started", timeout=2)
+                    os.kill(owned_worker, signal.SIGSTOP)
+                    if cancel:
+                        process.send_signal(signal.SIGINT)
+                    stdout, stderr = process.communicate(timeout=5.1)
+                    self.observer_result(process.returncode, stdout, stderr, time.monotonic() - started,
+                                         "cancelled" if cancel else "timeout", 4,
+                                         "cancelled_stalled_worker" if cancel else "stalled_worker")
+                    def worker_gone():
+                        try:
+                            os.kill(owned_worker, 0)
+                            return False
+                        except ProcessLookupError:
+                            return True
+                    wait_for(worker_gone, "owned_worker_reaped", timeout=2)
+                    require(first["process"].poll() is None and second["process"].poll() is None,
+                            "supervisor_did_not_terminate_editors")
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                        process.communicate(timeout=2)
+                    if owned_worker is not None:
+                        try:
+                            os.kill(owned_worker, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+        finally:
+            first["process"].send_signal(signal.SIGCONT)
+            first["suspended"] = False
+        final = self.action(first, "witness")
+        require(witness.get("open_paths") == final.get("open_paths") and
+                witness.get("current_script") == final.get("current_script") and
+                before == (digest(subject), subject.stat().st_mtime_ns),
+                "executor_source_selection_noninterference")
+        self.case("executor_noninterference", screenshot=shot,
+                  source_sha256=before[0], source_mtime_ns=before[1])
 
     def session_boundary(self):
         self.compile_probes()
@@ -745,7 +902,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--godot", required=True, type=Path)
     parser.add_argument("--observer", required=True, type=Path)
-    parser.add_argument("--scenario", required=True, choices=("all", "session-boundary", "export-boundary", *MISSING_GROUPS))
+    parser.add_argument("--scenario", required=True, choices=("all", "session-boundary", "executor-boundary", "export-boundary", *MISSING_GROUPS))
     parser.add_argument("--artifacts", required=True, type=Path)
     args = parser.parse_args()
     os.umask(0o077)
@@ -770,6 +927,8 @@ def main():
             harness.initialize()
             if args.scenario == "session-boundary":
                 harness.session_boundary()
+            elif args.scenario == "executor-boundary":
+                harness.executor_boundary()
             else:
                 harness.export_boundary()
             harness.summary["status"] = "passed"

@@ -88,6 +88,31 @@ and [research](research.md#t002-resolved-authentication-dependencies-and-tool-pr
 No source-observation or additional-platform support is earned by these checks.
 
 
+### T003 implementation compliance
+
+T003 implements only the approved execution/disk/codec boundary. The local caller
+supervises its own same-binary read-only worker over inherited private IPC; it
+accepts no executable, endpoint, force, or deadline override. SIGINT/SIGTERM set a
+lock-free cancellation flag through a documented Darwin signal boundary. Only the
+owned worker is killed/reaped, without joining blocked filesystem acquisition.
+
+Constitution V/X: unique authenticated selection precedes source; the selected
+channel retains request/project/session binding. Capability-rooted D acquisition
+and recheck refuse unsafe roots, symlinks, substituted identities, modes or ACLs.
+Framed DTOs enforce bounds and strict attribution; diagnostics contain fixed safe
+metadata. I/II/IV/VII/XII: independent D remains separate from editor evidence and
+protocol-independent classification, no source is copied between authorities,
+and individually validated partial evidence survives interruption. The additive
+`Recheck::Partial` representation retains detected changes without a false claim
+that all checks completed. It preserves the existing version-1 wire semantics.
+
+No addon collector, Godot mutation, MCP, gameplay or export payload is added.
+Mutation A–E and applied-edit durability remain inapplicable; T002's unchanged
+exported-addon exclusion remains the applicable boundary. T003 does not earn
+positive R/B/dirty or US1 support. Actual native/executor evidence and the
+unchanged dependency baseline are recorded in [quickstart §2.3](quickstart.md#23-t003-executor-boundary-evidence-2026-09-26)
+and [research](research.md#t003-executor-provenance-2026-09-26).
+
 ## Project Structure
 
 ### Documentation (this feature)

@@ -13,9 +13,11 @@ use crate::project_fs;
 pub struct SelectedSession {
     target: ResolvedTarget,
     capabilities: Capabilities,
-    // The authenticated channel stays attached to exactly this request and editor lifetime.
-    _socket: std::net::TcpStream,
-    _project_directory: cap_std::fs::Dir,
+    requested_project_root: crate::observation::ProjectRoot,
+    // The authenticated channel and rooted directory stay attached to this unique selection.
+    pub(crate) socket: std::net::TcpStream,
+    pub(crate) project_directory: cap_std::fs::Dir,
+    pub(crate) advertised_project_root: String,
 }
 impl fmt::Debug for SelectedSession {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -31,6 +33,23 @@ impl SelectedSession {
     }
     pub fn capabilities(&self) -> &Capabilities {
         &self.capabilities
+    }
+    pub(crate) fn matches_request(&self, request: &ObservationRequest) -> bool {
+        self.target.request_id() == request.request_id()
+            && &self.requested_project_root == request.project_root()
+            && self.target.script_path() == request.script_path()
+            && request
+                .session_id()
+                .is_none_or(|id| id == self.target.session_id())
+    }
+    pub(crate) fn observation_channel(
+        &mut self,
+    ) -> (&mut std::net::TcpStream, &ResolvedTarget, &str) {
+        (
+            &mut self.socket,
+            &self.target,
+            &self.advertised_project_root,
+        )
     }
 }
 
@@ -132,6 +151,7 @@ pub fn resolve(
         SessionId,
         bridge::Authenticated,
         crate::observation::EngineVersion,
+        String,
     )> = Vec::new();
     let mut pending = false;
     let mut deferred_failure: Option<RoutingFailure> = None;
@@ -178,7 +198,12 @@ pub fn resolve(
                         continue;
                     }
                 };
-                confirmed.push((session, authenticated, version));
+                confirmed.push((
+                    session,
+                    authenticated,
+                    version,
+                    descriptor.project_root.clone(),
+                ));
             }
             Err(error) if error.outcome == OutcomeKind::EditorUnavailable => {}
             Err(error) if error.outcome == OutcomeKind::Timeout => {
@@ -195,7 +220,7 @@ pub fn resolve(
         }
     }
     if confirmed.len() > 1 {
-        let sessions = confirmed.into_iter().map(|(id, _, _)| id).collect();
+        let sessions = confirmed.into_iter().map(|(id, _, _, _)| id).collect();
         let selection = Selection::ambiguous(sessions)
             .map_err(|_| fail(OutcomeKind::ProtocolError, DiagnosticCode::InvalidFrame))?;
         let mut error = fail(
@@ -211,7 +236,7 @@ pub fn resolve(
     if pending || Instant::now() >= deadline {
         return Err(fail(OutcomeKind::Timeout, DiagnosticCode::DeadlineExceeded));
     }
-    let Some((id, authenticated, version)) = confirmed.pop() else {
+    let Some((id, authenticated, version, advertised_project_root)) = confirmed.pop() else {
         return Err(fail(
             OutcomeKind::EditorUnavailable,
             DiagnosticCode::EditorUnavailable,
@@ -229,7 +254,9 @@ pub fn resolve(
     Ok(SelectedSession {
         target,
         capabilities: authenticated.capabilities,
-        _socket: authenticated.socket,
-        _project_directory: project.directory,
+        requested_project_root: request.project_root().clone(),
+        socket: authenticated.socket,
+        project_directory: project.directory,
+        advertised_project_root,
     })
 }
