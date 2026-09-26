@@ -1,0 +1,19 @@
+# Rust build and profiling artifacts; Cargo.lock is intentionally tracked.
+target/
+debug/
+release/
+*.rs.bk
+*.rlib
+*.prof*
+
+# Local environment, logs, and editor state.
+.env*
+*.log
+.idea/
+.vscode/
+
+# Operating-system and temporary files.
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp

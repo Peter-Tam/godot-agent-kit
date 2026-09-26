@@ -85,6 +85,45 @@ Use the standard library for TCP, monotonic deadlines, process supervision, and 
 
 Authentication dependency sources: [ring 0.17.14 manifest](https://docs.rs/crate/ring/0.17.14/source/Cargo.toml), [ring HMAC sign/verify and random examples](https://docs.rs/ring/0.17.14/ring/hmac/index.html), [RUSTSEC-2025-0009](https://rustsec.org/advisories/RUSTSEC-2025-0009.html), [RUSTSEC-2025-0010 maintenance scope](https://rustsec.org/advisories/RUSTSEC-2025-0010.html), [Godot HMAC-SHA256](https://docs.godotengine.org/en/4.7/classes/class_crypto.html#class-crypto-method-hmac-digest).
 
+### T001 resolved dependency and native-CI evidence (2026-09-26)
+
+`cargo +1.98.1 generate-lockfile` created the tracked version-4 `mcp-server/Cargo.lock` (SHA-256 `e91b98922776713110b9c2f411a3b91b3da26fcd9646511c1a1ac3ac0ab5bd95`). `cargo +1.98.1 metadata --locked --format-version 1` resolved **one local library package and 50 registry packages**, including non-macOS transitives; the sole target is `godot_agent_kit` (lib), not a binary. Enabled features are `serde`: default/derive/std, `serde_json`: default/std, and `cap-std`: none (its defaults disabled). No additional crate is required for T001's reusable native semantics; `ring` remains T002-only, and the planned caller, authentication, disk reading, and Godot integration are not implemented by this lockfile.
+
+The following groups enumerate **all 50 actual locked registry packages**. License expressions and upstream repository URLs come from each fetched package's Cargo metadata, not from the project's undecided license. `A` = `MIT OR Apache-2.0`; `B` = `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT`; `C` = `Apache-2.0 WITH LLVM-exception`; `D` = `Unlicense OR MIT`; `E` = `(MIT OR Apache-2.0) AND Unicode-3.0`. The `AND` in E requires preserving the Unicode notice; C requires retaining the LLVM-exception terms. All indicated options are recognized open-source licenses; this does not choose a license for this project or replace a distribution-time notice review.
+
+| Locked packages (exact versions) | License | Declared upstream repository |
+|---|---|---|
+| `serde`, `serde_core`, `serde_derive` 1.0.229 | A | [serde-rs/serde](https://github.com/serde-rs/serde) |
+| `serde_json` 1.0.151 | A | [serde-rs/json](https://github.com/serde-rs/json) |
+| `cap-std`, `cap-primitives` 4.0.3 | B | [bytecodealliance/cap-std](https://github.com/bytecodealliance/cap-std) |
+| `ambient-authority` 0.0.2 | B | [sunfishcode/ambient-authority](https://github.com/sunfishcode/ambient-authority) |
+| `fs-set-times` 0.20.3 | B | [bytecodealliance/fs-set-times](https://github.com/bytecodealliance/fs-set-times) |
+| `io-extras` 0.19.0 | B | [sunfishcode/io-extras](https://github.com/sunfishcode/io-extras) |
+| `io-lifetimes` 2.0.4 and 3.0.1 | B | [sunfishcode/io-lifetimes](https://github.com/sunfishcode/io-lifetimes) |
+| `rustix` 1.1.5 | B | [bytecodealliance/rustix](https://github.com/bytecodealliance/rustix) |
+| `rustix-linux-procfs` 0.1.1 | B | [sunfishcode/rustix-linux-procfs](https://github.com/sunfishcode/rustix-linux-procfs) |
+| `linux-raw-sys` 0.12.1 | B | [sunfishcode/linux-raw-sys](https://github.com/sunfishcode/linux-raw-sys) |
+| `winx` 0.36.4 | C | [sunfishcode/winx](https://github.com/sunfishcode/winx) |
+| `bitflags` 2.13.2 | A | [bitflags/bitflags](https://github.com/bitflags/bitflags) |
+| `errno` 0.3.14 | A | [lambda-fairy/rust-errno](https://github.com/lambda-fairy/rust-errno) |
+| `ipnet` 2.12.2 | A | [krisprice/ipnet](https://github.com/krisprice/ipnet) |
+| `itoa` 1.0.18 | A | [dtolnay/itoa](https://github.com/dtolnay/itoa) |
+| `libc` 0.2.189 | A | [rust-lang/libc](https://github.com/rust-lang/libc) |
+| `maybe-owned` 0.3.4 | A | [rustonaut/maybe-owned](https://github.com/rustonaut/maybe-owned) |
+| `memchr` 2.8.3 | D | [BurntSushi/memchr](https://github.com/BurntSushi/memchr) |
+| `once_cell` 1.21.4 | A | [matklad/once_cell](https://github.com/matklad/once_cell) |
+| `proc-macro2` 1.0.107, `quote` 1.0.47, `syn` 3.0.6 | A | [dtolnay/proc-macro2](https://github.com/dtolnay/proc-macro2), [dtolnay/quote](https://github.com/dtolnay/quote), [dtolnay/syn](https://github.com/dtolnay/syn) respectively |
+| `unicode-ident` 1.0.26 | E | [dtolnay/unicode-ident](https://github.com/dtolnay/unicode-ident) |
+| `zmij` 1.0.23 | MIT | [dtolnay/zmij](https://github.com/dtolnay/zmij) |
+| `windows-link` 0.2.1; `windows-sys` 0.59.0, 0.60.2, 0.61.2; `windows-targets` 0.52.6, 0.53.5; `windows_{aarch64,i686,x86_64}_{gnullvm,msvc}` 0.52.6 and 0.53.1; `windows_{i686,x86_64}_gnu` 0.52.6 and 0.53.1 (**22** entries) | A | [microsoft/windows-rs](https://github.com/microsoft/windows-rs) |
+
+Every one of these 50 entries names `registry+https://github.com/rust-lang/crates.io-index` and has an individual SHA-256 `checksum` in `Cargo.lock`; all 50 fetched `.crate` archives in Cargo's crates.io cache were independently hashed and matched their respective lockfile checksums (50/50, zero missing/mismatches). Windows and Linux-only packages were included in this check, **not compiled or platform-tested**. The lockfile records both `io-lifetimes` versions and all Windows versions rather than concealing target-specific resolution. This is registry archive integrity and declared-repository provenance, not an independent audit of every upstream release process or a native compilation result.
+
+Separately installed Homebrew `cargo-audit` **0.22.2** (its `cargo audit --version` printed `cargo-audit-audit 0.22.2`) ran `cargo audit --file Cargo.lock --json` against [RustSec advisory-db commit `e2111519ba6d14a5da59a7b2e5c8083ae8a37c01`](https://github.com/RustSec/advisory-db/commit/e2111519ba6d14a5da59a7b2e5c8083ae8a37c01), last updated 2026-09-25 19:51:57 +02:00: 1,271 known advisories; 51 lockfile packages; **0 reported vulnerabilities and no unmaintained/unsound/notice warnings**, with no ignored advisories. The previously reviewed `cap-primitives` Windows sandbox advisory affects older versions, not locked 4.0.3; absence of a warning is database-specific, not proof of all-platform safety. No warning has been suppressed. Adding `ring` at T002 requires a new full-lockfile license/provenance/advisory review.
+
+Native workflow uses [GitHub's documented `macos-15` arm64 hosted label](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), verifies product OS major, CPU architecture, compiler version, and Rust host tuple at runtime; [upstream checkout tag `v4.3.1`](https://api.github.com/repos/actions/checkout/git/ref/tags/v4.3.1) resolves to the pinned full commit `34e114876b0b11c390a56381ad16ebd13914f8d5`. It uses a read-only token with checkout credentials not persisted, no secrets or privileged GUI runner, and the exact locked native fmt/clippy/test/docs baselines. **These are workflow configuration and dependency-fetch/audit observations only; no native checks, CI run, GUI-editor test, or platform/editor support are claimed here.** Sources for review method: [Cargo metadata](https://doc.rust-lang.org/cargo/commands/cargo-metadata.html), [Cargo lockfiles](https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html), [RustSec cargo-audit](https://github.com/rustsec/rustsec/tree/main/cargo-audit).
+
+
 ## 5. Local bridge, session bootstrap, and confinement
 
 **Decision:** A per-editor `TCPServer` listens only on `127.0.0.1`. Choose a random high port and retry bounded bind collisions during plugin bootstrap; do not rely on undocumented port-zero behavior. The caller initializes a private registry outside the project. The addon must be explicitly enabled and receive that registry path through `GODOT_AGENT_KIT_REGISTRY`; absent/unsafe configuration disables the listener, not authentication.

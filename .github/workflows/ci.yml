@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/ci.yml
+      - mcp-server/**
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/ci.yml
+      - mcp-server/**
+  workflow_dispatch:
+
+# Replace older runs for the same PR/ref without mixing automatic and manual runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Keep shared-boundary checks as jobs; expand path filters only with matching coverage.
+jobs:
+  rust-native:
+    name: Rust native
+    runs-on: macos-15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: Verify native runner and toolchain
+        working-directory: mcp-server
+        run: |
+          test "$(sw_vers -productVersion | cut -d. -f1)" = 15
+          test "$(uname -m)" = arm64
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+          test "$(rustc --version)" = 'rustc 1.98.1 (48a229cea 2026-09-01)'
+          test "$(rustc --print host-tuple)" = aarch64-apple-darwin
+      - name: Verify library and documentation
+        working-directory: mcp-server
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --locked
+          cargo doc --no-deps --locked
