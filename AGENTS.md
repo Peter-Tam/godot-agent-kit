@@ -29,6 +29,14 @@ Every completed individual Spec Kit implementation task in the active approved
 Do not batch prerequisites: finish and deliver each separately. Governance/bootstrap
 changes may form one coherent dedicated PR rather than artificial task PRs.
 
+Update [PROJECT_STATUS.md](PROJECT_STATUS.md) only when feature/phase lifecycle state
+or current-task position materially changes. The active feature's `tasks.md` remains
+authoritative for task completion; GitHub PRs remain delivery and verification evidence.
+`ROADMAP.md` holds long-term direction and exit gates, not routine task progress.
+Normally include a status transition in the task PR that causes it, alongside its
+`tasks.md` update; no separate status-only PR is required. Feature completion does not
+imply roadmap-phase completion: that phase's own exit gates must be satisfied.
+
 1. Select exactly one task ID; confirm its approved feature, specification, plan, acceptance criteria, and satisfied dependencies. If a prerequisite remains, do not silently implement it in this task.
 2. Inspect existing changes, fetch the base, and branch `task/<task-id>-<short-description>` from the updated primary development branch (`main` here), unless repository policy sets another base. Preserve unrelated work; use isolation if needed.
 3. Implement only that task and directly necessary tests/docs. Run applicable required validation; mark **only that completed task** in `tasks.md`. If safety, acceptance criteria, or required validation cannot be met, report the blocker instead of claiming completion.
