@@ -1,0 +1,11 @@
+servers:
+  rust-analyzer:
+    # Resolve through the nested project's toolchain, not the root's default toolchain.
+    command: sh
+    args:
+      - -c
+      - 'cd mcp-server && exec "$(rustup which rust-analyzer)"'
+    # OMP checks markers at its launch directory; linkedProjects scopes Cargo analysis.
+    rootMarkers: ["mcp-server/Cargo.toml"]
+    initOptions:
+      linkedProjects: ["mcp-server/Cargo.toml"]
