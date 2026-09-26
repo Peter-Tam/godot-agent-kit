@@ -2,6 +2,8 @@ name: Observation native
 
 on:
   push:
+    branches:
+      - main
     paths:
       - .github/workflows/observation-native.yml
       - mcp-server/**
@@ -10,6 +12,11 @@ on:
       - .github/workflows/observation-native.yml
       - mcp-server/**
   workflow_dispatch:
+
+# Replace older runs for the same PR/ref without mixing automatic and manual runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
