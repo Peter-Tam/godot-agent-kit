@@ -125,6 +125,58 @@ If granularity is poor, refine `tasks.md` before continuing. This planning gate 
 authorize batching approved tasks into a PR, bypassing dependencies, or weakening the
 post-PR STOP rule.
 
+## Shared infrastructure and feature scope
+
+Shared infrastructure SHOULD be named, designed, and owned around its durable
+responsibility, execution boundary, or architectural role, not the first roadmap feature
+that introduces it. This applies to CI workflows, trusted/live-editor environments and
+runner labels, session discovery/routing, authentication, bridge framing, worker
+supervision, common errors/outcomes, reusable test harnesses, and generic
+project-confinement/security boundaries.
+
+For genuinely shared components, avoid names such as `feature-001-*`, `observation-live`,
+or `scene-auth`; prefer accurate responsibility names such as `ci`, `live-editor`,
+`session-routing`, `bridge-auth`, or `worker-supervision`. These are examples, not a fixed
+naming taxonomy.
+
+Generalize only when the responsibility is already cross-cutting or the approved
+architecture clearly assigns it to shared infrastructure, not merely because a future
+roadmap phase might reuse it. Feature-specific domain logic SHOULD remain feature-specific
+when it belongs to that capability, such as observation collection/classification. Do not
+introduce speculative frameworks, indirection, generic modules, or extension systems solely
+to avoid feature-specific names.
+
+Use this heuristic:
+
+> If the current feature disappeared tomorrow, would this component still make
+> architectural sense as shared infrastructure?
+
+- If yes, prefer responsibility/boundary-based naming and ownership.
+- If no, feature-specific naming is probably appropriate.
+
+GitHub Actions workflows SHOULD split by execution/trust/security boundary where practical,
+not roadmap feature: ordinary hosted checks in `ci.yml`, trusted GUI Godot checks in
+`live-editor.yml`, and release/publishing in a dedicated workflow only when required.
+Capability-specific checks should normally be jobs or steps in the appropriate shared
+workflow; do not create one workflow per feature when execution and security models match.
+
+Shared/core logic MUST NOT encode feature IDs, task IDs, or roadmap-phase names/numbers
+(for example, `T004` or `Feature001`) in public APIs/types, protocol fields, generic
+session/security machinery, transport framing, reusable infrastructure, module ownership,
+logs, or compatibility surfaces unless the identifier is genuinely part of the product
+contract.
+
+Implementation review MUST explicitly ask:
+
+1. Is this artifact genuinely feature-specific?
+2. If not, is its name/ownership based on a durable responsibility?
+3. Are we accidentally building duplicate infrastructure for a later feature?
+4. Conversely, are we over-generalizing capability-specific code without current evidence?
+
+Correct unnecessary feature coupling within the current task before merge when the fix
+does not materially expand scope. If it requires architectural redesign outside the
+approved task, report the issue rather than silently broadening scope.
+
 ## Transaction and editor safety
 
 The boundary is **agent protocol adapter → protocol-independent automation/transaction
