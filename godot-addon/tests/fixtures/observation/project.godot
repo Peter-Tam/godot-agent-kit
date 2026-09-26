@@ -1,0 +1,19 @@
+config_version=5
+
+[application]
+
+config/name="T002 Synthetic Routing Fixture"
+run/main_scene="res://main.tscn"
+run/flush_stdout_on_print=true
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[display]
+
+window/size/viewport_width=640
+window/size/viewport_height=360
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true

@@ -6,6 +6,11 @@ release/
 *.rlib
 *.prof*
 
+# Godot import/editor cache and Python acceptance-driver bytecode.
+.godot/
+__pycache__/
+*.pyc
+
 # Local environment, logs, and editor state.
 .env*
 *.log

@@ -1,6 +1,6 @@
 # Quickstart: Validate Live GDScript Observation
 
-**Status:** T001's reusable Rust observation library and native workflow are implemented. There is no caller executable, addon, or GUI acceptance driver yet; commands below targeting those later artifacts remain planned, not passing checks. T001 evidence is recorded in §2.1; the earlier planning GUI experiment is recorded separately in [research.md](research.md#2-actual-planning-feasibility-evidence).
+**Status:** T001's reusable library and T002's source-free authenticated session boundary are implemented. The caller currently provides only registry bootstrap/help/version. The addon and acceptance driver implement `session-boundary` and `export-boundary`; actual script observation, its supervised caller/worker, and all story groups remain T003–T008 work. T001/T002 evidence is recorded in §2.1/§2.2; the earlier planning GUI experiment remains separate.
 
 This guide covers the entire observation-only specification. It does not implement the feature, derive tasks, or claim a mutation/UndoRedo/Phase 1 exit guarantee. Use the [data model](data-model.md), [caller contract](contracts/observation-api.md), and [bridge contract](contracts/bridge-protocol.md) for normative fields and outcomes instead of inferring semantics from exit status alone.
 
@@ -27,7 +27,7 @@ Changing the globally selected Rust toolchain is unnecessary. Do not silently ac
 
 ## 2. Native checks and caller build
 
-From `mcp-server/`, the implemented T001 library checks are:
+From `mcp-server/`, the native library and boundary checks are:
 
 ```sh
 cargo +1.98.1 fmt --all -- --check
@@ -36,9 +36,9 @@ cargo +1.98.1 test --locked
 cargo +1.98.1 doc --no-deps --locked
 ```
 
-`cargo test --locked` includes the doctest phase. There is one package, not a workspace; no blanket `--all-features` is specified. T001 checks comparison, availability, attribution, invalidation, and precedence invariants. Authentication, framing, confinement, deadlines, and live-editor behavior belong to later tasks. The [resolved-lockfile review](research.md#t001-resolved-dependency-and-native-ci-evidence-2026-09-26) records actual licenses, provenance, audit-tool version, advisory-database revision, and findings.
+`cargo test --locked` includes the doctest phase. There is one package, not a workspace; no blanket `--all-features` is specified. T001 checks evidence semantics; T002 adds actual framing, authentication, routing, and registry/confinement regressions. The [T002 dependency review](research.md#t002-resolved-authentication-dependencies-and-tool-provenance-2026-09-26) records actual licenses, provenance, audit-tool/database revisions, and findings.
 
-Once T002 introduces the real caller, build it with `cargo +1.98.1 build --locked --bin observe-gdscript`; that command is not currently available.
+Build the caller and the library consumed by the live driver with `cargo +1.98.1 build --locked --lib --bin observe-gdscript`.
 
 ### 2.1. T001 native evidence (2026-09-26)
 
@@ -64,9 +64,82 @@ Integration review reproduced and fixed request-reuse, partial-evidence loss, hi
 
 Constitutional review: independent authorities, dirty-state uncertainty, source-free denial, and interval-only claims preserve I/II/IV/X; the standard-library-only domain module preserves VII. No mutation, filesystem/network access, editor integration, gameplay authority, or UndoRedo capability exists in T001, so native-mutation, live-editor, export, and A–E mutation gates are inapplicable to this task. Dependency provenance/license/advisory review addresses XI. These results establish library semantics only—not five-second execution, live D/R/B observability, editor non-interference, or Godot/platform support. The hosted workflow targets macOS 15 arm64; its actual run status belongs in the task PR and is not inferred from this local run.
 
+### 2.2. T002 source-free boundary evidence (2026-09-26)
+
+T002 is not a script observer. Its executable provides `init-registry --registry
+ABSOLUTE_PATH`, `--help`, and `--version`; observation flags remain unavailable.
+Install `godot-addon/addons/godot_agent_kit/` in a disposable project's `addons/`
+and deliberately enable it. Use a canonical, owner-private directory outside the
+project for `GODOT_AGENT_KIT_REGISTRY`; an absent or unsafe configuration opens no
+bridge. On macOS the registry and descriptors require 0700/0600, trusted ancestry,
+and no access-grant ACLs. Unsafe state is refused, not repaired.
+
+Run the implemented groups from the repository root, with a separate empty 0700
+artifact directory for each:
+
+```sh
+python3 godot-addon/tests/run_observation.py \
+  --godot "$GODOT" --observer "$OBSERVER" \
+  --scenario session-boundary --artifacts "$SESSION_ARTIFACTS"
+python3 godot-addon/tests/run_observation.py \
+  --godot "$GODOT" --observer "$OBSERVER" \
+  --scenario export-boundary --artifacts "$EXPORT_ARTIFACTS"
+```
+
+All executable/artifact paths must be absolute. The driver compiles a temporary
+Rust library consumer for source-free selection, plus an owned-window identifier
+for scoped macOS screenshots. It creates home-private disposable projects,
+registries and control directories, and cleans only its owned processes/state.
+The test driver is not a second product CLI or a public editor-control interface.
+
+Observed on macOS **26.6.2 arm64**, exact Godot
+`4.7.2.stable.official.ed1daf0bf`, full hash
+`ed1daf0bf001b61586d9930840f2f1394092c079`:
+
+| Boundary | Executed evidence |
+|---|---|
+| Native | fmt, Clippy with `-D warnings`, tests including doctest phase, docs, and real caller/library build all passed. **53 tests**: 27 original semantic regressions, 1 three-role proof-vector test, 10 bridge tests, 15 confinement tests. |
+| Real editor sessions | **33 cases passed**, including bootstrap; absent configuration; in-project/ACL-granted registry refusal; zero/one/two candidates; exact and absent selectors; an owned suspended candidate; disable/re-enable/restart; ended-session refusal; and rebound-port impersonation. |
+| Authentication | Rust and Godot matched all three public synthetic vectors. Python independently verified live server/client/finish proofs and unchanged transcripts. Wrong-secret, replayed, reflected, changed-request, malformed/premature messages, boolean/fractional versions, nonscalar identities, oversized controls, and the 32-peer/unauthenticated-expiry boundary were exercised. Challenge receipts synchronize acceptance instead of assuming TCP backlog entries are accepted peers; EOF and reset both establish refusal. |
+| Source/privacy | Product selection acquired no D/R/B. The independent fixture checked unchanged source hash/mtime and open/selected-document witnesses. Owned traffic contained no raw secret; secret/nonces/proofs and the source sentinel were absent from incidental logs. The owned GUI screenshot was inspected. |
+| Deadline | Every controlled routing consumer invocation completed within five seconds; the maximum was **4.506 s**, for the unresolved candidate (`Timeout` at `ResolveTarget`). Maximum observed idle lifetime among 32 accepted unfinished handshakes was **4.493 s**. This does not establish T003's blocked-filesystem worker guarantee. |
+| Export | Enabled, disabled, and independently exercised hook-only variants passed ZIP and actual release-app PCK inspection, including compiled/remapped resources. All three actual apps ran the minimal one-node scene, without missing dependencies, TCP listeners or registry advertisements, with registry configuration present as a negative control. |
+| Coverage gate | `--scenario all` exited 1 and listed all 12 unimplemented story/redaction groups. It did not report a partial suite as feature acceptance. |
+
+`summary.json` records actual synthetic target/session identity, per-case outcomes
+and timings, driver/lockfile/binary hashes, and export manifests/hashes. Scoped
+screenshots, source-free logs, ZIPs and actual app PCKs are retained separately.
+Local evidence is under `~/.t002-acceptance.P1ipPl/` (`session-final-pass`,
+`export-final`, and `coverage-gate`); preparatory failed runs are distinct records,
+not passing evidence. Binary/template checksums and official provenance are in
+[research](research.md#t002-resolved-authentication-dependencies-and-tool-provenance-2026-09-26).
+
+Godot retains inert `editor_plugins/enabled` paths in an enabled export's
+`project.binary`; these are editor settings, not shipped addon scripts or runtime
+autoloads. The file-entry/remap inspection and actual app's scene, dependency,
+listener and advertisement checks establish tooling isolation without rewriting
+project settings merely to remove an inert name. The disabled-preset variant
+does not depend on the export hook.
+
+Discovered regressions covered here include the macOS ACL/mode discrepancy and
+Darwin's non-POSIX `acl_get_entry` return convention, routing outcome precedence,
+actual engine-version/JSON-number representations, editor safe-save descriptor
+publication, retaining accepted peers when an accept crosses the frame budget,
+and export-hook ordering before GDScript remapping. Release stdout is explicitly
+flushed in the synthetic fixture so readiness is observed while the actual app
+is running, not inferred from buffered output after exit.
+
+Constitutional review: V/X/XI/XII require and receive authenticated, owner-private,
+bounded, redacted, cause-specific routing and dependency review; VII keeps the
+core independent; VIII receives actual artifact and exported-launch evidence.
+No source/mutation/UndoRedo capability exists, so no A–E mutation or applied-edit
+durability claim is made. These are local source-free session/export results,
+not full Feature 001 acceptance, GUI-CI evidence, or additional-platform support.
+
+
 ## 3. Fixture driver entrypoint
 
-The planned acceptance driver is `godot-addon/tests/run_observation.py`. Its contract is:
+The acceptance driver is `godot-addon/tests/run_observation.py`. T002 implements only the groups above; the following is the full-feature contract, with `all` deliberately refusing incomplete coverage:
 
 ```sh
 REPO="$PWD"
@@ -90,7 +163,7 @@ The driver must:
 6. Write `summary.json`, explicit synthetic per-case observation/witness records, timing/identity metadata, and scoped GUI screenshots. Keep incidental stderr/editor logs separate and source/token-free. Assertions and failure messages identify surfaces/stages without echoing source payloads.
 7. Resume/stop only owned suspended/running processes and remove disposable projects/registries even on failure. Retain the explicit evidence directory for review, not a product source cache.
 
-For one manual observation after the harness or developer has prepared an editor:
+The following manual **observation** invocation remains planned for T003/T004; it is not a T002 command:
 
 ```sh
 "$OBSERVER" init-registry --registry "$REGISTRY"
@@ -151,4 +224,4 @@ A passing implementation report includes:
 - Native baseline and dependency review results; real-editor and export evidence on the declared candidate matrix. Hosted compile-only CI cannot replace GUI acceptance. Keep privileged GUI runners isolated from untrusted PR code and secrets.
 - No claim that complete observation means D/R/B convergence, clean state, permission to edit, applied mutation durability, or actual product UndoRedo support.
 
-The original planning command exercised only its bounded GUI feasibility experiment and design-artifact checks. T001's later native evidence is recorded in §2.1. The full product checks above remain prerequisites for later feature/support claims.
+The original planning command exercised only its bounded GUI feasibility experiment and design-artifact checks. T001/T002 evidence is recorded in §2.1/§2.2. The full product checks above remain prerequisites for later feature/support claims.

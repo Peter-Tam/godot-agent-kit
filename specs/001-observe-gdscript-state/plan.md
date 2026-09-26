@@ -57,6 +57,37 @@ Use one Rust package with protocol-independent evidence/classification semantics
 
 **No exceptions:** A failed attribution, confinement, positive-observability, or export gate blocks the affected implementation. Approval cannot override safety or turn a limited observation into complete. If implementation evidence contradicts the pinned API assumptions, revise this plan/specification through review rather than silently broadening privileges or weakening a gate.
 
+### T002 implementation compliance
+
+T002 preserves the source-free session boundary; it adds no observer/worker,
+source collector, mutation, MCP, or runtime operation. Core evidence semantics
+remain separate from registry, framing, cryptography, and Godot APIs.
+
+The macOS implementation needs ownership, filesystem identity, and ACL metadata
+that Godot's filesystem API does not expose. Bootstrap/cleanup therefore invoke
+only fixed `/usr/bin/id`, `/usr/bin/stat`, and `/bin/ls` through `OS.execute`,
+without a shell, configurable executable, peer-supplied arguments, or source/token
+arguments. Inputs are validated local metadata paths; outputs are captured, not
+logged. This is fixed internal metadata inspection, not an arbitrary-execution
+capability. Rust inspects ACLs on borrowed open descriptors through a small,
+documented Darwin FFI boundary. Missing observability refuses access; there is no
+mode-only fallback on another platform.
+
+Both boundaries reject access-grant ACLs, unsafe ownership/modes/ancestry, and
+in-project registries without repair. Deny-only ACLs remain valid. The private
+directory protects the new temporary descriptor during Godot's safe-save write;
+the closed file must pass owner/type/0600/ACL checks before atomic advertisement.
+The export guard runs before GDScript remapping, and production presets provide
+independent exclusion when the plugin is disabled.
+
+These decisions implement constitution V/X/XI/XII without relaxing I–IV or VII–IX.
+Mutation A–E and applied-edit durability remain inapplicable: no mutation or
+UndoRedo capability exists. Native, live-session, export, and exact-tool evidence
+is recorded in [quickstart §2.2](quickstart.md#22-t002-source-free-boundary-evidence-2026-09-26)
+and [research](research.md#t002-resolved-authentication-dependencies-and-tool-provenance-2026-09-26).
+No source-observation or additional-platform support is earned by these checks.
+
+
 ## Project Structure
 
 ### Documentation (this feature)
