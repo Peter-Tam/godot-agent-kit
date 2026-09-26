@@ -41,10 +41,11 @@ jobs:
           rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
           test "$(rustc --version)" = 'rustc 1.98.1 (48a229cea 2026-09-01)'
           test "$(rustc --print host-tuple)" = aarch64-apple-darwin
-      - name: Verify library and documentation
+      - name: Verify native library, caller, and documentation
         working-directory: mcp-server
         run: |
           cargo fmt --all -- --check
           cargo clippy --all-targets --locked -- -D warnings
           cargo test --locked
           cargo doc --no-deps --locked
+          cargo build --locked --bin observe-gdscript

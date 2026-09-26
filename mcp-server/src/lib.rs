@@ -1,6 +1,10 @@
-//! Reusable, protocol-independent evidence classification for read-only GDScript observation.
+//! Protocol-independent observation semantics and a separate authenticated local editor boundary.
 //!
-//! Integrations acquire and authenticate live evidence separately; this library never reads
-//! project files, speaks to Godot, serializes a wire format, or authorizes an edit.
+//! The observation core never acquires source or depends on transport. Target resolution only
+//! validates filesystem identities and mutually authenticates source-free local candidates.
 
 pub mod observation;
+
+pub mod bridge;
+pub mod project_fs;
+pub mod target;

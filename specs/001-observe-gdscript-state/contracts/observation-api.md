@@ -1,6 +1,6 @@
 # Observation Caller Contract — Version 1
 
-**Status:** T001 implements the reusable Rust semantic library described in §7. The CLI/JSON and bridge interfaces remain planned; no caller executable exists yet. This is **not MCP**. [Data model](../data-model.md) defines the normative result fields, evidence variants, comparisons, and outcome precedence; [bridge contract](bridge-protocol.md) is private integration.
+**Status:** T001 implements the reusable Rust semantic library (§7). T002 implements registry bootstrap/help/version and the source-free Rust routing API (§8). The observation CLI/JSON result and source collector remain planned for T003/T004. This is **not MCP**. [Data model](../data-model.md) defines the normative observation results; [bridge contract](bridge-protocol.md) defines private integration.
 
 ## 1. Operations and invocation
 
@@ -128,3 +128,45 @@ The single `mcp-server/` package exports `godot_agent_kit::observation`. The [pu
 Refusals/interruption outrank success. When several terminal signals are known, the reducer uses: denial, ambiguity, invalid request, protocol error, cancellation, disconnection, missing target, invalid target, operation-wide unsupported, unavailable editor, timeout. Missing/invalid outcomes require matching attributable document evidence; a signal cannot override a valid open document. Recheck evidence of session loss or deadline expiry contributes its terminal cause, and cancellation does not conceal known live-evidence invalidation. Denial/ambiguity suppress all source, including invalidated text. Protocol failure retains earlier separately validated partial evidence, never the malformed/mismatched payload. Diagnostics use fixed safe messages/actions and retain known causes without source interpolation.
 
 Without a stronger outcome, valid confirmed closed state with applicable rechecks yields `NotOpen` even when D/R are limited or changed. Complete open observation requires every required current fact and recheck, with no detected change. Dirty/divergent observations can be complete; unavailable rechecks prevent complete/not-open success. No result claims atomicity, future stability, mutation authorization, or actual live-editor acquisition. See [T001 verification evidence](../quickstart.md#21-t001-native-evidence-2026-09-26).
+
+## 8. Implemented T002 source-free routing
+
+`godot_agent_kit::target::resolve(&ObservationRequest, &Path, Instant)` validates
+project/locator metadata and the owner-private registry, authenticates matching
+candidates, and returns `SelectedSession` only after unique selection.
+`SelectedSession::target()` exposes canonical project/device/inode identity,
+the exact session, engine and locator; `capabilities()` exposes five booleans.
+The authenticated socket and pinned directory stay private and are dropped with
+the selection. No source/container bytes are opened or returned by this API.
+
+`RoutingFailure` contains core `OutcomeKind`, a safe `Diagnostic`, and optional
+`Selection`. Authentication denial outranks ambiguity; established ambiguity
+outranks lower-priority protocol/version/timeout failures. Unknown candidate
+identity/liveness is not discarded to select a convenient survivor. Exact ended
+IDs never fall back to a replacement. Private endpoint, secret, nonce, proof and
+raw parser payloads do not enter these error objects or their debug/display output.
+
+`project_fs::init_registry(&Path)` creates/verifies the explicit directory and
+returns its canonical path. It never repairs unsafe existing permissions or ACLs.
+The real executable accepts only the three forms below:
+
+```sh
+observe-gdscript init-registry --registry /absolute/private/registry
+observe-gdscript --help
+observe-gdscript --version
+```
+
+Bootstrap emits `{"schema_version":1,"status":"ready"}` and exits 0 on success;
+unsafe metadata emits source-free `denied_access`/`unsafe_registry` JSON and
+exits 3. Invalid/duplicate/missing flags emit `invalid_request` and exit 3.
+There is no placeholder observation command. The addon must separately be
+installed/enabled with the same registry environment path, outside its project.
+
+The initial filesystem/ACL integration is macOS-specific and fails closed when
+ACL observability is not implemented. The supplied monotonic deadline bounds
+network work and is checked between filesystem operations; it is **not** T003's
+process-isolated guarantee against blocked filesystem I/O. Selection authenticates
+an editor lifetime, not a future-stability or script-observability promise.
+All collector capabilities are false in T002.
+
+See [live/native/export evidence](../quickstart.md#22-t002-source-free-boundary-evidence-2026-09-26).

@@ -1,8 +1,8 @@
 # Private Editor Observation Bridge — Version 1
 
-**Status:** Phase 1 design. Private local integration, not MCP, a remote API, or a separate safety model. The [caller contract](observation-api.md) and [data model](../data-model.md) own user-visible semantics. No arbitrary code, object deserialization, process command, source write, Save, open/select, reload, rescan, or runtime operation is representable here.
+**Status:** T002 implements source-free bootstrap, framing, mutual authentication, unique session routing, lifecycle and export isolation. Observation/recheck and supervised source acquisition remain T003/T004 work. This is private local integration, not MCP, a remote API, or a separate safety model. The [caller contract](observation-api.md) and [data model](../data-model.md) own user-visible semantics.
 
-This is the initial, unimplemented version-1 proposal. The planning review replaces its earlier raw-token hello with the mutual proof exchange below; no deployed protocol or legacy compatibility path exists.
+This is the initial version-1 implementation. It has no raw-token hello or legacy authentication path. No arbitrary code, object deserialization, process command, source write, Save, open/select, reload, rescan, or runtime operation is representable on the bridge.
 
 ## 1. Bootstrap and session lifetime
 
@@ -158,3 +158,44 @@ Logs may include request ID, selected-session ID, activity, surface, reason code
 Neither `@tool` nor the addon directory proves export exclusion. The planned export hook skips all `res://addons/godot_agent_kit/` files; each production preset must independently exclude that tree. Test enabled and disabled addon exports and actual exported execution. Observation fixture drivers are outside the installed addon tree and excluded from production presets too.
 
 Version changes to framing, identity/authentication interpretation, or required fields require explicit negotiation/version increment; unknown major versions fail closed. No alternate legacy/unsafe bridge path is retained.
+
+## 7. T002 implementation and verified limits
+
+The addon installs only the three-message source-free authentication exchange.
+Every collector capability is false; observation/recheck frames cannot acquire
+source. Rust retains the authenticated connection only after canonical,
+unambiguous selection and requires the finish proof, not an echoed hello.
+
+The exact engine gate validates `major`, `minor`, `patch`, `status`, `build`, and
+the full hash from `Engine.get_version_info()`. Its display `string` is
+`4.7.2-stable (official)`, not the CLI version identifier above. Godot's JSON
+parser represents `1` as a float; the tuple gate therefore requires a numeric
+value exactly equal to 1, rejecting booleans, nonintegral numbers, wrong arity,
+nested control values, and mismatched identities.
+
+On macOS, owner/mode/type/identity/ACL checks use fixed native metadata operations
+because public Godot file APIs do not expose the complete information. There is
+no shell, remote target, configurable executable or execution frame. Empty and
+deny-only ACLs are accepted; access-grant or unobservable ACLs are refused.
+The addon compares directory device/inode ancestry to reject an in-project
+registry before creating credentials/listening. Rust separately pins canonical
+project and registry identities. Same-UID malicious code remains outside the
+stated threat boundary; unsafe detectable metadata still fails closed.
+
+Godot editor safe-save can defer installation of the named temporary file until
+close. Descriptor bytes stay within the already-verified 0700 directory; the
+closed new file must pass owner/regular-file/0600/ACL checks before atomic rename.
+Disable/exit checks owned file identity before removal and disconnects all peers.
+
+The export guard is named to run **before** the built-in GDScript compiler/remapper;
+production presets independently exclude product and fixture-driver trees. The
+acceptance driver tests enabled, disabled, and hook-only variants, inspects actual
+ZIP/PCK entries including compiled/remapped resources, and launches each real app.
+Godot may retain inert editor-plugin path settings in `project.binary`; no addon
+code, runtime autoload/dependency, tooling node, listener or descriptor survives.
+
+See [T002 evidence](../quickstart.md#22-t002-source-free-boundary-evidence-2026-09-26)
+for real-editor routing, all three synthetic proof vectors, independent live
+proof checks, refusal/privacy/peer limits and export results. The source-free
+`session-boundary` group does not replace T006's later source-bearing `routing`,
+`session-loss`, `deadline` or `confinement` acceptance.

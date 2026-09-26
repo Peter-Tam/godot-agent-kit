@@ -123,6 +123,62 @@ Separately installed Homebrew `cargo-audit` **0.22.2** (its `cargo audit --versi
 
 Native workflow uses [GitHub's documented `macos-15` arm64 hosted label](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), verifies product OS major, CPU architecture, compiler version, and Rust host tuple at runtime; [upstream checkout tag `v4.3.1`](https://api.github.com/repos/actions/checkout/git/ref/tags/v4.3.1) resolves to the pinned full commit `34e114876b0b11c390a56381ad16ebd13914f8d5`. It uses a read-only token with checkout credentials not persisted, no secrets or privileged GUI runner, and the exact locked native fmt/clippy/test/docs baselines. **These are workflow configuration and dependency-fetch/audit observations only; no native checks, CI run, GUI-editor test, or platform/editor support are claimed here.** Sources for review method: [Cargo metadata](https://doc.rust-lang.org/cargo/commands/cargo-metadata.html), [Cargo lockfiles](https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html), [RustSec cargo-audit](https://github.com/rustsec/rustsec/tree/main/cargo-audit).
 
+### T002 resolved authentication dependencies and tool provenance (2026-09-26)
+
+T002 adds only the planned `ring =0.17.14`, with default features disabled and
+`std` enabled (`alloc` is enabled transitively by `std`). The resolved lockfile
+contains one local package and **59 registry packages**; SHA-256
+`dbba0e851819c51a4623e1b58b8cf7d583ff6ac372b66ea7e9f07b366db02fe1`.
+The nine additional registry entries relative to the T001 review are:
+
+| Package | Version | Declared license | Declared upstream |
+|---|---|---|---|
+| `ring` | 0.17.14 | Apache-2.0 AND ISC | [briansmith/ring](https://github.com/briansmith/ring) |
+| `untrusted` | 0.9.0 | ISC | [briansmith/untrusted](https://github.com/briansmith/untrusted) |
+| `getrandom` | 0.2.17 | MIT OR Apache-2.0 | [rust-random/getrandom](https://github.com/rust-random/getrandom) |
+| `cc` | 1.5.1 | MIT OR Apache-2.0 | [rust-lang/cc-rs](https://github.com/rust-lang/cc-rs) |
+| `find-msvc-tools` | 0.1.14 | MIT OR Apache-2.0 | [rust-lang/cc-rs](https://github.com/rust-lang/cc-rs) |
+| `shlex` | 2.0.1 | MIT OR Apache-2.0 | [comex/rust-shlex](https://github.com/comex/rust-shlex) |
+| `cfg-if` | 1.0.5 | MIT OR Apache-2.0 | [rust-lang/cfg-if](https://github.com/rust-lang/cfg-if) |
+| `wasi` | 0.11.1+wasi-snapshot-preview1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | [bytecodealliance/wasi](https://github.com/bytecodealliance/wasi) |
+| `windows-sys` | 0.52.0 | MIT OR Apache-2.0 | [microsoft/windows-rs](https://github.com/microsoft/windows-rs) |
+
+`cargo metadata --locked --format-version 1` supplied these licenses, repositories,
+and enabled features. All **59/59** downloaded registry archives matched the
+individual SHA-256 checksums in `Cargo.lock`; non-macOS packages were included in
+integrity/license review, not platform execution. Ring's packaged VCS metadata
+declares commit `2723abbca9e83347d82b056d5b239c6604f786df` with `dirty: true`:
+the archive checksum, not an assertion of a pristine Git checkout, identifies the
+reviewed release. Its notices require retaining `LICENSE`, `LICENSE-other-bits`,
+`LICENSE-BoringSSL`, and the bundled once_cell notices when distributing those
+components. This does not choose the repository's license or add distribution work.
+
+`cargo +1.98.1 audit --file Cargo.lock --json`, using cargo-audit **0.22.2** and
+RustSec database commit `e2111519ba6d14a5da59a7b2e5c8083ae8a37c01` (1,271
+advisories), reported **0 vulnerabilities and no warnings**, with no ignored
+advisories, for all 60 lockfile packages. The [upstream release notes](https://github.com/briansmith/ring/blob/main/RELEASES.md)
+list 0.17.14 as released and 0.17.15 as TBD at review time.
+[RUSTSEC-2025-0009](https://rustsec.org/advisories/RUSTSEC-2025-0009.html) is
+patched by >=0.17.12; [RUSTSEC-2025-0010](https://rustsec.org/advisories/RUSTSEC-2025-0010.html)
+excludes >=0.17. The latest-release-only patch policy still requires future
+advisory/release review; a clean database result is not a cryptographic audit.
+
+Local tools: Rust/Cargo 1.98.1, Python 3.10.9, Apple clang 21.0.0
+(`clang-2100.3.34.2`), macOS **26.6.2**, arm64. The exact Godot executable
+SHA-256 is `c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`.
+Its application passed `codesign --verify --deep --strict` and `spctl --assess`:
+notarized Developer ID **Prehensile Tales B.V. (6K46PWY5DM)**.
+
+The missing macOS template was installed from the [official 4.7.2 release asset](https://github.com/godotengine/godot-builds/releases/tag/4.7.2-stable).
+The complete `Godot_v4.7.2-stable_export_templates.tpz` SHA-256 matched the
+release API's published digest
+`f298490b8d44d934be425a5a65a51bf15f422428b229a06a6e11d9ffea248011`.
+Its `templates/version.txt` is `4.7.2.stable`; extracted `macos.zip` SHA-256 is
+`88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`.
+That archive supplies universal debug/release binaries, not an arm64-named
+template. The fixture uses the universal preset and executes only on the tested
+arm64 host; this earns no x86_64 support claim.
+
 
 ## 5. Local bridge, session bootstrap, and confinement
 
