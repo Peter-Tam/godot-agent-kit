@@ -8,6 +8,8 @@ on:
       - .github/workflows/observation-native.yml
       - mcp-server/**
   pull_request:
+    branches:
+      - main
     paths:
       - .github/workflows/observation-native.yml
       - mcp-server/**
