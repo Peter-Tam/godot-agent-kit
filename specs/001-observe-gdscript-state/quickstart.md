@@ -1,10 +1,12 @@
 # Quickstart: Validate Live GDScript Observation
 
-**Status:** Validation/run guide for the approved implementation that will follow this design. The repository currently has no Cargo package, addon, or acceptance driver. Commands below that reference those planned paths become runnable when those artifacts are implemented; they are **not commands reported as passed during planning**. The actual planning GUI experiment and its exact results are recorded in [research.md](research.md#2-actual-planning-feasibility-evidence).
+**Status:** T001's reusable Rust observation library and native workflow are implemented. There is no caller executable, addon, or GUI acceptance driver yet; commands below targeting those later artifacts remain planned, not passing checks. T001 evidence is recorded in §2.1; the earlier planning GUI experiment is recorded separately in [research.md](research.md#2-actual-planning-feasibility-evidence).
 
 This guide covers the entire observation-only specification. It does not implement the feature, derive tasks, or claim a mutation/UndoRedo/Phase 1 exit guarantee. Use the [data model](data-model.md), [caller contract](contracts/observation-api.md), and [bridge contract](contracts/bridge-protocol.md) for normative fields and outcomes instead of inferring semantics from exit status alone.
 
 ## 1. Prerequisites
+
+T001's native library requires only Rust 1.98.1 with rustfmt/clippy and its tracked lockfile. The following Godot, GUI, Python, and export prerequisites apply to later live-editor tasks, not to the pure classification engine.
 
 - Reviewed specification/plan and completed relevant one-task-per-PR implementation dependencies. Do not invoke generic implement-all.
 - macOS arm64, exact Godot `4.7.2.stable.official.ed1daf0bf` with engine hash `ed1daf0bf001b61586d9930840f2f1394092c079`. Planning observed macOS 26.6.2; do not extrapolate that evidence to another platform/version.
@@ -25,17 +27,42 @@ Changing the globally selected Rust toolchain is unnecessary. Do not silently ac
 
 ## 2. Native checks and caller build
 
-From `mcp-server/`, after implementation and committed lockfile:
+From `mcp-server/`, the implemented T001 library checks are:
 
 ```sh
 cargo +1.98.1 fmt --all -- --check
 cargo +1.98.1 clippy --all-targets --locked -- -D warnings
 cargo +1.98.1 test --locked
 cargo +1.98.1 doc --no-deps --locked
-cargo +1.98.1 build --locked --bin observe-gdscript
 ```
 
-`cargo test --locked` includes doctests. There is one package, not a workspace; no blanket `--all-features` is specified. Expected: all checks pass, including comparison/availability/precedence invariants, source-free refusal, malformed input, session replacement, confinement, and deadline transitions. Review the actual lockfile's dependency licenses/provenance and run a separately installed `cargo audit` against that lockfile, recording tool/advisory-database revision and findings. The planning manifest review is not a substitute.
+`cargo test --locked` includes the doctest phase. There is one package, not a workspace; no blanket `--all-features` is specified. T001 checks comparison, availability, attribution, invalidation, and precedence invariants. Authentication, framing, confinement, deadlines, and live-editor behavior belong to later tasks. The [resolved-lockfile review](research.md#t001-resolved-dependency-and-native-ci-evidence-2026-09-26) records actual licenses, provenance, audit-tool version, advisory-database revision, and findings.
+
+Once T002 introduces the real caller, build it with `cargo +1.98.1 build --locked --bin observe-gdscript`; that command is not currently available.
+
+### 2.1. T001 native evidence (2026-09-26)
+
+Local host: macOS **26.6.2**, arm64; `rustc 1.98.1 (48a229cea 2026-09-01)`, `cargo 1.98.1 (797e8a9bc 2026-08-05)`. All four commands above passed. The integration suite contains **27 passing tests**, including all 11 caller-contract vectors expanded into full evidence records; the unit and doctest phases currently contain zero cases. `cargo +1.98.1 build --locked --lib` also passed.
+
+A separate temporary Rust binary consumed the built public `godot_agent_kit::observation` API. It was compiled with `rustc +1.98.1 --edition=2021`, `--extern godot_agent_kit=target/debug/libgodot_agent_kit.rlib`, and `-L dependency=target/debug/deps`, then executed. It used explicitly **synthetic** caller/editor-clock stamps and `/synthetic/project` identity, not actual project or Godot state. Its classify/finalize assertions observed:
+
+| Supplied evidence / transition | Observed library result |
+|---|---|
+| Independently supplied D=R, differing B, dirty | `CompleteObservation`, divergent, dirty preserved |
+| D exceeds 512 KiB by one byte | `LimitedObservation`; only D unavailable/`TooLarge` |
+| B changes during collection | `LimitedObservation`; original B in invalidated evidence |
+| Confirmed closed; D changes | `NotOpen`; D invalidated, closed state retained |
+| Known session loss plus timeout | `DisconnectedEditor`; D retained, R/B invalidated |
+| Protocol failure after valid partial collection | `ProtocolError`; earlier validated D retained |
+| Cancellation plus known disconnection | `Cancelled`; known loss still invalidates R/B |
+| Denial after collection/invalidation | `DeniedAccess`; no snapshot or source |
+| Reuse of prior-request evidence in the same session | Rejected with `WrongTarget` |
+
+The consumer also accepted backward-adjusted wall-clock endpoints while validating collection against monotonic elapsed time. Temporary consumer source/binary were removed after execution. Public construction examples remain in [the contract tests](../../mcp-server/tests/observation_contract.rs), and the [API notes](contracts/observation-api.md#7-implemented-t001-rust-library) describe adapter obligations.
+
+Integration review reproduced and fixed request-reuse, partial-evidence loss, hidden session loss, dirty-reason bypass, wall-clock adjustment, invalid-target representation, closed-state invalidation, ungrounded target-refusal, and earlier-invalidation-reporting failures. Permanent regressions cover those behaviors.
+
+Constitutional review: independent authorities, dirty-state uncertainty, source-free denial, and interval-only claims preserve I/II/IV/X; the standard-library-only domain module preserves VII. No mutation, filesystem/network access, editor integration, gameplay authority, or UndoRedo capability exists in T001, so native-mutation, live-editor, export, and A–E mutation gates are inapplicable to this task. Dependency provenance/license/advisory review addresses XI. These results establish library semantics only—not five-second execution, live D/R/B observability, editor non-interference, or Godot/platform support. The hosted workflow targets macOS 15 arm64; its actual run status belongs in the task PR and is not inferred from this local run.
 
 ## 3. Fixture driver entrypoint
 
@@ -124,4 +151,4 @@ A passing implementation report includes:
 - Native baseline and dependency review results; real-editor and export evidence on the declared candidate matrix. Hosted compile-only CI cannot replace GUI acceptance. Keep privileged GUI runners isolated from untrusted PR code and secrets.
 - No claim that complete observation means D/R/B convergence, clean state, permission to edit, applied mutation durability, or actual product UndoRedo support.
 
-During this planning command only the bounded GUI feasibility experiment and design-artifact checks are eligible to be reported as exercised. Full product checks above are prerequisites for later feature/support claims, not an unresolved choice in this plan.
+The original planning command exercised only its bounded GUI feasibility experiment and design-artifact checks. T001's later native evidence is recorded in §2.1. The full product checks above remain prerequisites for later feature/support claims.
