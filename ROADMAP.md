@@ -1,5 +1,7 @@
 # godot-agent-kit product roadmap
 
+> Current execution status: [PROJECT_STATUS.md](PROJECT_STATUS.md)
+
 This roadmap describes long-term product direction and dependency ordering, not an
 implementation plan or authorization to begin a phase. It is subordinate to the
 [constitution](.specify/memory/constitution.md) and the delivery workflow in
