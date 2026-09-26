@@ -201,6 +201,18 @@ cargo doc --no-deps --locked
 
 Default `cargo test` includes doctests; `cargo test --all-targets` alone does **not**. If using `--all-targets`, run documentation tests separately with `--doc`. Commands are conditional on the later planned Cargo setup, not claims of currently configured checks.
 
+### Rust LSP development tooling
+
+Launch OMP from the repository root. `.omp/lsp.yaml` enables the nested Cargo project
+with OMP 18.3.2: its POSIX `sh` command enters `mcp-server/` and uses `rustup which
+rust-analyzer` to select the analyzer from `mcp-server/rust-toolchain.toml`.
+That toolchain declares both `rust-analyzer` and `rust-src` for standard-library navigation.
+
+OMP's protocol `rootUri`/`workspaceFolders` remain the repository root; `linkedProjects`
+restricts rust-analyzer's Cargo workspace to `mcp-server/Cargo.toml`. No root Cargo
+workspace is needed. After changing LSP configuration, use OMP's LSP `reload` action
+with `file: "*"`. Run the Cargo baseline commands above from `mcp-server/`.
+
 ## Dependencies, security, compatibility
 
 Justify dependencies against requirement and plan; review maintenance, security
