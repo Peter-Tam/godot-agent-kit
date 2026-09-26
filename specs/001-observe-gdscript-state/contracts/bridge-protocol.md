@@ -1,6 +1,6 @@
 # Private Editor Observation Bridge — Version 1
 
-**Status:** T002 implements source-free bootstrap, authentication, routing, lifecycle and export isolation. T003 implements Rust observation/recheck validation, supervised disk acquisition, and incremental worker delivery (§8). The addon collector remains T004 work. This is private local integration, not MCP, a remote API, or a separate safety model. The [caller contract](observation-api.md) and [data model](../data-model.md) own user-visible semantics.
+**Status:** T002 implements source-free bootstrap, authentication, routing, lifecycle and export isolation. T003 implements the Rust executor boundary (§8); T004 installs real observe/recheck collection (§9). This is private local integration, not MCP, a remote API, or a separate safety model. The [caller contract](observation-api.md) and [data model](../data-model.md) own user-visible semantics.
 
 This is the initial version-1 implementation. It has no raw-token hello or legacy authentication path. No arbitrary code, object deserialization, process command, source write, Save, open/select, reload, rescan, or runtime operation is representable on the bridge.
 
@@ -161,10 +161,10 @@ Version changes to framing, identity/authentication interpretation, or required 
 
 ## 7. T002 implementation and verified limits
 
-The addon installs only the three-message source-free authentication exchange.
-Every collector capability is false; observation/recheck frames cannot acquire
-source. Rust retains the authenticated connection only after canonical,
-unambiguous selection and requires the finish proof, not an echoed hello.
+At T002 delivery, the addon installed only the source-free authentication exchange
+and advertised every collector capability as false. T004 adds those operations.
+Rust still retains the connection only after canonical, unambiguous selection and
+requires the finish proof, not an echoed hello.
 
 The exact engine gate validates `major`, `minor`, `patch`, `status`, `build`, and
 the full hash from `Engine.get_version_info()`. Its display `string` is
@@ -237,3 +237,44 @@ The addon code and export boundary are unchanged by T003. Native controlled-peer
 tests prove codec and precedence behavior, not live R/B. Actual T002-editor caller
 and confined-D consumer evidence is recorded in
 [quickstart §2.3](../quickstart.md#23-t003-executor-boundary-evidence-2026-09-26).
+
+## 9. T004 live collector boundary
+
+`observation.gd` holds one request-local original sample. The exact-version bridge
+advertises installed public editor APIs, binds observe/recheck to the authenticated
+request/session/project/locator, and admits one active collection. Getter passes
+are separate from the existing shared 64-KiB/1-ms network budget. Controls remain
+4 KiB; source-bearing responses are bounded at 12 MiB. Recheck, disconnect, expiry
+and plugin disable release the original references; late replies are dropped.
+
+Before and after collection, the addon checks the locator and filesystem-component
+identities without reading disk source. Symlink/parent escapes and unsafe scope
+cannot disclose collected R/B. This complements, not replaces, Rust's
+capability-rooted D boundary and its permission/ACL checks. The same-UID/project
+code threat limit remains unchanged.
+
+The sample's `collection` contains every editor fact's collection stamp, and the
+recheck interval follows it in the same editor clock. Instance IDs use
+`String.num_uint64`, not signed or floating-point formatting. B/dirty association
+requires stable complete arrays, unique paths and actual ScriptEditorBase/CodeEdit
+objects. R and B are separate getter reads even for equal or empty text.
+
+The additive source-free failure envelope is:
+
+```json
+{"v":1,"kind":"failure","request_id":"example-1","session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","script_path":"res://scripts/subject.gd","code":"out_of_project","stage":"read_editor"}
+```
+
+`stage` must match the pending operation (`read_editor` or `recheck`); every
+identity must match the selected request. The Rust decoder accepts this specific
+shape with no source or extra payload fields. `out_of_project` maps to
+`denied_access` and suppresses all prior source. `unsupported_observation` is
+accepted only at `read_editor` for the one-active-collection capacity refusal;
+it does not misreport the still-live editor as disconnected. Malformed or
+mismatched refusals remain protocol errors. Framing, authentication and public
+outcomes retain version-1 semantics; deploy this collector with its updated Rust
+decoder rather than relying on an older decoder's generic protocol refusal.
+
+Initial real-editor acceptance covers clean-open, repeated and empty observations,
+collector rechecks and independent R/B caps. The wider dirty/routing/closed matrix
+and full support claim remain T005–T008 work.

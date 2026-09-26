@@ -12,7 +12,10 @@ use crate::target::{RoutingFailure, SelectedSession};
 pub const RESULT_LIMIT: usize = 12 * 1024 * 1024;
 const COLLECTION_LIMIT: usize = 64;
 
+/// Inclusive editor interval enclosing every editor fact in this sample.
+/// Retained through private IPC so the supervisor can validate worker evidence.
 pub struct EditorSample {
+    pub collection: CollectionStamp,
     pub document: DocumentState,
     pub resource: SourceObservation,
     pub buffer: SourceObservation,
@@ -395,12 +398,14 @@ impl SourceIn {
     fn domain(
         self,
         authority: Authority,
-        path: &ResourcePath,
-        session: &SessionId,
+        target: &ResolvedTarget,
         receipt: u64,
         stage: Stage,
         identity: Option<&DocumentIdentity>,
+        interval: Option<&CollectionStamp>,
     ) -> Result<SourceObservation, RoutingFailure> {
+        let path = target.script_path();
+        let session = target.session_id();
         if self.authority != authority {
             return Err(bad(stage));
         }
@@ -423,8 +428,18 @@ impl SourceIn {
                     return Err(bad(stage));
                 };
                 let stamp = stamp.domain(session, receipt, stage, editor)?;
+                if let Some(interval) = interval {
+                    within_editor_interval(&stamp, interval, stage)?;
+                }
                 let witness = witness.domain(path, stage)?;
                 let stale = stale.domain(path, session, receipt, stage, authority)?;
+                if let Some(interval) = interval {
+                    for evidence in stale.evidence().into_iter().flatten() {
+                        if evidence.changed_authority() != Authority::D {
+                            within_editor_interval(evidence.collection(), interval, stage)?;
+                        }
+                    }
+                }
                 if !editor && stale.evidence().is_some() {
                     return Err(bad(stage));
                 }
@@ -468,10 +483,20 @@ impl SourceIn {
                     SourceObservation::unavailable(authority, reason).map_err(|_| bad(stage))?;
                 if let Some(old) = self.invalidated_evidence {
                     let stamp = old.collection.domain(session, receipt, stage, editor)?;
+                    if let Some(interval) = interval {
+                        within_editor_interval(&stamp, interval, stage)?;
+                    }
                     let witness = old.witness.domain(path, stage)?;
                     let stale = old
                         .staleness
                         .domain(path, session, receipt, stage, authority)?;
+                    if let Some(interval) = interval {
+                        for evidence in stale.evidence().into_iter().flatten() {
+                            if evidence.changed_authority() != Authority::D {
+                                within_editor_interval(evidence.collection(), interval, stage)?;
+                            }
+                        }
+                    }
                     let old_reason = source_reason(old.reason, stage)?;
                     if !editor && stale.evidence().is_some() {
                         return Err(bad(stage));
@@ -773,28 +798,30 @@ impl SampleIn {
         {
             return Err(bad(stage));
         }
-        self.collection
+        let collection = self
+            .collection
             .domain(target.session_id(), receipt, stage, true)?;
         let document =
             self.document
                 .domain(target.script_path(), target.session_id(), receipt, stage)?;
         let resource = self.resource.domain(
             Authority::R,
-            target.script_path(),
-            target.session_id(),
+            target,
             receipt,
             stage,
             document.identity(),
+            Some(&collection),
         )?;
         let buffer = self.buffer.domain(
             Authority::B,
-            target.script_path(),
-            target.session_id(),
+            target,
             receipt,
             stage,
             document.identity(),
+            Some(&collection),
         )?;
         let sample = EditorSample {
+            collection,
             document,
             resource,
             buffer,
@@ -825,6 +852,20 @@ fn check_stamp(
             ClockId::Caller => !editor,
             ClockId::Editor(s) => editor && s == session,
         }
+    {
+        return Err(bad(stage));
+    }
+    Ok(())
+}
+fn within_editor_interval(
+    stamp: &CollectionStamp,
+    interval: &CollectionStamp,
+    stage: Stage,
+) -> Result<(), RoutingFailure> {
+    if stamp.clock_id() != interval.clock_id()
+        || stamp.started_tick_us() < interval.started_tick_us()
+        || stamp.finished_tick_us() > interval.finished_tick_us()
+        || stamp.received_elapsed_us() != interval.received_elapsed_us()
     {
         return Err(bad(stage));
     }
@@ -911,6 +952,7 @@ fn validate_sample(
     receipt: u64,
     stage: Stage,
 ) -> Result<(), RoutingFailure> {
+    check_stamp(&s.collection, target.session_id(), receipt, true, stage)?;
     let identity = s.document.identity();
     if identity.is_some_and(|i| i.resource_path() != target.script_path()) {
         return Err(bad(stage));
@@ -931,6 +973,7 @@ fn validate_sample(
     .flatten()
     {
         check_stamp(stamp, target.session_id(), receipt, true, stage)?;
+        within_editor_interval(stamp, &s.collection, stage)?;
     }
     if let Some(identity) = identity {
         if identity.disk_file_id().is_some() {
@@ -941,10 +984,12 @@ fn validate_sample(
         if let (Some(stamp), Some(w)) = (s.dirty.collection(), s.dirty.witness()) {
             check_stamp(stamp, target.session_id(), receipt, true, stage)?;
             check_witness(w, identity, Authority::B, stage)?;
+            within_editor_interval(stamp, &s.collection, stage)?;
         }
         if let Some(old) = s.dirty.invalidated_evidence() {
             check_stamp(old.collection(), target.session_id(), receipt, true, stage)?;
             check_witness(old.witness(), identity, Authority::B, stage)?;
+            within_editor_interval(old.collection(), &s.collection, stage)?;
         }
     } else if s.resource.availability() == Availability::Observed
         || s.buffer.availability() == Availability::Observed
@@ -1051,6 +1096,7 @@ impl RecheckIn {
         advertised_root: &str,
         receipt: u64,
         stage: Stage,
+        original: &CollectionStamp,
     ) -> Result<Recheck, RoutingFailure> {
         if self.v != 1
             || self.kind != "recheck"
@@ -1061,8 +1107,14 @@ impl RecheckIn {
         {
             return Err(bad(stage));
         }
-        self.collection
+        let collection = self
+            .collection
             .domain(target.session_id(), receipt, stage, true)?;
+        if collection.started_tick_us() < original.finished_tick_us()
+            || collection.received_elapsed_us() < original.received_elapsed_us()
+        {
+            return Err(bad(stage));
+        }
         let changes = self
             .detected_changes
             .0
@@ -1171,6 +1223,61 @@ fn receive_editor(
     read_deadline(stream, &mut bytes, deadline, stage)?;
     Ok(bytes)
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EditorFailureIn {
+    v: u32,
+    kind: String,
+    request_id: String,
+    session_id: String,
+    project_root: String,
+    script_path: String,
+    code: DiagnosticCode,
+    stage: Stage,
+}
+impl EditorFailureIn {
+    fn domain(
+        self,
+        request: &ObservationRequest,
+        target: &ResolvedTarget,
+        advertised_root: &str,
+        stage: Stage,
+    ) -> Result<RoutingFailure, RoutingFailure> {
+        if self.v != 1
+            || self.kind != "failure"
+            || self.request_id != request.request_id().as_str()
+            || self.session_id != target.session_id().as_str()
+            || self.project_root != advertised_root
+            || self.script_path != request.script_path().as_str()
+            || self.stage != stage
+        {
+            return Err(bad(stage));
+        }
+        let outcome = match self.code {
+            DiagnosticCode::OutOfProject => OutcomeKind::DeniedAccess,
+            DiagnosticCode::UnsupportedObservation if stage == Stage::ReadEditor => {
+                OutcomeKind::UnsupportedObservation
+            }
+            _ => return Err(bad(stage)),
+        };
+        Ok(RoutingFailure::new(outcome, self.code, stage))
+    }
+}
+fn editor_reply<T: for<'de> Deserialize<'de>>(
+    bytes: &[u8],
+    request: &ObservationRequest,
+    target: &ResolvedTarget,
+    advertised_root: &str,
+    stage: Stage,
+) -> Result<T, RoutingFailure> {
+    match decode(bytes, stage) {
+        Ok(reply) => Ok(reply),
+        Err(_) => match decode::<EditorFailureIn>(bytes, stage) {
+            Ok(failure) => Err(failure.domain(request, target, advertised_root, stage)?),
+            Err(_) => Err(bad(stage)),
+        },
+    }
+}
 
 /// Collect one editor sample on the uniquely selected, request-bound channel.
 /// No disk acquisition or editor mutation is performed by this boundary.
@@ -1211,7 +1318,14 @@ pub fn observe(
     )?;
     let bytes = receive_editor(&mut selected.socket, deadline, stage)?;
     let receipt = started.elapsed().as_micros().min(u128::from(u64::MAX)) as u64;
-    decode::<SampleIn>(&bytes, stage)?.domain(
+    editor_reply::<SampleIn>(
+        &bytes,
+        request,
+        selected.target(),
+        &selected.advertised_project_root,
+        stage,
+    )?
+    .domain(
         request,
         selected.target(),
         &selected.advertised_project_root,
@@ -1219,7 +1333,7 @@ pub fn observe(
         stage,
     )
 }
-/// Independently recheck the selected editor's original sample without retrying it.
+/// Independently recheck the selected editor after the original sample interval.
 ///
 /// # Errors
 /// Returns a redacted identity/protocol, disconnection, or deadline failure. A
@@ -1227,6 +1341,7 @@ pub fn observe(
 pub fn recheck(
     selected: &mut SelectedSession,
     request: &ObservationRequest,
+    original: &CollectionStamp,
     started: Instant,
     deadline: Instant,
 ) -> Result<Recheck, RoutingFailure> {
@@ -1250,12 +1365,27 @@ pub fn recheck(
     )?;
     let bytes = receive_editor(&mut selected.socket, deadline, stage)?;
     let receipt = started.elapsed().as_micros().min(u128::from(u64::MAX)) as u64;
-    decode::<RecheckIn>(&bytes, stage)?.domain(
+    check_stamp(
+        original,
+        selected.target().session_id(),
+        receipt,
+        true,
+        stage,
+    )?;
+    editor_reply::<RecheckIn>(
+        &bytes,
+        request,
+        selected.target(),
+        &selected.advertised_project_root,
+        stage,
+    )?
+    .domain(
         request,
         selected.target(),
         &selected.advertised_project_root,
         receipt,
         stage,
+        original,
     )
 }
 
@@ -1726,6 +1856,7 @@ pub fn encode_outcome(outcome: &ObservationOutcome) -> Result<Vec<u8>, RoutingFa
 
 #[derive(Serialize)]
 struct SampleOut<'a> {
+    collection: StampOut<'a>,
     document: DocumentOut<'a>,
     #[serde(rename = "R")]
     resource: SourceOut<'a>,
@@ -1736,6 +1867,7 @@ struct SampleOut<'a> {
 }
 fn sample_out(s: &EditorSample) -> SampleOut<'_> {
     SampleOut {
+        collection: stamp_out(&s.collection),
         document: document_out(&s.document),
         resource: source_out(&s.resource),
         buffer: source_out(&s.buffer),
@@ -1969,6 +2101,7 @@ impl TargetIn {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SampleEventIn {
+    collection: StampIn,
     document: DocumentIn,
     #[serde(rename = "R")]
     resource: SourceIn,
@@ -1980,26 +2113,30 @@ struct SampleEventIn {
 impl SampleEventIn {
     fn domain(self, target: &ResolvedTarget, receipt: u64) -> Result<EditorSample, RoutingFailure> {
         let stage = Stage::ReadEditor;
+        let collection = self
+            .collection
+            .domain(target.session_id(), receipt, stage, true)?;
         let document =
             self.document
                 .domain(target.script_path(), target.session_id(), receipt, stage)?;
         let resource = self.resource.domain(
             Authority::R,
-            target.script_path(),
-            target.session_id(),
+            target,
             receipt,
             stage,
             document.identity(),
+            Some(&collection),
         )?;
         let buffer = self.buffer.domain(
             Authority::B,
-            target.script_path(),
-            target.session_id(),
+            target,
             receipt,
             stage,
             document.identity(),
+            Some(&collection),
         )?;
         let sample = EditorSample {
+            collection,
             document,
             resource,
             buffer,
@@ -2182,10 +2319,10 @@ pub fn decode_event(
             let t = target.ok_or_else(|| bad(stage))?;
             let disk = disk.domain(
                 Authority::D,
-                t.script_path(),
-                t.session_id(),
+                t,
                 received_elapsed_us,
                 Stage::ReadDisk,
+                None,
                 None,
             )?;
             if let Some(stamp) = disk.collection() {

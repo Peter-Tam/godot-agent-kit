@@ -184,8 +184,18 @@ enum Mode {
 #[derive(Clone, Copy)]
 enum ObservationMode {
     Valid,
+    ChangedResource,
+    DenyObserve,
+    DenyRecheck,
+    WrongRequestDenial,
+    FactOutsideSample,
+    RecheckBeforeSample,
+    WrongRecheckIdentity,
     Stable,
+    Empty,
     WrongIdentity,
+    WrongRequest,
+    WrongDocument,
     DuplicateRequired,
     Nested,
     WrongWitness,
@@ -193,6 +203,7 @@ enum ObservationMode {
     SecretUnknownField,
     ExcessDiagnostics,
     ExcessSource,
+    ExcessBuffer,
     ExcessSourceWrongWitness,
     OverlargeFrame,
     Disconnect,
@@ -331,15 +342,39 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                 }
                 _ => {}
             }
+            if matches!(
+                reply,
+                ObservationMode::DenyObserve | ObservationMode::WrongRequestDenial
+            ) {
+                frame(
+                    &mut socket,
+                    &json!({"v":1,"kind":"failure","request_id":if matches!(reply, ObservationMode::WrongRequestDenial) { json!("different-request") } else { hello[2].clone() },"session_id":hello[3],"project_root":hello[4],"script_path":"res://scripts/subject.gd","code":"out_of_project","stage":"read_editor"}),
+                );
+                return;
+            }
             let mut sample = observation_sample(&hello);
+            if matches!(reply, ObservationMode::WrongRequest) {
+                sample["request_id"] = json!("another-request");
+            }
+            if matches!(reply, ObservationMode::WrongDocument) {
+                sample["document"]["identity"]["resource_path"] = json!("res://scripts/other.gd");
+            }
             if matches!(reply, ObservationMode::WrongIdentity) {
                 sample["session_id"] = json!(ID2);
             }
             if matches!(reply, ObservationMode::WrongWitness) {
                 sample["R"]["witness"]["script_instance_id"] = json!("123");
             }
+            if matches!(reply, ObservationMode::FactOutsideSample) {
+                sample["R"]["collection"]["finished_tick_us"] = json!("9007199254740995");
+            }
             if matches!(reply, ObservationMode::WrongClock) {
                 sample["B"]["collection"]["clock_id"] = json!("caller");
+            }
+            if matches!(reply, ObservationMode::Empty) {
+                sample["R"]["text"] = json!("");
+                sample["B"]["text"] = json!("");
+                sample["dirty"]["state"] = json!("clean");
             }
             if matches!(reply, ObservationMode::SecretUnknownField) {
                 sample["leaked_secret"] = json!(SECRET);
@@ -355,6 +390,10 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                 ObservationMode::ExcessSource | ObservationMode::ExcessSourceWrongWitness
             ) {
                 sample["R"]["text"] =
+                    json!("Q".repeat(godot_agent_kit::observation::SOURCE_LIMIT_BYTES + 1));
+            }
+            if matches!(reply, ObservationMode::ExcessBuffer) {
+                sample["B"]["text"] =
                     json!("Q".repeat(godot_agent_kit::observation::SOURCE_LIMIT_BYTES + 1));
             }
             if matches!(reply, ObservationMode::ExcessSourceWrongWitness) {
@@ -393,7 +432,16 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
             } else {
                 frame(&mut socket, &sample);
             }
-            if matches!(reply, ObservationMode::Valid | ObservationMode::Stable) {
+            if matches!(
+                reply,
+                ObservationMode::Valid
+                    | ObservationMode::Stable
+                    | ObservationMode::Empty
+                    | ObservationMode::ChangedResource
+                    | ObservationMode::DenyRecheck
+                    | ObservationMode::RecheckBeforeSample
+                    | ObservationMode::WrongRecheckIdentity
+            ) {
                 let recheck = read_frame(&mut socket);
                 assert_eq!(
                     recheck,
@@ -406,15 +454,35 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                         "res://scripts/subject.gd"
                     ])
                 );
-                let changes = if matches!(reply, ObservationMode::Stable) {
-                    json!([])
-                } else {
-                    json!([{"surface":"B","code":"source_changed"}])
+                if matches!(reply, ObservationMode::DenyRecheck) {
+                    frame(
+                        &mut socket,
+                        &json!({"v":1,"kind":"failure","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":"res://scripts/subject.gd","code":"out_of_project","stage":"recheck"}),
+                    );
+                    return;
+                }
+                let changes = match reply {
+                    ObservationMode::Stable
+                    | ObservationMode::Empty
+                    | ObservationMode::RecheckBeforeSample => json!([]),
+                    ObservationMode::ChangedResource => {
+                        json!([{"surface":"R","code":"source_changed"}])
+                    }
+                    _ => json!([{"surface":"B","code":"source_changed"}]),
                 };
-                frame(
-                    &mut socket,
-                    &json!({"v":1,"kind":"recheck","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":"res://scripts/subject.gd","collection":editor_stamp(&hello),"checks":"performed","detected_changes":changes,"reason":null}),
-                );
+                let mut stamp = editor_stamp(&hello);
+                stamp["started_tick_us"] =
+                    json!(if matches!(reply, ObservationMode::RecheckBeforeSample) {
+                        "9007199254740993"
+                    } else {
+                        "9007199254740994"
+                    });
+                stamp["finished_tick_us"] = json!("9007199254740995");
+                let mut rechecked = json!({"v":1,"kind":"recheck","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":"res://scripts/subject.gd","collection":stamp,"checks":"performed","detected_changes":changes,"reason":null});
+                if matches!(reply, ObservationMode::WrongRecheckIdentity) {
+                    rechecked["session_id"] = json!(ID2);
+                }
+                frame(&mut socket, &rechecked);
             }
             return;
         }
@@ -697,12 +765,13 @@ fn controlled_peer_framing_preserves_exact_editor_text_and_independent_recheck()
         "9007199254740993"
     );
     assert!(
-        matches!(wire::recheck(&mut selected, &request, started, started + Duration::from_secs(2)).unwrap(), Recheck::Performed { detected_changes } if detected_changes == vec![DetectedChange::Source(Authority::B)])
+        matches!(wire::recheck(&mut selected, &request, &sample.collection, started, started + Duration::from_secs(2)).unwrap(), Recheck::Performed { detected_changes } if detected_changes == vec![DetectedChange::Source(Authority::B)])
     );
     let target = selected.target().clone();
     drop(selected);
     peer.join().unwrap();
     let worker_sample = wire::EditorSample {
+        collection: sample.collection.clone(),
         document: sample.document.clone(),
         resource: sample.resource.clone(),
         buffer: sample.buffer.clone(),
@@ -831,6 +900,16 @@ fn controlled_peer_framing_preserves_exact_editor_text_and_independent_recheck()
 fn controlled_peer_rejects_wrong_identity_duplicates_depth_and_oversized_frames() {
     for (mode, expected) in [
         (ObservationMode::WrongIdentity, OutcomeKind::ProtocolError),
+        (ObservationMode::WrongRequest, OutcomeKind::ProtocolError),
+        (ObservationMode::WrongDocument, OutcomeKind::ProtocolError),
+        (
+            ObservationMode::FactOutsideSample,
+            OutcomeKind::ProtocolError,
+        ),
+        (
+            ObservationMode::WrongRequestDenial,
+            OutcomeKind::ProtocolError,
+        ),
         (
             ObservationMode::DuplicateRequired,
             OutcomeKind::ProtocolError,
@@ -885,6 +964,159 @@ fn controlled_peer_rejects_wrong_identity_duplicates_depth_and_oversized_frames(
 }
 
 #[test]
+fn recheck_cannot_claim_success_with_a_pre_sample_editor_interval() {
+    let fixture = Fixture::new();
+    let peer = attach(
+        &fixture,
+        ID1,
+        Mode::Observation(ObservationMode::RecheckBeforeSample),
+    );
+    let request = fixture.request(Some(ID1));
+    let mut selected = fixture.resolve(Some(ID1), Duration::from_secs(2)).unwrap();
+    let started = Instant::now();
+    let sample = wire::observe(
+        &mut selected,
+        &request,
+        started,
+        started + Duration::from_secs(2),
+    )
+    .unwrap();
+    let failure = wire::recheck(
+        &mut selected,
+        &request,
+        &sample.collection,
+        started,
+        started + Duration::from_secs(2),
+    )
+    .unwrap_err();
+    assert_eq!(failure.outcome, OutcomeKind::ProtocolError);
+    assert_eq!(failure.diagnostic.code(), DiagnosticCode::InvalidFrame);
+    drop(selected);
+    peer.join().unwrap();
+}
+
+#[test]
+fn authenticated_scope_denial_before_or_after_sampling_exposes_no_source() {
+    // Controlled peers exercise the actual caller and worker, not Godot getter evidence.
+    for mode in [ObservationMode::DenyObserve, ObservationMode::DenyRecheck] {
+        let fixture = Fixture::new();
+        fs::create_dir(fixture.project.join("scripts")).unwrap();
+        let sentinel = "# confidential disk evidence\n";
+        fs::write(fixture.project.join("scripts/subject.gd"), sentinel).unwrap();
+        let peer = attach(&fixture, ID1, Mode::Observation(mode));
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_observe-gdscript"))
+            .args([
+                "--registry",
+                fixture.registry.to_str().unwrap(),
+                "--project",
+                fixture.project.to_str().unwrap(),
+                "--script",
+                "res://scripts/subject.gd",
+            ])
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(3));
+        assert!(output.stderr.is_empty());
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(result["outcome"], "denied_access");
+        assert_eq!(result["diagnostics"][0]["code"], "out_of_project");
+        assert_eq!(
+            result["diagnostics"][0]["stage"],
+            if matches!(mode, ObservationMode::DenyObserve) {
+                "read_editor"
+            } else {
+                "recheck"
+            }
+        );
+        assert!(result["resolved_target"].is_null());
+        assert!(result["snapshot"].is_null());
+        for source in [sentinel, "\u{feff}x\r\n", "x\n", SECRET] {
+            assert!(!String::from_utf8_lossy(&output.stdout).contains(source));
+        }
+        peer.join().unwrap();
+    }
+}
+
+#[test]
+fn mismatched_recheck_cannot_complete_and_keeps_only_earlier_validated_facts() {
+    // Actual caller and simulated editor; the wrong-session recheck is never evidence.
+    let fixture = Fixture::new();
+    fs::create_dir(fixture.project.join("scripts")).unwrap();
+    let disk = "# independent disk\n";
+    fs::write(fixture.project.join("scripts/subject.gd"), disk).unwrap();
+    let peer = attach(
+        &fixture,
+        ID1,
+        Mode::Observation(ObservationMode::WrongRecheckIdentity),
+    );
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_observe-gdscript"))
+        .args([
+            "--registry",
+            fixture.registry.to_str().unwrap(),
+            "--project",
+            fixture.project.to_str().unwrap(),
+            "--script",
+            "res://scripts/subject.gd",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(4));
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["outcome"], "protocol_error");
+    assert_eq!(result["snapshot"]["sources"]["D"]["text"], disk);
+    assert_eq!(result["snapshot"]["sources"]["R"]["text"], "\u{feff}x\r\n");
+    assert_eq!(result["snapshot"]["sources"]["B"]["text"], "x\n");
+    assert_eq!(result["snapshot"]["consistency"]["checks"], "unavailable");
+    assert!(!String::from_utf8(output.stdout).unwrap().contains(SECRET));
+    peer.join().unwrap();
+}
+
+#[test]
+fn changed_resource_only_invalidates_r_and_preserves_independent_b() {
+    // This peer simulates editor evidence. It does not establish real R/B visibility.
+    let fixture = Fixture::new();
+    fs::create_dir(fixture.project.join("scripts")).unwrap();
+    let disk = "independent disk\n";
+    fs::write(fixture.project.join("scripts/subject.gd"), disk).unwrap();
+    let peer = attach(
+        &fixture,
+        ID1,
+        Mode::Observation(ObservationMode::ChangedResource),
+    );
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_observe-gdscript"))
+        .args([
+            "--registry",
+            fixture.registry.to_str().unwrap(),
+            "--project",
+            fixture.project.to_str().unwrap(),
+            "--script",
+            "res://scripts/subject.gd",
+        ])
+        .output()
+        .unwrap();
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(result["outcome"], "limited_observation");
+    assert_eq!(result["snapshot"]["sources"]["D"]["text"], disk);
+    assert!(result["snapshot"]["sources"]["R"].get("text").is_none());
+    assert_eq!(
+        result["snapshot"]["sources"]["R"]["invalidated_evidence"]["text"],
+        "\u{feff}x\r\n"
+    );
+    assert_eq!(result["snapshot"]["sources"]["B"]["text"], "x\n");
+    assert_eq!(result["snapshot"]["dirty"]["state"], "dirty");
+    assert_eq!(
+        result["snapshot"]["comparisons"]["disk_buffer"],
+        "different"
+    );
+    assert_eq!(
+        result["snapshot"]["comparisons"]["resource_buffer"],
+        "unknown"
+    );
+    peer.join().unwrap();
+}
+
+#[test]
 fn excess_resource_text_limits_only_r_and_retains_independent_b() {
     use godot_agent_kit::observation::{Availability, SourceReason};
     let fixture = Fixture::new();
@@ -909,6 +1141,88 @@ fn excess_resource_text_limits_only_r_and_retains_independent_b() {
     assert_eq!(sample.buffer.text(), Some("x\n"));
     assert!(sample.document.identity().is_some());
     drop(selected);
+    peer.join().unwrap();
+}
+
+#[test]
+fn excess_buffer_text_limits_only_b_without_substituting_r() {
+    use godot_agent_kit::observation::{Availability, SourceReason};
+    let fixture = Fixture::new();
+    let peer = attach(
+        &fixture,
+        ID1,
+        Mode::Observation(ObservationMode::ExcessBuffer),
+    );
+    let request = fixture.request(Some(ID1));
+    let mut selected = fixture.resolve(Some(ID1), Duration::from_secs(2)).unwrap();
+    let started = Instant::now();
+    let sample = wire::observe(
+        &mut selected,
+        &request,
+        started,
+        started + Duration::from_secs(2),
+    )
+    .unwrap();
+    assert_eq!(sample.buffer.availability(), Availability::Unavailable);
+    assert_eq!(sample.buffer.reason(), Some(SourceReason::TooLarge));
+    assert_eq!(sample.buffer.text(), None);
+    assert_eq!(sample.resource.text(), Some("\u{feff}x\r\n"));
+    assert_eq!(
+        sample.dirty.state(),
+        Some(godot_agent_kit::observation::DirtyState::Dirty)
+    );
+    drop(selected);
+    peer.join().unwrap();
+}
+
+#[test]
+fn actual_caller_distinguishes_observed_empty_sources_from_unavailable() {
+    // Simulated peer text and dirty evidence; not an independent Godot oracle.
+    let fixture = Fixture::new();
+    fs::create_dir(fixture.project.join("scripts")).unwrap();
+    fs::write(fixture.project.join("scripts/subject.gd"), "").unwrap();
+    let peer = attach(&fixture, ID1, Mode::Observation(ObservationMode::Empty));
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_observe-gdscript"))
+        .args([
+            "--registry",
+            fixture.registry.to_str().unwrap(),
+            "--project",
+            fixture.project.to_str().unwrap(),
+            "--script",
+            "res://scripts/subject.gd",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty());
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["outcome"], "complete_observation");
+    for source in ["D", "R", "B"] {
+        assert_eq!(
+            result["snapshot"]["sources"][source]["availability"],
+            "observed"
+        );
+        assert_eq!(result["snapshot"]["sources"][source]["text"], "");
+    }
+    assert_eq!(result["snapshot"]["dirty"]["state"], "clean");
+    assert_eq!(result["snapshot"]["comparisons"]["disk_resource"], "equal");
+    assert_eq!(result["snapshot"]["comparisons"]["disk_buffer"], "equal");
+    assert_eq!(
+        result["snapshot"]["comparisons"]["resource_buffer"],
+        "equal"
+    );
+    let elapsed = result["interval"]["elapsed_us"].as_u64().unwrap();
+    assert!(elapsed > 0);
+    for (source, clock) in [
+        ("D", "caller".to_owned()),
+        ("R", format!("editor:{ID1}")),
+        ("B", format!("editor:{ID1}")),
+    ] {
+        let stamp = &result["snapshot"]["sources"][source]["collection"];
+        assert_eq!(stamp["clock_id"], clock);
+        assert!(stamp["received_elapsed_us"].as_u64().unwrap() <= elapsed);
+    }
+    assert!(!String::from_utf8(output.stdout).unwrap().contains(SECRET));
     peer.join().unwrap();
 }
 
@@ -1071,7 +1385,7 @@ fn invalidated_worker_evidence_is_preserved_without_becoming_current_text() {
     sample["document"]["validity"] = json!({"value":null,"collection":null,"reason":fact_reason,
         "invalidated_evidence":{"value":validity["value"],"collection":validity["collection"],"reason":fact_reason}});
     let event = json!({"v":1,"request_id":request.request_id().as_str(),"kind":"sample","sample":{
-        "document":sample["document"],"R":sample["R"],"B":sample["B"],"dirty":sample["dirty"],"diagnostics":[]}});
+        "collection":sample["collection"],"document":sample["document"],"R":sample["R"],"B":sample["B"],"dirty":sample["dirty"],"diagnostics":[]}});
     let decoded =
         wire::decode_event(event.to_string().as_bytes(), &request, Some(&selected), 100).unwrap();
     let Event::Sample(sample) = decoded else {

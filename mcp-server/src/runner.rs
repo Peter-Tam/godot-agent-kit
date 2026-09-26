@@ -618,19 +618,33 @@ fn collect(
             Stage::ReadEditor,
         ));
     }
-    let sample = wire::observe(&mut selected, request, started, deadline)?;
-    send_event(
-        output,
-        &Event::Sample(Box::new(sample)),
-        request.request_id(),
-    )?;
+    let sample_collection = {
+        let event = Event::Sample(Box::new(wire::observe(
+            &mut selected,
+            request,
+            started,
+            deadline,
+        )?));
+        send_event(output, &event, request.request_id())?;
+        let Event::Sample(sample) = event else {
+            unreachable!()
+        };
+        // Retain only the interval; release source strings before disk acquisition.
+        sample.collection
+    };
     if Instant::now() >= deadline {
         return Err(timeout_failure(Stage::ReadDisk));
     }
     let disk = project_fs::read_disk(&selected, started)?;
     let event = Event::Disk(disk);
     send_event(output, &event, request.request_id())?;
-    let recheck = wire::recheck(&mut selected, request, started, deadline)?;
+    let recheck = wire::recheck(
+        &mut selected,
+        request,
+        &sample_collection,
+        started,
+        deadline,
+    )?;
     send_event(output, &Event::Rechecked(recheck), request.request_id())?;
     if Instant::now() >= deadline {
         return Err(timeout_failure(Stage::Recheck));
@@ -841,6 +855,7 @@ mod tests {
         (
             target,
             EditorSample {
+                collection: stamp.clone(),
                 document: DocumentState::new(
                     Some(id),
                     DocumentFact::observed(Validity::Valid, stamp.clone()),

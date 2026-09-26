@@ -1,6 +1,6 @@
 # Quickstart: Validate Live GDScript Observation
 
-**Status:** T001–T003 implement the reusable core, authenticated session boundary, and bounded local caller/worker with confined D acquisition. The addon still advertises no source collector; actual D/R/B story groups remain T004–T008 work. The driver implements `session-boundary`, `executor-boundary`, and `export-boundary`. Evidence is recorded in §2.1–§2.3; no full-feature or mutation support is claimed.
+**Status:** T001–T004 implement the reusable core, authenticated session boundary, bounded caller/worker, confined D and passive R/B/dirty collector. The driver implements `clean-open`, `session-boundary`, `executor-boundary`, and `export-boundary`; remaining story and cumulative groups belong to T005–T008. Evidence is recorded in §2.1–§2.4. No full-feature, mutation or supported-version claim is made.
 
 This guide covers the entire observation-only specification. It does not implement the feature, derive tasks, or claim a mutation/UndoRedo/Phase 1 exit guarantee. Use the [data model](data-model.md), [caller contract](contracts/observation-api.md), and [bridge contract](contracts/bridge-protocol.md) for normative fields and outcomes instead of inferring semantics from exit status alone.
 
@@ -139,10 +139,10 @@ not full Feature 001 acceptance, GUI-CI evidence, or additional-platform support
 
 ### 2.3. T003 executor boundary evidence (2026-09-26)
 
-The real CLI now accepts the observation invocation in the caller contract.
-With the current T002 addon it returns `unsupported_observation` (exit 2),
-an authenticated resolved target, and null snapshot: the missing collector is
-explicit, and no disk read manufactures a source-only public result.
+At T003 delivery, the real CLI accepted the observation invocation, while the
+then-current T002 addon returned `unsupported_observation` (exit 2), an
+authenticated target and null snapshot. T004 adds the actual collector;
+the current executor regression prepares a real cached, closed script explicitly.
 
 Run the dedicated executor boundary, independently of the unimplemented story groups:
 
@@ -185,9 +185,99 @@ evidence remains historical evidence for that unchanged boundary; no new export
 run, GUI-CI result, R/B/dirty support, US1 completion, or additional platform is
 claimed by T003. Mutation A–E and applied-edit durability remain inapplicable.
 
+### 2.4. T004 clean-open evidence (2026-09-26)
+
+Run the usable US1 slice against an owned GUI editor:
+
+```sh
+python3 godot-addon/tests/run_observation.py \
+  --godot "$GODOT" --observer "$OBSERVER" \
+  --scenario clean-open --artifacts "$CLEAN_ARTIFACTS"
+```
+
+The artifact directory must be empty, absolute and mode 0700. The driver opens
+and presents only its disposable fixture, then brackets real caller observations
+with independent disk, GDScript, CodeEdit, unsaved-path, identity, caret, selection,
+version/saved-version and Undo/Redo-availability witnesses. Product collection
+does none of that preparation and never calls the fixture's helpers.
+
+Observed on macOS **26.6.2 arm64**, exact Godot
+`4.7.2.stable.official.ed1daf0bf`, full engine hash
+`ed1daf0bf001b61586d9930840f2f1394092c079`:
+
+| Boundary | Executed evidence |
+|---|---|
+| Native | fmt, Clippy `-D warnings`, **84 tests** (8 library, 24 bridge, 21 confinement, 31 observation/caller), doctest phase, docs and library/caller build passed. No doctest cases exist. |
+| Clean-open | **13 cases passed**, including US1.1–3: clean and repeated observations, independently empty D/R/B, actual clean evidence and agreement. Request IDs and editor collection ticks are fresh. |
+| Non-interference | Clean/empty reads preserve exact D/R/B, disk hash/metadata, open/current documents, caret/selection, buffer versions, dirty state and prepared history availability. Scoped native screenshots of the clean and empty CodeEdit surfaces were reviewed. This is not T008's twenty-read/history-replay gate. |
+| Source limits | Real R and B are separately prepared at **512 KiB** and **512 KiB + 1**. Exact limits remain observed; over-limit records alone become unavailable/`too_large`, retaining other independently observed sources and dirty evidence. Before/after witnesses remain unchanged during the reads. |
+| Rechecks/refusals | Actual buffer/dirty changes between authenticated sample and recheck are reported; plugin disable prevents recheck success. An authenticated escaping locator returns source-free refusal. A held collection causes source-free `unsupported_observation`, not a fictitious editor disconnection, while the original collection can still recheck. |
+| Executor | **11 cases passed** with the installed collector: explicitly prepared cached/closed state, exact/ambiguous/ended-session outcomes, independent confined D, suspended-editor and stopped-worker timeouts, cancellation and owned-worker reaping. The caller never terminates an editor. |
+| Sessions/authentication | **33 cases passed**, including three proof vectors, independent live mutual proofs, malformed/premature/replayed/reflected messages, peer capacity/expiry, unsafe metadata, lifetime renewal and rebound-port impersonation. This remains the source-free boundary group, not T006's full source-bearing routing matrix. |
+| Export/privacy | Enabled, disabled and hook-only variants passed ZIP/PCK inspection and actual release-app launches: no addon/driver code, listener, advertisement or gameplay dependency. Synthetic source/authentication sentinels were absent from incidental caller/editor/export logs. |
+| Coverage gate | `--scenario all` exits 1 and names the **11 remaining groups**. `clean-open` is no longer missing; no partial run is reported as full-feature acceptance. |
+
+Final local evidence is under `~/.t004-acceptance-0wwik1u6/`: `clean-open-verified`,
+`executor-verified`, `session-final`, `export-verified`, `coverage-gate`, and
+`workflow-gate-smoke.json`. Each group records exact target/session identity,
+source/driver/binary hashes, cases and timings. Earlier failed/diagnostic directories
+are retained separately and are not passing evidence.
+
+The largest measured clean-open/cap caller duration was **0.356 s**. Suspended-editor
+timeout was **4.505 s**, stopped-worker timeout **4.513 s**, and cancellation
+**0.039 s**. The 32-peer test measured maximum unauthenticated idle lifetime
+**4.009 s**. The bridge begins handshake expiry at 4.0 seconds to reserve polling
+margin for its 4.5-second lifetime bound; source collection retains its separate
+4.5-second lease. No deadline was relaxed.
+
+Fixture preparation waits for the actual owned window to be visible, without
+requiring keyboard focus or using a fixed sleep. Cap-only fixtures deliberately
+use syntax-invalid B so native validation does not copy it over the independently
+prepared R; both authorities are real and native processing remains enabled.
+The ordinary clean/empty US1 cases are unchanged. The executor fixture explicitly
+loads/holds its synthetic cached Script rather than assuming import-time cache
+state. None of these fixture actions is a product capability.
+
+The native regressions also cover wrong request/session/document witnesses,
+facts outside the sample interval, pre-sample or mismatched rechecks, independent
+B limits, empty-source results, and source suppression after authenticated denial.
+Those controlled peers establish boundary semantics, not GUI observability.
+
+#### Protected live workflow
+
+[live-editor.yml](../../.github/workflows/live-editor.yml) is manually
+dispatched from `main` with the exact reviewed dispatch SHA and one implemented
+group. Its hosted trust gate rejects another revision, missing reviewer protection,
+self-review, wildcard branch policies and a `main` tag policy. The GUI job requires
+the protected `live-editor` environment and a dedicated
+`godot-live-editor-ephemeral` macOS/ARM64 runner. Provision a clean one-job GUI
+environment with no human projects, credentials or privileged network access;
+do not register a persistent human workstation under that label.
+
+The environment must require reviewers with self-review prevented and permit only
+the `main` branch. The workflow references no repository secrets, grants only
+`contents: read`, pins checkout/upload actions to full SHAs, and does not persist
+checkout credentials. It has no PR or privileged PR trigger. Artifacts contain
+explicit synthetic evidence only. The existing native workflow remains
+[ci.yml](../../.github/workflows/ci.yml).
+
+Actionlint passed. A local execution of the hosted gate's Python code accepted
+the valid exact-main protection configuration and rejected six unsafe revision/
+protection variants using **simulated GitHub metadata**. This was not a CI run.
+The repository currently has no configured environment or GUI runner; the live
+workflow fails closed without that provisioning. Actual trusted GUI CI remains
+required before any supported-version/platform claim.
+
+Constitutional review: independent observations, request-local rechecks, truthful
+limits and no editor mutation preserve I–IV/VII/X/XII; private routing/confinement
+and source-free failures preserve V. Exact dependency/tool provenance is in
+[research](research.md#t004-collector-and-verification-provenance-2026-09-26).
+Mutation A–E and applied-edit durability remain inapplicable. T004 does not complete
+Feature 001 or roadmap Phase 1.
+
 ## 3. Fixture driver entrypoint
 
-The acceptance driver is `godot-addon/tests/run_observation.py`. T002/T003 implement the boundary groups above; the following is the full-feature contract, with `all` deliberately refusing incomplete coverage:
+The acceptance driver is `godot-addon/tests/run_observation.py`. T004 adds `clean-open` to the implemented boundary groups above; the following remains the full-feature contract, with `all` deliberately refusing incomplete coverage:
 
 ```sh
 REPO="$PWD"
@@ -211,7 +301,7 @@ The driver must:
 6. Write `summary.json`, explicit synthetic per-case observation/witness records, timing/identity metadata, and scoped GUI screenshots. Keep incidental stderr/editor logs separate and source/token-free. Assertions and failure messages identify surfaces/stages without echoing source payloads.
 7. Resume/stop only owned suspended/running processes and remove disposable projects/registries even on failure. Retain the explicit evidence directory for review, not a product source cache.
 
-The following manual **observation** invocation remains planned for T003/T004; it is not a T002 command:
+The current manual observation invocation is:
 
 ```sh
 "$OBSERVER" init-registry --registry "$REGISTRY"
@@ -272,4 +362,4 @@ A passing implementation report includes:
 - Native baseline and dependency review results; real-editor and export evidence on the declared candidate matrix. Hosted compile-only CI cannot replace GUI acceptance. Keep privileged GUI runners isolated from untrusted PR code and secrets.
 - No claim that complete observation means D/R/B convergence, clean state, permission to edit, applied mutation durability, or actual product UndoRedo support.
 
-The original planning command exercised only its bounded GUI feasibility experiment and design-artifact checks. T001–T003 evidence is recorded in §2.1–§2.3. The full product checks above remain prerequisites for later feature/support claims.
+The original planning command exercised only its bounded GUI feasibility experiment and design-artifact checks. T001–T004 evidence is recorded in §2.1–§2.4. The full product checks above remain prerequisites for later feature/support claims.

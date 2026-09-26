@@ -4,17 +4,22 @@ extends Node
 const VERSION := "4.7.2.stable.official.ed1daf0bf"
 const ENGINE_HASH := "ed1daf0bf001b61586d9930840f2f1394092c079"
 const DOMAIN := "godot-agent-kit/observation-bridge/v1"
+const ObservationScript = preload("res://addons/godot_agent_kit/observation.gd")
 const MAX_FRAME := 4096
+const MAX_RESPONSE := 12 * 1024 * 1024
 const MAX_PEERS := 32
 const PEER_EXPIRY_USEC := 4500000
+# Expire handshakes early enough for frame-budgeted polling to meet the 4.5 s
+# unauthenticated lifetime bound; source collection keeps its separate lease.
+const HANDSHAKE_EXPIRY_USEC := 4000000
 const FRAME_BUDGET_USEC := 1000
 const FRAME_BUDGET_BYTES := 65536
 const CAPABILITIES := {
-	"observe_gdscript": false,
-	"open_enumeration": false,
-	"buffer_attribution": false,
-	"unsaved_paths": false,
-	"cached_resource_lookup": false,
+	"observe_gdscript": true,
+	"open_enumeration": true,
+	"buffer_attribution": true,
+	"unsaved_paths": true,
+	"cached_resource_lookup": true,
 }
 
 var _crypto := Crypto.new()
@@ -31,6 +36,8 @@ var _descriptor_identity := ""
 var _registry_identity := ""
 var _uid := ""
 var _project_identity := ""
+
+var _active: Dictionary = {}
 
 
 func _valid_metadata_path(path: String) -> bool:
@@ -265,6 +272,9 @@ func stop() -> void:
 	set_process(false)
 	for peer in _peers:
 		peer.socket.disconnect_from_host()
+		if peer.has("collector"):
+			peer.collector.clear()
+	_active.clear()
 	_peers.clear()
 	_peer_cursor = 0
 	if _server != null:
@@ -293,6 +303,8 @@ func _process(_delta: float) -> void:
 		return
 	# Work on all connections is shared under one frame-wide time/byte budget.
 	var frame_start := Time.get_ticks_usec()
+	if not _active.is_empty() and Time.get_ticks_usec() - int(_active.observation_since) >= PEER_EXPIRY_USEC:
+		_close_peer(_active)
 	var budget := FRAME_BUDGET_BYTES
 	var schedule := _peers.duplicate()
 	if not schedule.is_empty():
@@ -303,7 +315,7 @@ func _process(_delta: float) -> void:
 			break
 		var socket: StreamPeerTCP = peer.socket
 		socket.poll()
-		if socket.get_status() != StreamPeerTCP.STATUS_CONNECTED or (peer.state != "authenticated" and Time.get_ticks_usec() - int(peer.since) >= PEER_EXPIRY_USEC):
+		if socket.get_status() != StreamPeerTCP.STATUS_CONNECTED or (peer.state in ["initial", "challenged"] and Time.get_ticks_usec() - int(peer.since) >= HANDSHAKE_EXPIRY_USEC):
 			_close_peer(peer)
 			continue
 		if not peer.output.is_empty():
@@ -361,16 +373,25 @@ func _process(_delta: float) -> void:
 		incoming.set_no_delay(true)
 		_peers.append({"socket": incoming, "since": Time.get_ticks_usec(), "state": "initial",
 			"input": PackedByteArray(), "needed": -1, "output": PackedByteArray(), "sent": 0})
+	# Getter work is a separate bounded pass, never inside the shared network
+	# time/byte budget. At most one active request may hold source references.
+	if not _active.is_empty() and _active.has("pending"):
+		_collect_pending()
 
 
 func _close_peer(peer: Dictionary) -> void:
 	peer.socket.disconnect_from_host()
+	if _active == peer:
+		_active = {}
+	if peer.has("collector"):
+		peer.collector.clear()
+		peer.erase("collector")
 	_peers.erase(peer)
 
 
-func _queue(peer: Dictionary, payload: Dictionary, closing: bool = false) -> void:
+func _queue(peer: Dictionary, payload: Dictionary, closing: bool = false, large: bool = false) -> void:
 	var body := JSON.stringify(payload).to_utf8_buffer()
-	if body.size() > MAX_FRAME:
+	if body.size() > (MAX_RESPONSE if large else MAX_FRAME):
 		_close_peer(peer)
 		return
 	var size := body.size()
@@ -460,10 +481,130 @@ func _handle_frame(peer: Dictionary, bytes: PackedByteArray) -> void:
 		var hello := _reply_fields(peer, "hello")
 		hello.finish_proof = finish.hex_encode()
 		_queue(peer, hello)
+	elif peer.state == "authenticated":
+		if not _fixed_tuple(value, 6, "observe") and not _fixed_tuple(value, 6, "recheck"):
+			_close_peer(peer)
+			return
+		if value[2] != peer.request_id or typeof(value[5]) != TYPE_STRING:
+			_close_peer(peer)
+			return
+		var operation: String = value[1]
+		var path: String = value[5]
+		if operation == "observe":
+			if peer.has("collector"):
+				_close_peer(peer)
+				return
+			if not _active.is_empty():
+				_queue(peer, _failure(peer, path, "read_editor", "unsupported_observation"), true)
+				return
+			peer.collector = ObservationScript.new()
+			peer.observation_since = Time.get_ticks_usec()
+			peer.requested_path = path
+			peer.pending = "observe"
+			_active = peer
+		else:
+			if _active != peer or not peer.has("collector") or peer.has("pending"):
+				_close_peer(peer)
+				return
+			if path != peer.observation_path:
+				_queue(peer, _failure(peer, path, "recheck"), true)
+				peer.collector.clear()
+				_active = {}
+				return
+			peer.pending = "recheck"
 	else:
-		# No observation handler exists in T002. A completed handshake cannot
-		# authorize source acquisition until an actual collector is installed.
 		_close_peer(peer)
+
+
+func _failure(peer: Dictionary, path: String, stage: String, code: String = "out_of_project") -> Dictionary:
+	return {"v": 1, "kind": "failure", "request_id": peer.request_id,
+		"session_id": _session, "project_root": _project, "script_path": path,
+		"code": code, "stage": stage}
+
+
+func _safe_locator(path: String) -> bool:
+	if _filesystem == null or _filesystem.is_link(_project) or _directory_identity(_project) != _project_identity \
+		or not path.begins_with("res://") or path.to_utf8_buffer().size() > 2048:
+		return false
+	var parts := path.substr(6).split("/", true)
+	var current := _project
+	for i in parts.size():
+		var part: String = parts[i]
+		if part.is_empty() or part in [".", ".."] or part.contains("\\") or part.contains(":") \
+			or part.contains("?") or part.contains("#"):
+			return false
+		for c in part:
+			var scalar := c.unicode_at(0)
+			if scalar < 32 or scalar >= 127 and scalar <= 159:
+				return false
+		current = current.path_join(part)
+		if _filesystem == null or _filesystem.is_link(current):
+			return false
+		# A missing leaf can belong to an already-open document, but an
+		# uninspectable ancestor cannot authorize any Resource text.
+		if i < parts.size() - 1 and not DirAccess.dir_exists_absolute(current):
+			return false
+		if i == parts.size() - 1 and DirAccess.dir_exists_absolute(current):
+			return false
+	return _directory_identity(_project) == _project_identity
+
+func _scope_witness(path: String) -> PackedStringArray:
+	if not _safe_locator(path):
+		return PackedStringArray()
+	var witness := PackedStringArray([_project_identity])
+	var current := _project
+	var parts := path.substr(6).split("/", true)
+	for i in parts.size():
+		current = current.path_join(parts[i])
+		var info := _metadata(current)
+		if i < parts.size() - 1:
+			if info.size() != 5 or info[2] != "Directory":
+				return PackedStringArray()
+		elif not info.is_empty() and (info.size() != 5 or info[2] != "Regular File"):
+			return PackedStringArray()
+		witness.append("missing" if info.is_empty() else info[2] + ":" + info[3] + ":" + info[4])
+	return witness
+
+
+func _collect_pending() -> void:
+	var peer := _active
+	var operation: String = peer.pending
+	peer.erase("pending")
+	var path: String = peer.get("observation_path", "")
+	if operation == "observe":
+		path = peer.get("requested_path", "")
+	if Time.get_ticks_usec() - int(peer.observation_since) >= PEER_EXPIRY_USEC:
+		_close_peer(peer)
+		return
+	# Validate scope immediately before and after every getter pass. In the
+	# event of a file/parent replacement, never serialize collected text.
+	var scope_before := _scope_witness(path)
+	if scope_before.is_empty():
+		_queue(peer, _failure(peer, path, "read_editor" if operation == "observe" else "recheck"), true)
+		peer.collector.clear()
+		_active = {}
+		return
+	var reply: Dictionary
+	if operation == "observe":
+		reply = peer.collector.collect(_session, _project, path)
+	else:
+		reply = peer.collector.recheck()
+	if Time.get_ticks_usec() - int(peer.observation_since) >= PEER_EXPIRY_USEC:
+		_close_peer(peer)
+		return
+	if _scope_witness(path) != scope_before:
+		_queue(peer, _failure(peer, path, "read_editor" if operation == "observe" else "recheck"), true)
+		peer.collector.clear()
+		_active = {}
+		return
+	reply.request_id = peer.request_id
+	_queue(peer, reply, operation == "recheck", true)
+	if operation == "observe":
+		peer.observation_path = path
+	else:
+		peer.collector.clear()
+		peer.erase("collector")
+		_active = {}
 
 
 func _reply_fields(peer: Dictionary, kind: String) -> Dictionary:

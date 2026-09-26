@@ -7,6 +7,7 @@ const MAX_CONTROL := 4096
 
 var _control := ""
 var _last_id := ""
+var _cached_subject: GDScript
 
 
 func _enter_tree() -> void:
@@ -45,6 +46,63 @@ func _process(_delta: float) -> void:
 	match action:
 		"witness":
 			response.merge(_witness())
+		"present":
+			# Owned GUI preparation only; never reachable through the product.
+			var window := EditorInterface.get_base_control().get_window()
+			window.mode = Window.MODE_WINDOWED
+			window.show()
+			window.grab_focus()
+			await get_tree().process_frame
+		"cache_subject":
+			# Explicit owned preparation; do not depend on import-time cache races.
+			_cached_subject = load("res://scripts/subject.gd") as GDScript
+			response.ok = _cached_subject != null
+		"prepare_subject":
+			response.merge(_prepare("res://scripts/subject.gd"))
+			response.ok = response.get("ready", false)
+		"prepare_empty":
+			response.merge(_prepare("res://scripts/empty.gd"))
+			response.ok = response.get("ready", false)
+		"seed_history":
+			var history := _document("res://scripts/subject.gd")
+			if not history.get("associated", false):
+				response.ok = false
+			else:
+				var buffer := EditorInterface.get_script_editor().get_open_script_editors()[history.index].get_base_editor() as CodeEdit
+				buffer.set_caret_line(buffer.get_line_count() - 1)
+				buffer.set_caret_column(buffer.get_line(buffer.get_caret_line()).length())
+				buffer.insert_text_at_caret("# FIXTURE_UNDO_HISTORY")
+				buffer.undo()
+				response.merge(_document("res://scripts/subject.gd"))
+		"append_subject":
+			var before := _document("res://scripts/subject.gd")
+			if before.get("associated", false):
+				var editors := EditorInterface.get_script_editor().get_open_script_editors()
+				var buffer := editors[before.index].get_base_editor() as CodeEdit
+				buffer.set_caret_line(buffer.get_line_count() - 1)
+				buffer.set_caret_column(buffer.get_line(buffer.get_caret_line()).length())
+				buffer.insert_text_at_caret("\n# FIXTURE_RECHECK_CHANGE")
+				response.merge(_document("res://scripts/subject.gd"))
+			else:
+				response.ok = false
+		"cap_resource_exact", "cap_resource_over", "cap_buffer_exact", "cap_buffer_over":
+			var doc := _document("res://scripts/subject.gd")
+			if not doc.get("associated", false):
+				response.ok = false
+			else:
+				var script := EditorInterface.get_script_editor().get_open_scripts()[doc.index] as GDScript
+				var buffer := EditorInterface.get_script_editor().get_open_script_editors()[doc.index].get_base_editor() as CodeEdit
+				var amount := 524289 if action.ends_with("_over") else 524288
+				# The pinned editor copies valid B into R during idle validation.
+				# A syntax-invalid synthetic B keeps the independent authorities
+				# stable without disabling native processing or replacing getters.
+				var invalid_prefix := "var =\n# "
+				if action.begins_with("cap_resource"):
+					buffer.text = "var =\n"
+					script.source_code = "# " + "r".repeat(amount - 2)
+				else:
+					buffer.text = invalid_prefix + "b".repeat(amount - invalid_prefix.length())
+				response.merge(_document("res://scripts/subject.gd"))
 		"disable", "enable":
 			var enabled := action == "enable"
 			EditorInterface.set_plugin_enabled(PRODUCT, enabled)
@@ -84,16 +142,83 @@ func _witness() -> Dictionary:
 	for node in get_tree().get_nodes_in_group("godot_agent_kit_session_bridge"):
 		nodes.append({"name": node.name, "type": node.get_class()})
 	var editor := EditorInterface.get_script_editor()
+	var scripts := editor.get_open_scripts()
+	var editors := editor.get_open_script_editors()
 	var paths := PackedStringArray()
-	for script in editor.get_open_scripts():
-		if script != null:
-			paths.append(script.resource_path)
+	var script_ids := PackedStringArray()
+	var script_types := PackedStringArray()
+	var editor_types := PackedStringArray()
+	var editor_ids := PackedStringArray()
+	for script in scripts:
+		paths.append(script.resource_path if script != null else "")
+		script_ids.append(String.num_uint64(script.get_instance_id()) if script != null else "")
+		script_types.append(script.get_class() if script != null else "")
+	for base in editors:
+		editor_types.append(base.get_class() if base != null else "")
+		editor_ids.append(String.num_uint64(base.get_instance_id()) if base != null else "")
 	var selected := editor.get_current_script()
+	var cached := ResourceLoader.get_cached_ref("res://scripts/subject.gd") as GDScript
 	return {"version": exact_version, "engine_hash": version.get("hash", ""),
 		"editor_hint": Engine.is_editor_hint(), "pid": OS.get_process_id(),
 		"plugin_enabled": EditorInterface.is_plugin_enabled(PRODUCT),
 		"product_nodes": nodes, "open_paths": paths,
-		"current_script": selected.resource_path if selected != null else ""}
+		"script_count": scripts.size(), "editor_count": editors.size(),
+		"script_ids": script_ids, "script_types": script_types,
+		"editor_types": editor_types, "editor_ids": editor_ids,
+		"unsaved_paths": editor.get_unsaved_files(),
+		"current_script": selected.resource_path if selected != null else "",
+		"subject_cached_id": String.num_uint64(cached.get_instance_id()) if cached != null else "",
+		"subject": _document("res://scripts/subject.gd"),
+		"empty": _document("res://scripts/empty.gd")}
+
+
+func _prepare(path: String) -> Dictionary:
+	# Preparation alone may load/select. Neither this action nor this helper is
+	# reachable through the product's authenticated observe/recheck operations.
+	var script := load(path) as GDScript
+	if script == null:
+		return {"ready": false}
+	EditorInterface.edit_script(script)
+	EditorInterface.set_main_screen_editor("Script")
+	var state := _document(path)
+	return {"ready": true, "document": state}
+
+
+func _document(path: String) -> Dictionary:
+	var editor := EditorInterface.get_script_editor()
+	var scripts := editor.get_open_scripts()
+	var editors := editor.get_open_script_editors()
+	var matches := 0
+	var index := -1
+	for i in scripts.size():
+		if scripts[i] != null and scripts[i].resource_path == path:
+			matches += 1
+			index = i
+	var result := {"path": path, "script_count": scripts.size(), "editor_count": editors.size(),
+		"matches": matches, "associated": false}
+	if matches != 1 or scripts.size() != editors.size() or not (scripts[index] is GDScript):
+		return result
+	var base: ScriptEditorBase = editors[index]
+	if base == null:
+		return result
+	var buffer := base.get_base_editor() as CodeEdit
+	if buffer == null:
+		return result
+	var script := scripts[index] as GDScript
+	var unsaved: PackedStringArray = editor.get_unsaved_files()
+	result.merge({"associated": true, "index": index, "script_id": String.num_uint64(script.get_instance_id()),
+		"editor_id": String.num_uint64(base.get_instance_id()), "buffer_id": String.num_uint64(buffer.get_instance_id()),
+		"script_type": script.get_class(), "editor_type": base.get_class(),
+		"buffer_type": buffer.get_class(), "R": script.source_code, "B": buffer.text,
+		"dirty": path in unsaved, "version": buffer.get_version(),
+		"saved_version": buffer.get_saved_version(),
+		"caret_line": buffer.get_caret_line(), "caret_column": buffer.get_caret_column(),
+		"has_selection": buffer.has_selection(), "selection_from_line": buffer.get_selection_from_line() if buffer.has_selection() else null,
+		"selection_from_column": buffer.get_selection_from_column() if buffer.has_selection() else null,
+		"selection_to_line": buffer.get_selection_to_line() if buffer.has_selection() else null,
+		"selection_to_column": buffer.get_selection_to_column() if buffer.has_selection() else null,
+		"has_undo": buffer.has_undo(), "has_redo": buffer.has_redo()}, true)
+	return result
 
 
 func _proof_vectors() -> Dictionary:
