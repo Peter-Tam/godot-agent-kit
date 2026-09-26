@@ -1,17 +1,17 @@
-name: Observation native
+name: CI
 
 on:
   push:
     branches:
       - main
     paths:
-      - .github/workflows/observation-native.yml
+      - .github/workflows/ci.yml
       - mcp-server/**
   pull_request:
     branches:
       - main
     paths:
-      - .github/workflows/observation-native.yml
+      - .github/workflows/ci.yml
       - mcp-server/**
   workflow_dispatch:
 
@@ -23,8 +23,10 @@ concurrency:
 permissions:
   contents: read
 
+# Keep shared-boundary checks as jobs; expand path filters only with matching coverage.
 jobs:
-  native:
+  rust-native:
+    name: Rust native
     runs-on: macos-15
     steps:
       - name: Check out source
