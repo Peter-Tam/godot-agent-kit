@@ -9,3 +9,9 @@ servers:
     rootMarkers: ["mcp-server/Cargo.toml"]
     initOptions:
       linkedProjects: ["mcp-server/Cargo.toml"]
+    # Configuration pulls replace initOptions; keep the nested workspace selected.
+    settings:
+      rust-analyzer:
+        linkedProjects: ["mcp-server/Cargo.toml"]
+        # Preserve OMP's default when overriding its rust-analyzer settings.
+        checkOnSave: false
