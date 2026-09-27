@@ -179,7 +179,8 @@ Validate local documentation links/anchors, Markdown/code fences, spec/design co
 ## 9. T001 core acceptance (2026-09-27)
 
 **Complete:** protocol-independent eligibility, evidence and terminal interpretation
-in `mcp-server/src/script_edit.rs`, exported by the existing library. The
+under `mcp-server/src/script_edit/`, exposed through the `mcp-server/src/script_edit.rs`
+facade and the existing library. The
 [public Rust API](contracts/edit-api.md#7-implemented-rust-core) is reusable without a
 CLI, JSON, sockets, native objects or a second policy. T002–T005 remain pending.
 

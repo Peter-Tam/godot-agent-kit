@@ -163,7 +163,8 @@ mcp-server/
 +-- src/
 |   +-- lib.rs                     exports reusable core
 |   +-- observation.rs             existing read-only semantics
-|   +-- script_edit.rs             planned focused edit intent/evidence/reducer
+|   +-- script_edit.rs             public edit-core facade
+|   +-- script_edit/               private request/evidence/validation/outcome/attempt modules
 |   +-- runner.rs                  extend existing supervised execution boundary
 |   +-- project_fs.rs              existing independent D/confinement helpers
 |   +-- bridge.rs / bridge/        existing session/authentication/framing boundary
