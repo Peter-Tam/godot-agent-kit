@@ -14,7 +14,7 @@
 
 | Phase | Status | Current evidence |
 | --- | --- | --- |
-| 0 — Governance and project foundation | Complete | Merged [constitution v1.0.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
+| 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
 | 1 — Live-editor script coherence | In progress | Feature 001's observation foundation is complete: T001–T007 are merged and T008's full maintainer-operated real-editor/native/privacy/export evidence passes in PR #18. Mutation A–E and edit durability gates remain pending. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
