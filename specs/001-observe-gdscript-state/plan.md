@@ -132,11 +132,12 @@ evidence, not the product collector as its oracle.
 
 VIII/XI: the expanded addon/driver remains under existing export exclusions and
 requires renewed artifact/actual-export regression evidence. No dependency is
-added. The protected manual live workflow checks its exact main revision and
-required environment protections on a hosted runner before a GUI job is eligible;
-it has no PR trigger, no persisted checkout credentials, and no repository secrets.
-The dedicated GUI runner must be clean, isolated and single-job, not a persistent
-human workstation. Missing provisioning is not a passing CI/support gate.
+added. The protected manual live workflow is sourced from `main`; the hosted gate
+validates the explicitly selected immutable tested revision and main-only
+environment policy before a GUI job is eligible. It has no PR trigger, no
+persisted checkout credentials, and no repository secrets. The dedicated GUI
+runner must be clean, isolated, ephemeral and single-job, not a persistent human
+workstation. Missing provisioning is not a passing CI/support gate.
 
 Mutation A–E and applied-edit durability remain inapplicable because no mutation
 or product UndoRedo capability exists. T004 is the US1 development increment,
@@ -268,23 +269,27 @@ license/provenance/advisory review. Shared CI keeps responsibility-based naming
 and ownership; capability-specific assertions stay in the observation harness.
 No duplicate shared infrastructure or speculative abstraction is authorized.
 
-The complete GUI workflow is supplied by merged
-[PR #19](https://github.com/Peter-Tam/godot-agent-kit/pull/19); both workflow files
-are retained unchanged from `main`. The workflow definition must come from
-`main`, while its validated immutable checkout may be the exact dispatch-main
-SHA or an eligible same-repository PR head independently approved for that exact
-SHA. Latest-review reduction and PR-head/state revalidation precede the separate
-protected environment approval. The main-only environment policy, self-review
-prevention, isolated one-job runner, read-only token, full-SHA pins and immediate
-checkout-HEAD equality check remain intact. See the
-[shared operating procedure](../../.github/README.md).
+The complete GUI workflow was supplied by merged
+[PR #19](https://github.com/Peter-Tam/godot-agent-kit/pull/19);
+the solo-maintainer authorization model is in the
+[shared operating procedure](../../.github/README.md). The workflow definition
+must come from `main`, while its validated immutable checkout may be the exact
+dispatch-main SHA or the explicitly selected exact current head of one eligible
+same-repository PR. Maintainer dispatch with that SHA authorizes execution:
+neither independent PR review nor separate environment approval is required.
+The hosted gate validates current PR head/state and the main-only `live-editor`
+environment policy (no deployment reviewers or secrets); the clean isolated
+ephemeral one-job runner verifies checkout HEAD against the full SHA before the
+complete suite. Read-only scoped credentials and no administrator bypass remain
+required.
 
 Local acceptance and hosted CI cannot substitute for actual trusted GUI CI.
-Repository API inspection on 2026-09-27 still found no configured environments
-or registered runners. Exact-head independent review, protected provisioning,
-environment approval and a successful full GUI run remain required. T008 stays
-unchecked; no human workstation registration, protection bypass, support claim
-or Phase 1 completion follows from this rebase.
+At the 2026-09-27 PR #19 rebase inspection, no environment or runner was
+registered; that historical count is not a statement of current provisioning.
+Protected execution of the full suite on the explicitly selected current
+eligible head remains pending until observed. T008 stays unchecked; no human
+workstation registration, protection bypass, support claim or Phase 1 completion
+follows from local evidence.
 
 Implementation review: all 13 local groups pass (194 cases), including twenty
 fresh observations with unchanged independent witnesses and actual prior-history
@@ -292,12 +297,12 @@ replay. All 105 native tests and required baselines pass; full privacy and three
 export variants pass. Result-only review retains explicit authority/target/limit
 knowledge. Fixture setup and evidence namespaces are isolated per group; native
 cache state is observed, not inferred from import timing. The addon/core/caller
-remain unchanged. Workflow protection simulations and Actionlint pass, but no
-actual GUI CI ran; the known missing environment/runner keeps T008 unchecked.
-This satisfies local verification, not the remaining release/support gate.
-The full post-rebase replay preserves those counts and passes all 29 merged
-workflow regressions without modifying the PR #19 trust implementation.
-See [fresh evidence and the exact-head review gate](quickstart.md#29-rebased-t008-local-verification-and-review-gate-2026-09-27).
+remain unchanged. At the PR #19 rebase, workflow protection simulations and
+Actionlint passed, but no actual GUI CI ran; T008 remained unchecked. This
+satisfies local verification, not the remaining release/support gate. The full
+post-rebase replay preserves those counts and passed all 29 then-merged workflow
+regressions without modifying the PR #19 trust implementation. See
+[historical local evidence and the protected GUI CI gate](quickstart.md#29-rebased-t008-local-verification-and-trusted-gui-ci-gate-2026-09-27).
 
 ## Project Structure
 

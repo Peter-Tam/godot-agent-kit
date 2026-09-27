@@ -407,25 +407,29 @@ The installed official 4.7.2 `macos.zip` export template matches
 `88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`;
 its release-archive provenance is recorded in T002 above.
 
-Repository API inspection after the PR #19 rebase still found **zero environments
-and zero registered runners**. No protection, registration or security setting
-was changed. Both workflow files now come unchanged from merged PR #19:
-the trusted workflow definition is sourced from `main`, and its tested checkout
-can be the exact dispatch-main SHA or an independently approved eligible
-same-repository PR head. Approval must name that exact SHA; it does not replace
-the separate protected environment approval or isolated GUI runner. The former
-main-only tested-revision restriction is no longer the blocker. See the
+At the 2026-09-27 PR #19 rebase inspection, the repository API reported **zero
+environments and zero registered runners**; this historical count does not
+describe current provisioning. No protection, registration or security setting
+was changed in that rebase. The workflow files then came unchanged from merged
+PR #19. The trusted workflow definition is sourced from `main`, while the
+tested checkout may be the exact dispatch-main SHA or the explicitly selected
+exact current head of one eligible same-repository PR. Under the merged
+solo-maintainer procedure, manually dispatching the trusted `main` workflow
+with that SHA is authorization, without independent PR review or separate
+environment approval. The hosted gate validates current PR head/state and the
+main-only `live-editor` environment policy (no deployment reviewers or secrets)
+before an isolated ephemeral single-job GUI run. See the
 [shared CI procedure](../../.github/README.md). Hosted native/workflow checks
 cannot establish visible-buffer or macOS 26.6.2 GUI support; actual trusted GUI
-execution remains an unmet T008 completion gate.
+execution on the selected current eligible head remains pending until observed.
 
 The complete initial matrix and exact artifact identities are recorded in
 [quickstart §2.8](quickstart.md#28-t008-cumulative-local-acceptance-and-unmet-ci-gate-2026-09-27);
-[§2.9](quickstart.md#29-rebased-t008-local-verification-and-review-gate-2026-09-27)
-records the full post-rebase rerun, unchanged checksums, fresh clean advisory
-audit and the still-required exact-head review and protected GUI execution.
-No schema, core-module ownership or product capability was added by this
-acceptance cutover or rebase.
+[§2.9](quickstart.md#29-rebased-t008-local-verification-and-trusted-gui-ci-gate-2026-09-27)
+records the historical post-PR #19-rebase rerun, unchanged checksums and fresh
+clean advisory audit. Historical CI runs do not validate a new PR head; an actual
+protected full GUI run remains required. No schema, core-module ownership or
+product capability was added by this acceptance cutover or rebase.
 
 ## 5. Local bridge, session bootstrap, and confinement
 

@@ -1,6 +1,6 @@
 # Quickstart: Validate Live GDScript Observation
 
-**Status:** T001–T007 are merged. T008's cumulative harness and all local native/GUI/privacy/export gates pass, including the PR #19 rebase rerun (§2.9), but **T008 and Feature 001 remain incomplete**. The exact PR head still requires independent review and a successful protected trusted GUI CI run; its environment and isolated runner are not provisioned. No supported-version, mutation or Phase 1 completion claim is made.
+**Status:** T001–T007 are merged. T008's cumulative harness and all local native/GUI/privacy/export gates passed, including the historical PR #19 rebase rerun (§2.9), but **T008 and Feature 001 remain incomplete**. A successful protected trusted GUI CI run on the explicitly selected exact current eligible PR head remains pending until observed; manual maintainer dispatch from trusted `main` authorizes that run, without independent PR review or separate environment approval. No supported-version, mutation or Phase 1 completion claim is made.
 
 This guide covers the entire observation-only specification. It does not implement the feature, derive tasks, or claim a mutation/UndoRedo/Phase 1 exit guarantee. Use the [data model](data-model.md), [caller contract](contracts/observation-api.md), and [bridge contract](contracts/bridge-protocol.md) for normative fields and outcomes instead of inferring semantics from exit status alone.
 
@@ -529,10 +529,11 @@ The initial native fmt, Clippy `-D warnings`, **105 tests** (10 unit,
 42 bridge/caller, 21 confinement, 32 observation contract), doctest phase (zero
 cases), docs and library/caller build passed. Actionlint and eleven simulations
 of the then-current exact-main trust gate also passed. Those simulations are
-historical evidence only: merged PR #19 supersedes that gate with reviewed-PR
-authorization and its own regression suite. Neither simulated workflow metadata
-nor local GUI execution is actual protected GUI CI. The 59-package
-archive/license/provenance review and advisory audit are recorded in
+historical evidence only: PR #19 later superseded that gate with
+reviewed-PR authorization and its own regression suite; the current
+solo-maintainer dispatch model supersedes that review requirement. Neither
+simulated workflow metadata nor local GUI execution is actual protected GUI CI.
+The 59-package archive/license/provenance review and advisory audit are recorded in
 [research](research.md#t008-cumulative-dependency-and-compatibility-review-2026-09-27).
 
 Passing full evidence is in `~/.t008-acceptance-kgugzz75/all-final/`; the parent
@@ -551,25 +552,27 @@ runs. Every group cleans up only its owned editors, projects and metadata.
 **Compatibility/completion boundary:** This is initial local evidence, not a
 supported-version claim or CI evidence for a later rebased head. The historical
 hosted native [run 36310724143](https://github.com/Peter-Tam/godot-agent-kit/actions/runs/36310724143)
-tested the merged prerequisite revision only. PR #19 now supplies the unchanged
-generic workflows: `main` supplies the workflow definition, while the tested
-immutable SHA may be an independently approved eligible unmerged PR head.
-Its exact-SHA review check and separate protected environment approval remain
-mandatory. **T008 stays unchecked and Feature 001 incomplete until actual
-trusted full GUI CI succeeds.** Local or hosted native success does not waive
-that run or satisfy any Phase 1 mutation gate.
+tested the merged prerequisite revision only. The trusted `main` workflow can
+test the explicitly selected exact current head of one eligible unmerged PR.
+Maintainer dispatch with that SHA is authorization; the main-only `live-editor`
+environment requires no deployment reviewers or secrets, but an isolated
+ephemeral single-job runner and a successful protected full `--scenario all`
+run are still required. **T008 stays unchecked and Feature 001 incomplete**
+until that actual run succeeds. Local or hosted native success does not waive
+it or satisfy any Phase 1 mutation gate.
 
-### 2.9. Rebased T008 local verification and review gate (2026-09-27)
+### 2.9. Rebased T008 local verification and trusted GUI CI gate (2026-09-27)
 
 Existing [PR #18](https://github.com/Peter-Tam/godot-agent-kit/pull/18) was rebased
-onto `main` at `67d4b630769e1f11803ac69da423734735599046`, which merges
-[PR #19](https://github.com/Peter-Tam/godot-agent-kit/pull/19). Conflicts were
-limited to `ci.yml` and `live-editor.yml`; both now match the merged `main`
-versions byte-for-byte, with no workflow diff in T008. The Python acceptance
-driver and GDScript fixture driver also remain byte-identical to PR #18's
-original implementation. No acceptance assertion or product functionality changed.
+onto `main` at `67d4b630769e1f11803ac69da423734735599046`, which merged
+[PR #19](https://github.com/Peter-Tam/godot-agent-kit/pull/19). At that rebase,
+conflicts were limited to `ci.yml` and `live-editor.yml`; both then matched the
+merged `main` versions byte-for-byte, with no workflow diff in T008. The Python
+acceptance driver and GDScript fixture driver also remained byte-identical to
+PR #18's original implementation. No acceptance assertion or product
+functionality changed in that rebase.
 
-Fresh verification on the same exact macOS 26.6.2 arm64 / Godot 4.7.2 candidate:
+At that PR #19 rebase, fresh verification on the same exact macOS 26.6.2 arm64 / Godot 4.7.2 candidate:
 
 - `--scenario all`: **194 passed cases across all 13 groups**, with every
   per-group count unchanged from §2.8. No hidden skip or partial group counts as
@@ -586,38 +589,45 @@ Fresh verification on the same exact macOS 26.6.2 arm64 / Godot 4.7.2 candidate:
   **126 distinct caller results** and confirms all 20 unchanged sequence witnesses.
 - Native fmt, Clippy `-D warnings`, **105 tests**, doctest phase (zero cases),
   docs and library/caller build pass with Rust 1.98.1.
-- All **29 merged workflow regression tests** pass using pinned **PyYAML
-  6.0.3**, including exact-reviewed-PR authorization, latest-review reduction,
-  changed-head refusal, checkout equality, candidate/native preflight failures
-  and complete-suite execution ordering. Python syntax, YAML parsing and
-  Actionlint 1.7.12 pass. These workflow simulations are not protected GUI CI.
+- At the PR #19 rebase, all **29 then-merged workflow regression tests**
+  passed using pinned **PyYAML 6.0.3**, including the then-current
+  reviewed-PR/latest-review authorization, changed-head refusal, checkout
+  equality, candidate/native preflight failures and complete-suite execution
+  ordering. Python syntax, YAML parsing and Actionlint 1.7.12 passed. This is
+  historical workflow-simulation evidence, not protected GUI CI or a test of
+  the later solo-maintainer authorization model.
 - Fresh cargo-audit again reports zero vulnerabilities and warnings against
   RustSec `e2111519ba6d14a5da59a7b2e5c8083ae8a37c01`; all **59/59** registry
   archive checksums match. Every binary/template/driver/lockfile checksum in
   §2.8 is unchanged. Scoped dirty-buffer and closed-editor screenshots were
   visually reviewed.
 
-Fresh private evidence: `~/.t008-rebase-ox24xk8i/all/summary.json`, per-group
-artifacts under that directory, and sibling acceptance/result-only/dependency
-review records. Historical runs above are not evidence for the newly pushed
-head; PR #18's hosted native and workflow checks must pass on its exact new SHA.
+Historical private evidence from that PR #19 rebase:
+`~/.t008-rebase-ox24xk8i/all/summary.json`, per-group artifacts under that
+directory, and sibling acceptance/result-only/dependency review records.
+Historical CI runs above do not validate the current PR head; any new head
+requires a new maintainer dispatch and actual protected GUI execution.
 
-**Next gate:** independently approve the exact current non-draft PR #18 head
-SHA. Maintainers must separately provision the protected `live-editor`
-environment (main-only policy and prevention of self-review) and a clean isolated
-`godot-live-editor-ephemeral` runner. The trusted workflow is then dispatched
-**from `main` against that approved PR SHA**; an independent environment reviewer
-must approve the GUI job. Only a successful complete protected `--scenario all`
-run permits final T008 evidence/status completion. Any changed head needs fresh
-exact-SHA review. See [CI operations](../../.github/README.md).
+**Next gate:** Select the exact current eligible non-draft PR #18 head SHA.
+Establish the `live-editor` environment with exactly the `main` deployment
+branch policy, no deployment reviewers or secrets and no administrator bypass;
+provision a clean isolated ephemeral single-job macOS/ARM64 GUI runner labeled
+`godot-live-editor-ephemeral`. A maintainer then dispatches the trusted
+workflow **from `main` with that SHA**. Dispatch is authorization, with no
+independent PR approval or separate environment approval. The hosted gate
+validates current PR eligibility, head and environment policy; the GUI job
+verifies the immutable checkout before the actual full `--scenario all` run.
+Only an observed successful complete protected run permits final T008
+evidence/status completion; a moved head needs a new exact-SHA dispatch. See
+[CI operations](../../.github/README.md).
 
-No protected GUI workflow was dispatched during this update, no environment or
-runner was configured, and no actual trusted GUI CI success is claimed.
+No protected GUI workflow was dispatched during the historical PR #19 rebase
+update; no protected GUI CI success for the current head is claimed here.
 **T008 remains `[ ]`; Feature 001 and Phase 1 remain incomplete.**
 
 ## 3. Fixture driver entrypoint
 
-The acceptance driver is `godot-addon/tests/run_observation.py`. All 13 groups are implemented; `all` executes the complete local acceptance matrix, and `redaction` covers every observation group plus session/executor boundaries. A passing local run does not waive §2.9's exact-head review and protected trusted-CI gate:
+The acceptance driver is `godot-addon/tests/run_observation.py`. All 13 groups are implemented; `all` executes the complete local acceptance matrix, and `redaction` covers every observation group plus session/executor boundaries. A passing local run does not waive §2.9's trusted-main dispatch and protected full GUI CI gate:
 
 ```sh
 REPO="$PWD"
