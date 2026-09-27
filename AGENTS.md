@@ -22,6 +22,25 @@ approved artifacts and the constitution**. Verification is a phase, not a presum
 Architecture-changing, mutation-semantic, and security-sensitive work must explicitly
 record constitutional compliance in planning and review.
 
+## Complexity gate
+
+Before introducing a new infrastructure layer, process gate, approval mechanism, dependency,
+abstraction, service, workflow, security control, or operational prerequisite, agents MUST
+record in the existing plan or review the concrete current requirement or failure mode,
+the simplest credible alternative, why existing mechanisms are insufficient, the ongoing
+implementation, maintenance, operational, or contributor cost, and why that cost is justified
+now. Without that justification, the complexity MUST NOT be introduced. Apply
+[Principle XIII](.specify/memory/constitution.md#xiii-justify-complexity-with-concrete-present-risk);
+generic best practice is not sufficient justification. `[P]`, security-sensitive work, and
+“future extensibility” MUST NOT bypass this gate.
+
+When both establish the same required guarantee, behavioral evidence SHOULD be preferred
+over infrastructure ceremony, including provider-specific CI or runner requirements.
+Proportional security means identifying the actual failure or attacker capability a control
+prevents and requiring demonstrated additional protection to justify its ongoing cost, not
+weakening editor coherence, preservation of human work, transaction verification, confinement,
+truthful diagnostics, or other constitutional safety invariants.
+
 ## One Spec Kit task, one PR
 
 Every completed individual Spec Kit implementation task in the active approved
