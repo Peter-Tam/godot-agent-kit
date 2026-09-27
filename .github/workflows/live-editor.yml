@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       reviewed_sha:
-        description: Full lowercase SHA of the dispatch main revision or an independently approved PR head
+        description: Full lowercase SHA of the dispatch main revision or an exact same-repository PR head
         required: true
         type: string
 
@@ -19,25 +19,24 @@ concurrency:
 
 jobs:
   trust-gate:
-    name: Verify reviewed revision and environment protections
+    name: Validate selected revision and environment branch policy
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
       actions: read # Read environment configuration and deployment branch policies.
-      pull-requests: read # Read commit associations, PR heads, and exact-SHA reviews.
+      pull-requests: read # Read commit associations and current PR heads.
     outputs:
       revision: ${{ steps.verify.outputs.revision }}
     steps:
       # No checkout or repository code runs before the protection check.
-      - name: Authorize only main or an independently reviewed exact PR head
+      - name: Validate the manually authorized main or exact PR head
         id: verify
         env:
           REVIEWED_SHA: ${{ inputs.reviewed_sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
-          from datetime import datetime
           import json
           import os
           import re
@@ -100,44 +99,12 @@ jobs:
               if len(candidates) != 1:
                   raise SystemExit("Require exactly one eligible same-repository PR head")
               number = candidates[0]["number"]
-              pr = current_pr(number)
-              author = identity(pr["user"]["id"])
-              latest, pending, ambiguous, seen = {}, set(), set(), set()
-              for review in get_list(f"/pulls/{number}/reviews"):
-                  review_id = identity(review["id"])
-                  if review_id in seen:
-                      raise SystemExit("Ambiguous duplicate review record")
-                  seen.add(review_id)
-                  reviewer = identity(review["user"]["id"])
-                  state = review["state"]
-                  if state == "PENDING":
-                      pending.add(reviewer)
-                      continue
-                  if state not in {"APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"}:
-                      raise SystemExit("Unknown review state")
-                  submitted = datetime.strptime(review["submitted_at"], "%Y-%m-%dT%H:%M:%SZ")
-                  previous = latest.get(reviewer)
-                  if previous is None or submitted > previous[0]:
-                      latest[reviewer] = (submitted, review)
-                      ambiguous.discard(reviewer)
-                  elif submitted == previous[0]:
-                      ambiguous.add(reviewer)
-              # Reduce all states/commits first; never resurrect an older approval.
-              if not any(reviewer != author and reviewer not in pending | ambiguous
-                         and review["state"] == "APPROVED" and review["commit_id"] == revision
-                         for reviewer, (_, review) in latest.items()):
-                  raise SystemExit("Require a current independent approval of this exact SHA")
-              if identity(current_pr(number)["user"]["id"]) != author:
-                  raise SystemExit("PR identity changed during review validation")
+              current_pr(number)
               print(f"Validated PR #{number} head {revision}")
 
           # GITHUB_TOKEN actions:read supports both environment GET endpoints.
-          # GitHub itself enforces the independent approval before scheduling the GUI job.
+          # The environment is a main-only deployment boundary, not an approval gate.
           environment = get("/environments/live-editor")
-          reviewers = [rule for rule in environment.get("protection_rules", [])
-                       if rule.get("type") == "required_reviewers"]
-          if not any(rule.get("reviewers") and rule.get("prevent_self_review") is True for rule in reviewers):
-              raise SystemExit("live-editor requires reviewers and prevention of self-review")
           policy = environment.get("deployment_branch_policy") or {}
           if policy.get("custom_branch_policies") is not True or policy.get("protected_branches") is not False:
               raise SystemExit("live-editor requires an exact main-only deployment policy")
@@ -160,7 +127,7 @@ jobs:
     env:
       RUSTUP_AUTO_INSTALL: "0"
     steps:
-      - name: Check out only the approved immutable revision
+      - name: Check out only the validated immutable revision
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ needs.trust-gate.outputs.revision }}

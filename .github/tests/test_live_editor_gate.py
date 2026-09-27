@@ -46,11 +46,6 @@ class GateTests(unittest.TestCase):
     def setUp(self):
         self.responses = {
             ENVIRONMENT: {
-                "protection_rules": [{
-                    "type": "required_reviewers",
-                    "reviewers": [{"type": "User", "reviewer": {"id": 900, "login": "environment-reviewer"}}],
-                    "prevent_self_review": True,
-                }],
                 "deployment_branch_policy": {
                     "custom_branch_policies": True,
                     "protected_branches": False,
@@ -66,7 +61,6 @@ class GateTests(unittest.TestCase):
         self.calls = []
         self.associations = f"/commits/{PR_SHA}/pulls"
         self.pr_path = "/pulls/17"
-        self.reviews_path = self.pr_path + "/reviews"
         self.pr = {
             "number": 17,
             "state": "open",
@@ -75,20 +69,11 @@ class GateTests(unittest.TestCase):
             "merged": False,
             "base": {"ref": "main", "repo": {"full_name": REPOSITORY}},
             "head": {"sha": PR_SHA, "repo": {"full_name": REPOSITORY}},
-            "user": {"id": 100, "login": "author"},
-        }
-        self.approval = {
-            "id": 1,
-            "user": {"id": 200, "login": "independent-reviewer"},
-            "state": "APPROVED",
-            "commit_id": PR_SHA,
-            "submitted_at": "2026-09-25T12:00:00Z",
         }
 
     def pr_candidate(self):
         self.pages[self.associations] = {1: [copy.deepcopy(self.pr)]}
-        self.sequence[self.pr_path] = [copy.deepcopy(self.pr), copy.deepcopy(self.pr)]
-        self.pages[self.reviews_path] = {1: [copy.deepcopy(self.approval)]}
+        self.sequence[self.pr_path] = [copy.deepcopy(self.pr)]
 
     def urlopen(self, request, timeout=None):
         url = request.full_url
@@ -171,7 +156,7 @@ class GateTests(unittest.TestCase):
         self.authorized()
         self.assertEqual([path for path, _ in self.calls], [ENVIRONMENT, BRANCHES])
 
-    def test_exact_pr_head_with_independent_current_approval(self):
+    def test_exact_pr_head_from_manual_dispatch(self):
         self.pr_candidate()
         self.authorized(reviewed=PR_SHA)
 
@@ -219,79 +204,8 @@ class GateTests(unittest.TestCase):
                 self.pr_candidate()
                 fetched = copy.deepcopy(self.pr)
                 mutate(fetched)
-                self.sequence[self.pr_path] = [fetched, copy.deepcopy(fetched)]
+                self.sequence[self.pr_path] = [fetched]
                 self.denied()
-
-    def test_no_reviews_wrong_commit_and_author_only(self):
-        for label, reviews in (
-            ("none", []),
-            ("wrong commit", [dict(self.approval, commit_id=MAIN_SHA)]),
-            ("author approval", [dict(self.approval, user={"id": 100, "login": "other-login"})]),
-        ):
-            with self.subTest(case=label):
-                self.pr_candidate()
-                self.pages[self.reviews_path][1] = reviews
-                self.denied()
-
-    def test_latest_review_controls_each_reviewer_approval(self):
-        for state, commit in (
-            ("CHANGES_REQUESTED", PR_SHA),
-            ("DISMISSED", PR_SHA),
-            ("COMMENTED", PR_SHA),
-            ("APPROVED", OTHER_SHA),
-            ("PENDING", PR_SHA),
-        ):
-            with self.subTest(state=state, commit=commit):
-                self.pr_candidate()
-                later = dict(self.approval, id=2, state=state, commit_id=commit)
-                if state == "PENDING":
-                    later.pop("submitted_at")
-                else:
-                    later["submitted_at"] = "2026-09-25T13:00:00Z"
-                self.pages[self.reviews_path][1] = [copy.deepcopy(self.approval), later]
-                self.denied()
-
-    def test_submission_time_not_record_order_controls_approval(self):
-        self.pr_candidate()
-        # A review can be created early and submitted after another review.
-        later = dict(self.approval, id=2, state="CHANGES_REQUESTED",
-                     submitted_at="2026-09-25T13:00:00Z")
-        self.pages[self.reviews_path][1] = [later, copy.deepcopy(self.approval)]
-        self.denied()
-        self.pr_candidate()
-        earlier = dict(self.approval, id=3, state="CHANGES_REQUESTED",
-                       submitted_at="2026-09-25T11:00:00Z")
-        self.pages[self.reviews_path][1] = [copy.deepcopy(self.approval), earlier]
-        self.authorized(reviewed=PR_SHA)
-
-    def test_new_exact_sha_approval_on_second_page_authorizes(self):
-        self.pr_candidate()
-        earlier = [
-            dict(self.approval, id=i + 1, state="CHANGES_REQUESTED", commit_id=OTHER_SHA,
-                 submitted_at=f"2026-09-25T12:{i // 60:02d}:{i % 60:02d}Z")
-            for i in range(100)
-        ]
-        renewed = dict(self.approval, id=101, submitted_at="2026-09-25T13:00:00Z")
-        self.pages[self.reviews_path] = {1: earlier, 2: [renewed]}
-        self.authorized(reviewed=PR_SHA)
-
-    def test_equal_latest_timestamp_is_ambiguous_but_other_reviewer_can_qualify(self):
-        self.pr_candidate()
-        conflicting = dict(self.approval, id=2, state="CHANGES_REQUESTED")
-        self.pages[self.reviews_path][1].append(conflicting)
-        self.denied()
-        self.pr_candidate()
-        self.pages[self.reviews_path][1].extend((
-            conflicting, dict(self.approval, id=3, user={"id": 300, "login": "second-reviewer"})
-        ))
-        self.authorized(reviewed=PR_SHA)
-
-    def test_pending_reviewer_does_not_cancel_another_independent_approval(self):
-        self.pr_candidate()
-        pending = dict(self.approval, id=2, state="PENDING", user={"id": 300, "login": "pending"})
-        pending.pop("submitted_at")
-        self.pages[self.reviews_path][1].append(pending)
-        self.authorized(reviewed=PR_SHA)
 
     def test_exactly_one_eligible_association_even_with_other_ineligible_prs(self):
         self.pr_candidate()
@@ -316,31 +230,14 @@ class GateTests(unittest.TestCase):
                 self.pages[self.associations][1].append(extra)
                 self.denied()
 
-    def test_invalid_review_identity_state_and_timestamp_fail_closed(self):
-        mutations = {
-            "identity missing": lambda r: r.update(user={}),
-            "identity bool": lambda r: r.update(user={"id": True}),
-            "state missing": lambda r: r.pop("state"),
-            "state unknown": lambda r: r.update(state="UNKNOWN"),
-            "timestamp missing": lambda r: r.pop("submitted_at"),
-            "timestamp invalid": lambda r: r.update(submitted_at="not-a-date"),
-            "commit missing": lambda r: r.pop("commit_id"),
-        }
-        for label, mutate in mutations.items():
-            with self.subTest(case=label):
-                self.pr_candidate()
-                bad = dict(self.approval, id=2)
-                mutate(bad)
-                independent = dict(self.approval, id=3, user={"id": 300, "login": "another"})
-                self.pages[self.reviews_path][1] = [bad, independent]
-                self.denied()
-
     def test_wrong_dispatch_context_fails_even_for_exact_main_revision(self):
         for label, changes in (
             ("ref", {"GITHUB_REF": "refs/heads/feature"}),
             ("tag", {"GITHUB_REF": "refs/tags/v1"}),
             ("repository", {"GITHUB_REPOSITORY": "attacker/godot-agent-kit"}),
             ("event", {"GITHUB_EVENT_NAME": "pull_request_target"}),
+            ("automatic PR event", {"GITHUB_EVENT_NAME": "pull_request"}),
+            ("workflow run event", {"GITHUB_EVENT_NAME": "workflow_run"}),
             ("workflow ref", {"GITHUB_WORKFLOW_REF": WORKFLOW_REF.replace("@refs/heads/main", "@refs/heads/feature")}),
             ("workflow repository", {"GITHUB_WORKFLOW_REF": WORKFLOW_REF.replace(REPOSITORY, "attacker/repo")}),
         ):
@@ -349,9 +246,6 @@ class GateTests(unittest.TestCase):
 
     def test_environment_and_branch_policy_fail_closed(self):
         mutations = {
-            "no required reviewers": lambda: self.responses[ENVIRONMENT].update(protection_rules=[]),
-            "empty reviewers": lambda: self.responses[ENVIRONMENT]["protection_rules"][0].update(reviewers=[]),
-            "self review permitted": lambda: self.responses[ENVIRONMENT]["protection_rules"][0].update(prevent_self_review=False),
             "custom policy disabled": lambda: self.responses[ENVIRONMENT]["deployment_branch_policy"].update(custom_branch_policies=False),
             "protected branches enabled": lambda: self.responses[ENVIRONMENT]["deployment_branch_policy"].update(protected_branches=True),
             "no branch rule": lambda: self.responses[BRANCHES].update(total_count=0, branch_policies=[]),
@@ -372,6 +266,15 @@ class GateTests(unittest.TestCase):
         )
         self.denied(reviewed=MAIN_SHA)
 
+    def test_exact_pr_head_on_second_association_page(self):
+        self.pr_candidate()
+        unrelated = [
+            dict(self.pr, number=number, state="closed")
+            for number in range(18, 118)
+        ]
+        self.pages[self.associations] = {1: unrelated, 2: [copy.deepcopy(self.pr)]}
+        self.authorized(reviewed=PR_SHA)
+
     def test_second_page_cannot_hide_another_eligible_pr(self):
         self.pr_candidate()
         unrelated = []
@@ -384,28 +287,15 @@ class GateTests(unittest.TestCase):
         self.pages[self.associations] = {1: [copy.deepcopy(self.pr), *unrelated], 2: [another]}
         self.denied()
 
-    def test_second_page_cannot_hide_a_newer_revocation(self):
-        self.pr_candidate()
-        earlier = [dict(self.approval, id=i + 1, submitted_at=f"2026-09-25T12:{i // 60:02d}:{i % 60:02d}Z") for i in range(100)]
-        later = dict(self.approval, id=101, state="CHANGES_REQUESTED", submitted_at="2026-09-25T13:00:00Z")
-        self.pages[self.reviews_path] = {1: earlier, 2: [later]}
-        self.denied()
-
-    def test_pr_head_change_during_review_lookup_invalidates_authorization(self):
-        self.pr_candidate()
-        changed = copy.deepcopy(self.pr)
-        changed["head"]["sha"] = OTHER_SHA
-        self.sequence[self.pr_path][1] = changed
-        self.denied()
-
     def test_http_and_json_failures_do_not_release_a_revision(self):
         failures = (
             ("environment HTTP", ENVIRONMENT, "response", "http"),
             ("environment JSON", ENVIRONMENT, "response", "json"),
             ("branch HTTP", BRANCHES, "response", "http"),
             ("association HTTP", self.associations, "page", "http"),
-            ("reviews JSON", self.reviews_path, "page", "json"),
-            ("PR recheck HTTP", self.pr_path, "recheck", "http"),
+            ("association JSON", self.associations, "page", "json"),
+            ("PR HTTP", self.pr_path, "pr", "http"),
+            ("PR JSON", self.pr_path, "pr", "json"),
         )
         for label, path, stage, kind in failures:
             with self.subTest(case=label):
@@ -418,7 +308,7 @@ class GateTests(unittest.TestCase):
                 elif stage == "page":
                     self.pages[path][1] = broken
                 else:
-                    self.sequence[path][1] = broken
+                    self.sequence[path][0] = broken
                 self.denied()
 
 

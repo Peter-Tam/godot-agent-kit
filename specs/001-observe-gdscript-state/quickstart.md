@@ -247,28 +247,29 @@ Those controlled peers establish boundary semantics, not GUI observability.
 
 [live-editor.yml](../../.github/workflows/live-editor.yml) is manually
 dispatched with the **workflow sourced from `main`** (`--ref main`) and a full
-`reviewed_sha` that identifies the code to test. That SHA may be the dispatch
-revision of `main` or the exact head of one eligible open, non-draft, unmerged,
-same-repository PR targeting `main` with a current independent APPROVED review
-for that very SHA. The hosted gate validates PR association, review
-supersession and environment configuration without checking out PR code.
-It fails closed if the required GitHub APIs cannot be read. A separate
-GitHub-enforced `live-editor` environment review blocks the GUI job. Only
-after both boundaries pass does a dedicated clean one-job macOS/ARM64
-`godot-live-editor-ephemeral` runner check out and verify that immutable SHA;
-the protected workflow always runs `--scenario all`, never a partial group.
-The GUI job inherits only `contents: read`; the hosted gate additionally
-needs `actions: read` for environment metadata and `pull-requests: read` for
-PR/review APIs. There is no privileged PR trigger, PAT, or repository/
-environment secret. Maintainers must separately configure environment
-reviewers with self-review prevention, exactly the `main` branch (no tags),
-and no administrator bypass, then provision the isolated runner. Exact
-operating instructions, permission evidence, and validation commands are in
+`reviewed_sha` identifying the code to test. For this solo-maintainer repository,
+that explicit maintainer dispatch is the authorization step; no PR review or
+second-person environment approval is required. The SHA must be the dispatch
+revision of `main` or the exact current head of one eligible open, non-draft,
+unmerged, same-repository PR targeting `main`. The hosted gate validates PR
+association, current head/state and the environment's main-only branch policy
+without checking out PR code. It fails closed on unavailable GitHub metadata.
+
+After validation, a dedicated clean one-job macOS/ARM64
+`godot-live-editor-ephemeral` runner checks out and verifies the immutable SHA.
+The workflow always runs `--scenario all`, never a partial group. The GUI job
+inherits only `contents: read`; the hosted gate additionally needs
+`actions: read` for environment metadata and `pull-requests: read` for PR
+association/details, not reviews. There is no privileged PR trigger, PAT, or
+repository/environment secret. Configure exactly the `main` deployment branch
+(no tags), no deployment-reviewer rules and no administrator bypass, then
+provision the isolated runner. Operating instructions, permission evidence and
+validation commands are in
 [shared CI and live-editor operations](../../.github/README.md). The ordinary
 hosted workflow is [ci.yml](../../.github/workflows/ci.yml).
 
 The following is historical T004 evidence for the earlier gate, **not**
-validation of the current reviewed-PR workflow:
+validation of the current maintainer-authorized workflow:
 Actionlint passed. A local execution of the hosted gate's Python code accepted
 the valid exact-main protection configuration and rejected six unsafe revision/
 protection variants using **simulated GitHub metadata**. This was not a CI run.
