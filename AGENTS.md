@@ -48,9 +48,10 @@ Every completed individual Spec Kit implementation task in the active approved
 Do not batch prerequisites: finish and deliver each separately. Governance/bootstrap
 changes may form one coherent dedicated PR rather than artificial task PRs.
 
-Update [PROJECT_STATUS.md](PROJECT_STATUS.md) only when feature/phase lifecycle state
-or current-task position materially changes. The active feature's `tasks.md` remains
-authoritative for task completion; GitHub PRs remain delivery and verification evidence.
+[PROJECT_STATUS.md](PROJECT_STATUS.md) primarily tracks product/feature/task truth. Update
+it when feature/phase lifecycle state or current-task position materially changes. The
+active feature's `tasks.md` remains authoritative for task completion; GitHub PRs identify
+delivery and may carry acceptance evidence.
 `ROADMAP.md` holds long-term direction and exit gates, not routine task progress.
 Normally include a status transition in the task PR that causes it, alongside its
 `tasks.md` update; no separate status-only PR is required. Feature completion does not
@@ -87,6 +88,49 @@ directory when needed. For read-only inspection, if installed, use
 `.specify/scripts/bash/check-prerequisites.sh --json --paths-only` with a verified override.
 `--paths-only` does not persist the pointer; ordinary checks may persist the override.
 Do not require an untracked local helper on a clone without it.
+
+### Completion versus delivery state
+
+Task and feature completion MUST be determined by their approved acceptance criteria and
+required evidence, not by GitHub review or merge state.
+
+When a task satisfies its specification, plan, task acceptance criteria, required
+validation, and applicable constitutional gates on its current delivery head, it MUST be
+marked complete (`[X]`) even if its pull request is still open or unmerged. If that task
+completes the feature, the feature MUST likewise be recorded as complete.
+
+`Awaiting review`, `awaiting merge`, `in review`, `PR open`, and similar GitHub states
+MUST NOT be used as task or feature lifecycle states and MUST NOT keep otherwise-complete
+work marked pending or in implementation.
+
+GitHub state is delivery metadata only. Status documentation MAY identify the PR carrying
+completed work, but MUST keep that separate from completion state. After a completed task
+PR merges, do not require a dedicated status-only PR solely to change `PR open` to
+`PR merged` unless that metadata is materially useful.
+
+For example:
+
+- `T008 — Complete | Delivery: PR #18 open`
+- `Feature 001 — Complete`
+
+Do not use forms such as:
+
+- `T008 — Pending merge`
+- `Feature 001 — Implementation, awaiting PR`
+- `Current task — T008 awaiting review/merge`
+
+Merge itself is not acceptance evidence and MUST NOT be treated as the event that makes a
+task or feature correct.
+
+If the delivery head later changes in a way that can invalidate previously satisfied
+acceptance criteria or evidence, reevaluate the affected acceptance. Changes that do not
+affect those requirements do not make completed work incomplete merely because the PR head
+changed.
+
+Completion state and authorization to begin dependent work are separate concerns. The
+one-task-one-PR sequencing rule remains unchanged: dependent implementation waits for the
+completed task's PR to merge unless the maintainer explicitly authorizes a stacked-PR
+workflow. Stacking still means one task and one PR per task.
 
 ### Task granularity and review
 
