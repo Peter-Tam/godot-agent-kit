@@ -379,6 +379,48 @@ and limitations are in
 This is local development evidence, not executed trusted GUI CI or a complete
 supported-version matrix.
 
+### T008 cumulative dependency and compatibility review (2026-09-27)
+
+The dependency graph, package, toolchain and public version-1 contracts are
+unchanged. A fresh `cargo +1.98.1 metadata --locked --format-version 1` resolves
+one local package and **59 registry packages**, all with declared licenses and
+upstream repositories. All **59/59** downloaded registry archives independently
+match their `Cargo.lock` SHA-256 checksums. The lockfile remains
+`dbba0e851819c51a4623e1b58b8cf7d583ff6ac372b66ea7e9f07b366db02fe1`.
+The complete license/provenance inventory is the T001 table plus T002's nine
+authentication dependencies above; no new license or distribution claim is made.
+
+Fresh cargo-audit **0.22.2** reports **0 vulnerabilities, no warnings, and no
+ignored advisories** for all 60 lockfile packages against RustSec commit
+[`e2111519ba6d14a5da59a7b2e5c8083ae8a37c01`](https://github.com/RustSec/advisory-db/commit/e2111519ba6d14a5da59a7b2e5c8083ae8a37c01),
+containing 1,271 advisories. The rechecked
+[ring release notes](https://github.com/briansmith/ring/blob/main/RELEASES.md)
+still list 0.17.14 as released and 0.17.15 as TBD. T002's required ring/Unicode/LLVM
+notice obligations remain. Archive integrity and an advisory database result
+are not audits of every upstream implementation or evidence of untested platforms.
+
+The exercised official Godot executable again passes strict deep codesign
+verification and notarized Developer ID assessment, with **Prehensile Tales B.V.
+(6K46PWY5DM)** as signing identity. Its SHA-256 remains
+`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`.
+The installed official 4.7.2 `macos.zip` export template matches
+`88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`;
+its release-archive provenance is recorded in T002 above.
+
+Repository API inspection found **zero environments and zero registered runners**.
+No environment protection, runner registration or repository security setting was
+changed. The complete manual GUI workflow retains its independent hosted trust
+gate and cannot execute without a reviewed immutable `main` revision and the
+protected isolated GUI environment. Hosted native CI covers compilation/tests
+on macOS 15 arm64; it cannot establish visible-buffer or macOS 26.6.2 GUI support.
+Actual trusted GUI CI remains an unmet T008 completion gate.
+
+The complete local matrix, exact exercised driver/binary identities, native
+checks, result-only review and evidence paths are recorded in
+[quickstart §2.8](quickstart.md#28-t008-cumulative-local-acceptance-and-unmet-ci-gate-2026-09-27).
+No schema, core-module ownership or product capability was added by this
+acceptance cutover.
+
 ## 5. Local bridge, session bootstrap, and confinement
 
 **Decision:** A per-editor `TCPServer` listens only on `127.0.0.1`. Choose a random high port and retry bounded bind collisions during plugin bootstrap; do not rely on undocumented port-zero behavior. The caller initializes a private registry outside the project. The addon must be explicitly enabled and receive that registry path through `GODOT_AGENT_KIT_REGISTRY`; absent/unsafe configuration disables the listener, not authentication.

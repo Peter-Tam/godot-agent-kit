@@ -7,26 +7,27 @@
 - **Feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md)
 - **Feature state:** Implementation
 - **Implemented tasks:** 7 / 8
-- **Merged tasks:** 6 / 8
-- **Current task:** T007 — Closed, invalid, and partly observable document inspection; implemented and locally validated on `task/T007-closed-partial-observation`, awaiting PR review/merge
+- **Merged tasks:** 7 / 8
+- **Current task:** T008 — Cumulative observation acceptance; local implementation and validation pass on `task/T008-cumulative-observation-evidence`, but completion is blocked on actual trusted GUI CI
 
 ## Roadmap status
 
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.0.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001 is in implementation; T001–T006 are merged. T007's closed/partial/limit slice is implemented and locally validated, awaiting review/merge. Cumulative observation and mutation gates stay open below. |
+| 1 — Live-editor script coherence | In progress | T001–T007 are merged. T008's full local observation/privacy/export matrix passes; required trusted GUI CI is unavailable. Feature completion and Phase 1 mutation gates remain open. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Active feature
 
 The active feature's [tasks.md](specs/001-observe-gdscript-state/tasks.md) remains
 authoritative for task completion, dependencies, scope, and acceptance criteria.
-T001–T006 are complete and merged, including [T006 PR #16](https://github.com/Peter-Tam/godot-agent-kit/pull/16).
-T007 is checked as implemented in `tasks.md`; its dedicated task branch carries
-the [native/live/export evidence](specs/001-observe-gdscript-state/quickstart.md#27-t007-closed-and-partial-observation-evidence-2026-09-27)
-and awaits PR review/merge. T008 remains pending under the one-task-one-PR gate;
-implementation completion is not merged delivery.
+T001–T007 are complete and merged, including [T007 PR #17](https://github.com/Peter-Tam/godot-agent-kit/pull/17).
+T008's [cumulative local evidence](specs/001-observe-gdscript-state/quickstart.md#28-t008-cumulative-local-acceptance-and-unmet-ci-gate-2026-09-27)
+covers all 13 groups and 194 cases, including twenty-read non-interference.
+It remains unchecked in `tasks.md`: no protected GUI environment or runner is
+configured, so the mandatory actual trusted GUI CI gate cannot run. Local
+implementation/validation is not task completion, merged delivery or version support.
 
 | Task | Status | Evidence |
 | --- | --- | --- |
@@ -36,12 +37,13 @@ implementation completion is not merged delivery.
 | T004 — Clean-open D/R/B observation end to end | Complete | [PR #13](https://github.com/Peter-Tam/godot-agent-kit/pull/13), merged into `main`; source branch deletion verified. |
 | T005 — Document-attributed unsaved/divergent and changing-document observations | Complete | [PR #15](https://github.com/Peter-Tam/godot-agent-kit/pull/15), merged into `main`; source branch absence verified locally and remotely. |
 | T006 — Source-attributed multi-session routing and live interruption outcomes | Complete | [PR #16](https://github.com/Peter-Tam/godot-agent-kit/pull/16), merged into `main`; source branch absence verified locally and remotely. |
-| T007 — Closed, invalid, and partly observable document inspection | In review | Implemented and locally validated; [native/GUI/privacy/export evidence](specs/001-observe-gdscript-state/quickstart.md#27-t007-closed-and-partial-observation-evidence-2026-09-27). Dedicated branch `task/T007-closed-partial-observation` awaits review/merge. |
-| T008 — Feature-wide non-interference and verified compatibility/evidence baseline | Pending | No merged completion evidence. |
+| T007 — Closed, invalid, and partly observable document inspection | Complete | [PR #17](https://github.com/Peter-Tam/godot-agent-kit/pull/17), merged into `main`; source branch absence verified locally and remotely. |
+| T008 — Feature-wide non-interference and verified compatibility/evidence baseline | Blocked | Full local GUI/native/privacy/export gates pass; [evidence and missing trusted GUI CI](specs/001-observe-gdscript-state/quickstart.md#28-t008-cumulative-local-acceptance-and-unmet-ci-gate-2026-09-27). No configured protected environment or registered runner. |
 
-**Remaining for Feature 001:** Review and merge T007, then complete and merge
-T008 with its cumulative read-only acceptance, full privacy replay and verified
-compatibility/evidence baseline, including actual trusted GUI CI.
+**Remaining for Feature 001:** Review T008's dedicated implementation/evidence PR,
+provision the protected isolated GUI CI boundary, and obtain its complete run on
+an explicitly trusted reviewed revision before marking T008 complete.
+No protection bypass, automatic merge or supported-version claim is authorized.
 The feature is not complete.
 
 ## Phase 1 exit gates
@@ -50,7 +52,7 @@ D = disk source; R = loaded Godot Resource/Script; B = visible editor buffer.
 
 | Gate | Status | Required evidence / boundary |
 | --- | --- | --- |
-| D/R/B observation foundation | In progress | Semantics, source-free routing, bounded/confined execution, clean/dirty/changing-document D/R/B and source-bearing routing/interruption are merged. T007 adds locally verified closed/partial/limit inspection, awaiting review/merge. Cumulative acceptance and trusted GUI CI remain pending. |
+| D/R/B observation foundation | In progress | T001–T007 observation behavior is merged. T008's cumulative local acceptance passes, including twenty-read history preservation; actual trusted GUI CI and T008 delivery remain incomplete. |
 | A — Clean open-buffer edit | Pending | After an actual edit, D, R, and B converge without human reconciliation. |
 | B — Dirty human-buffer conflict | Pending | An attempted edit preserves unsaved human work and refuses safely or uses an explicitly designed resolution workflow. |
 | C — Real Undo/Redo | Pending | Apply → Undo → Redo produces verified transitions through Godot's editing history across applicable surfaces. |

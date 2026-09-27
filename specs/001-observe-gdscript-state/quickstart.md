@@ -1,6 +1,6 @@
 # Quickstart: Validate Live GDScript Observation
 
-**Status:** T001–T007 implement and locally verify the reusable core, authenticated session boundary, bounded caller/worker, independent D/R/B, dirty/changing-document observations, source-bearing routing/interruption behavior, and closed/invalid/partly observable documents with independent source limits. Evidence is recorded in §2.1–§2.7. T008's cumulative acceptance and actual trusted CI/support baseline remain pending. No full-feature, mutation or supported-version claim is made.
+**Status:** T001–T007 are merged. T008's cumulative harness and all local native/GUI/privacy/export gates pass (§2.8), but **T008 and Feature 001 remain incomplete**: the required protected GUI environment and trusted runner are not provisioned, so actual trusted GUI CI has not run. No supported-version, mutation or Phase 1 completion claim is made.
 
 This guide covers the entire observation-only specification. It does not implement the feature, derive tasks, or claim a mutation/UndoRedo/Phase 1 exit guarantee. Use the [data model](data-model.md), [caller contract](contracts/observation-api.md), and [bridge contract](contracts/bridge-protocol.md) for normative fields and outcomes instead of inferring semantics from exit status alone.
 
@@ -469,9 +469,97 @@ See [caller semantics](contracts/observation-api.md#13-t007-closed-and-partly-ob
 T008, actual trusted GUI CI/support evidence, and Phase 1 mutation gates remain
 pending.
 
+### 2.8. T008 cumulative local acceptance and unmet CI gate (2026-09-27)
+
+The real `--scenario all` invocation passes **194 cases** on macOS **26.6.2
+arm64**, Godot `4.7.2.stable.official.ed1daf0bf` (full engine hash
+`ed1daf0bf001b61586d9930840f2f1394092c079`). All 13 required groups execute;
+the following counts exclude the single shared bootstrap case:
+
+| Group | Cases | Evidence boundary |
+|---|---:|---|
+| `clean-open` | 12 | Independent clean/empty D/R/B, repeat reads and collector/recheck boundaries; US1.1–3. |
+| `dirty-divergent` | 8 | Human-unsaved, non-selected, equal-text-dirty and exact whitespace/line-ending differences; US2.1–2. |
+| `dirty-unavailable` | 6 | Unavailable/unattributable dirty evidence, mixed tabs and unsafe association; US2.3/5. |
+| `changing-document` | 9 | Barrier-controlled source, close, rename, remove and replacement invalidation; US2.4. |
+| `routing` | 5 | Distinct namesake projects and same-project sessions, source-free ambiguity and exact source attribution; US3.1–2. |
+| `session-loss` | 8 | Absence, authenticated loss, partial facts and ended-session replacement refusal; US3.3–5. |
+| `deadline` | 3 | Connected suspended editor, independently stalled worker and fresh post-timeout request; US3.6. |
+| `confinement` | 39 | Scope/metadata/authentication, malformed framing, capacity, stale-endpoint impostor and denial; US3.7. |
+| `closed-and-invalid` | 11 | Closed cached/unloaded, missing/invalid/syntax-invalid/empty and built-in identities; US4.1–2. |
+| `surface-limits` | 26 | Independent unavailable/over-limit D/R/B, unknown open state and stronger terminal precedence; US4.3–6 and CHK032. |
+| `sequential-readonly` | 21 | Twenty real observations plus native prior-history replay; FR-011/012 and SC-005. |
+| `redaction` | 42 | Additional complete session/authentication/stale-endpoint and executor boundary replay, plus privacy checks over all eleven preceding groups. |
+| `export-boundary` | 3 | Enabled, disabled and hook-only ZIP/PCK inspection and actual exported-app launches; no tooling material, listener or advertisement. |
+
+The sequence contains **6 clean, 8 independently prepared human-dirty and
+6 closed** requests. Clean and dirty targets include selected and non-selected
+documents. Every read compares independently sampled D/R/B, disk content and
+metadata, open-document identities/list, current tab, caret/selection, versions,
+dirty state and undo/redo availability before/after. All 20 request IDs are unique;
+native collection stamps advance. Known prior two-edit history survives and
+fixture-only **Redo → Undo → Undo → Redo** reproduces the exact expected states.
+This proves preservation of that history, not a product UndoRedo capability.
+
+All **140 timed checks** remain below five seconds: maximum **4.766403 s** for
+peer-capacity/unauthenticated expiry; the slowest timed caller outcome is
+**4.508021 s**. Result-only review of **126 distinct retained caller results**
+checks selected target/refusal, D/R/B availability and collection, and explicit
+reason/action fields for missing source and dirty knowledge. All 21 acceptance
+scenarios and seven edge cases retain their mappings in §4 and `tasks.md`.
+
+Each group now owns separate working/evidence directories; repeated collector
+cases cannot collide or overwrite another group's records. `summary.json`
+records group counts and each case's `artifact_directory`, evidence and scoped
+screenshots. `all` reuses its actual eleven-group run for full privacy review
+instead of repeating it; standalone `redaction` executes that replay itself.
+Source/secret checks recurse through all retained group evidence. Only deliberate
+synthetic results/witnesses contain source; incidental logs remain source-free.
+Native dirty-buffer and closed-editor screenshots were visually reviewed.
+
+Integration reproduced and corrected fixture-only failures: invalid GDScript
+history-loop syntax, hidden earlier owned editor windows, colliding shared
+fixture names, and an assumption that background import would leave a closed
+script uncached. Capture explicitly presents only the owned process; closed R
+assertions now use actual cache identity/source witnesses, never timing or D.
+No product collector, caller, core, dependency or public schema changed.
+
+Native fmt, Clippy `-D warnings`, **105 tests** (10 unit, 42 bridge/caller,
+21 confinement, 32 observation contract), doctest phase (zero cases), docs and
+library/caller build pass. Actionlint passes. The exact embedded workflow trust
+gate passes **11 simulated-metadata checks**, including refusal of missing or
+inaccessible environments, self-review, wildcard/tag/extra branches and wrong
+revisions. These simulations are not executed GUI CI. The fresh 59-package
+archive/license/provenance review and clean advisory audit are recorded in
+[research](research.md#t008-cumulative-dependency-and-compatibility-review-2026-09-27).
+
+Passing full evidence is in `~/.t008-acceptance-kgugzz75/all-final/`; the parent
+directory retains dependency/trust-gate/result-review records and the diagnostic
+runs. Every group cleans up only its owned editors, projects and metadata.
+
+| Exercised artifact | SHA-256 |
+|---|---|
+| Godot executable | `c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf` |
+| Official `macos.zip` template | `88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792` |
+| `observe-gdscript` | `16aed5592c75717a0f8223e6b095594e9a9290850e9979e73820422b8fbf214f` |
+| Python acceptance driver | `ec0d0105dc144cf9023fbe0304dc67d1ca7f81b08906cbe393850672f32f336f` |
+| GDScript fixture driver | `6d24744fe8d619511f9a2a9d0360f235fbb9a372f74ea3efad20c71ac2d4c720` |
+| `Cargo.lock` | `dbba0e851819c51a4623e1b58b8cf7d583ff6ac372b66ea7e9f07b366db02fe1` |
+
+**Compatibility/completion boundary:** Local full acceptance on macOS 26.6.2
+arm64 passes. Hosted macOS 15 arm64 native CI also passed on the merged prerequisite
+revision ([run 36310724143](https://github.com/Peter-Tam/godot-agent-kit/actions/runs/36310724143));
+that is not GUI evidence. Repository APIs report **zero environments and zero
+registered runners**. The updated manual live workflow always requests `all`,
+checks exact binary/template hashes and native baselines, and retains its
+reviewed immutable main revision, independent required approval and isolated
+runner protections. **Actual trusted GUI CI remains unavailable; T008 stays
+unchecked and Feature 001 incomplete.** No support matrix or Phase 1 mutation
+gate is satisfied by treating this missing execution as a passing skip.
+
 ## 3. Fixture driver entrypoint
 
-The acceptance driver is `godot-addon/tests/run_observation.py`. T004–T007 supply the US1–US4 and boundary groups above; `redaction` is incremental. The following remains the full-feature contract, with `all` deliberately refusing incomplete coverage:
+The acceptance driver is `godot-addon/tests/run_observation.py`. All 13 groups are implemented; `all` executes the complete local acceptance matrix, and `redaction` covers every observation group plus session/executor boundaries. A passing local run does not waive §2.8's external trusted-CI gate:
 
 ```sh
 REPO="$PWD"
@@ -556,4 +644,4 @@ A passing implementation report includes:
 - Native baseline and dependency review results; real-editor and export evidence on the declared candidate matrix. Hosted compile-only CI cannot replace GUI acceptance. Keep privileged GUI runners isolated from untrusted PR code and secrets.
 - No claim that complete observation means D/R/B convergence, clean state, permission to edit, applied mutation durability, or actual product UndoRedo support.
 
-The original planning command exercised only its bounded GUI feasibility experiment and design-artifact checks. T001–T007 evidence is recorded in §2.1–§2.7. The full product checks above remain prerequisites for later feature/support claims.
+The original planning command exercised only its bounded GUI feasibility experiment and design-artifact checks. T001–T007 evidence is in §2.1–§2.7; §2.8 records T008's passing cumulative local evidence and the still-unmet trusted GUI CI gate. Feature completion and supported-version claims remain blocked on that execution.

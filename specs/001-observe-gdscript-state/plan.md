@@ -251,6 +251,43 @@ collection stamp and never substitutes for unavailable D text; closed/unknown
 editor facts remain distinct. The exact evidence and remaining T008/CI gates are
 recorded in [quickstart §2.7](quickstart.md#27-t007-closed-and-partial-observation-evidence-2026-09-27).
 
+### T008 implementation compliance
+
+T008 is restricted to cumulative acceptance orchestration, independent fixture
+witnesses, and the existing CI/evidence boundary. Product observation semantics,
+public version-1 contracts, dependencies and authority ownership remain unchanged.
+I–IV/VII require actual D/R/B and attributable dirty evidence, fresh per-request
+collection, and preservation of human source, selection and editing history.
+Fixture-only preparation and history replay prove non-interference; they do not
+introduce product mutation, UndoRedo or applied-edit durability guarantees.
+
+V/VI/VIII/X/XII require the complete real-editor matrix, source/secret-free
+incidental evidence, enabled/disabled export exclusion, bounded controlled
+requests, and owned-process cleanup. XI requires a fresh actual-lockfile
+license/provenance/advisory review. Shared CI keeps responsibility-based naming
+and ownership; capability-specific assertions stay in the observation harness.
+No duplicate shared infrastructure or speculative abstraction is authorized.
+
+The complete GUI workflow must retain the hosted trust gate, exact reviewed
+immutable `main` revision, required independent environment review, main-only
+deployment policy, isolated one-job runner, read-only token and full-SHA action
+pins. Local acceptance and hosted native CI cannot substitute for actual trusted
+GUI CI. Repository API inspection on 2026-09-27 found no configured environments
+and no registered runners. This is an unmet gate, not permission to register a
+human workstation, relax protections, mark T008 complete or claim version support.
+Roadmap Phase 1 mutation gates remain separate.
+
+Implementation review: all 13 local groups pass (194 cases), including twenty
+fresh observations with unchanged independent witnesses and actual prior-history
+replay. All 105 native tests and required baselines pass; full privacy and three
+export variants pass. Result-only review retains explicit authority/target/limit
+knowledge. Fixture setup and evidence namespaces are isolated per group; native
+cache state is observed, not inferred from import timing. The addon/core/caller
+remain unchanged. Workflow protection simulations and Actionlint pass, but no
+actual GUI CI ran; the known missing environment/runner keeps T008 unchecked.
+This satisfies local verification, not the remaining release/support gate.
+See [cumulative evidence](quickstart.md#28-t008-cumulative-local-acceptance-and-unmet-ci-gate-2026-09-27).
+
 ## Project Structure
 
 ### Documentation (this feature)
