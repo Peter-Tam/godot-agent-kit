@@ -88,9 +88,12 @@ revision output is emitted. The accepted SHA is passed to the GUI job only
 after every hosted check succeeds. The GUI job checks out that full immutable
 SHA with a pinned checkout action and `persist-credentials: false`, verifies
 `git rev-parse HEAD` equals the gate's revision before executing repository
-code, then runs the existing OS/Godot/Rust checks and the real-editor driver
-with mandatory `--scenario all`. There is no partial scenario selector for
-this protected run. Its evidence artifact is `observation-all-${{ github.run_id }}`.
+code, then verifies the provisioned candidate and runs the native baseline
+before the real-editor driver with mandatory `--scenario all`. There is no
+partial scenario selector. Evidence is named
+`observation-all-${{ github.run_id }}-${{ github.run_attempt }}` so reruns have
+distinct artifacts; uploads still run with `if: always()` and retain evidence
+for 14 days.
 
 The PR/review checks are observations at the hosted gate, not a lock on a PR.
 Moving a branch while environment approval is pending cannot change the
@@ -114,6 +117,41 @@ unspecified scopes to `none`. The official [commit association](https://docs.git
 and [review list](https://docs.github.com/en/rest/pulls/reviews#list-reviews-for-a-pull-request)
 APIs define the reviewed-state inputs; the review list includes `commit_id`
 and `submitted_at`, while PENDING reviews are not submitted.
+
+## Trusted GUI execution contract
+
+The complete-suite job has a **180-minute** timeout. Its preflight must pass
+before native builds or repository acceptance code run:
+
+- macOS **26.6.2**, **arm64**.
+- Godot **4.7.2.stable.official.ed1daf0bf**; the executable resolved by
+  `command -v godot` must have SHA-256
+  `c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`.
+- Official macOS export template at
+  `$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable/macos.zip`,
+  with SHA-256
+  `88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`.
+- Rust **rustc 1.98.1 (48a229cea 2026-09-01)**, host tuple
+  **aarch64-apple-darwin**, Cargo **1.98.1**, and Python **3.10 or newer**.
+
+Missing or mismatched candidates fail; the workflow does not download or
+replace tools/templates. The GUI job sets `RUSTUP_AUTO_INSTALL=0` to
+[prevent implicit installation by rustup proxies](https://rust-lang.github.io/rustup/environment-variables.html).
+Runner provisioning must already include the required toolchain components.
+
+After preflight, the GUI job runs the following from `mcp-server/`, stopping
+before GUI acceptance on any failure:
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --all-targets --locked -- -D warnings
+cargo test --locked
+cargo doc --no-deps --locked
+cargo build --locked --lib --bin observe-gdscript
+```
+
+This native baseline is additional to ordinary hosted CI, not replaced by it.
+It validates the tested immutable revision on the exact GUI candidate.
 
 ## Operate and verify
 
@@ -141,10 +179,14 @@ python3 -m unittest discover -s .github/tests -v
 actionlint -config-file .github/actionlint.yaml .github/workflows/ci.yml .github/workflows/live-editor.yml
 ```
 
-The `ci.yml` hosted workflow-validation job runs the fixture/config checks
-without starting a GUI runner. Run normal hosted CI separately before
-proposing infrastructure changes; fixture tests and Actionlint do not prove
-an actual protected deployment or a real-editor result.
+The `ci.yml` hosted workflow-validation job runs the trust-gate and shell-stage
+regressions without starting a GUI runner. Shell-stage tests use simulated
+candidate metadata to prove refusal and execution ordering, not real-editor
+acceptance. Both main-push and main-targeting PR path filters include
+`godot-addon/tests/**`: harness/fixture changes rerun workflow validation and
+native hosted checks. This does not imply hosted product-addon coverage;
+`godot-addon/addons/**` is not included. Fixture tests and Actionlint do not
+prove an actual protected deployment or real-editor result.
 
 At the time of this correction, read-only repository API inspection found
 **zero `live-editor` environments and zero GUI runners**; maintainer

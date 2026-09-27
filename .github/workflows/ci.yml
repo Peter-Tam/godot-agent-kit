@@ -8,6 +8,7 @@ on:
       - .github/workflows/**
       - .github/tests/**
       - .github/actionlint.yaml
+      - godot-addon/tests/**
       - mcp-server/**
   pull_request:
     branches:
@@ -16,6 +17,7 @@ on:
       - .github/workflows/**
       - .github/tests/**
       - .github/actionlint.yaml
+      - godot-addon/tests/**
       - mcp-server/**
   workflow_dispatch:
 
