@@ -1,6 +1,6 @@
 # Quickstart: Verify Guarded Open-GDScript Editing
 
-**Status:** Future implementation/acceptance guide. Feature 002's design and [task derivation](tasks.md) are complete; granularity review and read-only analysis passed, including the local-overlap clarification. Implementation has not started. No mutation implementation, engine patch or A–E result is supplied by this design/task PR. Commands involving `edit-gdscript`, the native build entrypoint or `run_script_edit.py` are the planned interfaces implementation must provide, **not commands executed or currently available here**. Existing observation evidence does not establish mutation support.
+**Status:** T001's protocol-independent core is implemented and verified; see [§9](#9-t001-core-acceptance-2026-09-27). Feature 002 remains in progress. The native/CLI implementation and A–E acceptance below remain future work. Commands involving `edit-gdscript`, the native build entrypoint or `run_script_edit.py` are planned interfaces, **not commands executed or currently available here**. Existing observation evidence and pure core verification do not establish mutation support.
 
 Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [caller](contracts/edit-api.md), [bridge](contracts/bridge-protocol.md), [native](contracts/native-integration.md) contracts as normative semantics. Do not infer success from process exit, a save acknowledgment or the finalizer's copied fields.
 
@@ -175,3 +175,83 @@ SPECIFY_FEATURE_DIRECTORY="$PWD/specs/002-edit-open-gdscript" \
 ```
 
 Validate local documentation links/anchors, Markdown/code fences, spec/design coverage and whitespace, then inspect complete intended/staged diffs and publish only these design artifacts on the existing branch/PR. Check installed before/after-plan extension hooks rather than bypass them. No product build/suite, native probe, tasks or implementation is included in these planning checks; no A–E result is claimed.
+
+## 9. T001 core acceptance (2026-09-27)
+
+**Complete:** protocol-independent eligibility, evidence and terminal interpretation
+in `mcp-server/src/script_edit.rs`, exported by the existing library. The
+[public Rust API](contracts/edit-api.md#7-implemented-rust-core) is reusable without a
+CLI, JSON, sockets, native objects or a second policy. T002–T005 remain pending.
+
+### Executed evidence
+
+Environment: macOS **26.6.2**, build **25G83**, **arm64**;
+`rustc 1.98.1 (48a229cea 2026-09-01)`, host `aarch64-apple-darwin`;
+`cargo 1.98.1 (797e8a9bc 2026-08-05)`. No Godot binary was exercised by this task.
+
+From `mcp-server/`:
+
+| Command | Observed result |
+|---|---|
+| `cargo +1.98.1 fmt --all -- --check` | Passed. |
+| `cargo +1.98.1 clippy --all-targets --locked -- -D warnings` | Passed. |
+| `cargo +1.98.1 test --locked --test script_edit_contract` | 48 passed. |
+| `cargo +1.98.1 test --locked -- --test-threads=1` | 153 passed: 10 library, 42 bridge, 21 confinement, 32 observation and 48 edit-core tests; binary/doctest targets also completed. |
+| `cargo +1.98.1 doc --no-deps --locked` | Passed. |
+
+The first default-parallel full test run encountered `AddrInUse` at
+`bridge_boundary.rs`'s existing `rebound_ended_port_without_the_original_secret_cannot_release_project_source`
+release-and-rebind window. The complete serial run passed that case and every other
+case without changing bridge code or weakening its assertions. The initial source
+contract tests failed before implementation because `script_edit` did not exist.
+Newly discovered reducer regressions were observed failing and then passing.
+
+A throwaway **external Cargo consumer**, depending on this package by path, ran with
+`cargo +1.98.1 run --locked --offline` after offline lockfile generation. It supplied
+synthetic, separately attributed typed evidence through the public API and asserted:
+
+```text
+Refused            application=NotApplied  reason=DirtyConflict
+VerifiedUnchanged  application=NotApplied  reason=Complete
+ApplicationUnknown application=Unknown     reason=Deadline
+AppliedUnverified  application=Applied     reason=Disconnection
+VerifiedChanged    application=Applied     reason=Complete
+```
+
+This was an executed library-consumer smoke, **not actual source mutation or a
+live-editor witness**. The disposable consumer is not part of the product.
+
+### Acceptance and constitutional review
+
+The 48 regressions cover eligible/ineligible and missing prior basis; actual current
+version versus absent prior saved version; dirty-equal text; empty/exact UTF-8 and
+512-KiB limits; stale same-text versions; each missing/invalidated source; wrong
+request/session/document/clock and overlapping collection intervals; save-profile
+and metadata guards; native attribution and permanent pre-boundary discard;
+authorization/entry/lost replies; independently known partial effects without
+invented earlier completion; bounded source-attributed validation; absent/invalid
+post-change parse; dependency/context invalidation; independent saved/D/R/B readback;
+source suppression under later timing/limit failure; all five outcomes and
+source-free disambiguation. Terminal reduction consumes the attempt.
+
+Review corrected two particularly consequential errors: terminal timing failure
+must not clear denial, and A's entry source/version must describe the already-applied
+document rather than the pre-edit basis. Known native effects are retained even if
+earlier acknowledgments are absent; they are never independent verification.
+
+Principles I–IV/X/XII: independent source/dirty/saved/parse evidence and stale-work
+refusal remain mandatory; interrupted/partial application never becomes rollback or
+safe replay. V/VII/IX/XI/XIII: existing checked observation types and locked `ring`
+are reused in one focused core module; no transport, crate, service, native runtime,
+permission surface or general transaction framework was added. The existing
+observation implementation and public behavior remain unchanged.
+
+Ownership review: script-edit policy is capability-specific; shared selection,
+identities, clocks and observation remain in their existing responsibility-based
+components. No feature/task IDs enter product APIs and no duplicate future
+infrastructure is introduced.
+
+**Limits:** typed facts still require authentic acquisition by the future adapter
+and native integration. No CLI edit, bridge-v2 migration, engine patch, actual
+Undo/Redo, mutation timing, A–E, export/durability or Godot-support claim follows from
+T001. Those feature gates remain mandatory and pending, not inapplicable or passed.

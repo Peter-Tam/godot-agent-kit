@@ -1,6 +1,6 @@
 # Data Model: Guarded Open-GDScript Editing
 
-**Status:** Planning complete; implementation and mutation acceptance pending. This model adds one mutation operation, not a generalized transaction framework. [Spec](spec.md), [caller contract](contracts/edit-api.md), [private bridge](contracts/bridge-protocol.md), and [native primitives](contracts/native-integration.md) define the complete planned boundary.
+**Status:** T001's protocol-independent typed core is implemented and verified; native integration, caller execution and mutation acceptance remain pending. This model adds one mutation operation, not a generalized transaction framework. [Spec](spec.md), [caller contract](contracts/edit-api.md), [private bridge](contracts/bridge-protocol.md), and [native primitives](contracts/native-integration.md) define the complete boundary.
 
 ## 1. Requests, identity and revisions
 

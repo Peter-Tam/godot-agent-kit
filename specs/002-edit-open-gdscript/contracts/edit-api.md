@@ -1,6 +1,6 @@
 # Edit Open GDScript — Caller Contract v1
 
-**Status:** Planned interface, not an implemented command or mutation-support claim. Reuse the existing Rust package/core and local caller pattern; no MCP tool is introduced. [Data model](../data-model.md) defines normative identity, evidence, stages, outcomes and deadline semantics.
+**Status:** The protocol-independent Rust API is implemented by T001; the CLI/JSON adapter remains planned for T004. No command, native mutation support or MCP tool is introduced by T001. [Data model](../data-model.md) defines normative identity, evidence, stages, outcomes and deadline semantics.
 
 ## 1. One operation and invocation
 
@@ -82,3 +82,57 @@ These are behavior cases for implementation tests and live fixtures, not impleme
 Observation's public JSON/library behavior stays v1 and read-only, including clean/dirty/divergent/limited outcomes. Edit is a new caller operation/schema v1, not an optional observation flag. New outcome enums or changed required fields/precedence require deliberate edit-schema versioning.
 
 The private editor bridge advances to v2 with an all-callsite cutover, because v1 strictly limits operation tuples/capabilities. No v1 mutation, dual-protocol shim or downgrade fallback is selected. Upgrade Rust caller/worker, addon and native integration together; restart/re-enable the addon to create a fresh descriptor/session, then obtain a new observation basis. Stock Godot can continue observation under the migrated bridge but advertises edit unavailable without the exact native API/build. Old binaries/addons fail version negotiation source-free rather than guess compatibility. Required implementation work includes corresponding existing boundary tests and user docs; planning changes no running protocol.
+
+## 7. Implemented Rust core
+
+`godot_agent_kit::script_edit` exports the checked `ReplacementSource`,
+`ExpectedRevisionBasis`, `EditRequest`, evidence records and `EditAttempt` reducer.
+The module has no JSON, transport, filesystem-acquisition or Godot dependency.
+Evidence records are trusted integration inputs, **not caller-provided authorization**.
+All bindings, clocks, ordering and required postconditions are checked again by the reducer.
+
+Consumer sequence:
+
+1. Extract `ExpectedRevisionBasis::from_observation(&prior)` and construct
+   `ReplacementSource::new(String)` / `EditRequest::new(...)` with a new request ID.
+   Ineligible observations can produce `EditOutcome::refuse_without_basis(...)`.
+   The basis retains actual source witnesses/collection stamps, clean/open provenance
+   and current B version; it contains no invented prior saved version.
+2. Create `EditAttempt`, `select` a freshly authenticated target, then `prepare`
+   with a fresh `ObservationOutcome`, independent `SavedStateEvidence` and caller-clock
+   `DiskMetadata`. A missing inspection stays unavailable with an explicit reason.
+3. Changed intent requires `validation(Preflight)`, supervisor `authorize()` before
+   dispatch, and fresh `guard_application(...)`. Record `enter_application()` before
+   source/history entry. `buffer_changed`, `resource_synced` and permanent
+   `discard_before_boundary` require a request/session/document-bound `NativeWitness`.
+   The `enter_resource_sync`, `enter_persistence` and `enter_finalization` methods
+   check eligibility for starting their respective stages; `*_unknown` records lost replies.
+4. Supply actual `PersistenceReceipt`, `FinalizationResult` and `validation(PostChange)`
+   facts, then independent `verify(...)` source/dirty/saved/disk observations and
+   `ContextRecheck`. Finalization's `before_*` fields describe entry to A, **after**
+   source application and persistence, not a copy of the original revision.
+5. Unchanged intent uses only `validation(Unchanged)` and `verify(...)` after preparation.
+   It never authorizes application, writes, tags saved state or participates in history.
+6. `fail(...)` retains terminal causes; `finish(interval)` consumes the attempt and
+   emits one of the five outcomes. No late evidence can be supplied to that consumed
+   attempt. `Err(EditError)` is sticky non-success; finish the attempt to report retained
+   knowledge rather than replace it with a generic refusal.
+
+Acknowledging an effect is distinct from authorizing the next effect. An attributable
+R/write/bookkeeping result can retain known partial application even when an earlier
+acknowledgment is missing; it never fills in missing earlier stage completion or
+passes independent verification. A write-start alone establishes no known change.
+Read-only survivor collection remains available after an unsuccessful applied stage.
+
+The core compares acquired D/R/B text exactly before retaining hash/length summaries;
+it does not duplicate full source in edit outcomes. It preserves invalidated source
+summaries and their original attribution. Denial/ambiguity/busy suppress source-derived
+fields even when another error occurs later, without erasing known application.
+Incomplete validation/context or exceeded dependency/diagnostic bounds produces
+unavailable bounded evidence, never a positive parse result.
+
+Source and diagnostic text are redacted from their `Debug` implementations. Other
+evidence contains requested paths and revision summaries, so whole records are still
+not suitable for incidental logs. This API does not authenticate/acquire facts, perform
+native edits, enforce a real-time deadline, or prove native history/durability.
+[T001 verification](../quickstart.md#9-t001-core-acceptance-2026-09-27) records its boundary.

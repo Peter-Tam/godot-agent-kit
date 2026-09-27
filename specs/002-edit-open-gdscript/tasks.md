@@ -6,7 +6,7 @@ description: "PR-sized implementation tasks for guarded open-GDScript editing"
 
 **Input:** [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [caller contract](contracts/edit-api.md), [bridge contract](contracts/bridge-protocol.md), [native contract](contracts/native-integration.md), and [quickstart.md](quickstart.md).
 
-**State:** Task derivation complete; **0 / 5 implementation tasks complete**. Granularity review is recorded below. Read-only `/speckit.analyze` completed after the local-overlap clarification with no genuine findings; implementation has not started. Deriving/analyzing tasks is not approval of the plan, a supported-version claim, or authorization to implement against an unreviewed delivery head.
+**State:** **1 / 5 implementation tasks complete: T001.** Granularity review and read-only `/speckit.analyze` passed after the local-overlap clarification; approved design artifacts are merged in PR #24. T001's pure-core acceptance is recorded in [quickstart §9](quickstart.md#9-t001-core-acceptance-2026-09-27). T002–T005 remain pending; no native/CLI mutation support is claimed.
 
 **Organization:** Five coherent PR-sized increments: three verifiable foundations, one complete caller-edit slice, and one cumulative durability/compatibility increment. All five user stories remain P1. US2–US4 are inseparable safety/history requirements of US1 and are implemented and tested inside T004, not postponed to separate test-only or “add safety later” PRs. Their own phases below retain goals, ownership and independent acceptance. Each ID has exactly one checkbox; shared-story references are not duplicate tasks.
 
@@ -50,7 +50,7 @@ Use the planned `godot-addon/tests/run_script_edit.py` and existing `godot-addon
 
 These three boundaries are independently verifiable without publishing a partial caller mutation. T001 is pure core; T002 is usable native validation; T003 is the guarded native editing/persistence boundary. Each includes its own tests, smoke and documentation. There is no product edit command until T004 has all its mandatory safeguards and evidence.
 
-- [ ] T001 Deliver protocol-independent edit eligibility, evidence and terminal-outcome semantics in `mcp-server/src/script_edit.rs`, export through `mcp-server/src/lib.rs`, and bundle behavioral contracts in `mcp-server/tests/script_edit_contract.rs` plus evidence in `specs/002-edit-open-gdscript/quickstart.md`.
+- [X] T001 Deliver protocol-independent edit eligibility, evidence and terminal-outcome semantics in `mcp-server/src/script_edit.rs`, export through `mcp-server/src/lib.rs`, and bundle behavioral contracts in `mcp-server/tests/script_edit_contract.rs` plus evidence in `specs/002-edit-open-gdscript/quickstart.md`.
   **Objective:** Any adapter can check an observed revision basis and interpret a complete/partial/interrupted edit without JSON, sockets, Godot objects or a second safety policy.
   **Depends on:** None of this feature's implementation tasks; normal reviewed-artifact/analysis entry criteria apply.
   **Implementation:** Reuse checked selectors, identities, decimal counters, collection stamps and availability/invalidation semantics from `observation.rs`. Implement the typed request/basis, source/save/primitive evidence, stage knowledge and one reducer for all five outcomes. Extract only actually available prior observation fields; saved version is fresh preparation evidence, not invented observation-v1 data. Enforce dirty/known-stale/divergent/missing-basis refusal, exact intended-source agreement, invalidation and denial suppression. Keep schema/JSON enforcement at the later T004 adapter; quoted wire constants below remain normative but do not add a Serde/transport dependency to the core. Use owned evidence without needless copying and never manufacture observed hashes/timestamps from requests.
@@ -129,6 +129,7 @@ These three boundaries are independently verifiable without publishing a partial
 
   **Tests and smoke:** Cover eligible/ineligible basis extraction, missing prior current version versus absent prior saved version, dirty-equal, empty/exact source and supported representation boundaries, same-text changed versions, wrong target/session/clock, each missing/invalidated authority, parse/dependency unavailable or invalid after known application, partial bookkeeping and permanent pre-boundary discard. Table-test valid evidence sequences that distinguish no authorization, authorization with lost acknowledgment, entered-but-unconfirmed and known-changed stages; denied source suppression must not erase known application. Exercise all nullable/reason/enum boundaries quoted above. Smoke a throwaway external Rust consumer invoking the public checked types/reducer; do not substitute JSON echoes or claim live-editor proof.
   **Accept:** The reusable API yields the specified five outcomes from validated evidence, never equates an acknowledgment/hash/mtime with independent verification, never downgrades known application to refusal, and never upgrades a terminal result with late evidence. Existing observation public behavior stays unchanged. Rust baselines, consumer smoke and API/evidence documentation pass in this PR. No CLI/native/source mutation or full-feature support is claimed.
+  **Completion evidence:** 48 edit-core regressions, 153 tests in the complete serial Rust run, formatting/Clippy/rustdoc, and an external public-API consumer exercising all five outcomes. [Exact commands, the initial parallel socket-test failure, review corrections and scope limits](quickstart.md#9-t001-core-acceptance-2026-09-27) are recorded separately from PR delivery state.
 
 - [ ] T002 Deliver confined, source-attributed native GDScript validation through `godot-addon/native/engine-api.patch`, `godot-addon/native/validation.cpp`, `godot-addon/native/extension.cpp`, `godot-addon/native/build.py` and `godot-addon/addons/godot_agent_kit/native/script_edit.gdextension`, with real-engine cases in `godot-addon/tests/run_script_edit.py` and `godot-addon/tests/fixtures/script_edit/fixture_driver.gd`.
   **Objective:** A trusted editor integration can obtain a real exact-source native parser/analyzer result, including safe dependency/effect refusals, through supported GDExtension dispatch. This is a useful non-mutating integration boundary before source application exists.
@@ -264,7 +265,7 @@ T002  Native source validation -> T003 Native guarded edit ----+-> T004 Complete
 | US4 | 0 additional | T003 native history and T004's complete caller history scenarios. |
 | US5 | 1 | T005 cumulative proof; T004 already implements durability-safe behavior. |
 | Final cross-cutting | 0 additional | T005; routine tests/docs are bundled earlier. |
-| **Total** | **5** | Five future implementation PRs; none completed here. |
+| **Total** | **5** | T001 complete; T002–T005 pending. One dedicated PR per task. |
 
 ## Parallel Execution Examples per Story
 
