@@ -5,7 +5,7 @@
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
 - **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** Planning blocked — promising native candidate; finalization/validation design unresolved (State B)
+- **Feature state:** Planning complete — design complete; implementation not started
 - **Tasks:** Not derived; implementation not started
 - **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
 - **Current task:** None
@@ -16,7 +16,7 @@
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's native candidate remains promising; a tooling-policy interruption left research incomplete. The audit excludes arbitrary external-writer atomicity from Phase 1 while retaining current safety requirements. Finalization/validation design and mutation A–E/durability gates remain pending. |
+| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's native integration design is complete, with guarded document finalization and source-attributed validation contracts. Implementation, mutation A–E and durability evidence remain pending; no mutation support is claimed. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Active feature
@@ -25,23 +25,33 @@ Feature 002's [specification](specs/002-edit-open-gdscript/spec.md) and
 [requirements-quality checklist](specs/002-edit-open-gdscript/checklists/requirements.md)
 define a one-script, already-open editing capability with stale-write protection,
 independently verified D/R/B convergence, native Undo/Redo, and durability.
-Planning remains [blocked on unresolved native integration design](specs/002-edit-open-gdscript/plan.md),
-not on a demonstrated failure of the native direction.
-Completed [native evidence](specs/002-edit-open-gdscript/research.md#9-native-integration-continuation-c1c5)
-includes supported extension access, native history and descriptor-bound persistence.
-Actual negative results, including the same-inode overwrite and incomplete document
-saved-state bookkeeping, are preserved. A later probe was refused by the coding
-environment's cybersecurity-policy filter; it did not complete, and that interruption
-is not a technical verdict. No bypass or equivalent rephrased retry was attempted.
-The [requirements audit](specs/002-edit-open-gdscript/research.md#10-phase-1-concurrency-boundary-audit-and-corrected-planning-decision)
-supports guarded single-editor mutation, not arbitrary non-cooperating same-inode
-writer serialization. A narrow specification clarification preserves stale/dirty
-refusal, identity/confinement, independent verification and non-success on invalidation.
-The remaining blockers are guarded target-document finalization and source-attributed
-native validation design. `/speckit.plan` has not resumed.
-No complete implementation plan, data model, mutation contracts, quickstart, task list,
-or implementation was produced; no mutation acceptance or support claim is established.
-No implementation or task generation is authorized while planning is blocked.
+The [implementation plan](specs/002-edit-open-gdscript/plan.md) is now **design-complete**,
+with a [data model](specs/002-edit-open-gdscript/data-model.md),
+[caller contract](specs/002-edit-open-gdscript/contracts/edit-api.md),
+[private bridge contract](specs/002-edit-open-gdscript/contracts/bridge-protocol.md),
+[native primitive contracts](specs/002-edit-open-gdscript/contracts/native-integration.md)
+and [verification guide](specs/002-edit-open-gdscript/quickstart.md).
+The [selected design](specs/002-edit-open-gdscript/research.md#11-concrete-native-design-and-resumed-planning)
+uses the existing Rust/core and private bridge, standard GDExtension, and narrow
+engine APIs for guarded target-document saved-state finalization and exact-source
+GDScript validation. Core policy and independent verification remain in Rust.
+
+Completed [native research](specs/002-edit-open-gdscript/research.md#9-native-integration-continuation-c1c5)
+and its negative results remain evidence, not A–E acceptance. The later
+tooling-policy interruption remains an uncompleted probe, not a native failure;
+no bypass or equivalent rephrased retry occurred. The existing
+[concurrency audit](specs/002-edit-open-gdscript/research.md#10-phase-1-concurrency-boundary-audit-and-corrected-planning-decision)
+still excludes arbitrary non-cooperating same-inode serialization while preserving
+fresh stale/dirty checks, exact identity/confinement and non-success on invalidation.
+
+`/speckit.plan` completed its design artifacts and constitutional planning check.
+No material design question remains; implementing/proving the specified APIs,
+effect guards, exact-build compatibility and A–E/durability behavior remains work.
+No task list, product implementation or engine patch was generated. Task derivation,
+granularity review, analysis and implementation are separate later steps, not
+authorized by this status transition. **Feature 002 is not implemented or complete.**
+Delivery metadata: these planning changes are carried by existing
+[PR #24](https://github.com/Peter-Tam/godot-agent-kit/pull/24), independently of feature completion.
 
 ## Completed observation foundation
 
