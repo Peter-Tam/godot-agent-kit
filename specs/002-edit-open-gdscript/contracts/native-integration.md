@@ -23,6 +23,8 @@ Preparation also inspects the target's native save-format settings and checks bo
 
 The guard is a request-local engine object held only by the native attempt, not a new transaction/session UUID. It binds existing request/session identity and actual document objects. It is entered only after fresh checks and core authorization, immediately before native text mutation, and released on every terminal path. It does not lock out human work or serialize external filesystem writers. Identity/source changes invalidate it rather than trigger repair.
 
+Kit admission is owned by the integration's existing single active collection/edit slot, not a second native scheduler or lock policy. Only its current attempt may enter this guard or invoke effectful native stages; a rejected overlap has no native work to resume after release. Caller termination does not release the slot/handles while entered native work can still mutate: stop new stages and complete safe cleanup under [NativeAttempt](../data-model.md#nativeattempt) before another attempt is admitted. The guard still permits independent human typing; it does not merge or rebase competing intentions.
+
 ## 2. Common bound state and persistence receipt
 
 Every native operation belongs to one authenticated connection, existing `request_id`, selected `session_id`, canonical project directory identity, and exact `res://` standalone `.gd` path. Document identity comprises actual Script, ScriptEditorBase and CodeEdit instance IDs plus their current association. Retain the Script reference; revalidate node IDs/open-document association before dereferencing editor objects. A retained Resource is not proof the document remains open.

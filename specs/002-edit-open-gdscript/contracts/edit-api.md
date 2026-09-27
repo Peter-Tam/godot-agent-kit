@@ -40,13 +40,15 @@ Emit exactly one JSON EditOutcome plus newline on stdout. Fields and enum semant
 |---|---|
 | `0` | `verified_changed` or `verified_unchanged`; inspect the explicit outcome to distinguish them. |
 | `2` | Known `applied_unverified`, including partial persistence/finalization or failed post-change validation. |
-| `3` | Proven `refused` for input, target, stale/dirty/conflict, permission or unsupported capability/representation/effect. |
+| `3` | Proven `refused` for busy admission, input, target, stale/dirty/conflict, permission or unsupported capability/representation/effect. |
 | `4` | `application_unknown`, or a proven pre-application timeout/cancellation/disconnection/protocol failure. Inspect application knowledge and reason; exit alone cannot prove not applied. |
 | `1` | Unexpected host/launcher failure preventing normal delivery; structured error if possible, never an invented mutation result. |
 
 The controlled caller must drain stdout. The supervisor collects evidence for at most 9.5 seconds and reserves 0.5 seconds for result delivery; it does not kill the user's editor or wait indefinitely for a stuck native/filesystem call. Post-authorization timeout/loss may mean the edit applied or an entered stage may still finish. [Application-certainty rules](../data-model.md#4-deadline-cancellation-and-application-certainty) are mandatory.
 
 Never retry automatically, even with the same `request_id`. The safe next action after any applied/unknown result is a fresh read-only observation of the original explicitly selected target and inspection of human work. A later intentional edit is a new request/basis, not rollback, resume, or delivery deduplication. This operation is not declared idempotent by source equality: history, persistence and partial failure matter.
+
+An overlap rejected by the selected editor/session's active slot returns `refused` with reason `busy` and `application: not_applied`; it cannot enter mutation, change source/history/finalization, queue or auto-apply later. Observe again and submit a new request for a later edit. If the first edit changed the revision, the previous basis remains stale even when the requested text equals the new source; `verified_unchanged` cannot bypass basis validation. Busy refusal is not evidence that the active request has stopped or rolled back.
 
 ## 4. Verification and refusal rules
 

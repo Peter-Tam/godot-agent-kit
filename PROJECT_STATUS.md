@@ -5,7 +5,7 @@
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
 - **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** Tasks derived — granularity review passed; analysis pending
+- **Feature state:** Design/tasks analyzed — granularity and consistency reviews passed; implementation not started
 - **Tasks:** 0 / 5 complete; implementation not started
 - **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
 - **Current task:** None — no implementation task selected
@@ -16,7 +16,7 @@
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's design and five-task decomposition are complete; task-granularity review passed. Analysis, implementation, mutation A–E and durability evidence remain pending; no mutation support is claimed. |
+| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's design and five-task decomposition are complete; granularity review and spec/plan/tasks analysis passed, including local same-session mutation-entry safety. Implementation, mutation A–E and durability evidence remain pending; no mutation support is claimed. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Active feature
@@ -52,11 +52,14 @@ Three verifiable core/native foundations precede the first complete caller edit;
 US2–US4 safety and history are bundled with US1, followed by cumulative US5 acceptance.
 All 22 requirements, 26 scenarios and eight success criteria retain explicit owners.
 
-Analysis has not run, and no implementation task is selected or started.
-No product implementation, engine patch, mutation acceptance or support claim was
-produced by task generation. Reviewed-artifact/analysis and one-task/one-PR gates
-remain required. **Feature 002 is not implemented or complete.**
-Delivery metadata: design and task-generation changes are carried by existing
+The local-overlap clarification extends US2.4 in place; T004 owns its real
+barrier/witness acceptance using the existing single-active collection/edit slot.
+`/speckit.analyze` completed after that clarification with no genuine consistency,
+coverage or constitutional findings. No implementation task is selected or started;
+no product implementation, engine patch, mutation acceptance or support claim was
+produced. Reviewed-artifact and one-task/one-PR gates remain required.
+**Feature 002 is not implemented or complete.**
+Delivery metadata: design, task-generation and clarification/analysis changes are carried by existing
 [PR #24](https://github.com/Peter-Tam/godot-agent-kit/pull/24), independently of feature completion.
 
 ## Completed observation foundation

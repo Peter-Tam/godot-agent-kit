@@ -35,7 +35,9 @@ Reuse Feature 001 identity/witness types and decimal-string counters. No Resourc
 
 One authenticated connection/request-local in-memory record owned by the Godot integration. It retains actual object associations, the immutable intended source, fresh native guard witnesses, the pinned project/file descriptors, editor-clock expiry and current stage. It owns the engine document guard, one persistence receipt and bounded validation records. No durable operation registry, replay cache, journal or background service.
 
-Only one active read collection **or** edit attempt is admitted by the existing editor integration slot. Excess attempts are refused without mutation, not queued. This is capacity/lifetime management, not a concurrency lock guarantee. Human editing is not disabled; changed target evidence invalidates the attempt. Disconnect/expiry/disable releases references/descriptors and prevents new stages; already-entered I/O/mutation is not rolled back.
+Only one active read collection **or** edit attempt is admitted by the existing editor integration slot for the selected editor/session. This also serializes kit mutation entry: only the slot-owning attempt may cross the potentially-applied boundary. Excess edit attempts receive a terminal, source-free `busy` refusal with zero source/history/finalization change; no preparation or apply work is queued for them. Slot release never resumes, retries or replays a rejected attempt. A later edit requires a new request with a freshly observed valid basis; a changed revision cannot be bypassed by compatible or equal desired text.
+
+The admitted attempt owns the slot from preparation through terminal cleanup. Disconnect/expiry/disable prevents new stages, but does not release the slot or live native references/descriptors while already-entered work could still mutate; cleanup waits for that work to return and prevents deferred effects before admitting another attempt. This does not extend the caller deadline or imply rollback. Human editing is not disabled; changed target evidence invalidates the attempt. This is local kit-entry serialization, not coordination across editors/worktrees or exclusion of arbitrary external writers.
 
 ## 2. Evidence records
 
@@ -91,7 +93,7 @@ Each EditEvidence contains `document` (open/identity/validity evidence), `source
 | `applied_unverified` | A source/history/persistence/bookkeeping change is known, but required later evidence failed, is missing or was invalidated. Includes partly applied cases. |
 | `application_unknown` | A mutating command may have reached the editor but actual application cannot be determined. Missing acknowledgment is not not-applied proof. |
 
-Reason categories include dirty conflict, revision mismatch, identity/session change, divergence, known stale R/B, unavailable observation, closed/unsupported target, ambiguity/access denial, unsupported engine/effect/representation, persistence failure/unknown, partial finalization, parse/dependency error, validation unavailable, deadline, cancellation, disconnection and protocol failure. Keep stage and reason separate; a parse error after a write is not a clean pre-application refusal.
+Reason categories include busy admission, dirty conflict, revision mismatch, identity/session change, divergence, known stale R/B, unavailable observation, closed/unsupported target, ambiguity/access denial, unsupported engine/effect/representation, persistence failure/unknown, partial finalization, parse/dependency error, validation unavailable, deadline, cancellation, disconnection and protocol failure. Keep stage and reason separate; a parse error after a write is not a clean pre-application refusal.
 
 ## 3. Ordered attempt state machine
 
@@ -104,7 +106,7 @@ Reason categories include dirty conflict, revision mismatch, identity/session ch
 7. **Finalizing:** Primitive A consumes eligible receipt facts and performs guarded target-only saved bookkeeping. Failure stops; do not overwrite newer work to repair it.
 8. **Validating:** independently read actual resulting source/identity and perform Primitive B as `post_change`; a preflight result cannot satisfy this stage. Invalid/unavailable/context-changed results prevent success but do not erase applied facts.
 9. **Verifying:** Rust independently reads D; integration independently rereads R/B/dirty and saved-state inspection. Recheck target, sources/versions, dependency/context witnesses and deadline. Classify once, only in Rust/core.
-10. **Terminal:** drop native/worker request state and ignore late frames. No automatic retry, reconnect/resume, rollback, or outcome upgrade.
+10. **Terminal:** finish the caller outcome and ignore late frames; native state/slot cleanup follows the lifetime rule above, not the caller's return time. No automatic retry, reconnect/resume, rollback, or outcome upgrade.
 
 For **unchanged** intent, branch after fresh preparation checks directly to `unchanged` validation and independent verification. Do not dispatch authorization, enter a mutating document guard, write D, tag saved state or add history. If unchanged source is invalid or required saved-state evidence is missing, return a truthful refusal/non-success rather than verified unchanged.
 

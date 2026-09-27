@@ -1,12 +1,12 @@
 # Quickstart: Verify Guarded Open-GDScript Editing
 
-**Status:** Future implementation/acceptance guide. Feature 002's design and [task derivation](tasks.md) are complete; task-granularity review passed, but analysis and implementation have not run. No mutation implementation, engine patch or A–E result is supplied by this design/task PR. Commands involving `edit-gdscript`, the native build entrypoint or `run_script_edit.py` are the planned interfaces implementation must provide, **not commands executed or currently available here**. Existing observation evidence does not establish mutation support.
+**Status:** Future implementation/acceptance guide. Feature 002's design and [task derivation](tasks.md) are complete; granularity review and read-only analysis passed, including the local-overlap clarification. Implementation has not started. No mutation implementation, engine patch or A–E result is supplied by this design/task PR. Commands involving `edit-gdscript`, the native build entrypoint or `run_script_edit.py` are the planned interfaces implementation must provide, **not commands executed or currently available here**. Existing observation evidence does not establish mutation support.
 
 Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [caller](contracts/edit-api.md), [bridge](contracts/bridge-protocol.md), [native](contracts/native-integration.md) contracts as normative semantics. Do not infer success from process exit, a save acknowledgment or the finalizer's copied fields.
 
 ## 1. Prerequisites and exact candidate
 
-- Reviewed spec/plan and the relevant approved one-task/one-PR implementation increment from [tasks.md](tasks.md). Task derivation and granularity review are complete; analysis and implementation remain separate later work. This guide does not authorize implement-all.
+- Reviewed spec/plan and the relevant approved one-task/one-PR implementation increment from [tasks.md](tasks.md). Task derivation, granularity review and read-only analysis are complete; implementation remains separately authorized work. This guide does not authorize implement-all.
 - Owned GUI macOS **26.6.2 arm64** fixture environment, with visible Script Editor/CodeEdit and permission to capture only its owned window. No real developer project content.
 - Patched development editor based on Godot **4.7.2**, exact commit `ed1daf0bf001b61586d9930840f2f1394092c079`, implementing native API family revision **1**, plus matching C++17 GDExtension. Record actual custom version, patch/native build IDs and artifacts; the official stock binary does not contain the new APIs.
 - Existing Rust **1.98.1** with rustfmt/clippy and tracked lockfile; Apple command-line C++ toolchain/SDK; Python **3.10+**. Record actual native build-tool versions and provenance. Build engine APIs with the pinned engine's normal build system, not a new distribution service.
@@ -66,7 +66,7 @@ A request uses a newly returned complete clean agreeing observation as `basis`; 
 | Group | Spec scenarios / requirements | Required observable result |
 |---|---|---|
 | `clean-open` | US1.1–US1.4; FR-001, FR-003, FR-006–FR-009, FR-018; SC-001 | Real distinctive edit, non-current-tab target, unrelated dirty document, and unchanged intent. Separate D/R/B/dirty/saved/parse proof; one native history entry only for changed intent; no focus-based targeting or reconciliation. |
-| `conflicts` | US2.1–US2.4, US2.7; FR-003–FR-005, FR-010–FR-011, FR-013; SC-002 | Dirty-different and dirty-equal, stale clean basis, same-text newer buffer version, divergence, known stale R/B, missing facts, changed identity and between-preflight/application human work all preserve operation-unmodified source/dirty/history. Missing/unusable basis has no unconditional fallback. |
+| `conflicts` | US2.1–US2.4, US2.7; FR-003–FR-005, FR-010–FR-011, FR-013; SC-002 | Dirty-different and dirty-equal, stale clean basis, same-text newer buffer version, divergence, known stale R/B, missing facts, changed identity and between-preflight/application human work all preserve operation-unmodified source/dirty/history. US2.4 also requires T004's same-session overlap barrier case below: busy/non-applied, no queued/late mutation, and fresh-basis recovery. Missing/unusable basis has no unconditional fallback. |
 | `routing` | US2.5–US2.6; FR-002, FR-005, FR-011, FR-020; SC-002 | Exact/omitted session, two live sessions, unresolved liveness, ended/restarted session, closed/missing/non-GDScript/built-in/unknown-open/denied/outside-project/unsupported target. No source-before-selection, guessing, force-load/open, replacement session or mutation. |
 | `interruption` | US3.1–US3.3, US3.5–US3.6; FR-007–FR-008, FR-010–FR-014; SC-003–SC-004 | Fail/cancel/lose connection before authorization, after authorization, during native application/persistence/finalization and verification. Actual survivor state matches reported applied/partial/unknown; no late application after proven refusal, false rollback or retry. New human work remains intact. |
 | `validation` | US3.4 and invalid-source repair edge; FR-009–FR-011, FR-020; SC-003 | Actual valid root and GDScript dependency, invalid root/analyzer/dependency, dependency change, missing/unreadable/unconfined dependency, unavailable/unsupported effect. Native input hash/path/interval attribution is correct, not reload/log inference. Repair an initially invalid but coherent/clean source; never classify syntax error as non-script target. |
@@ -96,6 +96,17 @@ Exercise:
 - Save formatting profiles: refuse before mutation if baseline or desired source would be changed by native trailing-whitespace/final-newline/indent conversion. Do not change preferences to make product results pass. Compatible representations must retain exact bytes and history through ordinary Save.
 
 The same-inode critical-window counterexample remains an explicit unpromised atomicity limit. Do not require a new lock/CAS system or claim all transient writes can be detected. Where invalidation is actually known to the system, it must prevent success even if later bytes match. A fixture controller's additional knowledge cannot be silently presented as a product observation.
+
+### Same-session overlap (US2.4; T004)
+
+This is T004's real routing/conflict/interruption acceptance, not a new story, task or concurrency service. Use two actual caller requests, the same selected editor/session/script, fixture-owned barriers and independently read D/R/B, current/saved versions, dirty state and native history. Boundary/finalization witnesses must identify the actual attempt; do not infer non-entry only from equal text or a response echo.
+
+1. Observe clean revision X. Start A and hold it after supervisor authorization while its prepared attempt owns the existing slot, before mutation, with an explicit barrier that lets the integration handle B.
+2. Submit B with the same basis X. Verify `refused`/`busy`, `application: not_applied`, no B boundary entry and zero B-caused source/history/finalization change while A remains held. Establish that B's attempt is terminal with no retained preparation/apply work, not merely waiting.
+3. Release A and require its normal verified edit to Y. Release controlled deliveries/work and verify no late B application or finalization and no retained B work after slot release; source/history changes are attributable only to A.
+4. Submit a new request with the old B basis X, including desired text equal to Y: it must remain stale, not `verified_unchanged` or an automatic rebase. Then observe Y afresh and prove a new valid request can edit to Z.
+
+In the existing interruption cases, hold an already-entered A native stage through caller timeout/disconnection. A retains truthful applied/unknown knowledge and its bounded caller result; no other attempt may enter mutation while that stage can still mutate. Release the barrier, observe survivor state and terminal cleanup before a later fresh-basis edit. This is not rollback or permission to block human typing. Existing before/after-application human-edit cases remain mandatory.
 
 ### B: real source parser/analyzer and effect boundary
 
