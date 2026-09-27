@@ -95,9 +95,10 @@ Task and feature completion MUST be determined by their approved acceptance crit
 required evidence, not by GitHub review or merge state.
 
 When a task satisfies its specification, plan, task acceptance criteria, required
-validation, and applicable constitutional gates on its current delivery head, it MUST be
-marked complete (`[X]`) even if its pull request is still open or unmerged. If that task
-completes the feature, the feature MUST likewise be recorded as complete.
+validation, the implementation-shape completion gate below, and applicable constitutional
+gates on its current delivery head, it MUST be marked complete (`[X]`) even if its pull
+request is still open or unmerged. If that task completes the feature, the feature MUST
+likewise be recorded as complete.
 
 `Awaiting review`, `awaiting merge`, `in review`, `PR open`, and similar GitHub states
 MUST NOT be used as task or feature lifecycle states and MUST NOT keep otherwise-complete
@@ -131,6 +132,75 @@ Completion state and authorization to begin dependent work are separate concerns
 one-task-one-PR sequencing rule remains unchanged: dependent implementation waits for the
 completed task's PR to merge unless the maintainer explicitly authorizes a stacked-PR
 workflow. Stacking still means one task and one PR per task.
+
+### Implementation-shape completion gate
+
+Every implementation task MUST receive a proportionate implementation-shape review before
+being marked complete. Passing tests, linting, formatting, and behavioral acceptance is
+not by itself sufficient to mark a task complete if it introduced clear accidental
+structural complexity. This review applies
+[Principle XIII](.specify/memory/constitution.md#xiii-justify-complexity-with-concrete-present-risk)
+within current-task completion; it is not a new Spec Kit task, a separate refactor PR by
+default, an approval or CI gate, or an architecture-review ceremony. The objective is
+clear responsibility and the smallest necessary surface, not stylistic purity.
+
+A materially changed production file approaching roughly 800–1000 lines should trigger
+an explicit cohesion/ownership review. A substantially larger file is a stronger review
+signal, but size alone does not require splitting: it is not a hard LOC limit or
+compliance metric. Several independently nameable responsibilities also trigger review,
+even in smaller modules. Diagnostic examples include request/input models, evidence
+models, validation, lifecycle/state machines, terminal outcome reduction,
+transport/protocol, filesystem/persistence, and native/editor integration; these are not
+a required module taxonomy.
+
+Before completing a materially changed implementation task, answer proportionately:
+
+1. What coherent responsibility does each materially changed production module own?
+2. Are multiple independently nameable responsibilities combined only because they belong
+   to the same feature?
+3. Which new declarations truly need their current visibility?
+4. Are public APIs exposed only because a future task might use them?
+5. Are several booleans representing one lifecycle/state concept and allowing impossible
+   combinations?
+6. Are there speculative enum variants, extension points, hooks, or abstractions without
+   a current requirement or current caller?
+7. Are safety/evidence paths using `unwrap`/`expect` where malformed or unavailable
+   evidence can practically be represented as a typed failure?
+8. Would a simple responsibility-based split now materially reduce the implementation
+   or review cost of the next dependency-ready task?
+
+These questions guide judgment, not a new checklist process; they do not require a
+written report for every trivial change.
+
+New declarations MUST use the narrowest visibility required by current consumers. A
+possible future consumer or later task is not by itself justification for making an API
+public today. Public API carries ongoing maintenance/compatibility cost under Principle
+XIII; retain public contracts genuinely needed by the current task without artificial
+encapsulation.
+
+When simple behavior-preserving cleanup of accidental complexity introduced by the
+current task is concretely justified, agents MUST perform it within that task before
+marking it complete rather than automatically defer it as future refactoring. Examples,
+where concretely justified:
+
+- Split a large feature module into responsibility-based submodules, retaining the same
+  architecture, behavior, and external contract.
+- Replace several lifecycle booleans with one small state enum.
+- Remove an unused speculative public variant until there is a current requirement.
+- Replace a safety/evidence-path `unwrap`/`expect` with typed failure where practical.
+
+Do not extract generic frameworks, add traits solely for extensibility, target one type
+per file or arbitrary small files, rewrite architecture, introduce layers merely to look
+cleaner, refactor unrelated pre-existing code, or build speculative reusable infrastructure.
+A split must clarify existing responsibilities; file size alone does not justify a new
+framework.
+
+The selected task remains exactly one task and one PR:
+**review and proportionate cleanup → mark selected task `[X]` → publish task PR → STOP**.
+Do not create another Spec Kit task merely to refactor the selected task; a separate
+refactoring task requires genuinely separate, independently valuable scope, not automatic
+deferral of completing this task correctly. Review does not authorize work owned by the
+next task.
 
 ### Task granularity and review
 
