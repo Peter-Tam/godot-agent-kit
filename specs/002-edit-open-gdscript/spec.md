@@ -181,6 +181,14 @@ The [constitution](../../.specify/memory/constitution.md), [working agreement](.
 
 All A–E gates apply, including actual native Undo/Redo because this feature explicitly claims it. Evidence must independently observe relevant authorities and state transitions in real Godot, with explicit deadlines and event-based synchronization; retain regression cases for discovered failures. Headless runtime, disk-only checks, mocks, and history registration alone cannot prove visible-buffer coherence or native reversal. Any inapplicable durability surface/scenario needs a recorded substantive justification; lack of access is not a passing result. The feature is not complete until its positive and refusal cases and applicable gates are satisfied. Completing it does not automatically complete Phase 1; remaining roadmap capabilities and exit evidence must be assessed separately.
 
+#### Phase 1 concurrency boundary
+
+FR-004/FR-013 and their acceptance scenarios require guarded mutation in the selected editor: fresh target-bound revision/state checks at source application and before persistence, protection of unsaved human editor work, no retargeting on document/Resource/buffer/session identity change, and an actual persistence write that cannot be redirected by path or parent replacement. Known stale or conflicting state MUST NOT authorize continuing an obsolete edit. Inability to protect the applicable editor mutation boundary or obtain required safety observations remains grounds for refusal.
+
+This feature does **not** promise atomic exclusion or linearizable compare-and-write against an arbitrary non-cooperating external process writing the same filesystem object after the final valid checks during the physical commit interval. It does not claim that every transient external write can be detected or prevented. Stronger coordination across competing actors belongs to later concurrency scope if specified, not a new Phase 1 mechanism or guarantee.
+
+This limitation MUST NOT convert invalidated evidence into success. Known/detected interference that invalidates required target, revision or postcondition evidence, changed identity, missing required evidence, or divergent postconditions MUST produce a truthful non-success outcome even if later text samples match. Before any application, refusal leaves source/history unchanged; after possible application, retain actual changes and uncertainty under FR-007–FR-014, without reasserting older intent or claiming rollback. Independent D/R/B, document-specific dirty/synchronization state, source-attributed parse verification and all applicable native history/durability gates remain required. External changes cannot be ignored or checks disabled to manufacture eligibility or success.
+
 ### Key Entities *(include if feature involves data)*
 
 - **Edit target**: One local project, live editor-session lifetime, and already-open standalone script identity; names or focus alone do not establish it.
