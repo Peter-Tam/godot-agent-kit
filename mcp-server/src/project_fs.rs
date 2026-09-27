@@ -2,7 +2,8 @@
 use crate::observation::{
     Authority, ClockId, CollectionStamp, DecimalCounter, DetectedChange, DiagnosticCode,
     FileIdentity, ObservationRequest, OutcomeKind, ProjectRoot, ResourcePath, ScriptKind,
-    SourceObservation, SourceReason, Stage, Staleness, Surface, Witness, SOURCE_LIMIT_BYTES,
+    SourceObservation, SourceReason, Stage, Staleness, Surface, Validity, Witness,
+    SOURCE_LIMIT_BYTES,
 };
 use crate::target::{RoutingFailure, SelectedSession};
 use cap_std::ambient_authority;
@@ -411,6 +412,68 @@ fn disk_unavailable(reason: SourceReason) -> SourceObservation {
     SourceObservation::unavailable(Authority::D, reason)
         .expect("disk source reasons are valid for D")
 }
+pub(crate) struct DiskRead {
+    pub(crate) source: SourceObservation,
+    pub(crate) metadata: Option<DiskMetadata>,
+}
+
+/// Independent filesystem facts, never a source witness for unavailable text.
+pub(crate) struct DiskMetadata {
+    /// `None` is proven absence, not unavailable identity.
+    pub(crate) file: Option<FileIdentity>,
+    pub(crate) collection: CollectionStamp,
+}
+
+fn unavailable_read(reason: SourceReason) -> DiskRead {
+    DiskRead {
+        source: disk_unavailable(reason),
+        metadata: None,
+    }
+}
+
+fn caller_stamp(started: Instant, started_tick: u64) -> CollectionStamp {
+    let finished_tick = started.elapsed().as_micros().min(u128::from(u64::MAX)) as u64;
+    CollectionStamp::new(
+        ClockId::Caller,
+        DecimalCounter::new(started_tick.to_string()).expect("caller tick is decimal"),
+        DecimalCounter::new(finished_tick.to_string()).expect("caller tick is decimal"),
+        finished_tick,
+    )
+    .expect("monotonic ticks are ordered")
+}
+
+fn missing_read(started: Instant, started_tick: u64) -> DiskRead {
+    DiskRead {
+        source: disk_unavailable(SourceReason::DiskMissing),
+        metadata: Some(DiskMetadata {
+            file: None,
+            collection: caller_stamp(started, started_tick),
+        }),
+    }
+}
+
+// An attributable invalid/missing non-GDScript document must reach the reducer,
+// but cannot acquire bytes through this GDScript-only observation operation.
+pub(crate) fn non_gd_document_disk(
+    selected: &SelectedSession,
+    validity: Validity,
+    stage: Stage,
+) -> Result<DiskRead, RoutingFailure> {
+    if selected.target().script_path().kind().is_some()
+        || !matches!(validity, Validity::Missing | Validity::Invalid)
+    {
+        return Err(disk_denial(stage));
+    }
+    verify_selected_root(selected, stage)?;
+    validate_locator(&selected.project_directory, selected.target().script_path())
+        .map_err(|_| disk_denial(stage))?;
+    verify_selected_root(selected, stage)?;
+    Ok(unavailable_read(if validity == Validity::Missing {
+        SourceReason::DiskMissing
+    } else {
+        SourceReason::DiskUnreadable
+    }))
+}
 
 fn disk_identity(meta: &cap_std::fs::Metadata) -> FileIdentity {
     FileIdentity::new(
@@ -442,7 +505,7 @@ fn disk_source(
     selected: &SelectedSession,
     started: Instant,
     stage: Stage,
-) -> Result<SourceObservation, RoutingFailure> {
+) -> Result<DiskRead, RoutingFailure> {
     match selected.target().script_path().kind() {
         Some(ScriptKind::BuiltinGdscript) => {
             // The container is only a locator. It is never a standalone D source.
@@ -450,7 +513,7 @@ fn disk_source(
             validate_locator(&selected.project_directory, selected.target().script_path())
                 .map_err(|_| disk_denial(stage))?;
             verify_selected_root(selected, stage)?;
-            return Ok(disk_unavailable(SourceReason::NoStandaloneDiskSource));
+            return Ok(unavailable_read(SourceReason::NoStandaloneDiskSource));
         }
         Some(ScriptKind::ExternalGdscript) => {}
         None => {
@@ -471,17 +534,17 @@ fn disk_source(
     let (parent, name) = source_parent(selected, stage)?;
     if name.is_empty() {
         verify_selected_root(selected, stage)?;
-        return Ok(disk_unavailable(SourceReason::DiskMissing));
+        return Ok(missing_read(started, started_tick));
     }
     let before = match parent.symlink_metadata(name) {
         Ok(meta) => meta,
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             verify_selected_root(selected, stage)?;
-            return Ok(disk_unavailable(SourceReason::DiskMissing));
+            return Ok(missing_read(started, started_tick));
         }
         Err(_) => {
             verify_selected_root(selected, stage)?;
-            return Ok(disk_unavailable(SourceReason::DiskUnreadable));
+            return Ok(unavailable_read(SourceReason::DiskUnreadable));
         }
     };
     if before.file_type().is_symlink() || before.permissions().mode() & 0o022 != 0 {
@@ -489,7 +552,7 @@ fn disk_source(
     }
     if !before.is_file() {
         verify_selected_root(selected, stage)?;
-        return Ok(disk_unavailable(SourceReason::DiskUnreadable));
+        return Ok(unavailable_read(SourceReason::DiskUnreadable));
     }
     // O_NONBLOCK ensures a last-component FIFO substitution cannot stall open().
     // O_NOFOLLOW also closes the symlink-substitution window between lstat and open.
@@ -511,7 +574,7 @@ fn disk_source(
                 return Err(disk_denial(stage));
             }
             verify_selected_root(selected, stage)?;
-            return Ok(disk_unavailable(SourceReason::DiskUnreadable));
+            return Ok(unavailable_read(SourceReason::DiskUnreadable));
         }
     };
     let opened = file.metadata().map_err(|_| disk_denial(stage))?;
@@ -550,42 +613,45 @@ fn disk_source(
         || !same_file_metadata(&after, &named_after)
         || !same_file_metadata(&after, &checked)
     {
-        return Ok(disk_unavailable(SourceReason::SourceChanged));
+        return Ok(unavailable_read(SourceReason::SourceChanged));
     }
-    if read_result.is_err() {
-        return Ok(disk_unavailable(SourceReason::DiskUnreadable));
-    }
-    if opened.len() > SOURCE_LIMIT_BYTES as u64 || bytes.len() > SOURCE_LIMIT_BYTES {
-        return Ok(disk_unavailable(SourceReason::TooLarge));
-    }
-    let Ok(text) = String::from_utf8(bytes) else {
-        return Ok(disk_unavailable(SourceReason::InvalidUtf8));
+    let file_id = disk_identity(&after);
+    let stamp = caller_stamp(started, started_tick);
+    let unavailable = if read_result.is_err() {
+        SourceReason::DiskUnreadable
+    } else if opened.len() > SOURCE_LIMIT_BYTES as u64 || bytes.len() > SOURCE_LIMIT_BYTES {
+        SourceReason::TooLarge
+    } else {
+        match String::from_utf8(bytes) {
+            Ok(text) => {
+                return Ok(DiskRead {
+                    source: SourceObservation::observed(
+                        Authority::D,
+                        text,
+                        stamp,
+                        Witness::new(
+                            selected.target().script_path().clone(),
+                            None,
+                            None,
+                            None,
+                            Some(file_id),
+                            None,
+                        ),
+                        Staleness::unknown(),
+                    ),
+                    metadata: None,
+                });
+            }
+            Err(_) => SourceReason::InvalidUtf8,
+        }
     };
-    let finished_tick = Instant::now()
-        .checked_duration_since(started)
-        .unwrap_or_default()
-        .as_micros() as u64;
-    let collection = CollectionStamp::new(
-        ClockId::Caller,
-        DecimalCounter::new(started_tick.to_string()).expect("caller tick is decimal"),
-        DecimalCounter::new(finished_tick.to_string()).expect("caller tick is decimal"),
-        finished_tick,
-    )
-    .expect("monotonic ticks are ordered");
-    Ok(SourceObservation::observed(
-        Authority::D,
-        text,
-        collection,
-        Witness::new(
-            selected.target().script_path().clone(),
-            None,
-            None,
-            None,
-            Some(disk_identity(&after)),
-            None,
-        ),
-        Staleness::unknown(),
-    ))
+    Ok(DiskRead {
+        source: disk_unavailable(unavailable),
+        metadata: Some(DiskMetadata {
+            file: Some(file_id),
+            collection: stamp,
+        }),
+    })
 }
 
 /// Independently reads standalone D only after a unique authenticated selection.
@@ -596,6 +662,13 @@ pub fn read_disk(
     selected: &SelectedSession,
     started: Instant,
 ) -> Result<SourceObservation, RoutingFailure> {
+    disk_source(selected, started, Stage::ReadDisk).map(|reading| reading.source)
+}
+
+pub(crate) fn read_disk_with_metadata(
+    selected: &SelectedSession,
+    started: Instant,
+) -> Result<DiskRead, RoutingFailure> {
     disk_source(selected, started, Stage::ReadDisk)
 }
 
@@ -606,6 +679,31 @@ pub fn read_disk(
 pub fn recheck_disk(
     selected: &SelectedSession,
     initial: &SourceObservation,
+    started: Instant,
+) -> Result<Vec<DetectedChange>, RoutingFailure> {
+    recheck_disk_inner(selected, initial, None, started)
+}
+
+pub(crate) fn recheck_disk_read(
+    selected: &SelectedSession,
+    initial: &DiskRead,
+    started: Instant,
+) -> Result<Vec<DetectedChange>, RoutingFailure> {
+    recheck_disk_inner(
+        selected,
+        &initial.source,
+        initial
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata.file.as_ref()),
+        started,
+    )
+}
+
+fn recheck_disk_inner(
+    selected: &SelectedSession,
+    initial: &SourceObservation,
+    initial_identity: Option<&FileIdentity>,
     started: Instant,
 ) -> Result<Vec<DetectedChange>, RoutingFailure> {
     if initial.authority() != Authority::D
@@ -623,16 +721,22 @@ pub fn recheck_disk(
         ));
     }
     let fresh = disk_source(selected, started, Stage::Recheck)?;
+    let original_file =
+        initial_identity.or_else(|| initial.witness().and_then(Witness::disk_file_id));
+    let fresh_file = fresh
+        .metadata
+        .as_ref()
+        .and_then(|metadata| metadata.file.as_ref())
+        .or_else(|| fresh.source.witness().and_then(Witness::disk_file_id));
     let mut changes = Vec::new();
-    if initial
-        .witness()
-        .and_then(Witness::disk_file_id)
-        .zip(fresh.witness().and_then(Witness::disk_file_id))
+    if original_file
+        .zip(fresh_file)
         .is_some_and(|(before, after)| before != after)
+        || (initial_identity.is_some() && fresh_file.is_none())
     {
         changes.push(DetectedChange::DiskIdentityReplaced);
-    } else if initial.text() != fresh.text()
-        || (initial.text().is_none() && initial.reason() != fresh.reason())
+    } else if initial.text() != fresh.source.text()
+        || (initial.text().is_none() && initial.reason() != fresh.source.reason())
     {
         changes.push(DetectedChange::Source(Authority::D));
     }

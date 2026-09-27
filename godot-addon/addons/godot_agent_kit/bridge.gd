@@ -526,7 +526,21 @@ func _safe_locator(path: String) -> bool:
 	if _filesystem == null or _filesystem.is_link(_project) or _directory_identity(_project) != _project_identity \
 		or not path.begins_with("res://") or path.to_utf8_buffer().size() > 2048:
 		return false
-	var parts := path.substr(6).split("/", true)
+	var locator := path.substr(6).split("::", true)
+	if locator.size() > 2:
+		return false
+	var container: String = locator[0]
+	if locator.size() == 2:
+		var subresource: String = locator[1]
+		if not subresource.begins_with("GDScript_") or subresource.length() <= 9 \
+			or container.get_extension() not in ["tscn", "tres", "scn", "res"]:
+			return false
+		for c in subresource:
+			var scalar := c.unicode_at(0)
+			if not (scalar >= 65 and scalar <= 90 or scalar >= 97 and scalar <= 122 \
+				or scalar >= 48 and scalar <= 57 or scalar == 95):
+				return false
+	var parts := container.split("/", true)
 	var current := _project
 	for i in parts.size():
 		var part: String = parts[i]
@@ -553,7 +567,9 @@ func _scope_witness(path: String) -> PackedStringArray:
 		return PackedStringArray()
 	var witness := PackedStringArray([_project_identity])
 	var current := _project
-	var parts := path.substr(6).split("/", true)
+	# A built-in's scope belongs to its container; never treat its subresource
+	# identifier as a filename or read container bytes as standalone script D.
+	var parts := path.get_slice("::", 0).substr(6).split("/", true)
 	for i in parts.size():
 		current = current.path_join(parts[i])
 		var info := _metadata(current)
@@ -598,8 +614,9 @@ func _collect_pending() -> void:
 		_active = {}
 		return
 	reply.request_id = peer.request_id
-	_queue(peer, reply, operation == "recheck", true)
-	if operation == "observe":
+	var failed: bool = reply.get("kind") == "failure"
+	_queue(peer, reply, operation == "recheck" or failed, true)
+	if operation == "observe" and not failed:
 		peer.observation_path = path
 	else:
 		peer.collector.clear()

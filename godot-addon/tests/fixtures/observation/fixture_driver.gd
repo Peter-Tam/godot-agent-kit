@@ -15,6 +15,10 @@ var _interrupt_announced := false
 var _transition_record := {}
 var _unpathed_script: GDScript
 var _duplicate_script: GDScript
+var _builtin_script: GDScript
+var _builtin_scene: PackedScene
+var _builtin_instance: Node
+var _prepared_subject_buffer: CodeEdit
 
 
 func _enter_tree() -> void:
@@ -22,6 +26,15 @@ func _enter_tree() -> void:
 	if _control.begins_with("/") and DirAccess.dir_exists_absolute(_control):
 		set_process(true)
 	add_to_group("observation_fixture_driver")
+
+
+func _exit_tree() -> void:
+	if is_instance_valid(_builtin_instance):
+		_builtin_instance.free()
+	_builtin_instance = null
+	_builtin_script = null
+	_builtin_scene = null
+	_prepared_subject_buffer = null
 
 
 func _process(_delta: float) -> void:
@@ -65,6 +78,39 @@ func _process(_delta: float) -> void:
 			# Explicit owned preparation; do not depend on import-time cache races.
 			_cached_subject = load("res://scripts/subject.gd") as GDScript
 			response.ok = _cached_subject != null
+		"cache_builtin", "prepare_builtin":
+			if is_instance_valid(_builtin_instance):
+				_builtin_instance.free()
+			_builtin_scene = load("res://container.tscn") as PackedScene
+			_builtin_instance = _builtin_scene.instantiate() if _builtin_scene != null else null
+			_builtin_script = _builtin_instance.get_script() as GDScript if _builtin_instance != null else null
+			response.ok = _builtin_script != null \
+				and _builtin_script.resource_path == "res://container.tscn::GDScript_x"
+			if response.ok and action == "prepare_builtin":
+				EditorInterface.edit_script(_builtin_script)
+				EditorInterface.set_main_screen_editor("Script")
+			response.merge(_witness())
+		"prepare_invalid":
+			var invalid_path := "res://scripts/invalid.gd"
+			var invalid := GDScript.new()
+			invalid.source_code = FileAccess.get_file_as_string(invalid_path)
+			invalid.take_over_path(invalid_path)
+			EditorInterface.edit_script(invalid)
+			EditorInterface.set_main_screen_editor("Script")
+			response.merge(_witness())
+			response.ok = response.open_paths.has(invalid_path) \
+				and response.invalid.get("associated", false)
+		"remove_subject_disk":
+			response.ok = DirAccess.remove_absolute(
+				ProjectSettings.globalize_path("res://scripts/subject.gd")) == OK
+			response.merge(_witness())
+		"cap_closed_resource_exact", "cap_closed_resource_over":
+			_cached_subject = load("res://scripts/subject.gd") as GDScript
+			response.ok = _cached_subject != null
+			if response.ok:
+				var amount := 524289 if action.ends_with("_over") else 524288
+				_cached_subject.source_code = "# " + "r".repeat(amount - 2)
+			response.merge(_witness())
 		"prepare_subject":
 			response.merge(_prepare("res://scripts/subject.gd"))
 			response.ok = response.get("ready", false)
@@ -151,10 +197,15 @@ func _process(_delta: float) -> void:
 				var script := EditorInterface.get_script_editor().get_open_scripts()[doc.index] as GDScript
 				script.source_code = "extends RefCounted\n# RESOURCE_DIFFERENT\n"
 				response.merge(_document("res://scripts/subject.gd"))
-		"restrict_dirty", "restrict_global", "restrict_association", "restore_dirty":
-			restriction = "withhold_dirty" if action == "restrict_dirty" else (
-				"unattributed_global" if action == "restrict_global" else (
-				"withhold_association" if action == "restrict_association" else ""))
+		"restrict_dirty", "restrict_global", "restrict_association", "restrict_open", "restrict_resource", "restrict_buffer", "restore_dirty":
+			match action:
+				"restrict_dirty": restriction = "withhold_dirty"
+				"restrict_global": restriction = "unattributed_global"
+				"restrict_association": restriction = "withhold_association"
+				"restrict_open": restriction = "withhold_open"
+				"restrict_resource": restriction = "withhold_resource"
+				"restrict_buffer": restriction = "withhold_buffer"
+				_: restriction = ""
 			response.restriction = restriction
 		"reject_sample_identity", "reject_recheck_identity", "reject_recheck_malformed", "reject_recheck_oversized":
 			# Negative wire restrictions only; the native collector still gathers
@@ -298,6 +349,20 @@ func _witness() -> Dictionary:
 		editor_ids.append(String.num_uint64(base.get_instance_id()) if base != null else "")
 	var selected := editor.get_current_script()
 	var cached := ResourceLoader.get_cached_ref("res://scripts/subject.gd") as GDScript
+	var builtin := ResourceLoader.get_cached_ref("res://container.tscn::GDScript_x") as GDScript
+	var cold := ResourceLoader.get_cached_ref("res://scripts/cold.gd") as GDScript
+	var held_buffer: Variant = null
+	if is_instance_valid(_prepared_subject_buffer):
+		# Preparation held the actual target CodeEdit before mixed tabs made
+		# array association unavailable. This independent oracle never guesses
+		# a new association and is not exposed by the product collector.
+		held_buffer = {"id": String.num_uint64(_prepared_subject_buffer.get_instance_id()),
+			"text": _prepared_subject_buffer.text, "version": _prepared_subject_buffer.get_version(),
+			"caret_line": _prepared_subject_buffer.get_caret_line(),
+			"caret_column": _prepared_subject_buffer.get_caret_column(),
+			"has_selection": _prepared_subject_buffer.has_selection(),
+			"has_undo": _prepared_subject_buffer.has_undo(),
+			"has_redo": _prepared_subject_buffer.has_redo()}
 	return {"version": exact_version, "engine_hash": version.get("hash", ""),
 		"editor_hint": Engine.is_editor_hint(), "pid": OS.get_process_id(),
 		"plugin_enabled": EditorInterface.is_plugin_enabled(PRODUCT),
@@ -308,6 +373,13 @@ func _witness() -> Dictionary:
 		"unsaved_paths": editor.get_unsaved_files(),
 		"current_script": selected.resource_path if selected != null else "",
 		"subject_cached_id": String.num_uint64(cached.get_instance_id()) if cached != null else "",
+		"cold_cached_id": String.num_uint64(cold.get_instance_id()) if cold != null else "",
+		"subject_cached_R": cached.source_code if cached != null else null,
+		"prepared_subject_buffer": held_buffer,
+		"builtin_cached_id": String.num_uint64(builtin.get_instance_id()) if builtin != null else "",
+		"builtin": _document("res://container.tscn::GDScript_x"),
+		"builtin_R": _builtin_script.source_code if _builtin_script != null else null,
+		"invalid": _document("res://scripts/invalid.gd"),
 		"subject": _document("res://scripts/subject.gd"),
 		"empty": _document("res://scripts/empty.gd"),
 		"other": _document("res://scripts/other.gd")}
@@ -376,6 +448,8 @@ func _prepare(path: String) -> Dictionary:
 	EditorInterface.edit_script(script)
 	EditorInterface.set_main_screen_editor("Script")
 	var state := _document(path)
+	if path == "res://scripts/subject.gd" and state.get("associated", false):
+		_prepared_subject_buffer = EditorInterface.get_script_editor().get_open_script_editors()[state.index].get_base_editor() as CodeEdit
 	return {"ready": true, "document": state}
 
 

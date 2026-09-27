@@ -27,6 +27,12 @@ pub enum Event {
     Selected(ResolvedTarget),
     Sample(Box<EditorSample>),
     Disk(SourceObservation),
+    /// Verified presence/absence metadata when standalone D text was unavailable.
+    DiskMetadata {
+        reason: SourceReason,
+        file: Option<FileIdentity>,
+        collection: CollectionStamp,
+    },
     Rechecked(Recheck),
     DiskChecked(Vec<DetectedChange>),
     Failed(RoutingFailure),
@@ -1928,6 +1934,8 @@ struct SamplePayload<'a> {
 #[derive(Serialize)]
 struct DiskPayload<'a> {
     disk: SourceOut<'a>,
+    file_identity: Option<FileOut<'a>>,
+    file_collection: Option<StampOut<'a>>,
 }
 #[derive(Serialize)]
 struct RecheckedPayload<'a> {
@@ -1984,13 +1992,32 @@ pub fn encode_event(event: &Event, request_id: &RequestId) -> Result<Vec<u8>, Ro
                 sample: sample_out(sample),
             },
         )),
-        Event::Disk(disk) => encode_ipc(envelope(
+        Event::Disk(source) => encode_ipc(envelope(
             request_id,
             "disk",
             DiskPayload {
-                disk: source_out(disk),
+                disk: source_out(source),
+                file_identity: None,
+                file_collection: None,
             },
         )),
+        Event::DiskMetadata {
+            reason,
+            file,
+            collection,
+        } => {
+            let source = SourceObservation::unavailable(Authority::D, *reason)
+                .map_err(|_| bad(Stage::ReadDisk))?;
+            encode_ipc(envelope(
+                request_id,
+                "disk",
+                DiskPayload {
+                    disk: source_out(&source),
+                    file_identity: file.as_ref().map(file_out),
+                    file_collection: Some(stamp_out(collection)),
+                },
+            ))
+        }
         Event::Rechecked(recheck) => {
             let changes = match recheck {
                 Recheck::Performed { detected_changes }
@@ -2252,6 +2279,8 @@ enum EventIn {
         v: u32,
         request_id: String,
         disk: Box<SourceIn>,
+        file_identity: Option<FileIn>,
+        file_collection: Option<StampIn>,
     },
     Rechecked {
         v: u32,
@@ -2315,7 +2344,12 @@ pub fn decode_event(
         EventIn::Sample { sample, .. } => Ok(Event::Sample(Box::new(
             sample.domain(target.ok_or_else(|| bad(stage))?, received_elapsed_us)?,
         ))),
-        EventIn::Disk { disk, .. } => {
+        EventIn::Disk {
+            disk,
+            file_identity,
+            file_collection,
+            ..
+        } => {
             let t = target.ok_or_else(|| bad(stage))?;
             let disk = disk.domain(
                 Authority::D,
@@ -2344,7 +2378,39 @@ pub fn decode_event(
                     return Err(bad(Stage::ReadDisk));
                 }
             }
-            Ok(Event::Disk(disk))
+            match (file_identity, file_collection) {
+                (file, Some(stamp)) => {
+                    if t.script_path().kind() != Some(ScriptKind::ExternalGdscript) {
+                        return Err(bad(Stage::ReadDisk));
+                    }
+                    let file = file.map(|file| file.domain(Stage::ReadDisk)).transpose()?;
+                    let stamp = stamp.domain(
+                        t.session_id(),
+                        received_elapsed_us,
+                        Stage::ReadDisk,
+                        false,
+                    )?;
+                    let reason = disk.reason().ok_or_else(|| bad(Stage::ReadDisk))?;
+                    if !matches!(
+                        (&file, reason),
+                        (
+                            Some(_),
+                            SourceReason::TooLarge
+                                | SourceReason::InvalidUtf8
+                                | SourceReason::DiskUnreadable
+                        ) | (None, SourceReason::DiskMissing)
+                    ) {
+                        return Err(bad(Stage::ReadDisk));
+                    }
+                    Ok(Event::DiskMetadata {
+                        reason,
+                        file,
+                        collection: stamp,
+                    })
+                }
+                (None, None) => Ok(Event::Disk(disk)),
+                _ => Err(bad(Stage::ReadDisk)),
+            }
         }
         EventIn::Rechecked { recheck, .. } if target.is_some() => {
             Ok(Event::Rechecked(recheck.domain(Stage::Recheck)?))

@@ -7,7 +7,21 @@ func _scan(script_editor: ScriptEditor) -> Dictionary:
 	var actual := super._scan(script_editor)
 	if restriction == "withhold_association":
 		actual.unique = false
+	elif restriction == "withhold_open":
+		# Hide only the target association and completeness of enumeration.
+		# Neither an open tab nor absence from tabs can then prove its state.
+		actual.unique = false
+		actual.index = -1
+		actual.script = null
 	return actual
+
+
+func _read_source(authority: String, source: String, start: int, witness: Dictionary) -> Dictionary:
+	if (authority == "R" and restriction == "withhold_resource") \
+			or (authority == "B" and restriction == "withhold_buffer"):
+		return _source_unavailable(authority,
+			"resource_unreadable" if authority == "R" else "buffer_unreadable")
+	return super._read_source(authority, source, start, witness)
 
 
 

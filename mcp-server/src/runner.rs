@@ -137,6 +137,7 @@ struct Collected {
     target: Option<ResolvedTarget>,
     sample: Option<Box<EditorSample>>,
     disk: Option<SourceObservation>,
+    disk_metadata: Option<project_fs::DiskMetadata>,
     recheck: Recheck,
     disk_checked: bool,
     expected: Expected,
@@ -149,6 +150,7 @@ impl Collected {
             target: None,
             sample: None,
             disk: None,
+            disk_metadata: None,
             recheck: Recheck::unavailable(RecheckReason::Unavailable),
             expected: Expected::Selected,
             disk_checked: false,
@@ -179,8 +181,20 @@ impl Collected {
                 self.sample = Some(sample);
                 self.expected = Expected::Disk;
             }
-            Event::Disk(disk) if self.expected == Expected::Disk => {
-                self.disk = Some(disk);
+            Event::Disk(source) if self.expected == Expected::Disk => {
+                self.disk = Some(source);
+                self.expected = Expected::Recheck;
+            }
+            Event::DiskMetadata {
+                reason,
+                file,
+                collection,
+            } if self.expected == Expected::Disk => {
+                self.disk = Some(
+                    SourceObservation::unavailable(Authority::D, reason)
+                        .map_err(|_| protocol_failure())?,
+                );
+                self.disk_metadata = Some(project_fs::DiskMetadata { file, collection });
                 self.expected = Expected::Recheck;
             }
             Event::Rechecked(recheck) if self.expected == Expected::Recheck => {
@@ -259,7 +273,8 @@ impl Collected {
                     SourceObservation::unavailable(Authority::D, reason).expect("valid D reason")
                 });
                 let document =
-                    bind_disk_identity(sample.document, &disk, target).map_err(|_| HostFailure)?;
+                    bind_disk_identity(sample.document, &disk, self.disk_metadata.as_ref(), target)
+                        .map_err(|_| HostFailure)?;
                 let sources =
                     Sources::new(disk, sample.resource, sample.buffer).map_err(|_| HostFailure)?;
                 Some(ObservationEvidence::new(
@@ -308,12 +323,17 @@ impl Collected {
 fn bind_disk_identity(
     document: DocumentState,
     disk: &SourceObservation,
+    disk_identity: Option<&project_fs::DiskMetadata>,
     target: &ResolvedTarget,
 ) -> Result<DocumentState, EvidenceError> {
-    let disk_id = disk.witness().and_then(Witness::disk_file_id).or_else(|| {
-        disk.invalidated_evidence()
-            .and_then(|old| old.witness().disk_file_id())
-    });
+    let disk_id = disk_identity
+        .and_then(|metadata| metadata.file.as_ref())
+        .or_else(|| {
+            disk.witness().and_then(Witness::disk_file_id).or_else(|| {
+                disk.invalidated_evidence()
+                    .and_then(|old| old.witness().disk_file_id())
+            })
+        });
     let identity = if let Some(id) = document.identity() {
         Some(DocumentIdentity::new(
             id.kind(),
@@ -335,9 +355,29 @@ fn bind_disk_identity(
     } else {
         None
     };
+    let validity = if document.open_state().value() == Some(&OpenState::NotOpen)
+        && document.validity().value().is_none()
+        && target.script_path().kind() == Some(ScriptKind::ExternalGdscript)
+    {
+        if let Some(metadata) = disk_identity {
+            let validity = if metadata.file.is_some() {
+                Validity::Valid
+            } else {
+                Validity::Missing
+            };
+            DocumentFact::observed(validity, metadata.collection.clone())
+        } else {
+            disk.collection().map_or_else(
+                || document.validity().clone(),
+                |stamp| DocumentFact::observed(Validity::Valid, stamp.clone()),
+            )
+        }
+    } else {
+        document.validity().clone()
+    };
     Ok(DocumentState::new(
         identity,
-        document.validity().clone(),
+        validity,
         document.open_state().clone(),
     ))
 }
@@ -618,7 +658,7 @@ fn collect(
             Stage::ReadEditor,
         ));
     }
-    let sample_collection = {
+    let (sample_collection, sample_validity) = {
         let event = Event::Sample(Box::new(wire::observe(
             &mut selected,
             request,
@@ -629,14 +669,32 @@ fn collect(
         let Event::Sample(sample) = event else {
             unreachable!()
         };
-        // Retain only the interval; release source strings before disk acquisition.
-        sample.collection
+        // Retain only attribution and interval; release source strings before D.
+        (
+            sample.collection,
+            sample.document.validity().value().copied(),
+        )
     };
     if Instant::now() >= deadline {
         return Err(timeout_failure(Stage::ReadDisk));
     }
-    let disk = project_fs::read_disk(&selected, started)?;
-    let event = Event::Disk(disk);
+    let non_gd_validity = sample_validity.filter(|v| {
+        selected.target().script_path().kind().is_none()
+            && matches!(v, Validity::Missing | Validity::Invalid)
+    });
+    let disk = if let Some(validity) = non_gd_validity {
+        project_fs::non_gd_document_disk(&selected, validity, Stage::ReadDisk)?
+    } else {
+        project_fs::read_disk_with_metadata(&selected, started)?
+    };
+    let event = match disk.metadata {
+        Some(project_fs::DiskMetadata { file, collection }) => Event::DiskMetadata {
+            reason: disk.source.reason().ok_or_else(protocol_failure)?,
+            file,
+            collection,
+        },
+        None => Event::Disk(disk.source),
+    };
     send_event(output, &event, request.request_id())?;
     let recheck = wire::recheck(
         &mut selected,
@@ -649,10 +707,28 @@ fn collect(
     if Instant::now() >= deadline {
         return Err(timeout_failure(Stage::Recheck));
     }
-    let Event::Disk(disk) = event else {
-        unreachable!()
+    let disk = match event {
+        Event::Disk(source) => project_fs::DiskRead {
+            source,
+            metadata: None,
+        },
+        Event::DiskMetadata {
+            reason,
+            file,
+            collection,
+        } => project_fs::DiskRead {
+            source: SourceObservation::unavailable(Authority::D, reason)
+                .map_err(|_| protocol_failure())?,
+            metadata: Some(project_fs::DiskMetadata { file, collection }),
+        },
+        _ => unreachable!(),
     };
-    let disk_changes = project_fs::recheck_disk(&selected, &disk, started)?;
+    let disk_changes = if let Some(validity) = non_gd_validity {
+        project_fs::non_gd_document_disk(&selected, validity, Stage::Recheck)?;
+        Vec::new()
+    } else {
+        project_fs::recheck_disk_read(&selected, &disk, started)?
+    };
     if Instant::now() >= deadline {
         return Err(timeout_failure(Stage::Recheck));
     }
