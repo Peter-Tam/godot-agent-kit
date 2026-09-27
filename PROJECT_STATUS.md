@@ -5,7 +5,7 @@
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
 - **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** Planning blocked — Outcome 2: partial mechanisms, no complete safe mutation route
+- **Feature state:** Planning blocked — Outcome 3D: native mechanisms demonstrated, no complete safe mutation route
 - **Tasks:** Not derived; implementation not started
 - **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
 - **Current task:** None
@@ -16,7 +16,7 @@
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001's observation foundation is complete. Feature 002's focused A/B research found no complete safe route through the examined public Godot 4.7.2 APIs; planning and mutation A–E/durability gates remain pending. |
+| 1 — Live-editor script coherence | In progress | Feature 001's observation foundation is complete. Feature 002's native research demonstrated descriptor-bound writes but exposed revision and editor saved-state gaps; supported source validation remains unresolved. Planning and mutation A–E/durability gates remain pending. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Active feature
@@ -25,13 +25,16 @@ Feature 002's [specification](specs/002-edit-open-gdscript/spec.md) and
 [requirements-quality checklist](specs/002-edit-open-gdscript/checklists/requirements.md)
 define a one-script, already-open editing capability with stale-write protection,
 independently verified D/R/B convergence, native Undo/Redo, and durability.
-Planning is [blocked at the Phase 0 persistence-safety gate](specs/002-edit-open-gdscript/plan.md).
-The [focused A/B research outcome](specs/002-edit-open-gdscript/research.md#8-focused-ab-continuation-and-decision)
-records no qualifying public target-bound save route and only bounded reload-attempt
-evidence, not general fresh parse success. Omitted-path saving overwrote a replacement
-document; reload probes exposed static execution and reentrant success without parsing.
-No independently useful safe mutation narrowing was established; the specification is unchanged.
-Planning may resume only when both required guarantees are established without weakening safety.
+Planning is [blocked at the Phase 0 native-correctness gate](specs/002-edit-open-gdscript/plan.md).
+The [native C1–C5 research](specs/002-edit-open-gdscript/research.md#9-native-integration-continuation-c1c5)
+demonstrated standard GDExtension access to live editor objects and descriptor-bound
+writes that preserve replacement/outside sentinels. The same primitive overwrote a
+competing same-inode revision, and CodeEdit saved tagging did not complete native
+document bookkeeping: script-only Save after Undo required reconciliation.
+The built-in source validator needs supported exposure and explicit effect semantics.
+No minimum sufficient native integration level or safe scope reduction was established;
+the specification is unchanged. Planning may resume only when both original safety
+guarantees are established, including revision protection and editor durability.
 No complete implementation plan, data model, mutation contracts, quickstart, task list,
 or implementation was produced; no mutation acceptance or support claim is established.
 No implementation or task generation is authorized while planning is blocked.

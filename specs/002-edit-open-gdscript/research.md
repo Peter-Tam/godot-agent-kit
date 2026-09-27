@@ -2,11 +2,11 @@
 
 **Date**: 2026-09-27 | **Specification**: [spec.md](spec.md) | **Gate record**: [plan.md](plan.md)
 
-**Result: Outcome 2 — partial mechanisms only; planning remains BLOCKED.** The focused A/B continuation in §8 found no qualifying target-bound single-script persistence route among the examined public Godot 4.7.2 APIs. Source-correlated reload-attempt evidence is observable, but is not a general fresh parse-success witness. No independently useful safe-mutation narrowing was established. This record does not weaken the specification, authorize implementation/task generation, or claim a mutation-supported environment.
+**Result: Outcome 3D — no sufficient safe native route established; planning remains BLOCKED.** The native continuation in §9 demonstrated standard GDExtension access to live editor objects and descriptor-bound writes that do not follow replacement pathnames. It also exposed a same-object competing-revision overwrite and incomplete editor saved-state integration. The native source validator is not available through the inspected extension ABI; exposing it requires an engine-side API change with explicit dependency/effect semantics. No minimum sufficient integration level or safe scope reduction was established. This is not a claim that native integration is impossible. The specification remains unchanged; no implementation, tasks, or mutation support is authorized.
 
-**Continuation boundary:** Resolve only **A — target-bound single-script persistence**, including preservation of unrelated unsaved work, and **B — source-attributed parse evidence** for the selected target/revision/interval. Both questions must be answered before planning can resume, and their answers must preserve every applicable safety invariant. No implementation or task generation is authorized while the gate remains blocked.
+**Continuation boundary:** Resolve **A — target-bound single-script persistence**, including revision/newer-work protection and native editor saved state, and **B — source-attributed parse evidence** for the selected target/revision/interval. The maintainer authorized C1–C5 research into standard GDExtension first, then narrow engine API exposure, then a module/editor build only if necessary. Both original guarantees must be established before planning resumes. No engine patch, product implementation, or task generation is authorized by this research.
 
-**Evidence history:** Sections 1–7 preserve the initial blocked investigation, committed and pushed to existing PR #24 as `5748899` before the focused continuation. Section 8 records the additional questions, new experiments, and decision; it does not relabel the earlier probe as feature acceptance.
+**Evidence history:** Sections 1–7 preserve the initial blocked investigation, published in existing PR #24 as `5748899`. Section 8 records the focused A/B continuation published as `c0e3f66`. Section 9 adds native-integration research on the same branch and PR; earlier outcomes remain historical evidence, not current completion or mutation-acceptance claims.
 
 ## 1. Existing foundation and inherited decisions
 
@@ -255,3 +255,144 @@ The outer static-initializer source hash was `c008aced726300b6c0bcbdd0a8546af53d
 - [Script reload contract](https://docs.godotengine.org/en/4.7/classes/class_script.html#class-script-method-reload), [pinned reload/cache/static-initialization implementation](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/gdscript.cpp), and [Logger's actual callback contract](https://docs.godotengine.org/en/4.7/classes/class_logger.html).
 
 No public API safety conclusion above is inferred merely from a method name. Native current-document and validator internals were source-inspected; unavailable public bindings were checked against the actual runtime. The omitted-path replacement and reload/initialization/reentrancy conclusions have the specific new experimental evidence above. The owned editor exited normally with code 0; disposable probes are cleaned up after recording these results. No product source, permanent tests, dependencies, CI topology, or observation guarantees changed. No mutation support or complete A–E result is claimed.
+
+## 9. Native integration continuation: C1–C5
+
+### 9.1 Method, provenance, and supported extension access — C1
+
+Research followed the requested order: inspect and exercise the **standard extension ABI first**, assess narrowly missing engine APIs, then compare a source-integrated module. No custom engine was built or patched. The installed Godot binary was not modified.
+
+**Runtime-observed environment:** Godot `4.7.2.stable.official.ed1daf0bf`, full hash `ed1daf0bf001b61586d9930840f2f1394092c079`; macOS `26.6.2` (`25G83`), Darwin `25.6.0`, arm64, Apple M2, macOS display driver and Compatibility renderer. A disposable C++17 dynamic library compiled with Apple clang `21.0.0` (`clang-2100.3.34.2`) and macOS SDK `27.0`. The SDK version is build provenance, not a claim of testing a different host OS.
+
+The exact installed engine generated its interfaces:
+
+```sh
+godot --headless --dump-gdextension-interface --dump-gdextension-interface-json --dump-extension-api
+clang++ -std=c++17 -Wall -Wextra -Werror -dynamiclib -I api native_probe.cpp -o project/native_probe.dylib
+```
+
+Both commands completed successfully. The generated API identified a single-precision 64-bit build; the probe used its declared opaque value sizes and C function signatures. No `godot-cpp`, engine-internal headers, private object layouts, or direct internal-symbol linking was used. Generated-file SHA-256 witnesses:
+
+| Generated artifact | SHA-256 |
+|---|---|
+| `gdextension_interface.h` | `640b48188708ba0016f8d7ace9e0e1d3279a41fa1226c59ff3193b15538bd254` |
+| `gdextension_interface.json` | `7d8c0a039d9743eb8ebf88681ae0c641d8d3aa5ffca11081745a84da803e09a1` |
+| `extension_api.json` | `d0e4c08c03b165156dabe6bfb6a906baf0069189f62035341230a246c86d6986` |
+
+**Demonstrated through the supported ABI in a real editor:**
+
+- Create a native custom `Callable` using `callable_custom_create2` and invoke it from the owned fixture plugin.
+- Obtain the existing `EditorInterface` singleton, its `ScriptEditor`, and the already-open script/editor arrays through generic Variant/Object calls.
+- Read the existing target `Script.source_code`, CodeEdit text, current/saved versions, and instance IDs. Native instance IDs matched the independently captured GDScript-side identities; the probe did not create substitute Script/CodeEdit objects.
+- Perform a CodeEdit complex operation, then observe native R synchronization separately; tag the exact buffer's saved version after the bounded file-write checks. Native Undo/Redo and earlier history remained reachable in the exercised sequence.
+
+**Public-contract boundary:** the C ABI provides opaque object/Variant handles, instance lookup, and dispatch to exposed ClassDB methods. `object_method_bind_call`/`ptrcall` do not expose arbitrary C++ members. The editor-specific ABI helpers register/remove plugins, load help XML, and register a classes-used callback; they are not persistence or GDScript-validation hooks.
+
+**Exact unexposed surfaces:** the generated API has no built-in GDScript source-validator method. `ScriptLanguageExtension._validate` is an implementation hook for an extension-provided language, not a call-through to GDScript's existing validator. `ScriptEditorBase` exposes `get_base_editor`, but not its C++ `get_edited_resource`, `apply_code`, `validate_script`, or `tag_saved_version`. Resource edited-state and last-modified-time setters are not present in this exact public API either. A method's presence in engine C++ does not make it supported GDExtension access.
+
+### 9.2 Descriptor-bound persistence and its remaining revision gap — C2
+
+**Investigated primitive, not a product implementation:** retain a project-directory descriptor; open each existing relative component with `openat` and `O_NOFOLLOW` (directories also require `O_DIRECTORY`); retain an `O_RDWR` leaf descriptor without `O_TRUNC`/`O_CREAT`; inspect the opened file's identity and expected bytes; write through that same descriptor with `pwrite`, then `ftruncate` and `fsync`. The prototype handles short writes and checks its own errors. Source, live document identity, CodeEdit version, and current pathname attachment are observations around the write, not substitutes for the descriptor binding.
+
+The write executes **inside the editor's native extension**, not in an external writer process. A separate Python controller owns the disposable files and independently witnesses disk contents/identity. For controlled interleavings, the native call pauses after its last pre-write checks; the controller changes an owned fixture and releases it. The pause is experimental scheduling, not a proposed product mechanism. No lock service, staging journal, rollback storage, filesystem framework, or multi-file transaction was introduced.
+
+| Exercised case | Observed behavior |
+|---|---|
+| Ordinary existing `.gd` | Native buffer edit, independently observed R synchronization, descriptor write/flush, and guarded CodeEdit saved tag produced matching D/R/B and a clean target. The inode was retained; the unrelated buffer remained dirty and its disk source unchanged. This was immediate candidate convergence, not verified feature success. |
+| Leaf replaced after final checks | Only the retained original object received the intended source. Replacement inode `118877157` retained its sentinel; original inode `118876572` received the write. Current-path identity loss produced `namespace_lost_after_write`; no saved tag. |
+| Parent replaced with a link to an owned outside directory after final checks | The original file in the retained directory received the write; the outside sentinel was unchanged. Current-path attachment failed and the result was non-success, without tagging the buffer saved. |
+| Target renamed after final checks | The renamed original received the write. The old project path was absent; the result was non-success, not a claim of persistence at that path. |
+| Target unlinked after final checks | An independent retained reader observed the intended bytes on the unlinked inode, with link count zero. No file was forced back into the namespace; the result was non-success. |
+| Expected disk bytes changed before the write guard | `disk_revision_changed`; newer bytes remained unchanged by the native writer. |
+| Resource identity changed / CodeEdit identity changed | Each was refused as `document_identity_changed`, before a disk write. |
+| CodeEdit version changed after pinning | `buffer_revision_changed`; the newer synthetic human buffer was retained and disk was not written. |
+| R had not yet synchronized to B | `resource_buffer_not_synchronized`; no disk write. |
+| Descriptor opened read-only | Real `pwrite` failure: `EBADF` (`9`), zero bytes written, disk unchanged and saved tag withheld. |
+| Controlled synchronization-failure status | After a real write and successful `fsync`, an explicitly injected `EIO` status exercised the failure branch: applied bytes remained visible, but no saved tag. This is **not** evidence of an actual hardware/`fsync` failure. |
+| Same inode changed after the final revision check | A controller wrote a newer revision through the existing inode. The native `pwrite` then overwrote it and reached its candidate saved-tag stage. Subsequent D/R/B equality did not reveal the lost intermediate revision. This **fails** the required stale-write/newer-work guarantee. |
+
+These outcomes distinguish two properties: **descriptor binding prevents pathname substitution from redirecting the write; it does not make read/check/write a conditional compare-and-write on file contents.** The latter counterexample concerns the same validated object, not a replacement object. Retaining the FD, running on the editor's main thread, hashing again, or verifying afterward does not exclude a non-cooperating external in-place writer between the check and `pwrite`. Editor-main-thread serialization protects against ordinary interleaved editor input, not every filesystem writer. This is a concrete FR-004/FR-013 gap, not a demand for speculative multi-agent infrastructure.
+
+A small ordinary-user Darwin write-lease attempt on an owned file, using the current SDK's `F_SETLEASE`/`F_SETLEASE_ARG(F_WRLCK, 0)`, returned `EPERM` (`1`). No privileges or entitlements were sought. This does not establish that every Darwin coordination primitive is unavailable; it provides no usable exclusion guarantee for this candidate. Advisory locks or a custom engine build must not be asserted to solve non-cooperating writes without evidence.
+
+**Disposition:** retain descriptor-bound writing as demonstrated useful native capability. Reject this prototype as the complete expected-revision persistence primitive. It also lacks a product cancellation/deadline boundary and is not crash-atomic; errors after writing require truthful partial-application evidence, not assumed rollback.
+
+### 9.3 Native editor saved state is more than a CodeEdit tag — C3
+
+The experiment deliberately used existing CodeEdit history, not a second history stack. One native Undo restored the prior buffer; Redo restored the candidate source, and earlier native history remained reachable. At successful primitive writes, unrelated dirty-buffer text and its separate disk source were preserved. Identity/version/R-synchronization refusals and the write/failure cases above did not manufacture a saved buffer state.
+
+However, **direct `CodeEdit.tag_saved_version()` is not the editor document's complete native saved-state transition**. Pinned source establishes the missing distinction:
+
+- `TextEditorBase::tag_saved_version()` tags CodeEdit **and** calls `ScriptEditorBase::tag_saved_version()`.
+- The base method updates `edited_file_data.last_modified_time` for the document.
+- `ScriptEditor::_test_script_times_on_disk()` compares that field with the current file time; it is not simply comparing `Resource` source or CodeEdit's saved version.
+- `ScriptEditor::_res_saved_callback()` invokes the document-level tag and updates script names/live-reload bookkeeping after the engine's resource-save notification. ResourceSaver additionally maintains Resource save state and timestamps.
+
+**New real-editor counterexample:** in a fresh owned editor, perform the descriptor-backed edit to source returning `207`, observe matching D/R/B and a clean target, then Undo to source returning `17`. Send the native **script-only Save shortcut, Cmd+Alt+S**; the fixture recorded both modifiers. Godot displayed **“Files have been modified outside Godot”**, emitted no resource-saved events, and left D at `207` while R/B remained at the undone `17`. The unrelated dirty document and its disk were unchanged. Redo remained available and restored `207`. Thus the candidate did not satisfy ordinary Undo → Save synchronization without human reconciliation.
+
+Evidence qualification: an earlier Cmd+S dispatched the broader editor save action and persisted both synthetic documents. That is not target-only Save evidence. Later controls edited on disk were not loaded into that first running tool script; their responses are also excluded from the target-only claim. The fresh process identified fixture revision 2, recorded the actual Cmd+Alt+S event, started without the old dialog, and supplied the isolated result above. No failed result was relabeled as a passing target-only save.
+
+**Minimum missing editor capability:** a guarded target-document saved-state finalization path, covering the native document bookkeeping as well as the exact buffer version after persistence. Its target/source/version and still-valid write evidence must be checked; it must not mark newer human text saved after a failure or identity loss. The exact necessary Resource callbacks/export/doc effects must be accounted for, not imitated by emitting a convenient signal. A naked public “mark clean” method would not establish those guarantees.
+
+Standard GDExtension cannot write the unbound `edited_file_data` field or invoke its unbound document-level tag. Linking/casting against that private C++ layout is not a supported workaround. A narrow engine-side exposure could address this specific integration gap; it is additional to the validator exposure, and does not fix the disk revision race. No such patch was implemented or proven. The new candidate's close/reopen, rescan, reparse and runtime durability are **not established**; the observed ordinary-Save failure already prevents a complete route.
+
+### 9.4 Native source validator, effects, and minimum exposure — C4
+
+**Pinned-source entrypoint:** `GDScriptLanguage::validate(source, path, functions, errors, warnings, safe_lines)` creates a local `GDScriptParser` and `GDScriptAnalyzer`, calls `parser.parse(source, path, false)`, then `analyzer.analyze()` if parsing succeeded. It returns a boolean and can produce `ScriptLanguage::ScriptError` records containing path, line, column and message. Root errors use the supplied path; depended-parser errors retain their dependency paths. This is the actual parser-plus-analysis route used by the GDScript editor, not a substitute parser or an arbitrary `Script.reload()` result.
+
+The root entrypoint consumes an explicit source string and path, not a target Script or CodeEdit. It therefore does not require directly assigning the proposed source to B/R or saving D. A returned path is a context/diagnostic label, not proof of selected document identity. Callers still need the exact immutable source input, target/session identity, revision and invocation interval, plus independent post-change D/R/B witnesses. An earlier proposed-source result cannot silently stand in for required fresh post-change evidence. Full bytecode compilation, gameplay execution and project-wide diagnostics are not added to FR-009.
+
+**Effects cannot be inferred away:**
+
+| Source path | Pinned behavior / evidence limit |
+|---|---|
+| Root parse and analysis | No direct assignment to the target Script/CodeEdit or source-save call in the root validator. It is a fresh local parser/analyzer invocation, not the reentrant reload short-circuit established in §8. No direct native-validator runtime invocation was performed in this research. |
+| Relative GDScript inheritance and dependencies | Analyzer/cache resolution uses the supplied script path and current project context; parser/dependency caches and dependency edges may be used or changed. Dependency source can be read on cache misses. A source/path pair is not a snapshot of the entire dependency environment. |
+| Globals, classes and autoloads | Live ScriptServer/project settings and registered language/class context participate. Some non-GDScript resolution paths call ResourceLoader. A separate validator process would not automatically reproduce this context. |
+| `preload()` | `reduce_preload` resolves the path, checks resource availability/type, obtains a shallow GDScript through the GDScript cache or calls `ResourceLoader::load(..., CACHE_MODE_REUSE)` for other resources. The source explicitly notes “Don't load if validating: use completion cache.” That improvement is not implemented by a new binding. |
+| Reduced values / property access | Analyzer paths also use `Variant::get` on reduced values. **[INFERENCE]** resource loaders, scripted-resource construction or property behavior can therefore have effects beyond examining the root text; this call tree does not establish a universal no-script-execution or no-initializer guarantee. No new dependency-constructor/static-initializer probe was run, and effects from §8's reload experiments are not attributed to this validator. |
+
+Cache activity alone is not being invented as a new prohibition. The required distinction is between documented native validation effects and arbitrary execution, unrelated-work mutation, or confinement violations prohibited by the existing specification. A resumed design must establish that boundary rather than claim that the word “validate” guarantees purity. Target-independent dependency diagnostics must remain distinct, not be mislabeled as target parse failures.
+
+**Availability:** no matching source-validator ClassDB method or C ABI entrypoint appears in the exact generated extension surface. Implementing `ScriptLanguageExtension._validate` does not supply access to the built-in language's override. Calling `GDScriptLanguage::validate` by including/linking engine internals requires an engine-side module/build or new API exposure, not stock GDExtension.
+
+**Smallest missing result exposure, conceptual only:** a GDScript-owned source/path validation call that delegates to this existing parser/analyzer and returns its validity and structured root/dependency errors. A small static binding on an exposed GDScript-owned class is one possible placement; this is not a finalized API/schema. It need not expose a compiler framework, general scripting-language protocol, LSP, subprocess service, or internal parser pointers. The binding must document project/thread context and actual effects; freshness/identity witnesses remain part of the existing automation semantics.
+
+**[INFERENCE] Upstream/local-patch assessment:** such a source-validation result is plausibly upstreamable because it exposes an existing engine capability without duplicating a parser. Upstream acceptance is unconfirmed. A local patch could be proportionate for the current exact candidate only after its effects and required safety behavior are concrete and regression-proven. It would still require maintaining/distributing a patched editor until an appropriate released API exists; a few binding lines do not remove that cost. No patch is authorized or implemented here. A bare wrapper does not by itself solve dependency-effect concerns, editor finalization, or the same-inode revision race.
+
+### 9.5 Integration-level comparison — C5
+
+| Level | Persistence, validation and editor participation | Present cost/coupling | Sufficiency |
+|---|---|---|---|
+| Standard GDExtension only | Demonstrated existing-object access, native text/history, descriptor-bound writes and immediate D/R/B convergence. Missing conditional disk revision protection, native document saved-state finalization and callable built-in source-validator result. | One current-platform native library and plugin lifecycle/export boundary; compiler/SDK and extension ABI compatibility checks; binary packaging for the tested candidate. No engine-private C++ linkage is needed for the demonstrated operations. | **Not sufficient.** Failure is specific missing semantics/access, not use of C++. |
+| GDExtension plus narrow engine API exposure | Could expose the existing source-validator result and guarded document saved-state finalization while keeping the writer inside the editor. A validator binding alone would miss the independently demonstrated saved-state gap. Neither exposure supplies filesystem compare-and-write. | Small, purpose-specific engine API changes, but still an exact patched-editor build/distribution and compatibility burden until released upstream; maintenance of validation effects and finalization guards. Reuses native history/parser rather than adding parallel systems. | **Closest next candidate, not an established minimum sufficient level.** No complete design closes the revision gap or proves these added API semantics. Outcome 3B is not claimed. |
+| Small custom module / narrowly patched editor build | Can call the internal validator and document finalization directly, avoiding a missing ClassDB binding. It can host the same descriptor operation. Internal access alone does not repair its revision race or make dependency loading harmless. | Direct coupling to GDScript parser/cache/analyzer and editor internals; engine-source compilation, patch/module maintenance, exact-build distribution and repeated real-editor compatibility evidence. More responsibility than a narrow exposure, without demonstrated additional protection for the remaining disk race. | **Not shown necessary or sufficient.** No reason was established to skip straight to a module or general engine fork; Outcome 3C is not claimed. |
+
+None of these levels needs a second automation safety model: any future native component belongs at the existing Godot integration boundary, with the protocol-independent core retaining common outcomes/coherence semantics and Godot retaining native history. Moving code into a module is not itself an atomicity guarantee. No language-binding library, permanent native dependency, general plugin framework, or custom-engine distribution project is selected.
+
+### 9.6 Principle XIII, decision, and verification boundary
+
+**Current need:** prevent the already-demonstrated wrong-object save, stale/newer-work overwrite, misleading saved-state transition and unattributed parse result. **Simplest credible alternative:** retain public native editing/history and add only missing in-editor primitives. The disposable C ABI library proves that native integration can eliminate an external writer and its cross-process synchronization costs for object-bound persistence. Avoiding C++ would not be a valid reason to reject that result.
+
+**Why existing mechanisms remain insufficient:** ordinary savers follow paths; the native descriptor candidate closes that particular redirection risk but not the competing-revision race; a CodeEdit saved tag omits document timestamp bookkeeping; the genuine validator lacks a supported result binding and has dependency effects requiring truthful treatment. These are observed or pinned-source-specific gaps, not speculative future requirements.
+
+**Ongoing cost and justification:** a scoped native library would require descriptor/object lifetime and partial-write handling, native saved-state integration, ABI/build/export verification and exact-version regression coverage. Narrow engine changes additionally require a maintained editor build and source/API compatibility review. Those costs can be justified if they actually close the current MUSTs and remove more complex external composition; they are not yet justified as a selected complete design by the partial prototype. A module adds private coupling without demonstrated extra protection for the outstanding filesystem race.
+
+**Decision: Outcome 3D — no sufficient proportionate native route established in this research.** This is a bounded research result, not a proof that all native mechanisms are impossible. The descriptor primitive is useful positive evidence, but the same-object revision counterexample and ordinary-Save failure prevent claiming a safe complete edit. No minimum sufficient integration level is selected. The next candidate is still a small in-editor native boundary with narrowly exposed engine capabilities, not an automatic fallback to an external writer/validator composition.
+
+Before planning can resume, evidence must establish:
+
+1. Target-bound persistence with actual expected-revision/newer-work protection at its mutation boundary, including the observed same-inode interleaving or a demonstrated equivalent protection—not an assumed cooperative-writer restriction.
+2. Guarded exact-document saved-state integration that survives ordinary native Undo/Save/Redo and applicable durability without reconciliation, false clean state, unrelated saves, or history loss.
+3. A supported fresh source-attributed native validation result with explicit project/dependency/effect semantics consistent with the existing safety requirements.
+
+The behavioral specification was not disproved or amended; the examined implementation routes are insufficient. `/speckit.plan` was **not resumed**. No downstream design artifacts, tasks, product implementation, engine patch, new PR, automatic merge, acceptance-suite run, or A–E/support claim follows from this research.
+
+**Verification and cleanup:** actual native compilation/loading/object calls and the descriptor/identity/failure cases above ran in owned GUI editors; both editor processes exited normally with code `0`. The first editor log contained a debugger-plugin-not-attached error. Its broad save action is not accepted as target-only evidence; the fresh process isolated the script-only Save result. C4's additional validator conclusions are source/API inspection, not a new runtime validation test. Disposable projects, probes, generated API files, binaries and sentinels were removed after recording the findings; no permanent dependency or product file changed. Existing observation acceptance was not rerun or repurposed as mutation evidence.
+
+Primary sources for this continuation:
+
+- [Pinned extension ABI implementation](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/core/extension/gdextension_interface.cpp) and [interface schema](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/core/extension/gdextension_interface.json). The exact runtime dumps above, not an assumed binding-generator surface, determined the probe.
+- [Pinned document base and saved-state methods](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_editor_base.cpp), [document state declarations](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_editor_base.h), [script editor Save/timestamp/callback/shortcut paths](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_editor_plugin.cpp), and [ResourceSaver bookkeeping](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/core/io/resource_saver.cpp).
+- [Pinned native validator](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/gdscript_editor.cpp), [parser](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/gdscript_parser.cpp), [analyzer](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/gdscript_analyzer.cpp), [cache](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/gdscript_cache.cpp), and [extension-language hook binding](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/core/object/script_language_extension.cpp).
+- [Apple's descriptor-write contract](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/pwrite.2.html). Current-host semantics and the lease refusal above were actually exercised; an archived manual or newer SDK definition is not itself a compatibility/safety proof.
