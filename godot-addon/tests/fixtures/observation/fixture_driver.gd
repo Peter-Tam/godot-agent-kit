@@ -8,12 +8,18 @@ const MAX_CONTROL := 4096
 var _control := ""
 var _last_id := ""
 var _cached_subject: GDScript
+var restriction := ""
+var transition := ""
+var _transition_record := {}
+var _unpathed_script: GDScript
+var _duplicate_script: GDScript
 
 
 func _enter_tree() -> void:
 	_control = OS.get_environment("GODOT_AGENT_KIT_FIXTURE_CONTROL")
 	if _control.begins_with("/") and DirAccess.dir_exists_absolute(_control):
 		set_process(true)
+	add_to_group("observation_fixture_driver")
 
 
 func _process(_delta: float) -> void:
@@ -103,6 +109,95 @@ func _process(_delta: float) -> void:
 				else:
 					buffer.text = invalid_prefix + "b".repeat(amount - invalid_prefix.length())
 				response.merge(_document("res://scripts/subject.gd"))
+		"prepare_other":
+			response.merge(_prepare("res://scripts/other.gd"))
+			response.ok = response.get("ready", false)
+		"dirty_subject", "dirty_other", "equal_dirty_subject":
+			var path := "res://scripts/other.gd" if action == "dirty_other" else "res://scripts/subject.gd"
+			var doc := _document(path)
+			if not doc.get("associated", false):
+				response.ok = false
+			else:
+				var code := EditorInterface.get_script_editor().get_open_script_editors()[doc.index].get_base_editor() as CodeEdit
+				if action == "equal_dirty_subject":
+					var unchanged := code.text
+					code.text = "var =\n# TEMPORARY_DIRTY_EDIT\n"
+					code.text = unchanged
+				else:
+					# Invalid syntax prevents the editor from automatically copying
+					# B into R during idle parsing on the pinned native editor.
+					code.text = "var =\n# FIXTURE_UNSAVED_CHANGE\n"
+				response.merge(_document(path))
+		"resource_subject":
+			var doc := _document("res://scripts/subject.gd")
+			if not doc.get("associated", false):
+				response.ok = false
+			else:
+				var script := EditorInterface.get_script_editor().get_open_scripts()[doc.index] as GDScript
+				script.source_code = "extends RefCounted\n# RESOURCE_DIFFERENT\n"
+				response.merge(_document("res://scripts/subject.gd"))
+		"restrict_dirty", "restrict_global", "restrict_association", "restore_dirty":
+			restriction = "withhold_dirty" if action == "restrict_dirty" else (
+				"unattributed_global" if action == "restrict_global" else (
+				"withhold_association" if action == "restrict_association" else ""))
+			response.restriction = restriction
+		"transition_buffer", "transition_dirty", "transition_resource", "transition_disk", "transition_rename", "transition_remove", "transition_close", "transition_close_resource", "transition_replace":
+			transition = action.trim_prefix("transition_")
+			_transition_record = {}
+			response.transition = transition
+		"transition_witness":
+			response.merge({"transition": transition, "record": _transition_record,
+				"document": _document("res://scripts/subject.gd")})
+		"mixed_tabs":
+			# Open documentation, then activate the selected plain-text file
+			# through the owned FileSystemDock's real item-activation signal.
+			var script_editor := EditorInterface.get_script_editor()
+			script_editor.goto_help("class_name:Node")
+			await get_tree().process_frame
+			response.documentation_selected = script_editor.get_current_script() == null
+			var text_path := "res://scripts/note.txt"
+			var dock := EditorInterface.get_file_system_dock()
+			dock.navigate_to_path(text_path)
+			await get_tree().process_frame
+			var activated := false
+			if EditorInterface.get_selected_paths().has(text_path):
+				for tree in dock.find_children("*", "Tree", true, false):
+					var file_tree := tree as Tree
+					if file_tree != null and file_tree.get_selected() != null \
+						and file_tree.get_selected().get_text(0) == "note.txt":
+						file_tree.item_activated.emit()
+						activated = true
+						break
+				if not activated:
+					for list in dock.find_children("*", "ItemList", true, false):
+						var file_list := list as ItemList
+						if file_list != null:
+							for item in file_list.get_selected_items():
+								if file_list.get_item_text(item) == "note.txt":
+									file_list.item_activated.emit(item)
+									activated = true
+									break
+			await get_tree().process_frame
+			response.merge(_witness())
+			response.text_selected = EditorInterface.get_selected_paths().has(text_path)
+			response.ok = response.documentation_selected and response.text_selected \
+				and activated and response.editor_count > response.script_count
+		"unpathed_script":
+			_unpathed_script = GDScript.new()
+			_unpathed_script.source_code = "extends RefCounted\n"
+			EditorInterface.edit_script(_unpathed_script)
+			response.merge(_witness())
+			response.ok = response.open_paths.has("")
+		"duplicate_script":
+			_duplicate_script = GDScript.new()
+			_duplicate_script.source_code = "extends RefCounted\n# DISTINCT_UNIQUE_OBJECT\n"
+			# Open a distinct native tab first: the editor deduplicates paths
+			# at opening. Then give the two actual resources a nonunique path.
+			_duplicate_script.set_path_cache("res://scripts/other.gd")
+			EditorInterface.edit_script(_duplicate_script)
+			_duplicate_script.set_path_cache("res://scripts/subject.gd")
+			response.merge(_witness())
+			response.ok = response.open_paths.count("res://scripts/subject.gd") > 1
 		"disable", "enable":
 			var enabled := action == "enable"
 			EditorInterface.set_plugin_enabled(PRODUCT, enabled)
@@ -169,7 +264,62 @@ func _witness() -> Dictionary:
 		"current_script": selected.resource_path if selected != null else "",
 		"subject_cached_id": String.num_uint64(cached.get_instance_id()) if cached != null else "",
 		"subject": _document("res://scripts/subject.gd"),
-		"empty": _document("res://scripts/empty.gd")}
+		"empty": _document("res://scripts/empty.gd"),
+		"other": _document("res://scripts/other.gd")}
+
+
+func apply_transition() -> void:
+	if transition.is_empty():
+		return
+	var mode := transition
+	transition = ""
+	var before := _document("res://scripts/subject.gd")
+	_transition_record = {"mode": mode, "before": before}
+	var scripts := EditorInterface.get_script_editor().get_open_scripts()
+	if not before.get("associated", false):
+		_transition_record.ok = false
+		return
+	var script := scripts[before.index] as GDScript
+	var buffer := EditorInterface.get_script_editor().get_open_script_editors()[before.index].get_base_editor() as CodeEdit
+	var path := "res://scripts/subject.gd"
+	match mode:
+		"buffer", "dirty":
+			buffer.text = "var =\n# TRANSITION_BUFFER\n"
+		"resource":
+			script.source_code = "extends RefCounted\n# TRANSITION_RESOURCE\n"
+		"disk":
+			var file := FileAccess.open(path, FileAccess.WRITE)
+			if file != null:
+				file.store_string("extends RefCounted\n# TRANSITION_DISK\n")
+				file.flush()
+				file.close()
+			_transition_record.ok = file != null
+		"rename":
+			_transition_record.ok = DirAccess.rename_absolute(
+				ProjectSettings.globalize_path(path),
+				ProjectSettings.globalize_path("res://scripts/renamed.gd")) == OK
+			if _transition_record.ok:
+				script.resource_path = "res://scripts/renamed.gd"
+		"remove":
+			_transition_record.ok = DirAccess.remove_absolute(ProjectSettings.globalize_path(path)) == OK
+		"close", "close_resource":
+			_transition_record.ok = EditorInterface.get_script_editor().close_file(path) == OK
+			if mode == "close_resource":
+				script.source_code = "extends RefCounted\n# TRANSITION_RESOURCE\n"
+		"replace":
+			if EditorInterface.get_script_editor().close_file(path) == OK:
+				var replacement := GDScript.new()
+				replacement.source_code = before.R
+				replacement.take_over_path(path)
+				EditorInterface.edit_script(replacement)
+				_transition_record.replacement_id = String.num_uint64(replacement.get_instance_id())
+			else:
+				_transition_record.ok = false
+	_transition_record["after"] = _document(path)
+	_transition_record.original_resource = script.source_code
+	_transition_record.witness_after = _witness()
+	if not _transition_record.has("ok"):
+		_transition_record.ok = true
 
 
 func _prepare(path: String) -> Dictionary:

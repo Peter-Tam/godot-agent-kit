@@ -103,15 +103,13 @@ func _scan(script_editor: ScriptEditor) -> Dictionary:
 		"index": target_index, "script": target_script, "editors": editors}
 
 
-func _same_arrays(before: Dictionary, after: Dictionary) -> bool:
-	return _same_order(before, after) and before.unique and after.unique \
-		and before.matched and after.matched
-
-
-func _same_order(before: Dictionary, after: Dictionary) -> bool:
-	# An unchanged attribution limitation is not evidence of an interval change.
-	return before.paths == after.paths and before.script_ids == after.script_ids \
-		and before.editor_ids == after.editor_ids
+func _same_target_editor(before: Dictionary, after: Dictionary) -> bool:
+	# Other tabs may move without changing the target's script/editor association.
+	return before.unique and before.matched and after.unique and after.matched \
+		and before.index >= 0 and after.index >= 0 \
+		and before.script_ids[before.index] == after.script_ids[after.index] \
+		and before.editor_ids[before.index] != 0 \
+		and before.editor_ids[before.index] == after.editor_ids[after.index]
 
 
 func _unsaved(script_editor: ScriptEditor, paths: Array[String]) -> Dictionary:
@@ -149,10 +147,12 @@ func collect(session: String, project: String, path: String) -> Dictionary:
 		return _invalid_target(started)
 	var script_editor := EditorInterface.get_script_editor()
 	var before := _scan(script_editor)
+	var initial_stamp := _stamp(started, Time.get_ticks_usec())
 	var index: int = before.index
 	var script: GDScript = before.script
 	var target_unique: bool = index >= 0 and before.paths.count(_path) == 1 and script != null
-	var resource := _source_unavailable("R", "resource_not_loaded")
+	var resource := _source_unavailable("R",
+		"resource_unreadable" if index >= 0 and not target_unique else "resource_not_loaded")
 	var buffer := _source_unavailable("B", "buffer_attribution_unavailable")
 	var dirty := _dirty_unavailable()
 	var identity: Variant = null
@@ -162,11 +162,14 @@ func collect(session: String, project: String, path: String) -> Dictionary:
 	var resource_text := ""
 	var buffer_text := ""
 	var unsaved := {}
-	if target_unique:
+	var buffer_witness := {}
+	var initial_changes: Array[Dictionary] = []
+	var initial_check_available := true
+	if target_unique and script.resource_path == _path:
 		var resource_start := Time.get_ticks_usec()
 		resource_text = script.source_code
 		resource = _read_source("R", resource_text, resource_start, _witness(script, null, null))
-		if before.unique and before.matched:
+		if script.resource_path == _path and before.unique and before.matched:
 			var possible: Variant = before.editors[index]
 			if possible is ScriptEditorBase and is_instance_valid(possible):
 				editor = possible
@@ -176,43 +179,52 @@ func collect(session: String, project: String, path: String) -> Dictionary:
 					var buffer_start := Time.get_ticks_usec()
 					version = code.get_version()
 					buffer_text = code.text
-					buffer = _read_source("B", buffer_text, buffer_start, _witness(script, editor, code))
+					buffer_witness = _witness(script, editor, code)
+					buffer = _read_source("B", buffer_text, buffer_start, buffer_witness)
 					unsaved = _unsaved(script_editor, before.paths)
 	var after := _scan(script_editor)
 	var stable_script: bool = target_unique and after.paths.count(_path) == 1 \
-		and after.script != null and after.script.get_instance_id() == script.get_instance_id()
-	var stable_arrays: bool = stable_script and _same_arrays(before, after)
-	if stable_script and script.resource_path == _path:
+		and after.script != null and after.script.get_instance_id() == script.get_instance_id() \
+		and script.resource_path == _path
+	if target_unique:
+		# The first enumeration and its actual objects are the original identity.
+		# Preserve their evidence for the reducer to invalidate if they change
+		# during collection, rather than silently replacing it with another tab.
 		identity = {"kind": "external_gdscript", "resource_path": _path,
-			"script_instance_id": String.num_uint64(script.get_instance_id())}
-		if stable_arrays and code != null and is_instance_valid(code) and is_instance_valid(editor) \
-			and editor.get_base_editor() == code:
-			identity.editor_instance_id = String.num_uint64(editor.get_instance_id())
-			identity.buffer_instance_id = String.num_uint64(code.get_instance_id())
-		else:
-			buffer = _source_unavailable("B", "buffer_attribution_unavailable")
-			code = null
-		if code != null:
+			"script_instance_id": String.num_uint64(before.script_ids[index])}
+		if not buffer_witness.is_empty():
+			identity.editor_instance_id = buffer_witness.editor_instance_id
+			identity.buffer_instance_id = buffer_witness.buffer_instance_id
 			if not unsaved.is_empty() and unsaved.known:
 				dirty = {"availability": "observed", "state": "dirty" if unsaved.dirty else "clean",
-					"collection": unsaved.stamp, "witness": _witness(script, editor, code)}
-	else:
-		# An unstable or duplicate path cannot authorize any former source value.
-		var resource_reason := "resource_not_loaded"
-		if target_unique:
-			resource_reason = "identity_changed"
-		elif index >= 0:
-			resource_reason = "resource_unreadable"
-		resource = _source_unavailable("R", resource_reason)
-		buffer = _source_unavailable("B", "buffer_attribution_unavailable")
-		code = null
+					"collection": unsaved.stamp, "witness": buffer_witness}
+		if not stable_script:
+			if script.resource_path != _path or after.index >= 0:
+				initial_changes.append({"surface": "document", "code": "identity_changed"})
+			elif after.unique:
+				initial_changes.append({"surface": "document", "code": "document_closed"})
+			else:
+				initial_check_available = false
+		elif code != null and not _same_target_editor(before, after):
+			if after.unique and after.matched:
+				initial_changes.append({"surface": "document", "code": "identity_changed"})
+			else:
+				initial_check_available = false
+		elif resource.availability == "observed" and script.source_code != resource_text:
+			initial_changes.append({"surface": "R", "code": "source_changed"})
+		if code != null and (initial_changes.is_empty() or initial_changes[0].surface == "R") \
+				and is_instance_valid(code) and is_instance_valid(editor) \
+				and editor.get_base_editor() == code and (code.get_version() != version \
+				or (buffer.availability == "observed" and code.text != buffer_text)):
+			initial_changes.append({"surface": "B", "code": "source_changed"})
 	var valid_stamp := _stamp(started, Time.get_ticks_usec())
 	var open_fact := _unknown_fact("open_state_unknown")
 	var valid_fact := _unknown_fact()
-	if stable_script:
-		open_fact = _fact("open", valid_stamp)
-		valid_fact = _fact("valid", valid_stamp)
-	elif index == -1 and after.index == -1 and before.unique and after.unique and _same_arrays(before, after):
+	if target_unique:
+		open_fact = _fact("open", initial_stamp)
+		valid_fact = _fact("valid", initial_stamp)
+	elif index == -1 and after.index == -1 and before.unique and after.unique \
+			and before.matched and after.matched:
 		# Absence from a stable, complete enumeration proves closed, not loaded.
 		open_fact = _fact("not_open", valid_stamp)
 		buffer = {"authority": "B", "availability": "not_applicable", "reason": _reason(
@@ -234,7 +246,8 @@ func collect(session: String, project: String, path: String) -> Dictionary:
 		"document": {"identity": identity, "validity": valid_fact, "open_state": open_fact},
 		"R": resource, "B": buffer, "dirty": dirty, "diagnostics": []}
 	_original = {"script": script, "editor": editor, "code": code,
-		"before": after, "resource": resource_text if resource.availability == "observed" else null,
+		"before": before, "changes": initial_changes, "check_available": initial_check_available,
+		"resource": resource_text if resource.availability == "observed" else null,
 		"buffer": buffer_text if buffer.availability == "observed" else null,
 		"version": version, "dirty": unsaved.get("dirty") if dirty.availability == "observed" else null,
 		"closed": open_fact.get("value") == "not_open", "open": open_fact.get("value") == "open"}
@@ -247,46 +260,67 @@ func recheck() -> Dictionary:
 	var original := _original
 	var current := _scan(script_editor)
 	var changes: Array[Dictionary] = []
-	var performed := true
+	if original.has("changes"):
+		changes = original.changes
+	var performed: bool = original.get("check_available", true)
 	var old_script: GDScript = original.get("script")
-	var old_editor: ScriptEditorBase = original.get("editor")
-	var old_code: CodeEdit = original.get("code")
+	# A closed tab leaves freed Node references in the request-local dictionary.
+	# Keep them untyped until validity is checked; a typed assignment itself fails.
+	var old_editor: Variant = original.get("editor")
+	var old_code: Variant = original.get("code")
+	# The held Resource remains independently observable after its tab closes.
+	# A document transition must not hide a separate change to that same R.
+	if old_script != null and is_instance_valid(old_script) \
+			and old_script.resource_path == _path and original.get("resource") != null \
+			and old_script.source_code != original.resource \
+			and not changes.has({"surface": "R", "code": "source_changed"}):
+		changes.append({"surface": "R", "code": "source_changed"})
 	if original.get("open", false):
-		if current.index == -1 and current.unique:
-			changes.append({"surface": "document", "code": "document_closed"})
-		elif old_script == null or not is_instance_valid(old_script) or current.script != old_script \
-			or current.paths.count(_path) != 1:
+		if not changes.is_empty() and changes[0].surface == "document":
+			pass # Collection already established closure or identity replacement.
+		elif old_script != null and is_instance_valid(old_script) \
+				and old_script.resource_path != _path:
 			changes.append({"surface": "document", "code": "identity_changed"})
-		elif not _same_order(original.before, current):
-			# Tab ordering is part of the association witness; another tab moving
-			# cannot authorize the original indexed B or dirty attribution.
+		elif current.index == -1:
+			if current.unique and current.matched:
+				changes.append({"surface": "document", "code": "document_closed"})
+			else:
+				performed = false
+		elif not current.unique or not current.matched:
+			performed = false
+		elif old_script == null or not is_instance_valid(old_script) \
+				or current.script != old_script or current.paths.count(_path) != 1:
+			changes.append({"surface": "document", "code": "identity_changed"})
+		elif old_code != null and (not _same_target_editor(original.before, current) \
+				or not is_instance_valid(old_editor) or not is_instance_valid(old_code) \
+				or old_editor.get_base_editor() != old_code):
 			changes.append({"surface": "document", "code": "identity_changed"})
 		else:
-			if original.resource != null and old_script.source_code != original.resource:
-				changes.append({"surface": "R", "code": "source_changed"})
 			if old_code != null:
-				if not is_instance_valid(old_editor) or not is_instance_valid(old_code) \
-					or old_editor.get_base_editor() != old_code:
-					changes.append({"surface": "document", "code": "identity_changed"})
-				else:
-					if (original.buffer != null and old_code.text != original.buffer) \
-						or old_code.get_version() != original.version:
-						changes.append({"surface": "B", "code": "source_changed"})
-					if original.dirty != null:
-						var indication := _unsaved(script_editor, current.paths)
-						if indication.known:
-							if indication.dirty != original.dirty:
-								changes.append({"surface": "dirty", "code": "source_changed"})
-						else:
-							performed = false
+				if ((original.buffer != null and old_code.text != original.buffer) \
+						or old_code.get_version() != original.version) \
+						and not changes.has({"surface": "B", "code": "source_changed"}):
+					changes.append({"surface": "B", "code": "source_changed"})
+				if original.dirty != null:
+					var indication := _unsaved(script_editor, current.paths)
+					if indication.known:
+						if indication.dirty != original.dirty:
+							changes.append({"surface": "dirty", "code": "source_changed"})
+					else:
+						performed = false
 			elif original.buffer != null or original.dirty != null:
 				performed = false
 	elif original.get("closed", false):
-		if current.index >= 0 or not _same_order(original.before, current):
-			changes.append({"surface": "document", "code": "identity_changed"})
-		if old_script != null and is_instance_valid(old_script) and \
-			original.resource != null and old_script.source_code != original.resource:
-			changes.append({"surface": "R", "code": "source_changed"})
+		if current.index >= 0:
+			if current.unique:
+				changes.append({"surface": "document", "code": "identity_changed"})
+			else:
+				performed = false
+		elif not current.unique or not current.matched:
+			performed = false
+		if old_script != null and is_instance_valid(old_script):
+			if old_script.resource_path != _path:
+				changes.append({"surface": "document", "code": "identity_changed"})
 	else:
 		performed = false
 	var finished := Time.get_ticks_usec()

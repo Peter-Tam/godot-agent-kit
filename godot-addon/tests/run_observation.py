@@ -31,11 +31,16 @@ VERSION = "4.7.2.stable.official.ed1daf0bf"
 ENGINE_HASH = "ed1daf0bf001b61586d9930840f2f1394092c079"
 CAPABILITIES = ("observe_gdscript", "open_enumeration", "buffer_attribution",
                 "unsaved_paths", "cached_resource_lookup")
-MISSING_GROUPS = ("dirty-divergent", "dirty-unavailable", "changing-document",
-                  "routing", "session-loss", "deadline", "confinement", "closed-and-invalid",
+MISSING_GROUPS = ("routing", "session-loss", "deadline", "confinement", "closed-and-invalid",
                   "surface-limits", "sequential-readonly", "redaction")
 SOURCE_SENTINEL = b"T002_SYNTHETIC_SOURCE_ONLY"
 CAP_SENTINELS = (b"# " + b"r" * 64, b"# " + b"b" * 64)
+SOURCE_SENTINELS = (
+    SOURCE_SENTINEL, *CAP_SENTINELS, b"SYNTHETIC_OTHER_DOCUMENT",
+    b"FIXTURE_UNSAVED_CHANGE", b"TEMPORARY_DIRTY_EDIT", b"RESOURCE_DIFFERENT",
+    b"DISTINCT_DISK_SOURCE", b"DISTINCT_UNIQUE_OBJECT", b"TRANSITION_BUFFER",
+    b"TRANSITION_RESOURCE", b"TRANSITION_DISK", b"Synthetic plain-text editor tab.",
+)
 
 
 class Failure(Exception):
@@ -237,9 +242,9 @@ class Harness:
         self.counter = 0
         self.probe = work / "route-probe"
         self.window_probe = work / "owned-window"
-        self.summary = {"task": "T004" if args.scenario == "clean-open" else "T002",
-                        "scenario": args.scenario, "cases": self.cases,
-                        "source_observation": args.scenario in ("clean-open", "executor-boundary"),
+        self.summary = {"scenario": args.scenario, "cases": self.cases,
+                        "source_observation": args.scenario in ("clean-open", "executor-boundary",
+                            "dirty-divergent", "dirty-unavailable", "changing-document"),
                         "support_claim": False,
                         "host": {"os": platform.mac_ver()[0], "arch": platform.machine()},
                         "godot_sha256": digest(args.godot),
@@ -248,8 +253,7 @@ class Harness:
                         "lockfile_sha256": digest(REPO / "mcp-server" / "Cargo.lock")}
 
     def safe_log(self, name, payload):
-        require(SOURCE_SENTINEL not in payload and
-                all(marker not in payload for marker in CAP_SENTINELS),
+        require(all(marker not in payload for marker in SOURCE_SENTINELS),
                 "redaction_source_" + name)
         for value in self.secrets:
             require(value not in payload, "redaction_authentication_" + name)
@@ -296,7 +300,7 @@ class Harness:
         self.safe_log("window-probe-compile.stderr", result.stderr)
         require(result.returncode == 0, "window_probe_compile")
 
-    def fixture(self, name):
+    def fixture(self, name, *, controlled=False):
         project = self.work / name
         shutil.copytree(FIXTURE, project)
         shutil.copytree(REPO / "godot-addon" / "addons" / "godot_agent_kit",
@@ -305,16 +309,29 @@ class Harness:
         driver.mkdir(parents=True)
         (driver / "plugin.cfg").write_text('[plugin]\nname="Observation Fixture Driver"\ndescription="Owned test preparation"\nauthor="godot-agent-kit"\nversion="1"\nscript="plugin.gd"\n')
         (driver / "plugin.gd").write_text('@tool\nextends "res://fixture_driver.gd"\n')
+        # Keep every test-only bridge/collector under the already excluded driver
+        # tree, including in export fixtures where neither helper is enabled.
+        for script in ("fixture_bridge.gd", "fixture_collector.gd"):
+            shutil.copy2(Path(__file__).parent / script, driver / script)
         config = project / "project.godot"
         text = config.read_text()
         require("[editor_plugins]" not in text, "fixture_plugin_configuration_owned_by_harness")
         config.write_text(text + '\n[editor_plugins]\nenabled=PackedStringArray("res://addons/godot_agent_kit/plugin.cfg", "res://addons/fixture_driver/plugin.cfg")\n')
+        if controlled:
+            plugin = project / "addons" / "godot_agent_kit" / "plugin.gd"
+            original = plugin.read_text()
+            old = 'preload("res://addons/godot_agent_kit/bridge.gd")'
+            require(original.count(old) == 1, "fixture_private_bridge_seam")
+            plugin.write_text(original.replace(old, 'preload("res://addons/fixture_driver/fixture_bridge.gd")'))
         return project
 
     def descriptors(self, project=None):
         descriptors = []
         for path in sorted(self.registry.glob("*.json")):
             descriptor = json.loads(path.read_text())
+            encoded = json.dumps(descriptor).encode()
+            require(all(marker not in encoded for marker in SOURCE_SENTINELS),
+                    "descriptor_has_no_synthetic_source")
             self.secrets.add(descriptor["token"].encode())
             require(path.stat().st_uid == os.geteuid() and stat.S_IMODE(path.stat().st_mode) == 0o600,
                     "descriptor_owner_mode")
@@ -925,8 +942,294 @@ class Harness:
         self.case("actual_failed_editor_recheck", source_surfaces="R/B",
                   session_id=descriptor["session_id"], reason="known_session_ended")
 
+    def controlled_editor(self, name):
+        project = self.fixture(name, controlled=True)
+        editor = self.start_editor(project)
+        descriptor = wait_for(lambda: self.descriptors(project), "controlled_advertisement_" + name)[0]
+        self.action(editor, "prepare_subject")
+        wait_for(lambda: (lambda w: w if w["subject"]["associated"] else None)(
+                 self.action(editor, "witness")), "controlled_subject_ready_" + name)
+        return project, editor, descriptor, project / "scripts" / "subject.gd"
+
+    def controlled_observation(self, project, editor, descriptor, path, name, expected,
+                               *, changing=False, dirty=None):
+        shot = self.screenshot(editor, name + ".png")
+        disk_before = disk_witness(path)
+        before = self.action(editor, "witness")
+        doc = before["subject"]
+        require(doc["associated"] and before["open_paths"].count("res://scripts/subject.gd") == 1
+                and doc["script_id"] == before["script_ids"][doc["index"]]
+                and doc["editor_id"] == before["editor_ids"][doc["index"]]
+                and doc["dirty"] == ("res://scripts/subject.gd" in before["unsaved_paths"]),
+                "independent_controlled_association_" + name)
+        result = self.observe(project, expected, 0 if expected == "complete_observation" else 2,
+                              session=descriptor["session_id"], name=name)
+        disk_after = disk_witness(path) if path.exists() else None
+        after = self.action(editor, "witness")
+        transition = self.action(editor, "transition_witness") if changing else None
+        json_file(self.artifacts / (name + "-witness.json"),
+                  {"disk_before": disk_before, "before": before, "result": result,
+                   "disk_after": disk_after, "after": after, "transition": transition})
+        snapshot = result["snapshot"]
+        require(snapshot["target"] == result["resolved_target"] and
+                snapshot["target"]["session_id"] == descriptor["session_id"] and
+                snapshot["target"]["script_path"] == "res://scripts/subject.gd",
+                "controlled_target_" + name)
+        if not changing:
+            require(before == after and disk_before == disk_after,
+                    "controlled_observer_noninterference_" + name)
+            require(snapshot["document"]["identity"]["script_instance_id"] == doc["script_id"] and
+                    snapshot["document"]["identity"]["editor_instance_id"] == doc["editor_id"] and
+                    snapshot["document"]["identity"]["buffer_instance_id"] == doc["buffer_id"] and
+                    snapshot["document"]["open_state"]["value"] == "open",
+                    "controlled_live_identity_" + name)
+            for authority, text in (("D", disk_before["text"]), ("R", doc["R"]), ("B", doc["B"])):
+                source = snapshot["sources"][authority]
+                require(source["availability"] == "observed" and source["text"] == text and
+                        source["invalidated_evidence"] is None and source["staleness"]["state"] == "unknown",
+                        "controlled_independent_" + authority + "_" + name)
+            require(snapshot["comparisons"] == {
+                "disk_resource": "equal" if disk_before["text"] == doc["R"] else "different",
+                "disk_buffer": "equal" if disk_before["text"] == doc["B"] else "different",
+                "resource_buffer": "equal" if doc["R"] == doc["B"] else "different"} and
+                    snapshot["agreement"] == ("agree" if disk_before["text"] == doc["R"] == doc["B"]
+                                              else "divergent") and
+                    snapshot["consistency"]["detected_changes"] == [],
+                    "controlled_exact_pairwise_" + name)
+            if dirty is not None:
+                require(doc["dirty"] == dirty and
+                        snapshot["dirty"]["availability"] == "observed" and
+                        snapshot["dirty"]["state"] == ("dirty" if dirty else "clean") and
+                        snapshot["dirty"]["witness"]["source_version"] == str(doc["version"]),
+                        "controlled_independent_dirty_" + name)
+        self.cases[-1].update(screenshot=shot, evidence=name + "-witness.json",
+                              disk_sha256=disk_before["sha256"])
+        return result, disk_before, before, disk_after, after, transition
+
+    def dirty_divergent(self):
+        self.compile_window_probe()
+        for name, steps, disk_change, selected, pattern in (
+                ("dirty_selected", ("dirty_subject",), None, True, "dirty_buffer"),
+                ("dirty_nonselected", ("dirty_subject", "prepare_other"), None, False, "dirty_buffer"),
+                ("dirty_distinct_resource", ("dirty_subject", "resource_subject"), None, True, "all_different"),
+                ("dirty_equal_text", ("equal_dirty_subject",), None, True, "all_equal"),
+                ("partial_disk_buffer", ("equal_dirty_subject", "resource_subject"), None, True, "equal_d_b"),
+                ("partial_resource_buffer", (), "different", True, "equal_r_b"),
+                ("exact_whitespace", (), "whitespace", True, "equal_r_b"),
+                ("exact_line_endings", (), "line_endings", True, "equal_r_b")):
+            project, editor, descriptor, path = self.controlled_editor(name)
+            for step in steps:
+                self.action(editor, step)
+            if disk_change is not None:
+                original = path.read_bytes()
+                changed = {
+                    "different": b"extends RefCounted\n# DISTINCT_DISK_SOURCE\n",
+                    "whitespace": original.replace(b"\n", b" \n"),
+                    "line_endings": original.replace(b"\n", b"\r\n"),
+                }[disk_change]
+                path.write_bytes(changed)
+            doc = self.action(editor, "witness")["subject"]
+            disk = disk_witness(path)
+            require((doc["R"] == doc["B"] if pattern == "equal_r_b" else True) and
+                    (disk["text"] != doc["B"] if pattern == "dirty_buffer" else True) and
+                    (disk["text"] == doc["B"] if pattern == "equal_d_b" else True) and
+                    (disk["text"] == doc["R"] == doc["B"] if pattern == "all_equal" else True) and
+                    (len({disk["text"], doc["R"], doc["B"]}) == 3 if pattern == "all_different" else True) and
+                    doc["dirty"] == bool(steps and steps[0] in
+                                         ("dirty_subject", "equal_dirty_subject")) and
+                    (self.action(editor, "witness")["current_script"] == "res://scripts/subject.gd") == selected,
+                    "independent_prepared_divergence_" + name)
+            self.controlled_observation(project, editor, descriptor, path, name,
+                                        "complete_observation", dirty=doc["dirty"])
+
+    def dirty_unavailable(self):
+        self.compile_window_probe()
+        for name, restriction, other in (
+                ("dirty_indication_withheld", "restrict_dirty", False),
+                ("unattributable_global_indication", "restrict_global", True)):
+            project, editor, descriptor, path = self.controlled_editor(name)
+            if other:
+                self.action(editor, "prepare_other")
+                self.action(editor, "dirty_other")
+                self.action(editor, "prepare_subject")
+            witness = self.action(editor, "witness")
+            require(("res://scripts/other.gd" in witness["unsaved_paths"]) == other and
+                    not witness["subject"]["dirty"] and
+                    witness["subject"]["R"] == witness["subject"]["B"] == disk_witness(path)["text"],
+                    "independent_global_unsaved_" + name)
+            self.action(editor, restriction)
+            result, _, _, _, _, _ = self.controlled_observation(
+                project, editor, descriptor, path, name, "limited_observation")
+            snapshot = result["snapshot"]
+            require(snapshot["dirty"]["availability"] == "unavailable" and
+                    snapshot["dirty"]["state"] == "unknown" and
+                    snapshot["dirty"]["reason"]["code"] == "dirty_attribution_unavailable" and
+                    snapshot["document"]["open_state"]["value"] == "open" and
+                    snapshot["comparisons"] == {"disk_resource": "equal", "disk_buffer": "equal",
+                                                "resource_buffer": "equal"},
+                    "real_dirty_indication_not_inferred_" + name)
+        for name, action in (("unsupported_association", "restrict_association"),
+                             ("empty_path_tab", "unpathed_script"),
+                             ("nonunique_path_tabs", "duplicate_script"),
+                             ("mixed_text_script_documentation", "mixed_tabs")):
+            project, editor, descriptor, path = self.controlled_editor(name)
+            prepared = self.action(editor, action)
+            before = self.action(editor, "witness")
+            disk = disk_witness(path)
+            require(not before["subject"]["associated"] or
+                    (before["subject"]["R"] == disk["text"] and
+                     before["subject"]["B"] == disk["text"]),
+                    "real_association_input_sources_" + name)
+            shot = self.screenshot(editor, name + ".png")
+            result = self.observe(project, "limited_observation", 2,
+                                  session=descriptor["session_id"], name=name)
+            after = self.action(editor, "witness")
+            require(before == after and disk == disk_witness(path),
+                    "association_observer_does_not_change_tabs_" + name)
+            snapshot = result["snapshot"]
+            require(snapshot["target"]["script_path"] == "res://scripts/subject.gd" and
+                    snapshot["sources"]["D"]["text"] == disk["text"] and
+                    snapshot["sources"]["B"]["availability"] == "unavailable" and
+                    snapshot["dirty"]["availability"] == "unavailable" and
+                    snapshot["dirty"]["state"] == "unknown" and
+                    snapshot["document"]["open_state"].get("value") != "not_open",
+                    "unknown_association_not_wrong_buffer_" + name)
+            if action == "restrict_association":
+                require(snapshot["sources"]["R"]["availability"] == "observed" and
+                        snapshot["sources"]["R"]["text"] == before["subject"]["R"] and
+                        snapshot["document"]["open_state"]["value"] == "open",
+                        "restricted_association_retains_known_resource")
+            if action == "unpathed_script":
+                require("" in before["open_paths"], "real_empty_resource_path")
+            elif action == "duplicate_script":
+                require(before["open_paths"].count("res://scripts/subject.gd") > 1,
+                        "real_nonunique_resource_path")
+                require(snapshot["sources"]["R"]["availability"] == "unavailable" and
+                        snapshot["sources"]["R"]["reason"]["code"] == "resource_unreadable",
+                        "nonunique_loaded_resources_are_not_reported_unloaded")
+            elif action == "mixed_tabs":
+                require(prepared["documentation_selected"] and prepared["text_selected"] and
+                        before["editor_count"] > before["script_count"] and
+                        before["script_types"].count("GDScript") >= 1,
+                        "real_text_tab_and_documentation")
+            evidence = name + "-witness.json"
+            json_file(self.artifacts / evidence,
+                      {"disk": disk, "before": before, "result": result, "after": after,
+                       "prepared": prepared})
+            self.cases[-1].update(screenshot=shot, evidence=evidence)
+
+
+    def changing_document(self):
+        self.compile_window_probe()
+        for mode in ("buffer", "dirty", "resource", "disk", "rename", "remove", "close", "close_resource", "replace"):
+            name = "change_" + mode
+            project, editor, descriptor, path = self.controlled_editor(name)
+            if mode in ("buffer", "resource", "close", "close_resource", "replace"):
+                self.action(editor, "dirty_subject")
+            self.action(editor, "transition_" + mode)
+            result, disk, before, disk_after, after, barrier = self.controlled_observation(
+                project, editor, descriptor, path, name, "limited_observation", changing=True)
+            require(barrier["record"]["ok"] and barrier["record"]["mode"] == mode and
+                    barrier["record"]["before"]["script_id"] == before["subject"]["script_id"] and
+                    barrier["transition"] == "",
+                    "real_recheck_transition_barrier_" + name)
+            require(after == barrier["record"]["witness_after"],
+                    "observer_preserves_post_transition_selection_history_sources_" + name)
+            snapshot = result["snapshot"]
+            if snapshot["sources"]["R"]["availability"] == "observed":
+                require(snapshot["sources"]["R"]["text"] == barrier["record"]["original_resource"],
+                        "retained_resource_is_still_independently_observed_" + name)
+            changes = {(entry["surface"], entry["code"]) for entry in
+                       snapshot["consistency"]["detected_changes"]}
+            live = {authority: source.get("text") if source["availability"] == "observed"
+                    else None for authority, source in snapshot["sources"].items()}
+            pairs = {key: ("unknown" if live[left] is None or live[right] is None else
+                           "equal" if live[left] == live[right] else "different")
+                     for key, left, right in (("disk_resource", "D", "R"),
+                                              ("disk_buffer", "D", "B"),
+                                              ("resource_buffer", "R", "B"))}
+            require(snapshot["comparisons"] == pairs and
+                    snapshot["agreement"] == ("divergent" if "different" in pairs.values() else
+                                              "agree" if all(pair == "equal" for pair in pairs.values())
+                                              else "unknown"),
+                    "changed_facts_never_enter_current_comparisons_" + name)
+            if mode in ("buffer", "dirty", "resource", "disk", "remove"):
+                surface = {"buffer": "B", "dirty": "B", "resource": "R",
+                           "disk": "D", "remove": "D"}[mode]
+                # Godot's safe-save may replace D's inode. Both forms must
+                # invalidate only D; do not assume in-place filesystem writes.
+                expected_change = (
+                    "identity_changed" if surface == "D" and disk_after is not None
+                    and (disk["device"], disk["inode"]) !=
+                    (disk_after["device"], disk_after["inode"]) else "source_changed")
+                require((surface, expected_change) in changes and
+                        snapshot["sources"][surface]["availability"] == "unavailable" and
+                        snapshot["sources"][surface]["invalidated_evidence"]["text"] ==
+                        (disk["text"] if surface == "D" else before["subject"][surface]) and
+                        (disk != disk_after if surface == "D" else before != after),
+                        "changed_surface_invalidated_" + name)
+                if mode == "dirty":
+                    require(not before["subject"]["dirty"] and after["subject"]["dirty"] and
+                            ("dirty", "source_changed") in changes and
+                            snapshot["dirty"]["availability"] == "unavailable" and
+                            snapshot["dirty"]["invalidated_evidence"]["state"] == "clean",
+                            "actual_unsaved_indication_change_invalidated")
+                for untouched in {"D", "R", "B"} - {surface}:
+                    old_text = disk["text"] if untouched == "D" else before["subject"][untouched]
+                    require(snapshot["sources"][untouched]["availability"] == "observed" and
+                            snapshot["sources"][untouched]["text"] == old_text and
+                            snapshot["sources"][untouched]["invalidated_evidence"] is None,
+                            "changed_surface_preserves_independent_" + untouched + "_" + name)
+                if surface == "D":
+                    require(after["subject"]["R"] == before["subject"]["R"] and
+                            after["subject"]["B"] == before["subject"]["B"],
+                            "disk_change_does_not_repair_editor_" + name)
+                else:
+                    other = "R" if surface == "B" else "B"
+                    require(disk == disk_after and
+                            after["subject"][other] == before["subject"][other],
+                            "editor_change_does_not_repair_other_authority_" + name)
+            elif mode in ("close", "close_resource"):
+                require(("document", "document_closed") in changes and
+                        snapshot["document"]["open_state"].get("value") is None and
+                        snapshot["document"]["open_state"]["invalidated_evidence"]["value"] == "open" and
+                        snapshot["sources"]["B"]["availability"] == "unavailable" and
+                        snapshot["sources"]["B"]["invalidated_evidence"]["text"] ==
+                        before["subject"]["B"] and
+                        snapshot["dirty"]["invalidated_evidence"] is not None and
+                        snapshot["sources"]["D"]["text"] == disk["text"] and
+                        snapshot["comparisons"]["disk_buffer"] == "unknown" and
+                        snapshot["comparisons"]["resource_buffer"] == "unknown",
+                        "closure_invalidates_open_buffer_not_known_closed")
+                resource = snapshot["sources"]["R"]
+                if mode == "close_resource":
+                    require(barrier["record"]["original_resource"] != before["subject"]["R"] and
+                            ("R", "source_changed") in changes and
+                            resource["availability"] == "unavailable" and
+                            resource["invalidated_evidence"]["text"] == before["subject"]["R"] and
+                            snapshot["comparisons"]["disk_resource"] == "unknown",
+                            "closure_does_not_hide_independent_resource_change")
+                else:
+                    require(resource["availability"] == "observed" and
+                            resource["text"] == before["subject"]["R"],
+                            "closure_preserves_unchanged_resource")
+            else:
+                require(("document", "identity_changed") in changes and
+                        snapshot["document"]["open_state"].get("value") is None and
+                        all(snapshot["sources"][source]["availability"] == "unavailable" and
+                            snapshot["sources"][source]["invalidated_evidence"]["text"] ==
+                            (disk["text"] if source == "D" else before["subject"][source])
+                            for source in ("D", "R", "B")) and
+                        snapshot["dirty"]["availability"] == "unavailable" and
+                        snapshot["dirty"]["invalidated_evidence"] is not None and
+                        snapshot["comparisons"] == {"disk_resource": "unknown",
+                                                     "disk_buffer": "unknown",
+                                                     "resource_buffer": "unknown"},
+                        "replacement_excludes_original_document_facts_" + name)
+                if mode == "replace":
+                    require(barrier["record"]["replacement_id"] != before["subject"]["script_id"],
+                            "genuine_new_document_instance")
     def executor_boundary(self):
-        self.summary["task"] = "T003"
         self.compile_probes()
         project = self.fixture("executor")
         subject = project / "scripts" / "subject.gd"
@@ -1284,7 +1587,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--godot", required=True, type=Path)
     parser.add_argument("--observer", required=True, type=Path)
-    parser.add_argument("--scenario", required=True, choices=("all", "clean-open", "session-boundary", "executor-boundary", "export-boundary", *MISSING_GROUPS))
+    parser.add_argument("--scenario", required=True, choices=("all", "clean-open", "session-boundary", "executor-boundary", "export-boundary", "dirty-divergent", "dirty-unavailable", "changing-document", *MISSING_GROUPS))
     parser.add_argument("--artifacts", required=True, type=Path)
     args = parser.parse_args()
     os.umask(0o077)
@@ -1297,7 +1600,7 @@ def main():
             not list(args.artifacts.iterdir()), "empty_private_artifact_directory")
     if args.scenario == "all" or args.scenario in MISSING_GROUPS:
         missing = list(MISSING_GROUPS) if args.scenario == "all" else [args.scenario]
-        json_file(args.artifacts / "summary.json", {"task": "T004", "status": "failed",
+        json_file(args.artifacts / "summary.json", {"status": "failed",
                   "stage": "coverage", "missing_groups": missing, "support_claim": False})
         print("Missing coverage: " + ", ".join(missing))
         return 1
@@ -1313,6 +1616,12 @@ def main():
                 harness.executor_boundary()
             elif args.scenario == "clean-open":
                 harness.clean_open()
+            elif args.scenario == "dirty-divergent":
+                harness.dirty_divergent()
+            elif args.scenario == "dirty-unavailable":
+                harness.dirty_unavailable()
+            elif args.scenario == "changing-document":
+                harness.changing_document()
             else:
                 harness.export_boundary()
             harness.summary["status"] = "passed"

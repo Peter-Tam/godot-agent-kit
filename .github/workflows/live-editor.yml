@@ -15,6 +15,9 @@ on:
         type: choice
         options:
           - clean-open
+          - dirty-divergent
+          - dirty-unavailable
+          - changing-document
           - session-boundary
           - executor-boundary
           - export-boundary

@@ -181,9 +181,18 @@ enum Mode {
     Oversized,
     Silence,
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum ObservationMode {
     Valid,
+    PartialDivergence,
+    WhitespaceDivergence,
+    DirtyEqual,
+    DirtyUnknown,
+    BufferAndDirtyChanged,
+    DocumentClosed,
+    DocumentReplaced,
+    PartialChanged,
+    PartialClosed,
     ChangedResource,
     DenyObserve,
     DenyRecheck,
@@ -376,6 +385,44 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                 sample["B"]["text"] = json!("");
                 sample["dirty"]["state"] = json!("clean");
             }
+            if matches!(
+                reply,
+                ObservationMode::PartialDivergence
+                    | ObservationMode::WhitespaceDivergence
+                    | ObservationMode::DirtyEqual
+                    | ObservationMode::DirtyUnknown
+                    | ObservationMode::BufferAndDirtyChanged
+                    | ObservationMode::DocumentClosed
+                    | ObservationMode::DocumentReplaced
+                    | ObservationMode::PartialChanged
+                    | ObservationMode::PartialClosed
+            ) {
+                sample["R"]["text"] = json!(if matches!(
+                    reply,
+                    ObservationMode::PartialDivergence | ObservationMode::WhitespaceDivergence
+                ) {
+                    "x\r\n"
+                } else {
+                    "x\n"
+                });
+                sample["B"]["text"] =
+                    json!(if matches!(reply, ObservationMode::PartialDivergence) {
+                        "x\r\n"
+                    } else if matches!(reply, ObservationMode::WhitespaceDivergence) {
+                        "x \n"
+                    } else {
+                        "x\n"
+                    });
+                if matches!(reply, ObservationMode::BufferAndDirtyChanged) {
+                    sample["dirty"]["state"] = json!("clean");
+                }
+                if matches!(reply, ObservationMode::DirtyUnknown) {
+                    use godot_agent_kit::observation::DirtyReason;
+                    sample["dirty"] = json!({"availability":"unavailable","state":"unknown",
+                        "reason":{"code":"dirty_attribution_unavailable",
+                            "action":DirtyReason::DirtyAttributionUnavailable.action()}});
+                }
+            }
             if matches!(reply, ObservationMode::SecretUnknownField) {
                 sample["leaked_secret"] = json!(SECRET);
             }
@@ -441,6 +488,15 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                     | ObservationMode::DenyRecheck
                     | ObservationMode::RecheckBeforeSample
                     | ObservationMode::WrongRecheckIdentity
+                    | ObservationMode::PartialDivergence
+                    | ObservationMode::WhitespaceDivergence
+                    | ObservationMode::DirtyEqual
+                    | ObservationMode::DirtyUnknown
+                    | ObservationMode::BufferAndDirtyChanged
+                    | ObservationMode::DocumentClosed
+                    | ObservationMode::DocumentReplaced
+                    | ObservationMode::PartialChanged
+                    | ObservationMode::PartialClosed
             ) {
                 let recheck = read_frame(&mut socket);
                 assert_eq!(
@@ -468,6 +524,20 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                     ObservationMode::ChangedResource => {
                         json!([{"surface":"R","code":"source_changed"}])
                     }
+                    ObservationMode::PartialDivergence
+                    | ObservationMode::WhitespaceDivergence
+                    | ObservationMode::DirtyEqual
+                    | ObservationMode::DirtyUnknown => json!([]),
+                    ObservationMode::BufferAndDirtyChanged | ObservationMode::PartialChanged => {
+                        json!([{"surface":"B","code":"source_changed"},
+                               {"surface":"dirty","code":"source_changed"}])
+                    }
+                    ObservationMode::DocumentClosed | ObservationMode::PartialClosed => {
+                        json!([{"surface":"document","code":"document_closed"}])
+                    }
+                    ObservationMode::DocumentReplaced => {
+                        json!([{"surface":"document","code":"identity_changed"}])
+                    }
                     _ => json!([{"surface":"B","code":"source_changed"}]),
                 };
                 let mut stamp = editor_stamp(&hello);
@@ -479,6 +549,13 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                     });
                 stamp["finished_tick_us"] = json!("9007199254740995");
                 let mut rechecked = json!({"v":1,"kind":"recheck","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":"res://scripts/subject.gd","collection":stamp,"checks":"performed","detected_changes":changes,"reason":null});
+                if matches!(
+                    reply,
+                    ObservationMode::PartialChanged | ObservationMode::PartialClosed
+                ) {
+                    rechecked["checks"] = json!("unavailable");
+                    rechecked["reason"] = json!("unavailable");
+                }
                 if matches!(reply, ObservationMode::WrongRecheckIdentity) {
                     rechecked["session_id"] = json!(ID2);
                 }
@@ -1114,6 +1191,153 @@ fn changed_resource_only_invalidates_r_and_preserves_independent_b() {
         "unknown"
     );
     peer.join().unwrap();
+}
+
+#[test]
+fn dirty_divergence_and_document_transition_events_reach_the_caller() {
+    use ObservationMode::*;
+    for (mode, expected) in [
+        (PartialDivergence, "complete_observation"),
+        (WhitespaceDivergence, "complete_observation"),
+        (DirtyEqual, "complete_observation"),
+        (DirtyUnknown, "limited_observation"),
+        (BufferAndDirtyChanged, "limited_observation"),
+        (DocumentClosed, "limited_observation"),
+        (DocumentReplaced, "limited_observation"),
+        (PartialChanged, "limited_observation"),
+        (PartialClosed, "limited_observation"),
+    ] {
+        let disk = "x\n";
+        let fixture = Fixture::new();
+        fs::create_dir(fixture.project.join("scripts")).unwrap();
+        fs::write(fixture.project.join("scripts/subject.gd"), disk).unwrap();
+        let peer = attach(&fixture, ID1, Mode::Observation(mode));
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_observe-gdscript"))
+            .args([
+                "--registry",
+                fixture.registry.to_str().unwrap(),
+                "--project",
+                fixture.project.to_str().unwrap(),
+                "--script",
+                "res://scripts/subject.gd",
+            ])
+            .output()
+            .unwrap();
+        peer.join().unwrap();
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(result["outcome"], expected, "{mode:?}");
+        assert_eq!(
+            output.status.code(),
+            Some(if expected == "complete_observation" {
+                0
+            } else {
+                2
+            }),
+            "{mode:?}"
+        );
+        assert_eq!(
+            result["snapshot"]["document"]["identity"]["script_instance_id"], "9007199254740993",
+            "{mode:?}"
+        );
+        let snapshot = &result["snapshot"];
+        match mode {
+            PartialDivergence => {
+                assert_eq!(snapshot["sources"]["D"]["text"], disk);
+                assert_eq!(snapshot["comparisons"]["disk_resource"], "different");
+                assert_eq!(snapshot["comparisons"]["disk_buffer"], "different");
+                assert_eq!(snapshot["comparisons"]["resource_buffer"], "equal");
+                assert_eq!(snapshot["sources"]["R"]["text"], "x\r\n");
+                assert_eq!(snapshot["sources"]["B"]["text"], "x\r\n");
+            }
+            WhitespaceDivergence => {
+                for pair in ["disk_resource", "disk_buffer", "resource_buffer"] {
+                    assert_eq!(snapshot["comparisons"][pair], "different");
+                }
+                assert_eq!(snapshot["sources"]["B"]["text"], "x \n");
+            }
+            DirtyEqual => {
+                assert_eq!(snapshot["agreement"], "agree");
+                assert_eq!(snapshot["dirty"]["state"], "dirty");
+            }
+            DirtyUnknown => {
+                assert_eq!(snapshot["agreement"], "agree");
+                assert_eq!(snapshot["document"]["open_state"]["value"], "open");
+                assert_eq!(snapshot["dirty"]["state"], "unknown");
+                assert_eq!(
+                    snapshot["dirty"]["reason"]["code"],
+                    "dirty_attribution_unavailable"
+                );
+                assert_eq!(snapshot["sources"]["B"]["text"], disk);
+            }
+            BufferAndDirtyChanged | PartialChanged => {
+                assert_eq!(snapshot["sources"]["D"]["text"], disk);
+                assert_eq!(snapshot["sources"]["R"]["text"], disk);
+                assert_eq!(
+                    snapshot["sources"]["B"]["invalidated_evidence"]["text"],
+                    disk
+                );
+                assert_eq!(snapshot["sources"]["B"]["reason"]["code"], "source_changed");
+                assert_eq!(
+                    snapshot["dirty"]["invalidated_evidence"]["state"],
+                    if matches!(mode, BufferAndDirtyChanged) {
+                        "clean"
+                    } else {
+                        "dirty"
+                    }
+                );
+                assert_eq!(snapshot["comparisons"]["disk_resource"], "equal");
+                assert_eq!(snapshot["comparisons"]["disk_buffer"], "unknown");
+                assert_eq!(
+                    snapshot["consistency"]["checks"],
+                    if matches!(mode, PartialChanged) {
+                        "unavailable"
+                    } else {
+                        "performed"
+                    }
+                );
+                assert_eq!(snapshot["consistency"]["stability"], "changed");
+            }
+            DocumentClosed | PartialClosed => {
+                assert_eq!(snapshot["sources"]["D"]["text"], disk);
+                assert_eq!(snapshot["document"]["open_state"]["value"], Value::Null);
+                assert_eq!(
+                    snapshot["document"]["open_state"]["reason"]["code"],
+                    "document_closed"
+                );
+                assert_eq!(snapshot["sources"]["R"]["text"], disk);
+                assert_eq!(
+                    snapshot["sources"]["B"]["invalidated_evidence"]["text"],
+                    disk
+                );
+                assert_eq!(snapshot["dirty"]["invalidated_evidence"]["state"], "dirty");
+                assert_eq!(
+                    snapshot["consistency"]["checks"],
+                    if matches!(mode, PartialClosed) {
+                        "unavailable"
+                    } else {
+                        "performed"
+                    }
+                );
+                assert_eq!(snapshot["comparisons"]["disk_resource"], "equal");
+            }
+            DocumentReplaced => {
+                for authority in ["D", "R", "B"] {
+                    assert_eq!(snapshot["sources"][authority]["text"], Value::Null);
+                    assert_eq!(
+                        snapshot["sources"][authority]["invalidated_evidence"]["text"],
+                        disk
+                    );
+                    assert_eq!(
+                        snapshot["sources"][authority]["reason"]["code"],
+                        "identity_changed"
+                    );
+                }
+                assert_eq!(snapshot["agreement"], "unknown");
+                assert_eq!(snapshot["dirty"]["invalidated_evidence"]["state"], "dirty");
+            }
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[test]

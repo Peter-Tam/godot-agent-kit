@@ -1,6 +1,6 @@
 # Observation Caller Contract — Version 1
 
-**Status:** T001 implements the reusable Rust semantic library (§7); T002 implements source-free routing (§8); T003 implements the bounded caller/worker and confined disk boundary (§9); T004 adds the passive live-editor collector and clean-open vertical slice (§10). This is **not MCP**. [Data model](../data-model.md) defines normative results; [bridge contract](bridge-protocol.md) defines private integration.
+**Status:** T001 implements the reusable Rust semantic library (§7); T002 implements source-free routing (§8); T003 implements the bounded caller/worker and confined disk boundary (§9); T004 adds the passive live-editor collector and clean-open vertical slice (§10); T005 extends document-attributed dirty/divergent and changing-document observation (§11). This is **not MCP**. [Data model](../data-model.md) defines normative results; [bridge contract](bridge-protocol.md) defines private integration.
 
 ## 1. Operations and invocation
 
@@ -248,3 +248,36 @@ The `clean-open` driver owns all opening, presentation and synthetic preparation
 Its independent disk/Script/CodeEdit/dirty/history witnesses are not obtained from
 the product collector. See [T004 evidence](../quickstart.md#24-t004-clean-open-evidence-2026-09-26).
 This is a development slice, not full-feature or supported-version acceptance.
+
+## 11. T005 dirty/divergent and changing-document observation
+
+The caller and version-1 result contract are unchanged. Independently readable
+dirty or divergent D/R/B can still yield `complete_observation`. Every pair uses
+the exact independently read values, including whitespace/line endings. Equal
+text never overrides editor-reported dirty state. Native editor activity may
+copy B into R; the observer reports actual R, not an expected copy of D or B.
+Staleness remains unknown without independently attributable causal evidence.
+
+Unavailable document-specific unsaved evidence yields dirty `unknown` with
+`dirty_attribution_unavailable`, preserving observed sources and open state.
+An unassignable global indication does not become target ambiguity, a dirty or
+clean inference, or an editor disconnection. Mixed/unsupported or nonunique
+script/editor associations withhold B/dirty rather than guess a buffer.
+Multiple already-loaded Scripts at the requested path make R
+`unavailable`/`resource_unreadable`, not `resource_not_loaded`.
+
+Collection and recheck retain the original document identity. Same-document
+changes invalidate affected facts only. A renamed or replaced document
+invalidates identity-dependent facts; a detected close invalidates the original
+open/buffer/dirty facts instead of manufacturing a `not_open` snapshot. Former
+text remains only in `invalidated_evidence` and never enters current comparisons.
+Closing a tab can free its native editor/buffer nodes; the collector checks those
+references without assigning a freed object to a typed Node variable.
+The held Resource is rechecked independently of tab closure: a separately
+detected R change is invalidated alongside the closed buffer/open/dirty facts.
+
+The disposable acceptance bridge can restrict attribution or prepare a native
+transition immediately before recheck. These helpers live under the fixture
+driver's excluded tree; no restriction/transition option exists in the product
+caller or bridge. See [US2 evidence](../quickstart.md#25-t005-dirty-and-changing-document-evidence-2026-09-27).
+These observations grant no mutation permission or whole-feature support claim.

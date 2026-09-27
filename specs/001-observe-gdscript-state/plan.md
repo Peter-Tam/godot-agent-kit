@@ -143,6 +143,38 @@ or product UndoRedo capability exists. T004 is the US1 development increment,
 not completion of Feature 001 or roadmap Phase 1. Native/live/export evidence and
 limits are recorded in [quickstart §2.4](quickstart.md#24-t004-clean-open-evidence-2026-09-26).
 
+### T005 implementation compliance
+
+T005 is limited to US2's document-attributed dirty/divergent observations and
+request-local change detection. I–IV/VII require independent D/R/B reads,
+document-specific dirty evidence, preservation of human text and history, and the
+existing common reducer's truthful complete/limited outcomes. Same-document
+changes invalidate affected facts; replacement invalidates identity-dependent
+facts. Closure during collection cannot become a fabricated closed snapshot.
+No observer mutation, forced load/open/select, Save, synchronization, or retry
+is permitted.
+
+V/X/XII retain the authenticated local/project-confined boundary, source limits,
+deadline and source-free diagnostics. Negative acceptance restrictions may
+withhold observability only in disposable fixture code; production gains no
+bypass flag or fake positive evidence. VI/VIII require real GUI witnesses for
+the three US2 groups, non-interference checks, and renewed export exclusion and
+actual exported-app evidence. Fixture preparation remains separate from product
+collection. IX/XI introduce no additional product operation or dependency.
+
+The protected live workflow may select these named groups on a reviewed revision
+under its existing trust gate; this does not authorize untrusted GUI execution
+or establish an executed CI/support claim. Mutation A–E and applied-edit
+durability remain inapplicable because T005 adds no mutation or product UndoRedo
+capability. T006–T008 and roadmap Phase 1 exit gates remain outside this task.
+
+Implementation review: the collector remains observation-specific; shared session,
+framing, worker and core-reducer responsibilities are reused without a parallel
+implementation. Fixture helpers belong to the acceptance boundary and introduce
+no task-named product API or speculative production extension mechanism. All
+applicable local native, real-GUI, privacy and export evidence is recorded in
+[quickstart §2.5](quickstart.md#25-t005-dirty-and-changing-document-evidence-2026-09-27).
+
 ## Project Structure
 
 ### Documentation (this feature)
