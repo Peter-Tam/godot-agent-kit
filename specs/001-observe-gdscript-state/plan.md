@@ -175,6 +175,44 @@ no task-named product API or speculative production extension mechanism. All
 applicable local native, real-GUI, privacy and export evidence is recorded in
 [quickstart §2.5](quickstart.md#25-t005-dirty-and-changing-document-evidence-2026-09-27).
 
+### T006 implementation compliance
+
+T006 covers US3's source-bearing session selection and interruption behavior.
+I/II/IV/VII require every retained D/R/B/dirty fact to keep its original
+request/project/session/document attribution. Known loss invalidates live
+currency; failed or absent final rechecks cannot produce complete/not-open
+success. No replacement session, automatic observation retry, forced editor
+action, or second classification model is permitted.
+
+V/X/XII retain mutual authentication before unique selection and source access,
+private bounded metadata, project-confined D, source-free denial/ambiguity,
+bounded frames and a caller deadline independent of the editor/worker. Fault
+injection belongs only to owned fixtures; it may interrupt or withhold evidence,
+never manufacture positive R/B/dirty facts or expose a production bypass.
+VI/VIII require real GUI provenance/partial-stage evidence, independently
+witnessed human-state preservation, and renewed production-export exclusion.
+
+The shared routing, bridge, worker and GUI-runner infrastructure keeps its
+responsibility-based ownership; no feature/task identifier enters product APIs
+or wire fields. Observation-specific assertions remain in the existing acceptance
+driver. No dependency, product operation, schema version, or support claim is
+added. The protected workflow exposes named groups under its unchanged reviewed
+main/environment gate, not automatic privileged PR execution.
+
+Mutation A–E and applied-edit durability remain inapplicable: this task applies
+no mutation and claims no product UndoRedo. T007/T008 and roadmap Phase 1 exit
+gates remain pending. Completion requires the task's native, actual GUI,
+privacy, and export evidence; workflow configuration alone is not executed CI.
+
+Implementation review: no production change or duplicate session/security/worker
+infrastructure was needed. Native transition tests remain beside their durable
+boundaries; the observation-specific multi-editor oracle stays in the shared
+observation driver. Negative fixture controls add no product extension mechanism.
+Names/ownership remain responsibility-based, with no speculative generalization.
+All required local native, US3 GUI, privacy and export checks pass; exact scope,
+timings and the remaining full-feature/CI gates are recorded in
+[quickstart §2.6](quickstart.md#26-t006-routing-and-interruption-evidence-2026-09-27).
+
 ## Project Structure
 
 ### Documentation (this feature)

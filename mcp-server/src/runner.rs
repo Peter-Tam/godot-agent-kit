@@ -809,6 +809,52 @@ mod tests {
         let outcome = supervise(parent, worker, request(), clock, &AtomicBool::new(false)).unwrap();
         assert_eq!(outcome.outcome(), OutcomeKind::Timeout);
     }
+    #[test]
+    fn queued_evidence_after_terminal_loss_cannot_upgrade_an_attributed_snapshot() {
+        let clock = AttemptClock::start();
+        let (parent, mut peer, worker) = blocked();
+        let (target, sample) = selected_sample();
+        for event in [
+            Event::Selected(target),
+            Event::Sample(Box::new(sample)),
+            Event::Disk(
+                SourceObservation::unavailable(Authority::D, SourceReason::DiskMissing).unwrap(),
+            ),
+            Event::Failed(failure(
+                OutcomeKind::DisconnectedEditor,
+                DiagnosticCode::SessionEnded,
+                Stage::Recheck,
+            )),
+            // Already queued in the socket, but never validated or retained.
+            Event::Rechecked(Recheck::performed(vec![])),
+            Event::DiskChecked(vec![]),
+            Event::Done,
+        ] {
+            send_event(&mut peer, &event, request().request_id()).unwrap();
+        }
+        let outcome = supervise(parent, worker, request(), clock, &AtomicBool::new(false)).unwrap();
+        assert_eq!(outcome.outcome(), OutcomeKind::DisconnectedEditor);
+        let snapshot = outcome.snapshot().unwrap();
+        assert_eq!(snapshot.consistency().checks(), Checks::Unavailable);
+        assert_eq!(
+            snapshot.consistency().recheck_reason(),
+            Some(RecheckReason::SessionEnded)
+        );
+        assert!(snapshot.sources().resource().text().is_none());
+        assert_eq!(
+            snapshot
+                .sources()
+                .resource()
+                .invalidated_evidence()
+                .unwrap()
+                .text(),
+            "R evidence"
+        );
+        assert_eq!(
+            snapshot.sources().disk().reason(),
+            Some(SourceReason::DiskMissing)
+        );
+    }
     fn selected_sample() -> (ResolvedTarget, EditorSample) {
         // Boundary evidence only, not a Godot observability oracle.
         let session = SessionId::new("00112233445566778899aabbccddeeff").unwrap();
@@ -951,5 +997,125 @@ mod tests {
                 .text(),
             "B evidence"
         );
+    }
+    #[test]
+    fn selected_lifetime_loss_at_each_validated_stage_never_claims_live_completion() {
+        let disk = || {
+            SourceObservation::observed(
+                Authority::D,
+                "D evidence".into(),
+                CollectionStamp::new(
+                    ClockId::Caller,
+                    DecimalCounter::new("0").unwrap(),
+                    DecimalCounter::new("0").unwrap(),
+                    0,
+                )
+                .unwrap(),
+                Witness::new(
+                    request().script_path().clone(),
+                    None,
+                    None,
+                    None,
+                    Some(FileIdentity::new(
+                        DecimalCounter::new("3").unwrap(),
+                        DecimalCounter::new("4").unwrap(),
+                    )),
+                    None,
+                ),
+                Staleness::unknown(),
+            )
+        };
+        // Before sample, after sample, after D, after a validated editor change,
+        // and after both checks but before Done. No stage can convert known loss
+        // into complete or a confirmed closed-document result.
+        for stage in 0..5 {
+            let clock = AttemptClock::start();
+            let (target, sample) = selected_sample();
+            let mut state = Collected::new();
+            state.accept(Event::Selected(target)).unwrap();
+            if stage >= 1 {
+                state.accept(Event::Sample(Box::new(sample))).unwrap();
+            }
+            if stage >= 2 {
+                state.accept(Event::Disk(disk())).unwrap();
+            }
+            if stage >= 3 {
+                state
+                    .accept(Event::Rechecked(Recheck::performed(vec![
+                        DetectedChange::Source(Authority::B),
+                    ])))
+                    .unwrap();
+            }
+            if stage >= 4 {
+                state.accept(Event::DiskChecked(vec![])).unwrap();
+            }
+            assert!(state
+                .accept(Event::Failed(failure(
+                    OutcomeKind::DisconnectedEditor,
+                    DiagnosticCode::SessionEnded,
+                    if stage == 0 {
+                        Stage::ReadEditor
+                    } else {
+                        Stage::Recheck
+                    },
+                )))
+                .unwrap());
+            let outcome = state.finish(request(), clock).unwrap();
+            assert_eq!(
+                outcome.outcome(),
+                OutcomeKind::DisconnectedEditor,
+                "stage {stage}"
+            );
+            assert_eq!(
+                outcome.resolved_target().unwrap().session_id().as_str(),
+                "00112233445566778899aabbccddeeff"
+            );
+            if stage == 0 {
+                assert!(outcome.snapshot().is_none());
+                continue;
+            }
+            let snapshot = outcome.snapshot().unwrap();
+            assert_eq!(
+                snapshot.sources().disk().text(),
+                (stage >= 2).then_some("D evidence"),
+                "stage {stage}"
+            );
+            assert_eq!(snapshot.sources().resource().text(), None, "stage {stage}");
+            assert_eq!(snapshot.sources().buffer().text(), None, "stage {stage}");
+            assert_eq!(
+                snapshot
+                    .sources()
+                    .resource()
+                    .invalidated_evidence()
+                    .unwrap()
+                    .text(),
+                "R evidence"
+            );
+            assert_eq!(
+                snapshot
+                    .sources()
+                    .buffer()
+                    .invalidated_evidence()
+                    .unwrap()
+                    .text(),
+                "B evidence"
+            );
+            assert_eq!(
+                snapshot.comparisons().disk_resource(),
+                crate::observation::Comparison::Unknown
+            );
+            assert_eq!(snapshot.document().open_state().value(), None);
+            assert!(snapshot
+                .consistency()
+                .detected_changes()
+                .contains(&DetectedChange::SessionEnded));
+            if stage == 3 {
+                assert_eq!(snapshot.consistency().checks(), Checks::Unavailable);
+                assert!(snapshot
+                    .consistency()
+                    .detected_changes()
+                    .contains(&DetectedChange::Source(Authority::B)));
+            }
+        }
     }
 }

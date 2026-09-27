@@ -298,6 +298,49 @@ still requires actual trusted GUI CI before support is advertised. See
 [quickstart §2.5](quickstart.md#25-t005-dirty-and-changing-document-evidence-2026-09-27)
 for counts, timing, the closure regression and explicit visual-evidence limits.
 
+### T006 routing and interruption provenance (2026-09-27)
+
+T006 changes no production API/protocol, dependency, feature, toolchain or
+package version. The tracked lockfile remains SHA-256
+`dbba0e851819c51a4623e1b58b8cf7d583ff6ac372b66ea7e9f07b366db02fe1`;
+T002's license/provenance/advisory review covers that unchanged graph. No new
+advisory audit or additional-platform support is claimed.
+
+The exercised tools are Rust/Cargo 1.98.1, Python 3.10.9, Actionlint 1.7.12
+and exact Godot `4.7.2.stable.official.ed1daf0bf`, full engine hash
+`ed1daf0bf001b61586d9930840f2f1394092c079`, on macOS 26.6.2 arm64.
+Fresh binary/template checksums match T002's documented official artifacts:
+Godot `c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`;
+`macos.zip` `88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`.
+The built observer SHA-256 is
+`a48dd733d318efc2d5e802f0fb03c77442965ef581ed2746daf003c71028b24a`.
+Final privacy and clean-open runs exercised driver
+`998bb8c1364dc4e0a39cdbc4054fd3f1edf7aad4e2d260458dedc47cfbc64665`;
+the four US3 runs exercised
+`636acd9c0f2f66a043eabcb90c6c20e4cf16f81cebced077a2e899dd7c31664c`.
+Each run records its own exact driver identity; the final privacy replay adds
+the namesake source markers to descriptor checks and checks the impostor's
+nonce/proof against result/log leakage.
+
+Real concurrent editors of the same project exposed distinguishable native
+Resource/CodeEdit identities and contents under separate authenticated session
+lifetimes. Fixture setup prepares those actual objects; it does not supply
+positive values through a simulated bridge. Stage barriers at pending observe
+and recheck permit deterministic loss/suspension without changing the product.
+Native parser/editor behavior can update R from B, so syntax-invalid synthetic
+B keeps the deliberately distinct routing authorities stable while getters
+still read the real objects.
+
+An unclean process stop can leave a descriptor, unlike normal plugin teardown;
+the current listener must still prove secret possession before selection.
+The live symlink-race preparation changes filesystem `ctime` by renaming the
+owned source; separate displaced/restored-file and editor witnesses distinguish
+that fixture action from observer interference. Exact deadline, privacy,
+visual/export evidence and limits are in
+[quickstart §2.6](quickstart.md#26-t006-routing-and-interruption-evidence-2026-09-27).
+This remains local development evidence, not an executed trusted GUI-CI or
+whole-feature supported-version claim.
+
 ## 5. Local bridge, session bootstrap, and confinement
 
 **Decision:** A per-editor `TCPServer` listens only on `127.0.0.1`. Choose a random high port and retry bounded bind collisions during plugin bootstrap; do not rely on undocumented port-zero behavior. The caller initializes a private registry outside the project. The addon must be explicitly enabled and receive that registry path through `GODOT_AGENT_KIT_REGISTRY`; absent/unsafe configuration disables the listener, not authentication.

@@ -1,6 +1,6 @@
 # Private Editor Observation Bridge — Version 1
 
-**Status:** T002 implements source-free bootstrap, authentication, routing, lifecycle and export isolation. T003 implements the Rust executor boundary (§8); T004 installs real observe/recheck collection (§9); T005 extends request-local attribution and invalidation (§10). This is private local integration, not MCP, a remote API, or a separate safety model. The [caller contract](observation-api.md) and [data model](../data-model.md) own user-visible semantics.
+**Status:** T002 implements source-free bootstrap, authentication, routing, lifecycle and export isolation. T003 implements the Rust executor boundary (§8); T004 installs real observe/recheck collection (§9); T005 extends request-local attribution and invalidation (§10); T006 verifies source-bearing session/loss behavior (§11). This is private local integration, not MCP, a remote API, or a separate safety model. The [caller contract](observation-api.md) and [data model](../data-model.md) own user-visible semantics.
 
 This is the initial version-1 implementation. It has no raw-token hello or legacy authentication path. No arbitrary code, object deserialization, process command, source write, Save, open/select, reload, rescan, or runtime operation is representable on the bridge.
 
@@ -305,3 +305,29 @@ the sample and reads D, immediately before the real editor recheck. Independent
 native witnesses bracket the preparation and subsequent read-only work. Negative
 collector restrictions only remove observability; they never supply fabricated
 positive source/dirty evidence and are not installed as a production capability.
+
+## 11. T006 source-bearing lifetime and interruption evidence
+
+No production operation, capability, framing, authentication or schema change
+is introduced. The existing retained authenticated channel carries real native
+R/B/dirty evidence only after unique selection. Same-project sessions with
+different actual Resource and CodeEdit contents remain distinct even when
+their project name and resource path match.
+
+The disposable fixture bridge can hold a genuine pending `observe` or `recheck`
+and publish a source-free stage event. The external driver then disables,
+terminates or suspends only its owned editor, or stops only the caller's owned
+worker. A pending recheck proves the real sample and independent D read already
+occurred; the supervisor still validates and stamps each event separately.
+Negative-only restrictions corrupt a genuine response's identity or replace
+it with malformed/oversized framing. They never supply accepted synthetic
+positive source/dirty evidence and are absent from the production addon.
+
+These cases verify EOF/loss versus silence, original partial attribution,
+unavailable rechecks, source suppression after scope denial, and rejection of
+late/wrong-session evidence. A stale advertisement cannot authenticate an
+impostor reusing an ended editor's port. Replay/reflection, changed transcript,
+capacity/expiry, unsafe metadata and secret-free traffic checks are reused
+with the source-bearing caller. Fixture material remains under the excluded
+driver tree; enabled/disabled/hook-only exports and actual app launches
+continue to exclude it. See [T006 evidence](../quickstart.md#26-t006-routing-and-interruption-evidence-2026-09-27).

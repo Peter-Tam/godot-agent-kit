@@ -1,6 +1,6 @@
 # Quickstart: Validate Live GDScript Observation
 
-**Status:** T001–T005 implement the reusable core, authenticated session boundary, bounded caller/worker, confined D, passive R/B/dirty collector, and dirty/changing-document observations. The driver implements `clean-open`, `dirty-divergent`, `dirty-unavailable`, `changing-document`, `session-boundary`, `executor-boundary`, and `export-boundary`; remaining story and cumulative groups belong to T006–T008. Evidence is recorded in §2.1–§2.5. No full-feature, mutation or supported-version claim is made.
+**Status:** T001–T006 implement and locally verify the reusable core, authenticated session boundary, bounded caller/worker, confined D, passive R/B/dirty collector, dirty/changing-document observations, and source-bearing multi-session/interruption behavior. The driver adds `routing`, `session-loss`, `deadline`, `confinement` and incremental `redaction` to the existing groups. Remaining story and cumulative acceptance belongs to T007/T008. Evidence is recorded in §2.1–§2.6. No full-feature, mutation or supported-version claim is made.
 
 This guide covers the entire observation-only specification. It does not implement the feature, derive tasks, or claim a mutation/UndoRedo/Phase 1 exit guarantee. Use the [data model](data-model.md), [caller contract](contracts/observation-api.md), and [bridge contract](contracts/bridge-protocol.md) for normative fields and outcomes instead of inferring semantics from exit status alone.
 
@@ -345,9 +345,63 @@ T005 adds no mutation, product UndoRedo capability, wire-schema change, or
 dependency. T006–T008, trusted GUI CI/support evidence and Phase 1 mutation gates
 remain open.
 
+### 2.6. T006 routing and interruption evidence (2026-09-27)
+
+Run each of `routing`, `session-loss`, `deadline`, `confinement`, and `redaction`
+with its own empty absolute mode-0700 artifact directory:
+
+```sh
+python3 godot-addon/tests/run_observation.py \
+  --godot "$GODOT" --observer "$OBSERVER" \
+  --scenario routing --artifacts "$ROUTING_ARTIFACTS"
+```
+
+Observed on macOS **26.6.2 arm64**, exact Godot
+`4.7.2.stable.official.ed1daf0bf`, full hash
+`ed1daf0bf001b61586d9930840f2f1394092c079`:
+
+| Boundary | Executed evidence |
+|---|---|
+| Native | fmt, Clippy `-D warnings`, **93 tests** (10 unit, 31 bridge/caller, 21 confinement, 31 observation contract), doctest phase, docs and library/caller build passed. No doctest cases exist. Added cases exercise real caller processes, selected lifetime/partial-stage transitions, unavailable/malformed rechecks and already-queued late events; controlled peers are not live R/B proof. |
+| Routing | **6 cases**, including bootstrap: two distinguishable same-named projects with the same script path; omitted/exact selectors; two concurrent editors of one project with different actual R/B; source-free ambiguity with the required selector; exact session provenance and no unselected source. Independent disk/native identity, source, dirty, selection, caret, version and history-availability witnesses remain unchanged. **US3.1–2.** |
+| Session loss | **9 cases**, including bootstrap: absent project/ID, disable after authentication before sample, renewed session/secret, terminate after validated sample and D, stale descriptor after unclean exit, same-project restart and ended-ID refusal. D retains its original attribution; disconnected R/B/open/dirty facts become invalidated evidence and cannot imply current agreement. **US3.3–5.** |
+| Deadline | **4 cases**, including bootstrap: suspend a connected owned editor at recheck; separately stop the owned worker after sample/D. Both return timeout with labeled partial evidence, not disconnection or complete/not-open. The worker is reaped, editors survive, and an explicit later request has fresh identity/evidence. **US3.6.** |
+| Confinement | **40 cases**, including bootstrap and reused authentication regressions: wrong/replayed/reflected proofs and changed transcripts, peer expiry/capacity, unsafe registries/descriptors/secrets, request-wide capacity, malformed/oversized frames, request/session/project mismatch, lexical/symlink denial, unresolved candidate liveness, post-sample symlink substitution, and an owned impostor rebinding the ended session's port. Rejected samples never authorize D; denial after partial collection suppresses all source. **US3.7.** |
+| Privacy | The executable incremental `redaction` group passes **24 cases**, replaying namesake/same-project source isolation, independent authentication/no-secret-on-wire checks, selected-source results and rebound-port denial. Source markers are checked in descriptors and incidental logs; secret/nonces/proofs are excluded from results/logs. This is not T008's complete privacy replay. |
+| Regression/export | `clean-open` passes **13 cases**. `export-boundary` passes **4 cases**, including enabled, disabled and hook-only ZIP/PCK inspection and actual exported-app launches. Fixture barriers/negative response restrictions remain under the excluded driver tree; no listener, descriptor or tooling dependency ships. |
+| Workflow/coverage | Actionlint and Python syntax compilation pass. Named groups are available under the unchanged protected live workflow. `--scenario all` still exits 1 naming closed/invalid, surface-limit, sequential-readonly and full redaction coverage; the incremental privacy group is not advertised as full acceptance. |
+
+Passing evidence is under `~/.t006-acceptance-qld7pjvy/`: `routing`,
+`session-loss`, `deadline`, `confinement`, `redaction-final`, `clean-open`,
+`export-boundary`, and the expected-failing `coverage-gate`.
+Every measured caller/routing request in these runs was below **4.617 seconds**;
+the source-bearing editor/worker stalls returned within **4.507 seconds**.
+Each summary records exact binary/driver hashes, selected identities, stages,
+timings, intentional synthetic results and scoped native-window screenshots.
+The routing A/C buffers and the interrupted editor's Script surface were
+visually reviewed, independently of the result assertions.
+
+The first visual attempt stopped at the locked-desktop window gate. Separate
+nonvisual diagnostic runs are explicitly marked as **not acceptance**. After
+unlocking, the unmodified entrypoints above passed with actual scoped captures.
+Fixture corrections preserve real semantics: each newly started editor is
+matched to its newly advertised ID; SIGTERM may leave stale metadata; renaming
+the owned source changes `ctime`, while its content/identity/write metadata
+and the displaced file remain protected. A parallel native-fixture port
+allocation collision was reproduced and fixed by allocating distinct atomic
+candidates. No product defect or production behavior change was established.
+
+The production API/protocol, dependencies and architecture remain unchanged.
+See the [caller semantics](contracts/observation-api.md#12-t006-source-bearing-routing-and-interruption-outcomes),
+[bridge evidence boundary](contracts/bridge-protocol.md#11-t006-source-bearing-lifetime-and-interruption-evidence),
+[constitutional review](plan.md#t006-implementation-compliance), and
+[tool provenance](research.md#t006-routing-and-interruption-provenance-2026-09-27).
+T007/T008, actual trusted GUI CI/support evidence, and Phase 1 mutation gates
+remain pending.
+
 ## 3. Fixture driver entrypoint
 
-The acceptance driver is `godot-addon/tests/run_observation.py`. T004/T005 add `clean-open` and the three US2 groups to the implemented boundary groups above; the following remains the full-feature contract, with `all` deliberately refusing incomplete coverage:
+The acceptance driver is `godot-addon/tests/run_observation.py`. T004–T006 supply the US1–US3 and boundary groups above; `redaction` is incremental. The following remains the full-feature contract, with `all` deliberately refusing incomplete coverage:
 
 ```sh
 REPO="$PWD"
@@ -432,4 +486,4 @@ A passing implementation report includes:
 - Native baseline and dependency review results; real-editor and export evidence on the declared candidate matrix. Hosted compile-only CI cannot replace GUI acceptance. Keep privileged GUI runners isolated from untrusted PR code and secrets.
 - No claim that complete observation means D/R/B convergence, clean state, permission to edit, applied mutation durability, or actual product UndoRedo support.
 
-The original planning command exercised only its bounded GUI feasibility experiment and design-artifact checks. T001–T005 evidence is recorded in §2.1–§2.5. The full product checks above remain prerequisites for later feature/support claims.
+The original planning command exercised only its bounded GUI feasibility experiment and design-artifact checks. T001–T006 evidence is recorded in §2.1–§2.6. The full product checks above remain prerequisites for later feature/support claims.
