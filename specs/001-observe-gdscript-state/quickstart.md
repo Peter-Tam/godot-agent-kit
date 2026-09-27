@@ -246,21 +246,29 @@ Those controlled peers establish boundary semantics, not GUI observability.
 #### Protected live workflow
 
 [live-editor.yml](../../.github/workflows/live-editor.yml) is manually
-dispatched from `main` with the exact reviewed dispatch SHA and one implemented
-group. Its hosted trust gate rejects another revision, missing reviewer protection,
-self-review, wildcard branch policies and a `main` tag policy. The GUI job requires
-the protected `live-editor` environment and a dedicated
-`godot-live-editor-ephemeral` macOS/ARM64 runner. Provision a clean one-job GUI
-environment with no human projects, credentials or privileged network access;
-do not register a persistent human workstation under that label.
+dispatched with the **workflow sourced from `main`** (`--ref main`) and a full
+`reviewed_sha` that identifies the code to test. That SHA may be the dispatch
+revision of `main` or the exact head of one eligible open, non-draft, unmerged,
+same-repository PR targeting `main` with a current independent APPROVED review
+for that very SHA. The hosted gate validates PR association, review
+supersession and environment configuration without checking out PR code.
+It fails closed if the required GitHub APIs cannot be read. A separate
+GitHub-enforced `live-editor` environment review blocks the GUI job. Only
+after both boundaries pass does a dedicated clean one-job macOS/ARM64
+`godot-live-editor-ephemeral` runner check out and verify that immutable SHA;
+the protected workflow always runs `--scenario all`, never a partial group.
+The GUI job inherits only `contents: read`; the hosted gate additionally
+needs `actions: read` for environment metadata and `pull-requests: read` for
+PR/review APIs. There is no privileged PR trigger, PAT, or repository/
+environment secret. Maintainers must separately configure environment
+reviewers with self-review prevention, exactly the `main` branch (no tags),
+and no administrator bypass, then provision the isolated runner. Exact
+operating instructions, permission evidence, and validation commands are in
+[shared CI and live-editor operations](../../.github/README.md). The ordinary
+hosted workflow is [ci.yml](../../.github/workflows/ci.yml).
 
-The environment must require reviewers with self-review prevented and permit only
-the `main` branch. The workflow references no repository secrets, grants only
-`contents: read`, pins checkout/upload actions to full SHAs, and does not persist
-checkout credentials. It has no PR or privileged PR trigger. Artifacts contain
-explicit synthetic evidence only. The existing native workflow remains
-[ci.yml](../../.github/workflows/ci.yml).
-
+The following is historical T004 evidence for the earlier gate, **not**
+validation of the current reviewed-PR workflow:
 Actionlint passed. A local execution of the hosted gate's Python code accepted
 the valid exact-main protection configuration and rejected six unsafe revision/
 protection variants using **simulated GitHub metadata**. This was not a CI run.

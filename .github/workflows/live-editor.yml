@@ -1,33 +1,14 @@
 name: Live editor
+run-name: Live editor at ${{ inputs.reviewed_sha }}
 
 # No PR, pull_request_target, workflow_run, or automatic self-hosted execution.
 on:
   workflow_dispatch:
     inputs:
       reviewed_sha:
-        description: Full reviewed main commit SHA (must equal the dispatch revision)
+        description: Full lowercase SHA of the dispatch main revision or an independently approved PR head
         required: true
         type: string
-      scenario:
-        description: Implemented acceptance group (not full feature acceptance)
-        required: true
-        default: clean-open
-        type: choice
-        options:
-          - clean-open
-          - dirty-divergent
-          - dirty-unavailable
-          - changing-document
-          - routing
-          - session-loss
-          - deadline
-          - confinement
-          - redaction
-          - closed-and-invalid
-          - surface-limits
-          - session-boundary
-          - executor-boundary
-          - export-boundary
 
 permissions:
   contents: read
@@ -38,43 +19,127 @@ concurrency:
 
 jobs:
   trust-gate:
-    name: Verify revision and required environment approval
-    if: github.repository == 'Peter-Tam/godot-agent-kit' && github.ref == 'refs/heads/main'
+    name: Verify reviewed revision and environment protections
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read # Read environment configuration and deployment branch policies.
+      pull-requests: read # Read commit associations, PR heads, and exact-SHA reviews.
     outputs:
       revision: ${{ steps.verify.outputs.revision }}
     steps:
       # No checkout or repository code runs before the protection check.
-      - name: Fail closed without the protected GUI environment
+      - name: Authorize only main or an independently reviewed exact PR head
         id: verify
         env:
           REVIEWED_SHA: ${{ inputs.reviewed_sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
+          from datetime import datetime
           import json
           import os
           import re
           import urllib.request
 
+          repository = "Peter-Tam/godot-agent-kit"
+          if (os.environ["GITHUB_REPOSITORY"] != repository
+                  or os.environ["GITHUB_EVENT_NAME"] != "workflow_dispatch"
+                  or os.environ["GITHUB_REF"] != "refs/heads/main"
+                  or os.environ["GITHUB_WORKFLOW_REF"] !=
+                  repository + "/.github/workflows/live-editor.yml@refs/heads/main"):
+              raise SystemExit("Only the trusted main workflow may authorize GUI execution")
           revision = os.environ["REVIEWED_SHA"]
-          if not re.fullmatch(r"[0-9a-f]{40}", revision) or revision != os.environ["GITHUB_SHA"]:
-              raise SystemExit("Dispatch must name its exact reviewed main revision")
-          base = "https://api.github.com/repos/" + os.environ["GITHUB_REPOSITORY"]
+          if not re.fullmatch(r"[0-9a-f]{40}", revision):
+              raise SystemExit("reviewed_sha must be a full lowercase 40-character commit SHA")
+          base = "https://api.github.com/repos/" + repository
           headers = {"Authorization": "Bearer " + os.environ["GH_TOKEN"],
                      "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
           def get(path):
               request = urllib.request.Request(base + path, headers=headers)
               with urllib.request.urlopen(request, timeout=20) as response:
                   return json.load(response)
+
+          def get_list(path):
+              records = []
+              for page in range(1, 101):
+                  batch = get(f"{path}?per_page=100&page={page}")
+                  if not isinstance(batch, list) or len(batch) > 100:
+                      raise SystemExit("Invalid paginated GitHub response")
+                  records.extend(batch)
+                  if len(batch) < 100:
+                      return records
+              raise SystemExit("Cannot authorize with incomplete GitHub pagination")
+
+          def identity(value):
+              if type(value) is not int or value <= 0:
+                  raise SystemExit("Missing or invalid GitHub identity")
+              return value
+
+          def eligible(pr):
+              head, target = pr["head"], pr["base"]
+              return (pr["state"] == "open" and pr["draft"] is False
+                      and pr["merged_at"] is None and target["ref"] == "main"
+                      and (target["repo"] or {}).get("full_name") == repository
+                      and (head["repo"] or {}).get("full_name") == repository
+                      and head["sha"] == revision)
+
+          def current_pr(number):
+              pr = get(f"/pulls/{number}")
+              if pr["number"] != number or not eligible(pr) or pr["merged"] is not False:
+                  raise SystemExit("PR is no longer an eligible exact head")
+              return pr
+
+          if revision != os.environ["GITHUB_SHA"]:
+              associated = get_list(f"/commits/{revision}/pulls")
+              numbers = [identity(pr["number"]) for pr in associated]
+              if len(numbers) != len(set(numbers)):
+                  raise SystemExit("Ambiguous duplicate PR association")
+              candidates = [pr for pr in associated if eligible(pr)]
+              if len(candidates) != 1:
+                  raise SystemExit("Require exactly one eligible same-repository PR head")
+              number = candidates[0]["number"]
+              pr = current_pr(number)
+              author = identity(pr["user"]["id"])
+              latest, pending, ambiguous, seen = {}, set(), set(), set()
+              for review in get_list(f"/pulls/{number}/reviews"):
+                  review_id = identity(review["id"])
+                  if review_id in seen:
+                      raise SystemExit("Ambiguous duplicate review record")
+                  seen.add(review_id)
+                  reviewer = identity(review["user"]["id"])
+                  state = review["state"]
+                  if state == "PENDING":
+                      pending.add(reviewer)
+                      continue
+                  if state not in {"APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"}:
+                      raise SystemExit("Unknown review state")
+                  submitted = datetime.strptime(review["submitted_at"], "%Y-%m-%dT%H:%M:%SZ")
+                  previous = latest.get(reviewer)
+                  if previous is None or submitted > previous[0]:
+                      latest[reviewer] = (submitted, review)
+                      ambiguous.discard(reviewer)
+                  elif submitted == previous[0]:
+                      ambiguous.add(reviewer)
+              # Reduce all states/commits first; never resurrect an older approval.
+              if not any(reviewer != author and reviewer not in pending | ambiguous
+                         and review["state"] == "APPROVED" and review["commit_id"] == revision
+                         for reviewer, (_, review) in latest.items()):
+                  raise SystemExit("Require a current independent approval of this exact SHA")
+              if identity(current_pr(number)["user"]["id"]) != author:
+                  raise SystemExit("PR identity changed during review validation")
+              print(f"Validated PR #{number} head {revision}")
+
+          # GITHUB_TOKEN actions:read supports both environment GET endpoints.
+          # GitHub itself enforces the independent approval before scheduling the GUI job.
           environment = get("/environments/live-editor")
           reviewers = [rule for rule in environment.get("protection_rules", [])
                        if rule.get("type") == "required_reviewers"]
           if not any(rule.get("reviewers") and rule.get("prevent_self_review") is True for rule in reviewers):
               raise SystemExit("live-editor requires reviewers and prevention of self-review")
           policy = environment.get("deployment_branch_policy") or {}
-          if policy.get("custom_branch_policies") is not True:
+          if policy.get("custom_branch_policies") is not True or policy.get("protected_branches") is not False:
               raise SystemExit("live-editor requires an exact main-only deployment policy")
           branches = get("/environments/live-editor/deployment-branch-policies")
           rules = branches.get("branch_policies", [])
@@ -91,37 +156,55 @@ jobs:
     # It must contain no human projects, credentials, or privileged network access.
     runs-on: [self-hosted, macOS, ARM64, godot-live-editor-ephemeral]
     environment: live-editor
-    timeout-minutes: 20
+    timeout-minutes: 180
+    env:
+      RUSTUP_AUTO_INSTALL: "0"
     steps:
       - name: Check out only the approved immutable revision
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ needs.trust-gate.outputs.revision }}
           persist-credentials: false
-      - name: Verify provisioned GUI candidate and build the caller
+      - name: Verify checked-out HEAD before executing repository code
+        env:
+          VALIDATED_REVISION: ${{ needs.trust-gate.outputs.revision }}
+        run: test "$(git rev-parse HEAD)" = "$VALIDATED_REVISION"
+      - name: Verify provisioned GUI candidate artifacts and toolchain
         working-directory: mcp-server
         run: |
           test "$(sw_vers -productVersion)" = 26.6.2
           test "$(uname -m)" = arm64
+          GODOT="$(command -v godot)"
+          test "$(shasum -a 256 "$GODOT" | cut -d ' ' -f1)" = c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf
           test "$(godot --version)" = 4.7.2.stable.official.ed1daf0bf
+          TEMPLATE="$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable/macos.zip"
+          test -f "$TEMPLATE"
+          test "$(shasum -a 256 "$TEMPLATE" | cut -d ' ' -f1)" = 88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792
           test "$(rustc --version)" = 'rustc 1.98.1 (48a229cea 2026-09-01)'
           test "$(rustc --print host-tuple)" = aarch64-apple-darwin
+          test "$(cargo --version | cut -d ' ' -f2)" = 1.98.1
+          python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else "Python >=3.10 is required")'
+      - name: Verify native baseline on the trusted GUI candidate
+        working-directory: mcp-server
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --locked
+          cargo doc --no-deps --locked
           cargo build --locked --lib --bin observe-gdscript
       - name: Exercise the real editor with independent witnesses
-        env:
-          SCENARIO: ${{ inputs.scenario }}
         run: |
           umask 077
           mkdir "$RUNNER_TEMP/observation-evidence"
           python3 godot-addon/tests/run_observation.py \
             --godot "$(command -v godot)" \
             --observer "$GITHUB_WORKSPACE/mcp-server/target/debug/observe-gdscript" \
-            --scenario "$SCENARIO" --artifacts "$RUNNER_TEMP/observation-evidence"
+            --scenario all --artifacts "$RUNNER_TEMP/observation-evidence"
       - name: Retain explicit synthetic evidence only
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: observation-${{ inputs.scenario }}-${{ github.run_id }}
+          name: observation-all-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/observation-evidence/
           if-no-files-found: error
           retention-days: 14
