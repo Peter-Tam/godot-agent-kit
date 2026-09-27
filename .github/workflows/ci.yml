@@ -5,13 +5,17 @@ on:
     branches:
       - main
     paths:
-      - .github/workflows/ci.yml
+      - .github/workflows/**
+      - .github/tests/**
+      - .github/actionlint.yaml
       - mcp-server/**
   pull_request:
     branches:
       - main
     paths:
-      - .github/workflows/ci.yml
+      - .github/workflows/**
+      - .github/tests/**
+      - .github/actionlint.yaml
       - mcp-server/**
   workflow_dispatch:
 
@@ -25,6 +29,24 @@ permissions:
 
 # Keep shared-boundary checks as jobs; expand path filters only with matching coverage.
 jobs:
+  workflow-validation:
+    name: Workflow validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: Install YAML parser
+        run: |
+          python3 -m venv "$RUNNER_TEMP/workflow-validation"
+          "$RUNNER_TEMP/workflow-validation/bin/python" -m pip install --disable-pip-version-check PyYAML==6.0.3
+      - name: Exercise trust-gate decisions and validate workflows
+        run: |
+          "$RUNNER_TEMP/workflow-validation/bin/python" -m unittest discover -s .github/tests -v
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color
+
   rust-native:
     name: Rust native
     runs-on: macos-15
