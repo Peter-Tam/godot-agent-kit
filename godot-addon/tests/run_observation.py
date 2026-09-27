@@ -31,7 +31,6 @@ VERSION = "4.7.2.stable.official.ed1daf0bf"
 ENGINE_HASH = "ed1daf0bf001b61586d9930840f2f1394092c079"
 CAPABILITIES = ("observe_gdscript", "open_enumeration", "buffer_attribution",
                 "unsaved_paths", "cached_resource_lookup")
-MISSING_GROUPS = ("sequential-readonly",)
 SOURCE_SENTINEL = b"T002_SYNTHETIC_SOURCE_ONLY"
 CAP_SENTINELS = (b"# " + b"r" * 64, b"# " + b"b" * 64, b"# " + b"d" * 64)
 SOURCE_SENTINELS = (
@@ -41,6 +40,13 @@ SOURCE_SENTINELS = (
     b"TRANSITION_RESOURCE", b"TRANSITION_DISK", b"Synthetic plain-text editor tab.",
     b"FIXTURE_BUILTIN_NATIVE_SOURCE", b"FIXTURE_COLD_UNLOADED_SOURCE",
 )
+SEQUENCE_MARKERS = (b"FIXTURE_HISTORY_FIRST", b"FIXTURE_HISTORY_SECOND")
+QUICKSTART_GROUPS = ("clean-open", "dirty-divergent", "dirty-unavailable",
+                     "changing-document", "routing", "session-loss", "deadline",
+                     "confinement", "closed-and-invalid", "surface-limits",
+                     "sequential-readonly", "redaction", "export-boundary")
+REDACTION_REPLAY = QUICKSTART_GROUPS[:11]
+BOUNDARY_GROUPS = ("session-boundary", "executor-boundary")
 ROUTE_MARKERS = (b"ROUTE_PROJECT_A", b"ROUTE_PROJECT_B", b"ROUTE_RESOURCE_A",
                  b"ROUTE_RESOURCE_B", b"ROUTE_RESOURCE_C", b"ROUTE_BUFFER_A",
                  b"ROUTE_BUFFER_B", b"ROUTE_BUFFER_C")
@@ -226,9 +232,22 @@ fn main() {
 WINDOW_SOURCE = r'''
 import Foundation
 import CoreGraphics
+import AppKit
 let pid = Int(CommandLine.arguments[1])!
+// Present only the owned fixture process; Godot focus alone may leave an
+// earlier editor hidden when several owned sessions share the application.
+guard let application = NSRunningApplication(processIdentifier: pid_t(pid)) else { exit(2) }
+application.unhide()
+application.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
 let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
-let owned = windows.filter { ($0[kCGWindowOwnerPID as String] as? Int) == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }
+let owned = windows.filter {
+    guard ($0[kCGWindowOwnerPID as String] as? Int) == pid,
+          ($0[kCGWindowLayer as String] as? Int) == 0,
+          let bounds = $0[kCGWindowBounds as String] as? [String: Any],
+          let width = bounds["Width"] as? Double,
+          let height = bounds["Height"] as? Double else { return false }
+    return width > 100 && height > 100
+}
 if let window = owned.first, let number = window[kCGWindowNumber as String] as? Int { print(number) } else { exit(2) }
 '''
 
@@ -246,22 +265,26 @@ class Harness:
         self.counter = 0
         self.probe = work / "route-probe"
         self.window_probe = work / "owned-window"
+        template = (Path.home() / "Library" / "Application Support" / "Godot" /
+                    "export_templates" / "4.7.2.stable" / "macos.zip")
         self.summary = {"scenario": args.scenario, "cases": self.cases,
-                        "source_observation": args.scenario in ("clean-open", "executor-boundary",
-                            "dirty-divergent", "dirty-unavailable", "changing-document",
-                            "routing", "session-loss", "deadline", "confinement", "redaction",
-                            "closed-and-invalid", "surface-limits"),
-                        "support_claim": False,
-                        "coverage_scope": "incremental" if args.scenario == "redaction"
-                                          else "selected_group",
+                        "groups": {}, "source_observation": args.scenario not in
+                        ("export-boundary", "session-boundary"),
+                        "support_claim": False, "coverage_scope": "complete_groups" if args.scenario == "all"
+                        else "selected_group",
                         "host": {"os": platform.mac_ver()[0], "arch": platform.machine()},
                         "godot_sha256": digest(args.godot),
                         "observer_sha256": digest(args.observer),
                         "driver_sha256": digest(Path(__file__)),
-                        "lockfile_sha256": digest(REPO / "mcp-server" / "Cargo.lock")}
+                        "fixture_driver_sha256": digest(FIXTURE / "fixture_driver.gd"),
+                        "fixture_files": {str(path.relative_to(FIXTURE)): digest(path) for path in
+                                          sorted(FIXTURE.rglob("*")) if path.is_file()},
+                        "lockfile_sha256": digest(REPO / "mcp-server" / "Cargo.lock"),
+                        "macos_template_sha256": digest(template) if template.is_file() else None}
 
     def safe_log(self, name, payload):
-        require(all(marker not in payload for marker in (*SOURCE_SENTINELS, *self.source_markers)),
+        require(all(marker not in payload for marker in
+                    (*SOURCE_SENTINELS, *SEQUENCE_MARKERS, *self.source_markers)),
                 "redaction_source_" + name)
         for value in self.secrets:
             require(value not in payload, "redaction_authentication_" + name)
@@ -270,12 +293,58 @@ class Harness:
     def case(self, name, **evidence):
         self.cases.append({"case": name, "status": "passed", "source_surfaces": "not_acquired", **evidence})
 
+    def group(self, name, operation):
+        start = len(self.cases)
+        first_editor = len(self.editors)
+        parent_work, parent_artifacts = self.work, self.artifacts
+        self.work, self.artifacts = parent_work / name, parent_artifacts / name
+        self.work.mkdir(mode=0o700)
+        self.artifacts.mkdir(mode=0o700)
+        artifact_directory = str(self.artifacts.relative_to(self.args.artifacts))
+        try:
+            operation()
+        finally:
+            try:
+                for editor in reversed(self.editors[first_editor:]):
+                    if not editor["stream"].closed:
+                        self.close_editor(editor)
+                del self.editors[first_editor:]
+                # All descriptors belong to this private registry; no group
+                # editor remains live. Stale metadata was tested before teardown.
+                for descriptor in self.registry.glob("*.json"):
+                    descriptor.unlink()
+            finally:
+                for case in self.cases[start:]:
+                    case.setdefault("artifact_directory", artifact_directory)
+                self.work, self.artifacts = parent_work, parent_artifacts
+        cases = self.cases[start:]
+        require(bool(cases) and all(case["status"] == "passed" for case in cases),
+                "group_without_proven_cases_" + name)
+        self.summary["groups"][name] = {
+            "artifact_directory": artifact_directory,
+            "case_count": len(cases), "case_names": [case["case"] for case in cases]}
+
+    def verify_incidental_redaction(self):
+        for path in self.artifacts.rglob("*"):
+            if path.suffix not in (".json", ".stderr", ".log"):
+                continue
+            payload = path.read_bytes()
+            require(all(secret not in payload for secret in self.secrets),
+                    "final_artifact_secret_redaction_" + path.name)
+            if path.name == "bootstrap.json" or path.suffix in (".stderr", ".log"):
+                require(all(marker not in payload for marker in
+                            (*SOURCE_SENTINELS, *SEQUENCE_MARKERS, *self.source_markers)),
+                        "final_incidental_source_redaction_" + path.name)
+
     def initialize(self):
         version = run([self.args.godot, "--version"])
         require(version.returncode == 0 and version.stdout.decode().strip() == VERSION, "exact_godot_version")
         require(platform.system() == "Darwin" and platform.machine() == "arm64", "candidate_platform")
         self.summary["godot_version"] = VERSION
         self.summary["engine_hash"] = ENGINE_HASH
+        if self.args.scenario in ("all", "export-boundary"):
+            require(self.summary["macos_template_sha256"] is not None,
+                    "exact_macos_export_template_missing")
         result = run([self.args.observer, "init-registry", "--registry", self.registry])
         require(result.returncode == 0, "init_registry")
         require(stat.S_IMODE(self.registry.stat().st_mode) == 0o700, "private_registry")
@@ -288,6 +357,9 @@ class Harness:
         self.case("bootstrap_help_version", registry_mode="0700")
 
     def compile_probes(self):
+        if self.probe.is_file():
+            self.compile_window_probe()
+            return
         source = self.work / "route-probe.rs"
         source.write_text(PROBE_SOURCE)
         debug = self.args.observer.parent
@@ -302,6 +374,8 @@ class Harness:
         self.compile_window_probe()
 
     def compile_window_probe(self):
+        if self.window_probe.is_file():
+            return
         swift = self.work / "owned-window.swift"
         swift.write_text(WINDOW_SOURCE)
         result = run(["swiftc", swift, "-o", self.window_probe], timeout=120)
@@ -611,7 +685,7 @@ class Harness:
                 "caller_result_fields_" + name)
         diagnostics = json.dumps(result["diagnostics"], ensure_ascii=False).encode()
         require(all(marker not in diagnostics for marker in
-                    (*SOURCE_SENTINELS, *self.source_markers)) and
+                    (*SOURCE_SENTINELS, *SEQUENCE_MARKERS, *self.source_markers)) and
                 all(secret not in diagnostics for secret in self.secrets),
                 "source_free_diagnostics_" + name)
         if result["snapshot"] is None:
@@ -1023,6 +1097,183 @@ class Harness:
         self.cases[-1].update(screenshot=shot, evidence=name + "-witness.json",
                               disk_sha256=disk_before["sha256"])
         return result, disk_before, before, disk_after, after, transition
+
+    def sequential_readonly(self):
+        self.compile_window_probe()
+        clean, clean_editor, clean_id, _ = self.controlled_editor("sequence-clean")
+        dirty, dirty_editor, dirty_id, _ = self.controlled_editor("sequence-dirty")
+        self.action(dirty_editor, "dirty_subject")
+        history = self.action(dirty_editor, "seed_sequence_history")["history"]
+        require(history["initial"] != history["first"] != history["second"],
+                "sequence_history_distinct_prior_edits")
+        closed = self.fixture("sequence-closed")
+        closed_editor = self.start_editor(closed)
+        closed_id = wait_for(lambda: self.descriptors(closed), "sequence_closed_advertisement")[0]
+        self.action(closed_editor, "cache_subject")
+        (closed / "scripts" / "cold.gd").write_text("extends RefCounted\n# FIXTURE_COLD_UNLOADED_SOURCE\n")
+        shots = {phase: self.screenshot(editor, "sequence-" + phase + ".png")
+                 for phase, editor in (("clean", clean_editor), ("dirty", dirty_editor),
+                                       ("closed", closed_editor))}
+        previous = None
+        last_collection = {}
+        requests = []
+
+        def attempt(phase, project, editor, descriptor, target, selected, dirty_state):
+            nonlocal previous
+            name = "sequence_%02d_%s" % (len(requests) + 1, phase)
+            script = "res://scripts/" + target
+            files = sorted(path for path in (project / "scripts").iterdir() if path.is_file())
+            files.append(project / "container.tscn")
+            before_disk = {str(path.relative_to(project)): disk_witness(path) for path in files}
+            disk = before_disk["scripts/" + target]
+            before = self.action(editor, "witness")
+            doc = before["subject"] if target == "subject.gd" else before["other"]
+            require((before["current_script"] == script) == selected and
+                    (doc["associated"] and doc["dirty"] == dirty_state if phase != "closed"
+                     else script not in before["open_paths"] and not doc["associated"] and
+                     script not in before["unsaved_paths"]),
+                    "sequence_native_preparation_" + name)
+            result = self.observe(project, "not_open" if phase == "closed" else
+                                  "complete_observation", 0, session=descriptor["session_id"],
+                                  script=script, name=name)
+            after = self.action(editor, "witness")
+            after_disk = {str(path.relative_to(project)): disk_witness(path) for path in files}
+            evidence = name + "-witness.json"
+            json_file(self.artifacts / evidence, {"phase": phase, "before_disk": before_disk,
+                "before": before, "result": result, "after": after, "after_disk": after_disk})
+            require(before == after and before_disk == after_disk,
+                    "sequence_observer_noninterference_" + name)
+            snapshot = result["snapshot"]
+            source = snapshot["sources"]
+            require(snapshot["target"] == result["resolved_target"] and
+                    snapshot["target"]["project_root"] == str(project.resolve()) and
+                    snapshot["target"]["session_id"] == descriptor["session_id"] and
+                    snapshot["target"]["script_path"] == script and
+                    snapshot["document"]["validity"]["value"] == "valid" and
+                    source["D"]["availability"] == "observed" and
+                    source["D"]["text"] == disk["text"] and
+                    source["D"]["witness"]["disk_file_id"] ==
+                    {"device": disk["device"], "inode": disk["inode"]} and
+                    snapshot["consistency"]["checks"] == "performed" and
+                    snapshot["consistency"]["detected_changes"] == [] and
+                    result["selection"] is None and
+                    result["interval"]["started_unix_ms"] <= result["interval"]["finished_unix_ms"],
+                    "sequence_independent_disk_and_identity_" + name)
+            if phase != "closed":
+                if target == "subject.gd":
+                    self.compare_snapshot(result, descriptor, before, disk, project / "scripts" / target)
+                require(snapshot["document"]["open_state"]["value"] == "open" and
+                        snapshot["document"]["identity"]["resource_path"] == script and
+                        snapshot["document"]["identity"]["script_instance_id"] == doc["script_id"] and
+                        snapshot["document"]["identity"]["editor_instance_id"] == doc["editor_id"] and
+                        snapshot["document"]["identity"]["buffer_instance_id"] == doc["buffer_id"] and
+                        all(source[key]["availability"] == "observed" and
+                            source[key]["text"] == doc[key] and
+                            source[key]["invalidated_evidence"] is None for key in ("R", "B")) and
+                        source["R"]["witness"]["script_instance_id"] == doc["script_id"] and
+                        source["B"]["witness"]["editor_instance_id"] == doc["editor_id"] and
+                        source["B"]["witness"]["buffer_instance_id"] == doc["buffer_id"] and
+                        source["B"]["witness"]["source_version"] == str(doc["version"]) and
+                        snapshot["dirty"]["availability"] == "observed" and
+                        snapshot["dirty"]["state"] == ("dirty" if dirty_state else "clean") and
+                        snapshot["dirty"]["witness"]["source_version"] == str(doc["version"]) and
+                        snapshot["dirty"]["witness"]["buffer_instance_id"] == doc["buffer_id"] and
+                        snapshot["comparisons"] == {
+                            "disk_resource": "equal" if disk["text"] == doc["R"] else "different",
+                            "disk_buffer": "equal" if disk["text"] == doc["B"] else "different",
+                            "resource_buffer": "equal" if doc["R"] == doc["B"] else "different"} and
+                        snapshot["agreement"] == ("agree" if disk["text"] == doc["R"] == doc["B"]
+                                                  else "divergent"),
+                        "sequence_independent_native_open_authorities_" + name)
+            else:
+                # Native background import may cache a closed script between
+                # requests. Compare actual pre-read cache evidence, not timing.
+                prefix = "subject" if target == "subject.gd" else "cold"
+                resource_id = before[prefix + "_cached_id"]
+                cached = bool(resource_id)
+                resource = before[prefix + "_cached_R"]
+                require(snapshot["document"]["open_state"]["value"] == "not_open" and
+                        source["B"]["availability"] == "not_applicable" and
+                        snapshot["dirty"]["availability"] == "not_applicable" and
+                        snapshot["dirty"]["state"] == "not_applicable" and
+                        (source["R"]["availability"] == "observed") == cached and
+                        (source["R"]["witness"]["script_instance_id"] == resource_id
+                         if cached else True) and
+                        (source["R"]["text"] == resource if cached else
+                         source["R"]["availability"] == "unavailable" and
+                         source["R"]["reason"]["code"] == "resource_not_loaded") and
+                        (snapshot["document"]["identity"]["script_instance_id"] == resource_id
+                         if cached else True) and
+                        snapshot["comparisons"]["disk_resource"] ==
+                        (("equal" if disk["text"] == resource else "different") if cached else "unknown"),
+                        "sequence_independent_closed_native_authorities_" + name)
+            clocks = {"D": source["D"]["collection"]}
+            clocks.update({key: source[key]["collection"] for key in ("R", "B")
+                           if source[key]["availability"] == "observed"})
+            if snapshot["dirty"]["availability"] == "observed":
+                clocks["dirty"] = snapshot["dirty"]["collection"]
+            for key, stamp in clocks.items():
+                require(stamp is not None and stamp["clock_id"] ==
+                        ("caller" if key == "D" else "editor:" + descriptor["session_id"]) and
+                        0 <= int(stamp["started_tick_us"]) <= int(stamp["finished_tick_us"]) and
+                        0 <= stamp["received_elapsed_us"] <= result["interval"]["elapsed_us"],
+                        "sequence_actual_collection_" + key + "_" + name)
+                if key != "D":
+                    identity = descriptor["session_id"], key
+                    if identity in last_collection:
+                        require(int(stamp["started_tick_us"]) >
+                                int(last_collection[identity]["finished_tick_us"]),
+                                "sequence_new_native_collection_" + key + "_" + name)
+                    last_collection[identity] = stamp
+            if previous is not None:
+                require(result["request_id"] != previous["request_id"] and
+                        result["interval"]["started_unix_ms"] >=
+                        previous["interval"]["finished_unix_ms"],
+                        "sequence_distinct_request_and_interval_" + name)
+            previous = {"request_id": result["request_id"], "interval": result["interval"]}
+            requests.append({"phase": phase, "request_id": result["request_id"],
+                             "interval": result["interval"], "target": script,
+                             "selected": selected, "dirty": dirty_state, "evidence": evidence})
+            self.cases[-1].update(evidence=evidence, screenshot=shots[phase], phase=phase,
+                                  interval=result["interval"], selected=selected,
+                                  disk_sha256=disk["sha256"])
+
+        for _ in range(3):
+            attempt("clean", clean, clean_editor, clean_id, "subject.gd", True, False)
+        self.action(clean_editor, "prepare_other")
+        for _ in range(3):
+            attempt("clean", clean, clean_editor, clean_id, "subject.gd", False, False)
+        for _ in range(2):
+            attempt("dirty", dirty, dirty_editor, dirty_id, "subject.gd", True, True)
+        self.action(dirty_editor, "prepare_other")
+        self.action(dirty_editor, "dirty_other")
+        for _ in range(2):
+            attempt("dirty", dirty, dirty_editor, dirty_id, "subject.gd", False, True)
+        for _ in range(2):
+            attempt("dirty", dirty, dirty_editor, dirty_id, "other.gd", True, True)
+        self.action(dirty_editor, "prepare_subject")
+        for _ in range(2):
+            attempt("dirty", dirty, dirty_editor, dirty_id, "other.gd", False, True)
+        for target in ("subject.gd", "cold.gd") * 3:
+            attempt("closed", closed, closed_editor, closed_id, target, False, False)
+        require(len(requests) == 20 and len({row["request_id"] for row in requests}) == 20 and
+                [sum(row["phase"] == phase for row in requests) for phase in
+                 ("clean", "dirty", "closed")] == [6, 8, 6],
+                "sequence_exact_twenty_actual_observations")
+        before_replay = self.action(dirty_editor, "witness")
+        require(before_replay["subject"]["B"] == history["first"] and
+                before_replay["subject"]["has_redo"], "sequence_original_redo_preserved")
+        replay = self.action(dirty_editor, "replay_sequence_history")
+        require(replay["before"] == before_replay["subject"] and
+                [step["text"] for step in replay["steps"]] ==
+                [history["second"], history["first"], history["initial"], history["first"]] and
+                replay["after"]["B"] == history["first"] and replay["steps"][-1]["has_redo"],
+                "sequence_fixture_native_history_reproduced")
+        json_file(self.artifacts / "sequence-history-replay.json", {
+            "known_prior_history": history, "before": before_replay,
+            "native_replay": replay, "requests": requests})
+        self.case("sequence_native_prior_history_replayed", source_surfaces="fixture_only",
+                  evidence="sequence-history-replay.json", observations=len(requests))
 
     def dirty_divergent(self):
         self.compile_window_probe()
@@ -2360,24 +2611,36 @@ class Harness:
         wait_for(lambda: not self.descriptors(project), "confinement_ended_session_cleanup")
         self.rebound_port(project, descriptor, source_bearing=True)
 
-    def redaction(self):
-        # Incremental privacy gate for the selected/unselected routing and
-        # authentication paths; not T008's complete replay/privacy matrix.
-        self.routing()
-        # Include T007's real native closed/built-in/limit authorities and
-        # source-free refusals in the incremental sentinel inspection.
-        self.closed_and_invalid()
-        self.surface_limits()
-        project, editor, descriptor, path = self.controlled_editor("redaction-auth")
-        self.authentication_cases(descriptor, editor)
-        before = self.action(editor, "witness")
-        result = self.observe(project, "complete_observation", 0,
-                              session=descriptor["session_id"], name="redaction_selected")
-        self.compare_snapshot(result, descriptor, before, disk_witness(path), path)
-        require(before == self.action(editor, "witness"), "redaction_read_only")
-        self.close_editor(editor)
-        wait_for(lambda: not self.descriptors(project), "redaction_auth_ended")
-        self.rebound_port(project, descriptor, source_bearing=True)
+    def redaction(self, *, replay=True):
+        if replay:
+            for name in REDACTION_REPLAY:
+                self.group(name, getattr(self, name.replace("-", "_")))
+        require(all(name in self.summary["groups"] and
+                    self.summary["groups"][name]["case_count"] > 0
+                    for name in REDACTION_REPLAY),
+                "redaction_full_success_and_failure_replay")
+        self.summary["redaction_replay"] = {
+            "groups": {name: self.summary["groups"][name]["case_count"]
+                       for name in REDACTION_REPLAY},
+            "reused_in_all": not replay}
+        boundary_start = len(self.cases)
+        self.session_boundary()
+        self.executor_boundary()
+        self.summary["redaction_boundary_cases"] = [
+            case["case"] for case in self.cases[boundary_start:]]
+        require(bool(self.summary["redaction_boundary_cases"]),
+                "redaction_executed_session_and_executor_boundaries")
+        require(any(case["case"] == "source_bearing_rebound_impostor" and
+                    case["outcome"] == "denied_access" for case in self.cases) and
+                any(case["case"] == "same_project_ambiguity" and
+                    case["outcome"] == "ambiguous_target" for case in self.cases) and
+                any(case["case"] == "stale_descriptor_rebound_impostor" for case in self.cases) and
+                any(case["case"] == "live_reject_wrong_secret" for case in self.cases) and
+                any(case["case"] == "stalled_worker" and
+                    case["outcome"] == "timeout" for case in self.cases) and
+                any(case["case"] == "sequence_native_prior_history_replayed"
+                    for case in self.cases),
+                "redaction_real_auth_stale_endpoint_executor_and_sequence_evidence")
 
     def export_boundary(self):
         template = Path.home() / "Library" / "Application Support" / "Godot" / "export_templates" / "4.7.2.stable" / "macos.zip"
@@ -2524,7 +2787,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--godot", required=True, type=Path)
     parser.add_argument("--observer", required=True, type=Path)
-    parser.add_argument("--scenario", required=True, choices=("all", "clean-open", "session-boundary", "executor-boundary", "export-boundary", "dirty-divergent", "dirty-unavailable", "changing-document", "routing", "session-loss", "deadline", "confinement", "redaction", "closed-and-invalid", "surface-limits", *MISSING_GROUPS))
+    parser.add_argument("--scenario", required=True,
+                        choices=("all", *QUICKSTART_GROUPS, *BOUNDARY_GROUPS))
     parser.add_argument("--artifacts", required=True, type=Path)
     args = parser.parse_args()
     os.umask(0o077)
@@ -2535,47 +2799,26 @@ def main():
     metadata = args.artifacts.stat()
     require(metadata.st_uid == os.geteuid() and stat.S_IMODE(metadata.st_mode) == 0o700 and
             not list(args.artifacts.iterdir()), "empty_private_artifact_directory")
-    if args.scenario == "all" or args.scenario in MISSING_GROUPS:
-        missing = [*MISSING_GROUPS, "redaction"] if args.scenario == "all" else [args.scenario]
-        json_file(args.artifacts / "summary.json", {"status": "failed",
-                  "stage": "coverage", "missing_groups": missing,
-                  "incremental_groups": ["redaction"], "support_claim": False})
-        print("Missing coverage: " + ", ".join(missing))
-        return 1
     # Home is deliberately used instead of /tmp's symlink/writable ancestry.
     with tempfile.TemporaryDirectory(prefix=".godot-agent-kit-acceptance-", dir=Path.home()) as temporary:
         harness = Harness(args, Path(temporary))
         status = 0
         try:
             harness.initialize()
-            if args.scenario == "session-boundary":
-                harness.session_boundary()
-            elif args.scenario == "executor-boundary":
-                harness.executor_boundary()
-            elif args.scenario == "clean-open":
-                harness.clean_open()
-            elif args.scenario == "dirty-divergent":
-                harness.dirty_divergent()
-            elif args.scenario == "dirty-unavailable":
-                harness.dirty_unavailable()
-            elif args.scenario == "changing-document":
-                harness.changing_document()
-            elif args.scenario == "routing":
-                harness.routing()
-            elif args.scenario == "session-loss":
-                harness.session_loss()
-            elif args.scenario == "deadline":
-                harness.deadline()
-            elif args.scenario == "confinement":
-                harness.confinement()
-            elif args.scenario == "closed-and-invalid":
-                harness.closed_and_invalid()
-            elif args.scenario == "surface-limits":
-                harness.surface_limits()
+            if args.scenario == "all":
+                for name in REDACTION_REPLAY:
+                    harness.group(name, getattr(harness, name.replace("-", "_")))
+                harness.group("redaction", lambda: harness.redaction(replay=False))
+                harness.group("export-boundary", harness.export_boundary)
+                require(set(harness.summary["groups"]) == set(QUICKSTART_GROUPS) and
+                        all(harness.summary["groups"][name]["case_count"] > 0
+                            for name in QUICKSTART_GROUPS),
+                        "all_thirteen_quickstart_groups_exercised")
             elif args.scenario == "redaction":
-                harness.redaction()
+                harness.group("redaction", harness.redaction)
             else:
-                harness.export_boundary()
+                harness.group(args.scenario,
+                              getattr(harness, args.scenario.replace("-", "_")))
             harness.summary["status"] = "passed"
         except (Failure, OSError, ValueError, KeyError, EOFError, subprocess.SubprocessError) as error:
             status = 1
@@ -2588,6 +2831,14 @@ def main():
                 status = 1
                 harness.summary["status"] = "failed"
                 harness.summary["cleanup_stage"] = str(error) if isinstance(error, Failure) else type(error).__name__
+            if args.scenario in ("all", "redaction"):
+                try:
+                    harness.verify_incidental_redaction()
+                except (Failure, OSError) as error:
+                    status = 1
+                    harness.summary["status"] = "failed"
+                    harness.summary["redaction_stage"] = (str(error) if isinstance(error, Failure)
+                                                          else type(error).__name__)
             json_file(args.artifacts / "summary.json", harness.summary)
         print(json.dumps({"status": harness.summary["status"], "stage": harness.summary.get("stage"),
                           "passed_cases": len(harness.cases), "summary": str(args.artifacts / "summary.json")}))

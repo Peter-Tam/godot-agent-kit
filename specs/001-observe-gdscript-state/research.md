@@ -240,7 +240,7 @@ assertions. No native processing is disabled and no source limit is bypassed.
 Normal clean/empty US1 fixtures are unchanged. Visibility waits use the actual
 owned native-window condition, not a keyboard-focus assumption or fixed sleep.
 
-The new live workflow uses the existing full checkout SHA and
+The optional live workflow uses the existing full checkout SHA and
 `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02`,
 resolved from the upstream `v4.6.2` tag. Actionlint 1.7.12 validates both workflows;
 the dedicated self-hosted label is declared in `.github/actionlint.yaml`.
@@ -249,8 +249,8 @@ is checked before any GUI job is eligible. Provisioning must follow
 [GitHub's isolated, single-job runner guidance](https://docs.github.com/en/actions/reference/security/secure-use#hardening-for-self-hosted-runners).
 At implementation time the repository had **zero environments and zero registered
 runners**. No settings were changed and no trusted GUI-CI run is claimed.
-See [quickstart §2.4](quickstart.md#24-t004-clean-open-evidence-2026-09-26) for local
-behavioral evidence and the remaining CI/support boundary.
+See [quickstart §2.4](quickstart.md#24-t004-clean-open-evidence-2026-09-26) for that
+increment's local behavioral evidence and limits; dedicated GUI CI is optional.
 
 ### T005 dirty-observation and verification provenance (2026-09-27)
 
@@ -292,9 +292,9 @@ an unreadable-attribution reason rather than a false unloaded-state claim.
 The added helper scripts are copied into the already excluded
 `addons/fixture_driver/` tree in every disposable project, including all three
 export variants. Actual ZIP/PCK inspection and release-app execution confirm
-the boundary. Native tests and owned-window screenshots establish only the
-documented local development increment; the unchanged protected trust boundary
-still requires actual trusted GUI CI before support is advertised. See
+the boundary. Native tests and owned-window screenshots establish the
+documented local development increment. Whole-feature support requires the
+complete applicable native/real-editor/export evidence, not GUI-CI execution. See
 [quickstart §2.5](quickstart.md#25-t005-dirty-and-changing-document-evidence-2026-09-27)
 for counts, timing, the closure regression and explicit visual-evidence limits.
 
@@ -379,6 +379,60 @@ and limitations are in
 This is local development evidence, not executed trusted GUI CI or a complete
 supported-version matrix.
 
+### T008 cumulative dependency and compatibility review (2026-09-27)
+
+The dependency graph, package, toolchain and public version-1 contracts are
+unchanged. A fresh `cargo +1.98.1 metadata --locked --format-version 1` resolves
+one local package and **59 registry packages**, all with declared licenses and
+upstream repositories. All **59/59** downloaded registry archives independently
+match their `Cargo.lock` SHA-256 checksums. The lockfile remains
+`dbba0e851819c51a4623e1b58b8cf7d583ff6ac372b66ea7e9f07b366db02fe1`.
+The complete license/provenance inventory is the T001 table plus T002's nine
+authentication dependencies above; no new license or distribution claim is made.
+
+Fresh cargo-audit **0.22.2** reports **0 vulnerabilities, no warnings, and no
+ignored advisories** for all 60 lockfile packages against RustSec commit
+[`e2111519ba6d14a5da59a7b2e5c8083ae8a37c01`](https://github.com/RustSec/advisory-db/commit/e2111519ba6d14a5da59a7b2e5c8083ae8a37c01),
+containing 1,271 advisories. The rechecked
+[ring release notes](https://github.com/briansmith/ring/blob/main/RELEASES.md)
+still list 0.17.14 as released and 0.17.15 as TBD. T002's required ring/Unicode/LLVM
+notice obligations remain. Archive integrity and an advisory database result
+are not audits of every upstream implementation or evidence of untested platforms.
+
+The exercised official Godot executable again passes strict deep codesign
+verification and notarized Developer ID assessment, with **Prehensile Tales B.V.
+(6K46PWY5DM)** as signing identity. Its SHA-256 remains
+`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`.
+The installed official 4.7.2 `macos.zip` export template matches
+`88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`;
+its release-archive provenance is recorded in T002 above.
+
+T008 acceptance requires ordinary hosted native/workflow CI and the complete
+maintainer-operated real-editor suite on the documented real Mac. The recorded
+environment is macOS 26.6.2 arm64, Godot 4.7.2.stable.official.ed1daf0bf,
+Rust/Cargo 1.98.1 and Python 3.10.9. The hashes above identify the artifacts
+actually exercised; executable/template hash equality is not an additional
+completion gate. No useful recorded provenance is discarded.
+
+The existing protected GUI workflow is optional future automation for
+reproducing the same acceptance in CI. Its environment, self-hosted/ephemeral
+runner and exact-SHA dispatch are not Feature 001 prerequisites or the required
+basis for a support claim. If used, its security requirements remain in the
+[shared CI procedure](../../.github/README.md). Hosted compile-only checks still
+cannot establish visible-buffer behavior; the maintainer's complete real-editor
+evidence does.
+
+The complete matrix and exact artifact identities are recorded in
+[quickstart §2.8](quickstart.md#28-t008-cumulative-local-acceptance-2026-09-27);
+[§2.9](quickstart.md#29-rebased-t008-real-editor-acceptance-and-completion-2026-09-27)
+records the full post-rebase run and final evidence review. Product, harness,
+fixture and lockfile identities remain unchanged, so the recorded 194-case,
+13-group real-editor/privacy/export evidence and dependency review remain valid
+for this documentation-only correction. Together with ordinary hosted CI, that
+satisfies T008 and completes Feature 001's observation foundation. No schema,
+core ownership, product behavior, broader version/platform claim or roadmap
+Phase 1 completion is introduced.
+
 ## 5. Local bridge, session bootstrap, and confinement
 
 **Decision:** A per-editor `TCPServer` listens only on `127.0.0.1`. Choose a random high port and retry bounded bind collisions during plugin bootstrap; do not rely on undocumented port-zero behavior. The caller initializes a private registry outside the project. The addon must be explicitly enabled and receive that registry path through `GODOT_AGENT_KIT_REGISTRY`; absent/unsafe configuration disables the listener, not authentication.
@@ -415,7 +469,7 @@ The caller starts one monotonic deadline before resolution and supervises an iso
 
 **Decision:** Use Rust unit/integration tests for model invariants, routing, framing, confinement, and deadline transitions; use a separate real-Godot GUI fixture driver for all live-state claims. Its preparation actions are not addon observation operations. Python 3.10+ standard library is sufficient for the acceptance driver; no Python runtime dependency is added to the product. Test entrypoints and outcomes are defined in [quickstart.md](quickstart.md).
 
-Candidate coverage: `aarch64-apple-darwin` on macOS 15 hosted CI for native checks, plus exact-editor interactive acceptance on macOS 26.6.2 arm64, including a trusted GUI-capable CI/release runner. Do not claim either OS/editor combination supported until its applicable evidence is recorded. Pin any introduced GitHub actions to full commit SHAs, set least token permissions, and never run untrusted PR code on a privileged persistent GUI runner or with secrets.
+Candidate coverage: `aarch64-apple-darwin` on macOS 15 hosted CI for native checks, plus complete maintainer-operated real-editor acceptance on macOS 26.6.2 arm64. Record the exact environment, version and artifact provenance; support claims require the applicable native, real-editor and export evidence, not a particular CI provider or self-hosted GUI runner. Dedicated GUI CI is optional. Pin any introduced GitHub actions to full commit SHAs, set least token permissions, and never run untrusted PR code on a privileged persistent GUI runner or with secrets.
 
 Register an `EditorExportPlugin` that skips every addon-tree file. Production fixture presets also exclude the addon tree so disabling the editor plugin does not bypass exclusion. Verify both enabled and disabled pack exports, inspect artifacts, and launch the actual export to prove no listener/descriptor/tooling starts. Headless export generation is appropriate for this boundary, not proof of B. No gameplay autoload, runtime probe, npm package, signing, or distribution is added.
 

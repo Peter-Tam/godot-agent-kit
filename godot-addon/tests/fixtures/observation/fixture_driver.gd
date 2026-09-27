@@ -19,6 +19,7 @@ var _builtin_script: GDScript
 var _builtin_scene: PackedScene
 var _builtin_instance: Node
 var _prepared_subject_buffer: CodeEdit
+var _sequence_history := {}
 
 
 func _enter_tree() -> void:
@@ -128,6 +129,53 @@ func _process(_delta: float) -> void:
 				buffer.insert_text_at_caret("# FIXTURE_UNDO_HISTORY")
 				buffer.undo()
 				response.merge(_document("res://scripts/subject.gd"))
+		# Owned preparation/replay only. Observer requests never reach these actions.
+		"seed_sequence_history":
+			var doc := _document("res://scripts/subject.gd")
+			if not _sequence_history.is_empty() or not doc.get("associated", false):
+				response.ok = false
+			else:
+				var buffer := EditorInterface.get_script_editor().get_open_script_editors()[doc.index].get_base_editor() as CodeEdit
+				var initial := buffer.text
+				buffer.set_caret_line(buffer.get_line_count() - 1)
+				buffer.set_caret_column(buffer.get_line(buffer.get_caret_line()).length())
+				buffer.begin_complex_operation()
+				buffer.insert_text_at_caret("\n# FIXTURE_HISTORY_FIRST")
+				buffer.end_complex_operation()
+				var first := buffer.text
+				buffer.set_caret_line(0)
+				buffer.set_caret_column(0)
+				buffer.begin_complex_operation()
+				buffer.insert_text_at_caret("# FIXTURE_HISTORY_SECOND\n")
+				buffer.end_complex_operation()
+				var second := buffer.text
+				buffer.undo()
+				_sequence_history = {"initial": initial, "first": first, "second": second}
+				response.merge({"history": _sequence_history, "document": _document("res://scripts/subject.gd")})
+				response.ok = initial != first and first != second and buffer.text == first \
+					and buffer.has_undo() and buffer.has_redo()
+		"replay_sequence_history":
+			var doc := _document("res://scripts/subject.gd")
+			if _sequence_history.is_empty() or not doc.get("associated", false) \
+					or doc.B != _sequence_history.first or not doc.has_redo:
+				response.ok = false
+			else:
+				var buffer := EditorInterface.get_script_editor().get_open_script_editors()[doc.index].get_base_editor() as CodeEdit
+				var steps := []
+				for operation in ["redo", "undo", "undo", "redo"]:
+					if operation == "redo":
+						buffer.redo()
+					else:
+						buffer.undo()
+					steps.append({"operation": operation, "text": buffer.text,
+						"has_undo": buffer.has_undo(), "has_redo": buffer.has_redo()})
+				response.merge({"before": doc, "steps": steps,
+					"after": _document("res://scripts/subject.gd")})
+				response.ok = steps[0].text == _sequence_history.second \
+					and steps[1].text == _sequence_history.first \
+					and steps[2].text == _sequence_history.initial \
+					and steps[3].text == _sequence_history.first \
+					and steps[3].has_redo
 		"append_subject":
 			var before := _document("res://scripts/subject.gd")
 			if before.get("associated", false):
@@ -374,6 +422,7 @@ func _witness() -> Dictionary:
 		"current_script": selected.resource_path if selected != null else "",
 		"subject_cached_id": String.num_uint64(cached.get_instance_id()) if cached != null else "",
 		"cold_cached_id": String.num_uint64(cold.get_instance_id()) if cold != null else "",
+		"cold_cached_R": cold.source_code if cold != null else null,
 		"subject_cached_R": cached.source_code if cached != null else null,
 		"prepared_subject_buffer": held_buffer,
 		"builtin_cached_id": String.num_uint64(builtin.get_instance_id()) if builtin != null else "",

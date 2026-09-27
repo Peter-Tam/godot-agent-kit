@@ -1,19 +1,28 @@
-# CI and trusted live-editor operations
+# CI and optional live-editor automation
 
-These workflows are shared execution infrastructure, not Feature 001-specific release
-machinery. [ci.yml](workflows/ci.yml) runs ordinary hosted checks;
-[live-editor.yml](workflows/live-editor.yml) is a separate, manually dispatched
-trust boundary for real GUI Godot acceptance. The live workflow is sourced from
-`main` even when the **tested** `reviewed_sha` is the head of an unmerged PR.
-It has no PR, `pull_request_target`, or `workflow_run` trigger that would
-run PR code automatically on a self-hosted machine.
+These workflows are shared execution infrastructure. [ci.yml](workflows/ci.yml)
+runs the required ordinary hosted native/workflow checks.
+[live-editor.yml](workflows/live-editor.yml) is **optional future automation**
+for reproducing the same real-editor acceptance in CI, not a T008 or Feature 001
+completion prerequisite.
 
-For this solo-maintainer repository, manually dispatching the trusted workflow from `main` with an explicitly selected exact SHA is the authorization step.
+**Real-editor acceptance is mandatory; dedicated GUI CI is optional.** A
+maintainer-operated real Mac with the pinned Godot candidate, the complete
+passing `--scenario all` suite and honestly recorded environment/evidence
+satisfies the GUI requirement. Lack of a self-hosted runner does not block
+T008 when that substantive evidence and ordinary hosted CI pass. See
+[Feature 001 acceptance](../specs/001-observe-gdscript-state/quickstart.md#29-rebased-t008-real-editor-acceptance-and-completion-2026-09-27).
+
+The remaining sections describe conditions **only for choosing the optional
+self-hosted workflow**. It is sourced from `main` even when the tested
+`reviewed_sha` is an unmerged PR head, and has no PR, `pull_request_target` or
+`workflow_run` trigger for self-hosted execution. Maintainer dispatch from
+trusted `main` with the selected exact SHA authorizes that optional run.
 
 ## Establish the boundary before dispatch
 
-A repository maintainer must create the GitHub environment `live-editor` and
-configure all of the following **in GitHub**:
+If using the optional workflow, a repository maintainer must configure its
+GitHub environment `live-editor` as follows:
 
 - No deployment-reviewer rules or separate human approval step. The environment
   is a main-only execution boundary, not a two-person authorization mechanism.
@@ -26,7 +35,7 @@ configure all of the following **in GitHub**:
   the live workflow. Its hosted gate uses the automatically issued,
   short-lived `GITHUB_TOKEN` for read-only GitHub API requests.
 
-A maintainer must provision a dedicated, clean, single-job
+Only for that optional workflow, provision a dedicated, clean, single-job
 self-hosted macOS/ARM64 GUI runner with the
 `godot-live-editor-ephemeral` label. Do **not** register a persistent human
 workstation: no human projects, saved credentials, privileged network access,
@@ -102,8 +111,11 @@ APIs supply the exact-head eligibility inputs. No review API is used.
 
 ## Trusted GUI execution contract
 
-The complete-suite job has a **180-minute** timeout. Its preflight must pass
-before native builds or repository acceptance code run:
+The optional complete-suite job has a **180-minute** timeout. The checks below
+describe its existing preflight, not Feature 001 acceptance prerequisites.
+In particular, executable/template hashes remain useful recorded provenance;
+matching these historical hashes is not a T008 completion gate. This correction
+does not change the optional workflow's implementation:
 
 - macOS **26.6.2**, **arm64**.
 - Godot **4.7.2.stable.official.ed1daf0bf**; the executable resolved by
@@ -146,9 +158,10 @@ SHA=<full-lowercase-40-hex-reviewed-commit>
 gh workflow run live-editor.yml --repo Peter-Tam/godot-agent-kit --ref main -f reviewed_sha="$SHA"
 ```
 
-The maintainer checks the gate output and tested SHA; there is no separate
-environment approval. A denied gate, missing runner, or nonzero `--scenario all`
-result is not acceptance. Inspect synthetic evidence only after a real GUI run.
+For an optional CI run, inspect the gate output, tested SHA and actual synthetic
+evidence. A denied gate or missing runner means that optional run did not
+execute; a nonzero `--scenario all` result is not passing real-editor evidence.
+None replaces or invalidates valid maintainer-operated acceptance.
 
 For local/hosted workflow fixture and configuration validation (Python 3,
 PyYAML **6.0.3**, and Actionlint installed; CI pins its Actionlint Go module):
@@ -168,16 +181,12 @@ native hosted checks. This does not imply hosted product-addon coverage;
 `godot-addon/addons/**` is not included. Fixture tests and Actionlint do not
 prove an actual protected deployment or real-editor result.
 
-At the time of this correction, read-only repository API inspection found
-**zero `live-editor` environments and zero GUI runners**; maintainer
-provisioning remains outstanding. No protected GitHub GUI run has been
-performed by this change. The current `main` acceptance harness still fails
-`--scenario all` for missing coverage: this workflow must not be treated as
-a completed full-feature acceptance gate, supported Godot/platform evidence,
-or completion of T008. Constitution V's explicit execution gate and least
-privilege are preserved by maintainer dispatch from trusted `main`, read-only
-scoped credentials and isolated runner execution. VI/X
-require actual complete live-editor evidence and truthful failed/missing
-coverage, not simulated or partial success. Product protocol/editor boundaries
-and constitutional VII remain unchanged; these workflows add no product
-capabilities or mutation guarantees.
+Workflow configuration and its regression simulations do not prove live-editor
+behavior. Complete maintainer-operated real-editor evidence plus ordinary
+hosted CI can complete Feature 001 without a protected GUI-CI run. Constitutional
+VI/X and compatibility requirements preserve actual observed editor evidence,
+truthful outcomes and exact tested-environment claims; they do not require a
+particular CI provider. If this optional self-hosted workflow is used,
+Constitution V's least-privilege boundary still requires trusted dispatch,
+read-only scoped credentials and isolated execution. Product protocol/editor
+boundaries remain unchanged; no mutation or Phase 1 completion is implied.
