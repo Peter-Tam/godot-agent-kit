@@ -5,10 +5,10 @@
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
 - **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** Planning complete — design complete; implementation not started
-- **Tasks:** Not derived; implementation not started
+- **Feature state:** Tasks derived — granularity review passed; analysis pending
+- **Tasks:** 0 / 5 complete; implementation not started
 - **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
-- **Current task:** None
+- **Current task:** None — no implementation task selected
 - **Mutation A–E and edit durability:** Pending
 
 ## Roadmap status
@@ -16,7 +16,7 @@
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's native integration design is complete, with guarded document finalization and source-attributed validation contracts. Implementation, mutation A–E and durability evidence remain pending; no mutation support is claimed. |
+| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's design and five-task decomposition are complete; task-granularity review passed. Analysis, implementation, mutation A–E and durability evidence remain pending; no mutation support is claimed. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Active feature
@@ -45,12 +45,18 @@ still excludes arbitrary non-cooperating same-inode serialization while preservi
 fresh stale/dirty checks, exact identity/confinement and non-success on invalidation.
 
 `/speckit.plan` completed its design artifacts and constitutional planning check.
-No material design question remains; implementing/proving the specified APIs,
-effect guards, exact-build compatibility and A–E/durability behavior remains work.
-No task list, product implementation or engine patch was generated. Task derivation,
-granularity review, analysis and implementation are separate later steps, not
-authorized by this status transition. **Feature 002 is not implemented or complete.**
-Delivery metadata: these planning changes are carried by existing
+The subsequent [task list](specs/002-edit-open-gdscript/tasks.md) contains five
+pending PR-sized increments, with its required
+[granularity review](specs/002-edit-open-gdscript/tasks.md#granularity-review) passed.
+Three verifiable core/native foundations precede the first complete caller edit;
+US2–US4 safety and history are bundled with US1, followed by cumulative US5 acceptance.
+All 22 requirements, 26 scenarios and eight success criteria retain explicit owners.
+
+Analysis has not run, and no implementation task is selected or started.
+No product implementation, engine patch, mutation acceptance or support claim was
+produced by task generation. Reviewed-artifact/analysis and one-task/one-PR gates
+remain required. **Feature 002 is not implemented or complete.**
+Delivery metadata: design and task-generation changes are carried by existing
 [PR #24](https://github.com/Peter-Tam/godot-agent-kit/pull/24), independently of feature completion.
 
 ## Completed observation foundation

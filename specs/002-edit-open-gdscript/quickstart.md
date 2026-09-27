@@ -1,12 +1,12 @@
 # Quickstart: Verify Guarded Open-GDScript Editing
 
-**Status:** Future implementation/acceptance guide. Feature 002 planning is complete; no mutation implementation, engine patch, task list or A–E result is supplied by this design PR. Commands involving `edit-gdscript`, the native build entrypoint or `run_script_edit.py` are the planned interfaces implementation must provide, **not commands executed or currently available here**. Existing observation evidence does not establish mutation support.
+**Status:** Future implementation/acceptance guide. Feature 002's design and [task derivation](tasks.md) are complete; task-granularity review passed, but analysis and implementation have not run. No mutation implementation, engine patch or A–E result is supplied by this design/task PR. Commands involving `edit-gdscript`, the native build entrypoint or `run_script_edit.py` are the planned interfaces implementation must provide, **not commands executed or currently available here**. Existing observation evidence does not establish mutation support.
 
 Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [caller](contracts/edit-api.md), [bridge](contracts/bridge-protocol.md), [native](contracts/native-integration.md) contracts as normative semantics. Do not infer success from process exit, a save acknowledgment or the finalizer's copied fields.
 
 ## 1. Prerequisites and exact candidate
 
-- Reviewed spec/plan and the relevant approved one-task/one-PR implementation increment. Task generation, granularity review and analysis are separate later work; this guide does not authorize implement-all.
+- Reviewed spec/plan and the relevant approved one-task/one-PR implementation increment from [tasks.md](tasks.md). Task derivation and granularity review are complete; analysis and implementation remain separate later work. This guide does not authorize implement-all.
 - Owned GUI macOS **26.6.2 arm64** fixture environment, with visible Script Editor/CodeEdit and permission to capture only its owned window. No real developer project content.
 - Patched development editor based on Godot **4.7.2**, exact commit `ed1daf0bf001b61586d9930840f2f1394092c079`, implementing native API family revision **1**, plus matching C++17 GDExtension. Record actual custom version, patch/native build IDs and artifacts; the official stock binary does not contain the new APIs.
 - Existing Rust **1.98.1** with rustfmt/clippy and tracked lockfile; Apple command-line C++ toolchain/SDK; Python **3.10+**. Record actual native build-tool versions and provenance. Build engine APIs with the pinned engine's normal build system, not a new distribution service.
@@ -156,7 +156,7 @@ Completion requires every positive/refusal/partial case, all A–E, applicable d
 
 ## 8. Planning-only verification boundary
 
-For this continuation, resolve the feature directory through the installed helper with the verified override:
+The following command records the earlier plan-generation path check. Subsequent task generation and its granularity review are recorded in [tasks.md](tasks.md); neither workflow establishes product/runtime acceptance. Resolve the feature directory through the installed helper with the verified override:
 
 ```sh
 SPECIFY_FEATURE_DIRECTORY="$PWD/specs/002-edit-open-gdscript" \
