@@ -5,7 +5,7 @@
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
 - **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** Specification draft — quality-validated; planning not started
+- **Feature state:** Planning blocked — persistence-safety gate failed during Phase 0 research
 - **Tasks:** Not derived; implementation not started
 - **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
 - **Current task:** None
@@ -16,7 +16,7 @@
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001's observation foundation is complete. Feature 002's open-script editing specification is drafted and quality-validated; mutation A–E and edit durability gates remain pending. |
+| 1 — Live-editor script coherence | In progress | Feature 001's observation foundation is complete. Feature 002 planning is blocked on a safe target-bound persistence design; mutation A–E and edit durability gates remain pending. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Active feature
@@ -25,8 +25,14 @@ Feature 002's [specification](specs/002-edit-open-gdscript/spec.md) and
 [requirements-quality checklist](specs/002-edit-open-gdscript/checklists/requirements.md)
 define a one-script, already-open editing capability with stale-write protection,
 independently verified D/R/B convergence, native Undo/Redo, and durability.
-The specification is a draft ready for planning; no plan, task list, or implementation
-was created. No mutation acceptance gate or support claim is established by this draft.
+Planning is [blocked at the Phase 0 persistence-safety gate](specs/002-edit-open-gdscript/plan.md).
+The [research record](specs/002-edit-open-gdscript/research.md) includes actual native
+text/history feasibility and negative Save All/path-redirection evidence. No complete
+implementation plan, data model, mutation contracts, quickstart, task list, or product
+implementation was produced. No mutation acceptance gate or support claim is established.
+Planning may resume only after focused research establishes both target-bound
+single-script persistence and source-attributed parse evidence without weakening
+safety. No implementation or task generation is authorized while these gaps remain.
 
 ## Completed observation foundation
 
