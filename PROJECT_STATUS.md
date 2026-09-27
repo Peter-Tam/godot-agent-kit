@@ -5,7 +5,7 @@
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
 - **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** Planning blocked — persistence-safety gate failed during Phase 0 research
+- **Feature state:** Planning blocked — Outcome 2: partial mechanisms, no complete safe mutation route
 - **Tasks:** Not derived; implementation not started
 - **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
 - **Current task:** None
@@ -16,7 +16,7 @@
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001's observation foundation is complete. Feature 002 planning is blocked on a safe target-bound persistence design; mutation A–E and edit durability gates remain pending. |
+| 1 — Live-editor script coherence | In progress | Feature 001's observation foundation is complete. Feature 002's focused A/B research found no complete safe route through the examined public Godot 4.7.2 APIs; planning and mutation A–E/durability gates remain pending. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Active feature
@@ -26,13 +26,15 @@ Feature 002's [specification](specs/002-edit-open-gdscript/spec.md) and
 define a one-script, already-open editing capability with stale-write protection,
 independently verified D/R/B convergence, native Undo/Redo, and durability.
 Planning is [blocked at the Phase 0 persistence-safety gate](specs/002-edit-open-gdscript/plan.md).
-The [research record](specs/002-edit-open-gdscript/research.md) includes actual native
-text/history feasibility and negative Save All/path-redirection evidence. No complete
-implementation plan, data model, mutation contracts, quickstart, task list, or product
-implementation was produced. No mutation acceptance gate or support claim is established.
-Planning may resume only after focused research establishes both target-bound
-single-script persistence and source-attributed parse evidence without weakening
-safety. No implementation or task generation is authorized while these gaps remain.
+The [focused A/B research outcome](specs/002-edit-open-gdscript/research.md#8-focused-ab-continuation-and-decision)
+records no qualifying public target-bound save route and only bounded reload-attempt
+evidence, not general fresh parse success. Omitted-path saving overwrote a replacement
+document; reload probes exposed static execution and reentrant success without parsing.
+No independently useful safe mutation narrowing was established; the specification is unchanged.
+Planning may resume only when both required guarantees are established without weakening safety.
+No complete implementation plan, data model, mutation contracts, quickstart, task list,
+or implementation was produced; no mutation acceptance or support claim is established.
+No implementation or task generation is authorized while planning is blocked.
 
 ## Completed observation foundation
 

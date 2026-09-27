@@ -6,7 +6,7 @@
 
 **Status: ERROR — planning blocked at the Phase 0 persistence-safety gate.** This is a research/gate record, not a completed or approved implementation design. Phase 1 has not started. Do not derive tasks or implement against this document.
 
-**Resume prerequisite:** Answer both focused Phase 0 questions: **A — target-bound single-script persistence** that preserves the validated target/revision and unrelated human dirty work; **B — parse evidence attributable to the selected target, resulting source/revision, and observation interval**. Planning may resume only if the answers establish a constitutionally safe route; otherwise record the unsupported requirement and keep the gate blocked. Do not generate tasks or downstream design artifacts to conceal either gap.
+**Resume prerequisite:** Focused Phase 0 questions A and B have been investigated, but the required guarantees are not established. **A:** no qualifying target-bound single-script persistence route was found among the examined public Godot 4.7.2 APIs. **B:** source-correlated reload-attempt evidence is observable, not a general fresh parse-success witness. Planning may resume only when concrete evidence establishes both required guarantees without weakening safety; no task generation or downstream design artifacts are authorized in the meantime.
 
 ## Summary
 
@@ -19,6 +19,10 @@ The required capability remains one revision-guarded, native edit of an existing
 - `ScriptEditor.save_all_scripts()` saved the unrelated dirty fixture document. It cannot meet the target-only requirement.
 - After a controlled project-directory replacement, the path-based ResourceSaver candidate followed a symlink and overwrote an owned outside-project sentinel while returning `OK`. A read-time pathname check and post-write observation do not bind/prevent that write.
 - A valid target returned `OK` from `Script.reload(true)` in the fixture. A general source-attributed parse/diagnostic path and its side effects are not established by that single result.
+- The [focused continuation](research.md#8-focused-ab-continuation-and-decision) rejected omitted-path `ResourceSaver.save(script)` too: the same already-loaded Resource overwrote a replacement file at its stored path while reporting `OK`.
+- Actual language/editor bindings expose no directly callable source-validator result for the current GDScript addon. Eight new top-level reload attempts and a nested call demonstrated error-code ambiguity, stale validity predicates, static-initialization effects with `keep_state=true`, and reentrant `OK` without a parse.
+
+**Decision: Outcome 2 — partial mechanisms only.** The focused research is recorded, but no complete safe mutation route or independently useful, constitutionally consistent mutation narrowing was established. The specification is unchanged, and `/speckit.plan` is not resumed.
 
 The plan does not substitute a refusal-only feature, weaken confinement or human-work protection, or name a hypothetical safe-save abstraction as though it were implemented/proven. The missing persistence design is a prerequisite to finalizing its transaction model and contracts.
 
@@ -26,7 +30,7 @@ The plan does not substitute a refusal-only feature, weaken confinement or human
 
 **Language/Version**: Retain existing Rust **1.98.1**, edition **2021**, and GDScript. The inspected native candidate is Godot **4.7.2.stable.official.ed1daf0bf**, full hash `ed1daf0bf001b61586d9930840f2f1394092c079`. Python standard-library orchestration was used only for disposable research. No mutation support claim is earned.
 
-**Primary Dependencies**: Existing `serde =1.0.229` with derive, `serde_json =1.0.151`, `cap-std =4.0.3` without default features, and `ring =0.17.14` without default features and with `std`; Rust standard library and public Godot APIs. No new dependency or lockfile change. **NEEDS CLARIFICATION (technical research):** a concrete native/alternative persistence integration that binds the actual write to the selected target and expected revision, preserves newer work, and retains native editor semantics. Neither tested save route is selected.
+**Primary Dependencies**: Existing `serde =1.0.229` with derive, `serde_json =1.0.151`, `cap-std =4.0.3` without default features, and `ring =0.17.14` without default features and with `std`; Rust standard library and public Godot APIs. No new dependency or lockfile change. **Blocked capability:** none of the examined public save routes binds the actual write to the validated filesystem target and expected revision. A stored Resource path/UID and pre/post checks do not supply that guarantee.
 
 **Storage**: Existing owner-private source-free routing metadata and bounded request-local observations remain unchanged. No database, journal, retained project-source cache, or recovery service is selected. Revision/state lifetime decisions depend on the real mutation boundary; an existing observation ID/hash is not a write authority.
 
@@ -38,7 +42,7 @@ The plan does not substitute a refusal-only feature, weaken confinement or human
 
 **Performance Goals**: The specification requires a terminal edit result within **ten seconds** in controlled acceptance. Existing observations retain **five seconds**. These are future acceptance obligations, not measurements from the disposable multi-step controller. Worker termination/disconnection must not imply that an editor mutation could not apply later.
 
-**Constraints**: Independent D/R/B and document-specific dirty evidence; independently attributable parse state; stale-write protection at the real mutation boundary; no target guessing, hidden opening/loading, force/merge, automatic mutation retry, unsafe rollback, out-of-project writes, source logging, or gameplay authority. **NEEDS CLARIFICATION (technical research):** source/revision-attributed parse evidence and the final combined native edit/persistence/verification boundary, including reentrancy/interruption semantics.
+**Constraints**: Independent D/R/B and document-specific dirty evidence; independently attributable parse state; stale-write protection at the real mutation boundary; no target guessing, hidden opening/loading, force/merge, automatic mutation retry, unsafe rollback, out-of-project writes, source logging, or gameplay authority. **Blocked evidence route:** language validation is not bound on the actual built-in language object; editor signals lack a source/revision/result payload; reload has execution/state effects and a demonstrated successful short-circuit without parsing. Reporting a particular reload attempt is truthful; treating arbitrary `OK` as the required fresh parse result is not.
 
 **Scale/Scope**: One already-open standalone project GDScript per attempt. No generalized transaction framework, script lifecycle/history-control commands, batch/concurrent-agent orchestration, runtime/debugger/LSP tools, scene/resource authoring, distribution work, or platform expansion.
 
@@ -46,7 +50,7 @@ The plan does not substitute a refusal-only feature, weaken confinement or human
 
 **Initial gate, before Phase 0: PASS for research only.** The specification preserves Principles I–XIII and explicitly exposes native mutation/persistence/parse, confinement, and interruption unknowns. No safety exception was presumed.
 
-**Post-research gate: FAIL for the investigated persistence candidates.** Source evidence and the actual directory-redirection counterexample prevent selecting a pathname-based save as a confined transaction. Save All has an independently observed unrelated-document side effect. Required safety is unresolved, not deferred to optimistic implementation.
+**Post-research gate: FAIL.** The initial directory-redirection and new omitted-path/replacement-document counterexamples reject the examined persistence routes; Save All also violates unrelated-human-work preservation. The focused parse probes establish only bounded invocation evidence, not a qualifying general post-change parse result. This is Outcome 2, not a completed plan or permission to defer the missing safety properties to implementation.
 
 **Post-Phase-1 gate: NOT REACHED.** Phase 1 requires completed research without unresolved material decisions. There is no completed data model, mutation contract, quickstart, implementation plan approval, release, or support claim.
 
@@ -75,7 +79,7 @@ The plan does not substitute a refusal-only feature, weaken confinement or human
 4. Define application uncertainty, permanent pre-application discard, timeout/disconnection and no-retry behavior against that actual boundary. Preserve existing read-only compatibility and privacy.
 5. Record the Principle XIII assessment for any additional mechanism, then re-evaluate the constitutional gate. An alternative native/capability-scoped integration is not ruled out, but its missing guarantees cannot be replaced by a contract assertion.
 
-These are technical blockers, not a request for blanket maintainer approval to bypass safeguards. No constitutional amendment or scope reduction has been requested or applied.
+These are technical blockers, not a request for blanket maintainer approval to bypass safeguards. The [feature-boundary assessment](research.md#85-principle-xiii-and-feature-boundary-decision) rejects buffer-only success, manual reconciliation, assumed path stability, omitted parse proof, and an always-partial/refusal-only cut-down. No independently useful safe mutation narrowing was established. No constitutional amendment or specification change was applied.
 
 ## Project Structure
 
