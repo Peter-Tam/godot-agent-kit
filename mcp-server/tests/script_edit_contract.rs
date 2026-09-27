@@ -1445,7 +1445,6 @@ fn every_failure_cause_preserves_dispatch_and_application_certainty() {
         Reason::ClosedTarget,
         Reason::UnsupportedTarget,
         Reason::DeniedAccess,
-        Reason::ApprovalRequired,
         Reason::UnsupportedEngine,
         Reason::UnsupportedEffect,
         Reason::UnsupportedRepresentation,
@@ -1463,7 +1462,6 @@ fn every_failure_cause_preserves_dispatch_and_application_certainty() {
         Reason::ProtocolFailure,
         Reason::MissingBasis,
         Reason::IncompleteVerification,
-        Reason::RuntimeUnavailable,
     ] {
         let mut not_applied = prepared("new");
         not_applied.fail(reason, None).unwrap();
@@ -1627,4 +1625,119 @@ fn unavailable_fresh_observation_denial_suppresses_an_earlier_valid_basis() {
     let result = attempt.finish(timeline());
     assert_eq!(result.reason, Reason::DeniedAccess);
     assert!(result.expected.is_none() && result.resolved_target.is_none());
+}
+
+#[test]
+fn missing_verification_buffer_version_cannot_be_inferred_from_saved_state() {
+    use godot_agent_kit::script_edit::*;
+    for (desired, changed) in [("old", false), ("new", true)] {
+        let mut request = if changed {
+            authorized(desired)
+        } else {
+            prepared(desired)
+        };
+        if changed {
+            request.enter_application().unwrap();
+            request
+                .buffer_changed(decimal("18"), native_witness())
+                .unwrap();
+            request.resource_synced(native_witness()).unwrap();
+            request.persistence(receipt(desired)).unwrap();
+            request.finalization(finalized()).unwrap();
+        }
+        request
+            .validation(validation(
+                if changed {
+                    ValidationPurpose::PostChange
+                } else {
+                    ValidationPurpose::Unchanged
+                },
+                desired,
+            ))
+            .unwrap();
+        request
+            .verify(
+                prior_with(desired, DirtyState::Clean, None, "edit"),
+                Some(saved(if changed { "18" } else { "17" })),
+                Some(metadata()),
+                Some(context()),
+            )
+            .unwrap();
+        let result = request.finish(timeline());
+        assert_eq!(
+            result.outcome,
+            if changed {
+                EditOutcomeKind::AppliedUnverified
+            } else {
+                EditOutcomeKind::Refused
+            }
+        );
+        assert_eq!(
+            result.application,
+            if changed {
+                Application::Applied
+            } else {
+                Application::NotApplied
+            }
+        );
+        assert_eq!(result.reason, Reason::IncompleteVerification);
+        let after = result.after.unwrap();
+        assert_eq!(
+            after.sources[2].identity.as_ref().unwrap().source_version(),
+            None
+        );
+        assert_eq!(after.agreement, Agreement::Agree);
+    }
+}
+
+#[test]
+fn preboundary_discard_retires_authorization_but_cannot_erase_entered_work() {
+    use godot_agent_kit::script_edit::*;
+    let mut released = prepared("new");
+    released
+        .validation(validation(ValidationPurpose::Preflight, "new"))
+        .unwrap();
+    released.authorize().unwrap();
+    // Native rejection can retire dispatch even before fresh guard evidence arrives.
+    released
+        .discard_before_boundary(Reason::Cancellation, native_witness())
+        .unwrap();
+    assert_eq!(released.authorize(), Err(EditError::OutOfOrder));
+    assert_eq!(released.enter_application(), Err(EditError::OutOfOrder));
+    let result = released.finish(timeline());
+    assert_eq!(result.outcome, EditOutcomeKind::Refused);
+    assert_eq!(result.application, Application::NotApplied);
+    assert_eq!(result.history, History::NotParticipated);
+    assert_eq!(result.reason, Reason::Cancellation);
+
+    for known_effect in [false, true] {
+        let mut entered = authorized("new");
+        entered.enter_application().unwrap();
+        if known_effect {
+            entered
+                .buffer_changed(decimal("18"), native_witness())
+                .unwrap();
+        }
+        assert_eq!(
+            entered.discard_before_boundary(Reason::Cancellation, native_witness()),
+            Err(EditError::OutOfOrder)
+        );
+        let result = entered.finish(timeline());
+        assert_eq!(
+            result.outcome,
+            if known_effect {
+                EditOutcomeKind::AppliedUnverified
+            } else {
+                EditOutcomeKind::ApplicationUnknown
+            }
+        );
+        assert_eq!(
+            result.application,
+            if known_effect {
+                Application::Applied
+            } else {
+                Application::Unknown
+            }
+        );
+    }
 }
