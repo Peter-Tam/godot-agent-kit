@@ -2344,6 +2344,11 @@ impl ObservationOutcome {
                 (Some(Validity::Invalid), Some(OpenState::NotOpen)) => {
                     Some(TerminalFailure::InvalidTarget)
                 }
+                // A non-GDScript locator is invalid by observed type, not by
+                // assuming an unenumerated editor document is closed.
+                (Some(Validity::Invalid), None) if request.script_path.kind().is_none() => {
+                    Some(TerminalFailure::InvalidTarget)
+                }
                 _ => None,
             }
         });

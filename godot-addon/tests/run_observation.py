@@ -31,14 +31,15 @@ VERSION = "4.7.2.stable.official.ed1daf0bf"
 ENGINE_HASH = "ed1daf0bf001b61586d9930840f2f1394092c079"
 CAPABILITIES = ("observe_gdscript", "open_enumeration", "buffer_attribution",
                 "unsaved_paths", "cached_resource_lookup")
-MISSING_GROUPS = ("closed-and-invalid", "surface-limits", "sequential-readonly")
+MISSING_GROUPS = ("sequential-readonly",)
 SOURCE_SENTINEL = b"T002_SYNTHETIC_SOURCE_ONLY"
-CAP_SENTINELS = (b"# " + b"r" * 64, b"# " + b"b" * 64)
+CAP_SENTINELS = (b"# " + b"r" * 64, b"# " + b"b" * 64, b"# " + b"d" * 64)
 SOURCE_SENTINELS = (
     SOURCE_SENTINEL, *CAP_SENTINELS, b"SYNTHETIC_OTHER_DOCUMENT",
     b"FIXTURE_UNSAVED_CHANGE", b"TEMPORARY_DIRTY_EDIT", b"RESOURCE_DIFFERENT",
     b"DISTINCT_DISK_SOURCE", b"DISTINCT_UNIQUE_OBJECT", b"TRANSITION_BUFFER",
     b"TRANSITION_RESOURCE", b"TRANSITION_DISK", b"Synthetic plain-text editor tab.",
+    b"FIXTURE_BUILTIN_NATIVE_SOURCE", b"FIXTURE_COLD_UNLOADED_SOURCE",
 )
 ROUTE_MARKERS = (b"ROUTE_PROJECT_A", b"ROUTE_PROJECT_B", b"ROUTE_RESOURCE_A",
                  b"ROUTE_RESOURCE_B", b"ROUTE_RESOURCE_C", b"ROUTE_BUFFER_A",
@@ -248,7 +249,8 @@ class Harness:
         self.summary = {"scenario": args.scenario, "cases": self.cases,
                         "source_observation": args.scenario in ("clean-open", "executor-boundary",
                             "dirty-divergent", "dirty-unavailable", "changing-document",
-                            "routing", "session-loss", "deadline", "confinement", "redaction"),
+                            "routing", "session-loss", "deadline", "confinement", "redaction",
+                            "closed-and-invalid", "surface-limits"),
                         "support_claim": False,
                         "coverage_scope": "incremental" if args.scenario == "redaction"
                                           else "selected_group",
@@ -607,6 +609,11 @@ class Harness:
         require(set(result) == {"schema_version", "request_id", "outcome", "interval",
                                "resolved_target", "snapshot", "diagnostics", "selection"},
                 "caller_result_fields_" + name)
+        diagnostics = json.dumps(result["diagnostics"], ensure_ascii=False).encode()
+        require(all(marker not in diagnostics for marker in
+                    (*SOURCE_SENTINELS, *self.source_markers)) and
+                all(secret not in diagnostics for secret in self.secrets),
+                "source_free_diagnostics_" + name)
         if result["snapshot"] is None:
             self.safe_log(name + ".json", stdout)
         else:
@@ -1240,6 +1247,417 @@ class Harness:
                 if mode == "replace":
                     require(barrier["record"]["replacement_id"] != before["subject"]["script_id"],
                             "genuine_new_document_instance")
+
+    def story_read(self, project, editor, descriptor, name, expected, code, *,
+                   script="res://scripts/subject.gd", disk_path=None, shot=None):
+        shot = shot or self.screenshot(editor, name + ".png")
+        before = self.action(editor, "witness")
+        disk = disk_witness(disk_path) if disk_path is not None else None
+        result = self.observe(project, expected, code, session=descriptor["session_id"],
+                              script=script, name=name)
+        after = self.action(editor, "witness")
+        require(before == after and
+                (disk_path is None or disk == disk_witness(disk_path)),
+                "story_observer_read_only_" + name)
+        require((expected in ("denied_access", "invalid_request") and
+                 result["resolved_target"] is None) or
+                (result["resolved_target"] is not None and
+                 result["resolved_target"]["project_root"] == descriptor["project_root"] and
+                 result["resolved_target"]["session_id"] == descriptor["session_id"] and
+                 result["resolved_target"]["script_path"] == script),
+                "story_original_target_" + name)
+        evidence = name + "-witness.json"
+        # Intentional source evidence; incidental stderr/editor logs stay redacted.
+        json_file(self.artifacts / evidence, {"before": before, "after": after,
+                                               "disk": disk, "result": result})
+        self.cases[-1].update(evidence=evidence, screenshot=shot)
+        return result, before, disk
+
+    def closed_and_invalid(self):
+        self.compile_window_probe()
+        project = self.fixture("closed-invalid")
+        editor = self.start_editor(project)
+        descriptor = wait_for(lambda: self.descriptors(project), "closed_invalid_advertisement")[0]
+        self.action(editor, "cache_subject")
+        cached = self.action(editor, "witness")
+        require(cached["subject_cached_id"] and
+                "res://scripts/subject.gd" not in cached["open_paths"],
+                "actual_cached_closed_native_script")
+        path = project / "scripts" / "subject.gd"
+        result, before, disk = self.story_read(
+            project, editor, descriptor, "closed_cached", "not_open", 0, disk_path=path)
+        snapshot = result["snapshot"]
+        require(snapshot["document"]["validity"]["value"] == "valid" and
+                snapshot["document"]["open_state"]["value"] == "not_open" and
+                snapshot["document"]["identity"]["script_instance_id"] ==
+                before["subject_cached_id"] and
+                snapshot["sources"]["D"]["text"] == disk["text"] and
+                snapshot["sources"]["R"]["availability"] == "observed" and
+                snapshot["sources"]["R"]["text"] == before["subject_cached_R"] and
+                snapshot["sources"]["R"]["witness"]["script_instance_id"] ==
+                before["subject_cached_id"] and
+                snapshot["sources"]["B"]["availability"] == "not_applicable" and
+                snapshot["dirty"]["availability"] == "not_applicable" and
+                snapshot["dirty"]["state"] == "not_applicable" and
+                snapshot["comparisons"]["disk_resource"] ==
+                ("equal" if disk["text"] == before["subject_cached_R"] else "different"),
+                "closed_cached_independent_authorities")
+        cold_shot = self.screenshot(editor, "closed_unloaded.png")
+        cold = project / "scripts" / "cold.gd"
+        cold.write_text("extends RefCounted\n# FIXTURE_COLD_UNLOADED_SOURCE\n")
+        require(not self.action(editor, "witness")["cold_cached_id"],
+                "cold_script_really_unloaded")
+        result, before, disk = self.story_read(
+            project, editor, descriptor, "closed_unloaded", "not_open", 0,
+            script="res://scripts/cold.gd", disk_path=cold, shot=cold_shot)
+        snapshot = result["snapshot"]
+        require(not before["cold_cached_id"] and
+                snapshot["document"]["open_state"]["value"] == "not_open" and
+                snapshot["sources"]["D"]["text"] == disk["text"] and
+                snapshot["sources"]["R"]["availability"] == "unavailable" and
+                snapshot["sources"]["R"]["reason"]["code"] == "resource_not_loaded" and
+                snapshot["sources"]["R"].get("text") is None and
+                snapshot["sources"]["B"]["availability"] == "not_applicable" and
+                snapshot["dirty"]["availability"] == "not_applicable" and
+                snapshot["comparisons"]["disk_resource"] == "unknown",
+                "closed_unloaded_never_force_loaded")
+        require(not (project / "scripts" / "absent.gd").exists(),
+                "missing_disk_precondition")
+        result, _, _ = self.story_read(
+            project, editor, descriptor, "closed_missing", "missing_target", 3,
+            script="res://scripts/absent.gd")
+        require(not (project / "scripts" / "absent.gd").exists(),
+                "observer_did_not_create_missing_script")
+        if result["snapshot"] is not None:
+            snapshot = result["snapshot"]
+            require(snapshot["document"]["validity"]["value"] == "missing" and
+                    snapshot["sources"]["D"]["reason"]["code"] == "disk_missing" and
+                    all(snapshot["sources"][key]["availability"] != "observed"
+                        for key in ("R", "B")), "missing_not_closed_or_synthetic")
+        result, _, note_disk = self.story_read(
+            project, editor, descriptor, "closed_non_gdscript", "invalid_target", 3,
+            script="res://scripts/note.txt", disk_path=project / "scripts" / "note.txt")
+        if result["snapshot"] is not None:
+            require(result["snapshot"]["document"]["validity"]["value"] == "invalid" and
+                    all(item["availability"] != "observed"
+                        for item in result["snapshot"]["sources"].values()),
+                    "non_gdscript_invalid_without_source")
+        self.action(editor, "prepare_invalid")
+        invalid = project / "scripts" / "invalid.gd"
+        result, before, disk = self.story_read(
+            project, editor, descriptor, "open_syntax_invalid", "complete_observation", 0,
+            script="res://scripts/invalid.gd", disk_path=invalid)
+        snapshot = result["snapshot"]
+        doc = before["invalid"]
+        require(doc["associated"] and "var =" in disk["text"] and
+                snapshot["document"]["validity"]["value"] == "valid" and
+                snapshot["document"]["open_state"]["value"] == "open" and
+                snapshot["document"]["identity"]["script_instance_id"] == doc["script_id"] and
+                all(snapshot["sources"][key]["availability"] == "observed" and
+                    snapshot["sources"][key]["text"] == text for key, text in
+                    (("D", disk["text"]), ("R", doc["R"]), ("B", doc["B"]))) and
+                snapshot["dirty"]["state"] == ("dirty" if doc["dirty"] else "clean"),
+                "invalid_syntax_still_actual_gdscript")
+        self.action(editor, "prepare_empty")
+        result, before, disk = self.story_read(
+            project, editor, descriptor, "open_empty", "complete_observation", 0,
+            script="res://scripts/empty.gd", disk_path=project / "scripts" / "empty.gd")
+        require(disk["size"] == 0 and before["empty"]["R"] == before["empty"]["B"] == "" and
+                all(result["snapshot"]["sources"][key]["availability"] == "observed" and
+                    result["snapshot"]["sources"][key]["text"] == ""
+                    for key in ("D", "R", "B")), "empty_is_observed_not_unavailable")
+        self.action(editor, "cache_builtin")
+        result, before, _ = self.story_read(
+            project, editor, descriptor, "closed_native_builtin", "not_open", 0,
+            script="res://container.tscn::GDScript_x", disk_path=project / "container.tscn")
+        snapshot = result["snapshot"]
+        require(not before["builtin"]["associated"] and before["builtin_cached_id"] and
+                snapshot["document"]["identity"]["kind"] == "builtin_gdscript" and
+                snapshot["document"]["identity"]["script_instance_id"] == before["builtin_cached_id"] and
+                snapshot["sources"]["D"]["reason"]["code"] == "no_standalone_disk_source" and
+                snapshot["sources"]["R"]["text"] == before["builtin_R"] and
+                snapshot["sources"]["B"]["availability"] == "not_applicable" and
+                snapshot["dirty"]["availability"] == "not_applicable" and
+                snapshot["agreement"] == "unknown",
+                "closed_builtin_uses_existing_cached_native_identity")
+        self.action(editor, "prepare_builtin")
+        result, before, container_disk = self.story_read(
+            project, editor, descriptor, "open_native_builtin", "limited_observation", 2,
+            script="res://container.tscn::GDScript_x",
+            disk_path=project / "container.tscn")
+        snapshot = result["snapshot"]
+        builtin = before["builtin"]
+        container = container_disk["text"].encode()
+        require(builtin["associated"] and builtin["script_type"] == "GDScript" and
+                before["builtin_R"] == builtin["R"] and
+                snapshot["document"]["identity"]["kind"] == "builtin_gdscript" and
+                snapshot["document"]["identity"]["script_instance_id"] == builtin["script_id"] and
+                snapshot["document"]["open_state"]["value"] == "open" and
+                snapshot["sources"]["D"]["availability"] == "unavailable" and
+                snapshot["sources"]["D"]["reason"]["code"] == "no_standalone_disk_source" and
+                snapshot["sources"]["D"].get("text") is None and
+                all(snapshot["sources"][key]["availability"] == "observed" and
+                    snapshot["sources"][key]["text"] == builtin[key] for key in ("R", "B")) and
+                snapshot["dirty"]["state"] == ("dirty" if builtin["dirty"] else "clean") and
+                snapshot["comparisons"]["disk_resource"] == "unknown" and
+                container != builtin["R"].encode(),
+                "builtin_uses_existing_native_script_never_scene_bytes")
+        result, before, _ = self.story_read(
+            project, editor, descriptor, "unresolved_builtin", "unsupported_observation", 2,
+            script="res://container.tscn::GDScript_absent",
+            disk_path=project / "container.tscn")
+        require(before["builtin"]["associated"] and
+                (result["snapshot"] is None or all(
+                    source["availability"] != "observed"
+                    for source in result["snapshot"]["sources"].values())),
+                "unresolved_builtin_never_force_loaded_or_guessed")
+        container_before = disk_witness(project / "container.tscn")
+        outside = self.work / "outside-builtin-scene.tscn"
+        outside.write_bytes((project / "container.tscn").read_bytes())
+        (project / "escaped.tscn").symlink_to(outside)
+        for name, locator, outcome in (
+                ("builtin_container_escape", "res://escaped.tscn::GDScript_x", "denied_access"),
+                ("builtin_parent_escape", "res://../outside-builtin-scene.tscn::GDScript_x",
+                 "invalid_request")):
+            result, _, _ = self.story_read(
+                project, editor, descriptor, name, outcome, 3, script=locator)
+            require(result["snapshot"] is None and
+                    disk_witness(project / "container.tscn") == container_before,
+                    "unsafe_builtin_container_denied_without_source_" + name)
+
+    def surface_limits(self):
+        self.compile_window_probe()
+        project, editor, descriptor, path = self.controlled_editor("surface-partial")
+        self.action(editor, "prepare_other")
+        for label, action, authority, reason in (
+                ("resource_withheld", "restrict_resource", "R", "resource_unreadable"),
+                ("buffer_withheld", "restrict_buffer", "B", "buffer_unreadable"),
+                ("association_withheld", "restrict_association", "B",
+                 "buffer_attribution_unavailable")):
+            self.action(editor, action)
+            result, before, disk = self.story_read(
+                project, editor, descriptor, label, "limited_observation", 2, disk_path=path)
+            snapshot = result["snapshot"]
+            other = "B" if authority == "R" else "R"
+            require(before["subject"]["associated"] and before["current_script"] !=
+                    "res://scripts/subject.gd" and
+                    snapshot["document"]["open_state"]["value"] == "open" and
+                    snapshot["sources"]["D"]["text"] == disk["text"] and
+                    snapshot["sources"][authority]["availability"] == "unavailable" and
+                    snapshot["sources"][authority]["reason"]["code"] == reason and
+                    snapshot["sources"][authority].get("text") is None and
+                    snapshot["sources"][other]["availability"] == "observed" and
+                    snapshot["sources"][other]["text"] == before["subject"][other] and
+                    snapshot["comparisons"]["disk_resource" if authority == "R"
+                                                else "disk_buffer"] == "unknown",
+                    "negative_only_withholding_preserves_other_authorities_" + label)
+        self.action(editor, "restrict_open")
+        result, _, disk = self.story_read(
+            project, editor, descriptor, "unknown_open", "limited_observation", 2, disk_path=path)
+        snapshot = result["snapshot"]
+        require(snapshot["document"]["open_state"].get("value") is None and
+                snapshot["sources"]["D"]["text"] == disk["text"] and
+                snapshot["sources"]["B"]["availability"] == "unavailable" and
+                snapshot["dirty"]["availability"] == "unavailable" and
+                snapshot["dirty"]["state"] == "unknown",
+                "withheld_open_does_not_infer_closed")
+        self.action(editor, "restore_dirty")
+        self.action(editor, "mixed_tabs")
+        result, before, disk = self.story_read(
+            project, editor, descriptor, "mixed_text_script_documentation",
+            "limited_observation", 2, disk_path=path)
+        snapshot = result["snapshot"]
+        require(before["editor_count"] > before["script_count"] and
+                before["current_script"] != "res://scripts/subject.gd" and
+                snapshot["document"]["open_state"]["value"] == "open" and
+                snapshot["sources"]["D"]["text"] == disk["text"] and
+                snapshot["sources"]["R"]["text"] == before["subject_cached_R"] and
+                snapshot["sources"]["B"]["availability"] == "unavailable" and
+                snapshot["sources"]["B"]["reason"]["code"] == "buffer_attribution_unavailable" and
+                snapshot["dirty"]["state"] == "unknown",
+                "mixed_tabs_never_guess_buffer_association")
+        missing_project, missing_editor, missing_descriptor, missing_path = self.controlled_editor(
+            "surface-open-missing")
+        prior_disk = disk_witness(missing_path)
+        self.action(missing_editor, "remove_subject_disk")
+        require(not missing_path.exists(), "fixture_only_removal_of_open_disk")
+        result, before, _ = self.story_read(
+            missing_project, missing_editor, missing_descriptor,
+            "open_disk_missing", "limited_observation", 2)
+        snapshot = result["snapshot"]
+        require(before["subject"]["associated"] and
+                snapshot["document"]["open_state"]["value"] == "open" and
+                snapshot["sources"]["D"]["availability"] == "unavailable" and
+                snapshot["sources"]["D"]["reason"]["code"] == "disk_missing" and
+                all(snapshot["sources"][key]["availability"] == "observed" and
+                    snapshot["sources"][key]["text"] == before["subject"][key]
+                    for key in ("R", "B")) and not missing_path.exists(),
+                "open_missing_D_retains_native_R_B")
+        self.cases[-1]["removed_disk_sha256"] = prior_disk["sha256"]
+        unreadable_project, unreadable_editor, unreadable_descriptor, unreadable_path = \
+            self.controlled_editor("surface-open-unreadable")
+        original_disk = disk_witness(unreadable_path)
+        original_mode = stat.S_IMODE(unreadable_path.stat().st_mode)
+        unreadable_path.chmod(0)
+        try:
+            unreadable_before = unreadable_path.stat()
+            require(stat.S_IMODE(unreadable_before.st_mode) == 0,
+                    "fixture_disk_unreadable_mode")
+            result, before, _ = self.story_read(
+                unreadable_project, unreadable_editor, unreadable_descriptor,
+                "open_disk_unreadable", "limited_observation", 2)
+            unreadable_after = unreadable_path.stat()
+            metadata_fields = ("st_dev", "st_ino", "st_size", "st_mode",
+                               "st_mtime_ns", "st_ctime_ns")
+            require(all(getattr(unreadable_before, key) ==
+                        getattr(unreadable_after, key) for key in metadata_fields),
+                    "unreadable_D_disk_metadata_unchanged")
+            json_file(self.artifacts / "open_disk_unreadable-metadata.json", {
+                "original_sha256": original_disk["sha256"],
+                "before": {key: getattr(unreadable_before, key) for key in metadata_fields},
+                "after": {key: getattr(unreadable_after, key) for key in metadata_fields}})
+            self.cases[-1]["disk_metadata_evidence"] = "open_disk_unreadable-metadata.json"
+            snapshot = result["snapshot"]
+            require(snapshot["document"]["open_state"]["value"] == "open" and
+                    snapshot["sources"]["D"]["availability"] == "unavailable" and
+                    snapshot["sources"]["D"]["reason"]["code"] == "disk_unreadable" and
+                    all(snapshot["sources"][key]["availability"] == "observed" and
+                        snapshot["sources"][key]["text"] == before["subject"][key]
+                        for key in ("R", "B")) and
+                    stat.S_IMODE(unreadable_path.stat().st_mode) == 0,
+                    "unreadable_D_preserves_other_authorities")
+        finally:
+            unreadable_path.chmod(original_mode)
+        require(disk_witness(unreadable_path)["sha256"] == original_disk["sha256"],
+                "unreadable_D_fixture_restored")
+        for boundary, size, expected in (
+                ("exact", 512 * 1024, "complete_observation"),
+                ("over", 512 * 1024 + 1, "limited_observation")):
+            name = "open_cap_d_" + boundary
+            cap_project, cap_editor, cap_descriptor, cap_path = self.controlled_editor(name)
+            self.action(cap_editor, "dirty_subject")
+            cap_path.write_bytes(b"# " + b"d" * (size - 2))
+            result, before, disk = self.story_read(
+                cap_project, cap_editor, cap_descriptor, name, expected,
+                0 if boundary == "exact" else 2, disk_path=cap_path)
+            sources = result["snapshot"]["sources"]
+            doc = before["subject"]
+            require(doc["associated"] and disk["size"] == size and
+                    len(doc["R"].encode()) < 512 * 1024 and
+                    len(doc["B"].encode()) < 512 * 1024 and
+                    result["snapshot"]["document"]["open_state"]["value"] == "open" and
+                    all(sources[key]["availability"] == "observed" and
+                        sources[key]["text"] == doc[key] for key in ("R", "B")) and
+                    result["snapshot"]["dirty"]["state"] ==
+                    ("dirty" if doc["dirty"] else "clean"),
+                    "open_D_limit_preserves_preceding_native_R_B_" + name)
+            require((sources["D"]["availability"] == "observed" and
+                     sources["D"]["text"] == disk["text"]) if boundary == "exact" else
+                    (sources["D"]["availability"] == "unavailable" and
+                     sources["D"]["reason"]["code"] == "too_large" and
+                     sources["D"].get("text") is None and
+                     result["snapshot"]["comparisons"]["resource_buffer"] ==
+                     ("equal" if doc["R"] == doc["B"] else "different")),
+                    "open_D_exact_byte_boundary_" + name)
+        self.collector_boundaries()
+        for boundary, d_size, r_boundary in (
+                ("both_exact", 512 * 1024, "exact"),
+                ("d_over_r_exact", 512 * 1024 + 1, "exact"),
+                ("d_exact_r_over", 512 * 1024, "over"),
+                ("both_over", 512 * 1024 + 1, "over")):
+            name = "closed_cap_" + boundary
+            cap_project = self.fixture(name, controlled=True)
+            cap_editor = self.start_editor(cap_project)
+            cap_descriptor = wait_for(lambda: self.descriptors(cap_project),
+                                      "closed_cap_advertisement_" + boundary)[0]
+            cap_path = cap_project / "scripts" / "subject.gd"
+            cap_path.write_bytes(b"# " + b"d" * (d_size - 2))
+            self.action(cap_editor, "cap_closed_resource_" + r_boundary)
+            result, before, disk = self.story_read(
+                cap_project, cap_editor, cap_descriptor, name, "not_open", 0,
+                disk_path=cap_path)
+            sources = result["snapshot"]["sources"]
+            expected_r = 512 * 1024 + (r_boundary == "over")
+            require(not before["subject"]["associated"] and
+                    len(before["subject_cached_R"].encode()) == expected_r and
+                    disk["size"] == d_size and
+                    result["snapshot"]["document"]["open_state"]["value"] == "not_open" and
+                    sources["B"]["availability"] == "not_applicable" and
+                    result["snapshot"]["dirty"]["availability"] == "not_applicable",
+                    "closed_cap_actual_prepared_authorities_" + name)
+            for authority, size, text in (("D", d_size, disk["text"]),
+                                           ("R", expected_r, before["subject_cached_R"])):
+                value = sources[authority]
+                require((value["availability"] == "observed" and value["text"] == text)
+                        if size == 512 * 1024 else
+                        (value["availability"] == "unavailable" and
+                         value["reason"]["code"] == "too_large" and value.get("text") is None),
+                        "closed_independent_exact_byte_limit_" + authority + "_" + name)
+            require(result["snapshot"]["comparisons"]["disk_resource"] ==
+                    ("different" if d_size == expected_r == 512 * 1024 else "unknown"),
+                    "closed_limit_retains_only_valid_comparison_" + name)
+        unloaded_project = self.fixture("closed_cap_unloaded", controlled=True)
+        unloaded_editor = self.start_editor(unloaded_project)
+        unloaded_descriptor = wait_for(lambda: self.descriptors(unloaded_project),
+                                       "closed_unloaded_cap_advertisement")[0]
+        unloaded_shot = self.screenshot(unloaded_editor, "closed_uncached_d_over.png")
+        cold_path = unloaded_project / "scripts" / "cold.gd"
+        cold_path.write_bytes(b"# " + b"d" * (512 * 1024 - 1))
+        require(not self.action(unloaded_editor, "witness")["cold_cached_id"],
+                "closed_overlimit_native_resource_unloaded")
+        result, before, disk = self.story_read(
+            unloaded_project, unloaded_editor, unloaded_descriptor,
+            "closed_uncached_d_over", "not_open", 0,
+            script="res://scripts/cold.gd", disk_path=cold_path, shot=unloaded_shot)
+        snapshot = result["snapshot"]
+        require(not before["cold_cached_id"] and disk["size"] == 512 * 1024 + 1 and
+                snapshot["document"]["open_state"]["value"] == "not_open" and
+                snapshot["sources"]["D"]["availability"] == "unavailable" and
+                snapshot["sources"]["D"]["reason"]["code"] == "too_large" and
+                snapshot["sources"]["R"]["availability"] == "unavailable" and
+                snapshot["sources"]["R"]["reason"]["code"] == "resource_not_loaded" and
+                snapshot["sources"]["B"]["availability"] == "not_applicable" and
+                snapshot["dirty"]["availability"] == "not_applicable",
+                "closed_uncached_D_limit_remains_not_open")
+        unknown_project, unknown_editor, unknown_descriptor, unknown_path = \
+            self.controlled_editor("surface-unknown-limit")
+        self.action(unknown_editor, "restrict_open")
+        # Fixture-only disk preparation precedes the observation. No observer writes.
+        unknown_path.write_bytes(b"# " + b"d" * (512 * 1024 - 1))
+        result, _, disk = self.story_read(
+            unknown_project, unknown_editor, unknown_descriptor, "unknown_open_d_over",
+            "limited_observation", 2, disk_path=unknown_path)
+        snapshot = result["snapshot"]
+        require(disk["size"] == 512 * 1024 + 1 and
+                snapshot["document"]["open_state"].get("value") is None and
+                snapshot["sources"]["D"]["availability"] == "unavailable" and
+                snapshot["sources"]["D"]["reason"]["code"] == "too_large" and
+                snapshot["sources"]["B"]["availability"] != "not_applicable" and
+                snapshot["dirty"]["availability"] != "not_applicable",
+                "unknown_open_limit_is_not_closed_or_refusal")
+        # Separate whole-request failure and known loss/silence outrank limits.
+        outside = self.work / "source-beyond-project.gd"
+        outside.write_text("extends RefCounted\n# OUTSIDE_SURFACE_LIMIT_PROJECT\n")
+        self.source_markers.add(b"OUTSIDE_SURFACE_LIMIT_PROJECT")
+        (project / "scripts" / "unsafe.gd").symlink_to(outside)
+        denial, _, _ = self.story_read(
+            project, editor, descriptor, "separate_scope_denial", "denied_access", 3,
+            script="res://scripts/unsafe.gd")
+        require(denial["snapshot"] is None and denial["resolved_target"] is None,
+                "scope_denial_source_free")
+        for name, action, expected in (
+                ("separate_known_disconnection", "terminate", "disconnected_editor"),
+                ("separate_silent_timeout", "suspend", "timeout")):
+            interrupted_project, interrupted_editor, interrupted_descriptor, _ = \
+                self.controlled_editor(name)
+            result = self.interrupted_observation(
+                interrupted_project, interrupted_editor, interrupted_descriptor,
+                "observe", action, name, expected)
+            require(result["outcome"] == expected and
+                    (result["snapshot"] is None or
+                     result["snapshot"]["consistency"]["checks"] != "performed"),
+                    "stronger_terminal_not_masked_by_limits_" + name)
+
     def executor_boundary(self):
         self.compile_probes()
         project = self.fixture("executor")
@@ -1946,6 +2364,10 @@ class Harness:
         # Incremental privacy gate for the selected/unselected routing and
         # authentication paths; not T008's complete replay/privacy matrix.
         self.routing()
+        # Include T007's real native closed/built-in/limit authorities and
+        # source-free refusals in the incremental sentinel inspection.
+        self.closed_and_invalid()
+        self.surface_limits()
         project, editor, descriptor, path = self.controlled_editor("redaction-auth")
         self.authentication_cases(descriptor, editor)
         before = self.action(editor, "witness")
@@ -2039,8 +2461,10 @@ class Harness:
         # bytes for a name confuses those settings with shipped addon code. The actual
         # app separately proves the one-node scene, no missing dependency or listener.
         for name in entries:
-            if "godot_agent_kit" in name or "fixture_driver" in name:
-                raise Failure(stage + "_tooling_material:" + name)
+            path = name.removeprefix("res://")
+            if ("godot_agent_kit" in path or "fixture_driver" in path or
+                    path.startswith(("container.tscn", "scripts/invalid.gd"))):
+                raise Failure(stage + "_tooling_material:" + path)
         # Compiled/remapped files are inspected as actual entries, not just .gd names.
         require(any(name.endswith((".gdc", ".gd")) for name in entries), stage + "_gameplay_script_present")
 
@@ -2100,7 +2524,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--godot", required=True, type=Path)
     parser.add_argument("--observer", required=True, type=Path)
-    parser.add_argument("--scenario", required=True, choices=("all", "clean-open", "session-boundary", "executor-boundary", "export-boundary", "dirty-divergent", "dirty-unavailable", "changing-document", "routing", "session-loss", "deadline", "confinement", "redaction", *MISSING_GROUPS))
+    parser.add_argument("--scenario", required=True, choices=("all", "clean-open", "session-boundary", "executor-boundary", "export-boundary", "dirty-divergent", "dirty-unavailable", "changing-document", "routing", "session-loss", "deadline", "confinement", "redaction", "closed-and-invalid", "surface-limits", *MISSING_GROUPS))
     parser.add_argument("--artifacts", required=True, type=Path)
     args = parser.parse_args()
     os.umask(0o077)
@@ -2144,6 +2568,10 @@ def main():
                 harness.deadline()
             elif args.scenario == "confinement":
                 harness.confinement()
+            elif args.scenario == "closed-and-invalid":
+                harness.closed_and_invalid()
+            elif args.scenario == "surface-limits":
+                harness.surface_limits()
             elif args.scenario == "redaction":
                 harness.redaction()
             else:

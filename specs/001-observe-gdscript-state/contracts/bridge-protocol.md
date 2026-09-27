@@ -1,6 +1,6 @@
 # Private Editor Observation Bridge — Version 1
 
-**Status:** T002 implements source-free bootstrap, authentication, routing, lifecycle and export isolation. T003 implements the Rust executor boundary (§8); T004 installs real observe/recheck collection (§9); T005 extends request-local attribution and invalidation (§10); T006 verifies source-bearing session/loss behavior (§11). This is private local integration, not MCP, a remote API, or a separate safety model. The [caller contract](observation-api.md) and [data model](../data-model.md) own user-visible semantics.
+**Status:** T002 implements source-free bootstrap, authentication, routing, lifecycle and export isolation. T003 implements the Rust executor boundary (§8); T004 installs real observe/recheck collection (§9); T005 extends request-local attribution and invalidation (§10); T006 verifies source-bearing session/loss behavior (§11); T007 adds closed/built-in and partial-surface evidence (§12). This is private local integration, not MCP, a remote API, or a separate safety model. The [caller contract](observation-api.md) and [data model](../data-model.md) own user-visible semantics.
 
 This is the initial version-1 implementation. It has no raw-token hello or legacy authentication path. No arbitrary code, object deserialization, process command, source write, Save, open/select, reload, rescan, or runtime operation is representable on the bridge.
 
@@ -269,8 +269,9 @@ The additive source-free failure envelope is:
 identity must match the selected request. The Rust decoder accepts this specific
 shape with no source or extra payload fields. `out_of_project` maps to
 `denied_access` and suppresses all prior source. `unsupported_observation` is
-accepted only at `read_editor` for the one-active-collection capacity refusal;
-it does not misreport the still-live editor as disconnected. Malformed or
+accepted only at `read_editor` for the one-active-collection capacity refusal
+or an unresolved built-in identity; it does not misreport the live editor as
+disconnected. Malformed or
 mismatched refusals remain protocol errors. Framing, authentication and public
 outcomes retain version-1 semantics; deploy this collector with its updated Rust
 decoder rather than relying on an older decoder's generic protocol refusal.
@@ -331,3 +332,39 @@ capacity/expiry, unsafe metadata and secret-free traffic checks are reused
 with the source-bearing caller. Fixture material remains under the excluded
 driver tree; enabled/disabled/hook-only exports and actual app launches
 continue to exclude it. See [T006 evidence](../quickstart.md#26-t006-routing-and-interruption-evidence-2026-09-27).
+
+## 12. T007 closed, built-in and filesystem evidence
+
+The addon validates external and built-in locators independently of the Rust
+adapter. A built-in requires a `GDScript_` ASCII alphanumeric/underscore identifier
+and a `.tscn`, `.tres`, `.scn` or `.res` container. Scope witnesses apply to the
+container's filesystem components before/after getter passes, retaining all
+symlink/escape and replacement refusals. No container text is read as script D.
+
+The collector accepts only an existing enumerated or cached GDScript with the
+exact requested resource path. Unknown tab association does not discard
+independently attributable cached R. Built-in identities use `builtin_gdscript`;
+unresolved identity uses the existing source-free `unsupported_observation`
+failure envelope at `read_editor`. Failure cleanup releases request references.
+
+Private worker `disk` events now carry nullable `file_identity` and
+`file_collection` in addition to the D source record. A caller-clock collection
+with an identity is permitted only for external D unavailable because of size,
+encoding or read limitations after safe metadata acquisition. A collection
+without an identity proves absence only with `disk_missing`. Invalid combinations,
+wrong clocks and missing required attribution are protocol errors. Observed D
+retains its ordinary source witness; no duplicate metadata or extra allocation
+is needed for that path.
+
+The supervisor combines those independent filesystem facts with the original
+editor open-state evidence. The worker rechecks confinement and identity even
+when D text was unavailable. Metadata never fabricates source text, loaded
+Resource identity or editor state. These are same-executable private IPC changes,
+not a new editor operation or public JSON schema.
+
+Fixture-only surface restrictions withhold R, B, dirty or open-state attribution;
+positive evidence remains actual native getters. Held preparation-time CodeEdit
+references let the independent fixture oracle check human-buffer preservation
+when mixed tabs prevent the product from assigning a buffer. Built-in/syntax
+fixtures and all preparation code remain excluded from production exports.
+See [US4 evidence](../quickstart.md#27-t007-closed-and-partial-observation-evidence-2026-09-27).

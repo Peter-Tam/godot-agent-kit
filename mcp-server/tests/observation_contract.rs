@@ -2060,13 +2060,13 @@ fn integration_non_gdscript_locator_can_receive_an_attributed_invalid_target_res
     let selected = target(&req);
     let doc = DocumentState::new(
         None,
-        DocumentFact::observed(Validity::Invalid, caller_stamp("1", 1)),
-        DocumentFact::observed(OpenState::NotOpen, editor_stamp("2", 2)),
+        DocumentFact::observed(Validity::Invalid, editor_stamp("1", 1)),
+        DocumentFact::unknown(FactReason::OpenStateUnknown),
     );
     let sources = Sources::new(
         SourceObservation::unavailable(Authority::D, SourceReason::DiskUnreadable).unwrap(),
         SourceObservation::unavailable(Authority::R, SourceReason::ResourceNotLoaded).unwrap(),
-        SourceObservation::closed_buffer(),
+        SourceObservation::unavailable(Authority::B, SourceReason::OpenStateUnknown).unwrap(),
     )
     .unwrap();
     let result = ObservationOutcome::classify(
@@ -2077,7 +2077,7 @@ fn integration_non_gdscript_locator_can_receive_an_attributed_invalid_target_res
             selected,
             doc,
             sources,
-            DirtyObservation::closed_document(),
+            DirtyObservation::unavailable(DirtyReason::OpenStateUnknown).unwrap(),
             Recheck::performed(vec![]),
         )),
         vec![],
@@ -2089,6 +2089,49 @@ fn integration_non_gdscript_locator_can_receive_an_attributed_invalid_target_res
     assert_eq!(
         result.resolved_target().unwrap().script_path().as_str(),
         "res://notes.txt"
+    );
+}
+
+#[test]
+fn missing_gdscript_with_unknown_open_state_is_not_inferred_absent() {
+    let req = request(Some(SESSION));
+    let selected = target(&req);
+    let outcome = ObservationOutcome::classify(
+        req,
+        interval(),
+        Some(selected.clone()),
+        Some(ObservationEvidence::new(
+            selected,
+            DocumentState::new(
+                None,
+                DocumentFact::observed(Validity::Missing, editor_stamp("1", 1)),
+                DocumentFact::unknown(FactReason::OpenStateUnknown),
+            ),
+            Sources::new(
+                SourceObservation::unavailable(Authority::D, SourceReason::DiskMissing).unwrap(),
+                SourceObservation::unavailable(Authority::R, SourceReason::ResourceNotLoaded)
+                    .unwrap(),
+                SourceObservation::unavailable(Authority::B, SourceReason::OpenStateUnknown)
+                    .unwrap(),
+            )
+            .unwrap(),
+            DirtyObservation::unavailable(DirtyReason::OpenStateUnknown).unwrap(),
+            Recheck::performed(vec![]),
+        )),
+        vec![],
+        vec![],
+    )
+    .unwrap();
+    assert_eq!(outcome.outcome(), OutcomeKind::LimitedObservation);
+    let snapshot = outcome.snapshot().unwrap();
+    assert_eq!(
+        snapshot.document().validity().value(),
+        Some(&Validity::Missing)
+    );
+    assert_eq!(snapshot.document().open_state().value(), None);
+    assert_eq!(
+        snapshot.sources().buffer().availability(),
+        Availability::Unavailable
     );
 }
 

@@ -1,6 +1,6 @@
 # Observation Caller Contract — Version 1
 
-**Status:** T001 implements the reusable Rust semantic library (§7); T002 implements source-free routing (§8); T003 implements the bounded caller/worker and confined disk boundary (§9); T004 adds the passive live-editor collector and clean-open vertical slice (§10); T005 extends document-attributed dirty/divergent and changing-document observation (§11); T006 verifies source-bearing multi-session routing and interruption outcomes (§12). This is **not MCP**. [Data model](../data-model.md) defines normative results; [bridge contract](bridge-protocol.md) defines private integration.
+**Status:** T001 implements the reusable Rust semantic library (§7); T002 implements source-free routing (§8); T003 implements the bounded caller/worker and confined disk boundary (§9); T004 adds the passive live-editor collector and clean-open vertical slice (§10); T005 extends document-attributed dirty/divergent and changing-document observation (§11); T006 verifies source-bearing multi-session routing and interruption outcomes (§12); T007 implements closed/invalid/partly observable documents and independent source limits (§13). This is **not MCP**. [Data model](../data-model.md) defines normative results; [bridge contract](bridge-protocol.md) defines private integration.
 
 ## 1. Operations and invocation
 
@@ -315,3 +315,39 @@ terminal result. A subsequent successful attempt is caller-initiated and has
 fresh request identity and evidence. No interrupted/failed recheck produces
 complete/not-open success. See [US3 evidence](../quickstart.md#26-t006-routing-and-interruption-evidence-2026-09-27)
 for actual stages, deadlines, privacy, export checks and limitations.
+
+## 13. T007 closed and partly observable documents
+
+Confirmed closed external GDScript returns `not_open`: B and document-buffer
+dirty state are `not_applicable`, while D and already-cached R remain independent.
+Unloaded R is `unavailable/resource_not_loaded`; the observer does not load or
+open it. Syntax-invalid and empty GDScript are valid observation subjects.
+
+The worker retains confined filesystem presence/absence evidence and its caller
+collection stamp even when no D text can be returned. A verified regular file
+can establish closed external identity/validity despite `too_large` or invalid
+UTF-8; a verified absence plus confirmed closed state establishes `missing_target`.
+Unknown open state never establishes absence. A non-GDScript target is
+`invalid_target` from its attributed invalid type without manufacturing a closed
+fact or reading its bytes. Known-open missing/unreadable D retains independent
+R/B. If an uncached unreadable file cannot supply safely verified metadata,
+validity remains unknown rather than being invented.
+
+An already-identifiable built-in GDScript may expose actual cached/open R and
+attributed B. Its D is always `unavailable/no_standalone_disk_source`, never scene
+or resource-container bytes. An unresolved built-in identity returns
+`unsupported_observation` without loading its container. Both adapters validate
+the built-in locator grammar and confine the container.
+
+Each source retains its independent inclusive 512-KiB UTF-8 limit. Exceeding it
+removes only that source's current text and reports `unavailable/too_large`;
+earlier and unrelated facts survive. Open/unknown-open results remain limited;
+valid confirmed closed results remain not-open. Missing authorities cannot
+establish three-way agreement. Separate denial, disconnection, timeout and
+invalidation retain their existing precedence.
+
+The public JSON contract remains version 1. Private same-binary worker events
+add metadata for unavailable D; Rust users of the integration `wire::Event`
+enum must handle `DiskMetadata`. No source is replaced with metadata, truncated
+or normalized. No product mutation, UndoRedo or supported-version claim is added.
+See [US4 evidence](../quickstart.md#27-t007-closed-and-partial-observation-evidence-2026-09-27).

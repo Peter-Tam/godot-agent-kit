@@ -341,6 +341,44 @@ visual/export evidence and limits are in
 This remains local development evidence, not an executed trusted GUI-CI or
 whole-feature supported-version claim.
 
+### T007 closed and partial observation provenance (2026-09-27)
+
+T007 changes no dependency, feature, toolchain or package version. The tracked
+lockfile remains SHA-256
+`dbba0e851819c51a4623e1b58b8cf7d583ff6ac372b66ea7e9f07b366db02fe1`;
+T002's recorded license/provenance/advisory review covers this unchanged graph.
+No fresh dependency audit or additional-platform support is claimed.
+
+The exercised tools are Rust/Cargo 1.98.1, Python 3.10.9, Actionlint 1.7.12 and
+Godot `4.7.2.stable.official.ed1daf0bf`, full engine hash
+`ed1daf0bf001b61586d9930840f2f1394092c079`, on macOS 26.6.2 arm64.
+Fresh checksums match the recorded official artifacts: Godot
+`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`;
+`macos.zip` `88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`.
+Passing US4 runs exercised observer
+`a24b2c97752f461d2e4d8d32559b5940387f101d18162f749c834a2d1cecc294`
+and driver
+`cbb044743be1cc71c36e8f8d4b55272686f1f96005d3c2cded35c333cc58d8d2`.
+Each retained summary records its actual identities.
+
+Native GUI observation proved both open and cached closed built-in GDScript
+identity without product loading; unresolved identity remains unsupported.
+The container is a confinement locator, never D. Independent filesystem
+presence/absence collection fixes closed/missing classification without
+inventing source or editor knowledge. Source-limit metadata is retained from
+the same safe read, avoiding a redundant filesystem acquisition.
+
+Import-time caching made a pre-startup oversized fixture unsuitable for proving
+unloaded R. Post-startup creation plus independent `get_cached_ref` witnesses
+established the genuine closed/unloaded cases. Test-only surface restrictions
+remove observability; native source and dirty state are never fabricated.
+Synthetic syntax-invalid assets are excluded from enabled/disabled/hook-only
+production exports. Exact regression, privacy, native-window/export evidence
+and limitations are in
+[quickstart §2.7](quickstart.md#27-t007-closed-and-partial-observation-evidence-2026-09-27).
+This is local development evidence, not executed trusted GUI CI or a complete
+supported-version matrix.
+
 ## 5. Local bridge, session bootstrap, and confinement
 
 **Decision:** A per-editor `TCPServer` listens only on `127.0.0.1`. Choose a random high port and retry bounded bind collisions during plugin bootstrap; do not rely on undocumented port-zero behavior. The caller initializes a private registry outside the project. The addon must be explicitly enabled and receive that registry path through `GODOT_AGENT_KIT_REGISTRY`; absent/unsafe configuration disables the listener, not authentication.

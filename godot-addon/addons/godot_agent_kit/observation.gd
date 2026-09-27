@@ -143,7 +143,8 @@ func collect(session: String, project: String, path: String) -> Dictionary:
 	_project = project
 	_path = path
 	var started := Time.get_ticks_usec()
-	if not _path.ends_with(".gd"):
+	var builtin := _path.contains("::")
+	if not builtin and not _path.ends_with(".gd"):
 		return _invalid_target(started)
 	var script_editor := EditorInterface.get_script_editor()
 	var before := _scan(script_editor)
@@ -190,7 +191,7 @@ func collect(session: String, project: String, path: String) -> Dictionary:
 		# The first enumeration and its actual objects are the original identity.
 		# Preserve their evidence for the reducer to invalidate if they change
 		# during collection, rather than silently replacing it with another tab.
-		identity = {"kind": "external_gdscript", "resource_path": _path,
+		identity = {"kind": "builtin_gdscript" if builtin else "external_gdscript", "resource_path": _path,
 			"script_instance_id": String.num_uint64(before.script_ids[index])}
 		if not buffer_witness.is_empty():
 			identity.editor_instance_id = buffer_witness.editor_instance_id
@@ -231,15 +232,25 @@ func collect(session: String, project: String, path: String) -> Dictionary:
 			"document_not_open", "Observe an open document to obtain buffer text")}
 		dirty = {"availability": "not_applicable", "state": "not_applicable", "reason": _reason(
 			"document_not_open", "Observe an open document to obtain buffer dirty state")}
+	if index == -1 and after.index == -1:
+		# Cache evidence is independent of open-state attribution. A mixed or
+		# unassignable tab list must not erase an already-present Resource.
 		var cached_start := Time.get_ticks_usec()
 		var cached: Variant = ResourceLoader.get_cached_ref(_path)
 		if cached is GDScript and cached.resource_path == _path:
 			resource_text = cached.source_code
 			resource = _read_source("R", resource_text, cached_start, _witness(cached, null, null))
-			identity = {"kind": "external_gdscript", "resource_path": _path,
+			identity = {"kind": "builtin_gdscript" if builtin else "external_gdscript", "resource_path": _path,
 				"script_instance_id": String.num_uint64(cached.get_instance_id())}
 			valid_fact = _fact("valid", _stamp(cached_start, Time.get_ticks_usec()))
 			script = cached
+	if builtin and identity == null:
+		# Resolving a missing built-in identity would require loading/parsing its
+		# container. Refuse that operation rather than manufacture observability.
+		_original.clear()
+		return {"v": 1, "kind": "failure", "request_id": "", "session_id": _session,
+			"project_root": _project, "script_path": _path,
+			"code": "unsupported_observation", "stage": "read_editor"}
 	var finished := Time.get_ticks_usec()
 	var result := {"v": 1, "kind": "sample", "request_id": "", "session_id": _session,
 		"project_root": _project, "script_path": _path, "collection": _stamp(started, finished),

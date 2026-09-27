@@ -164,9 +164,19 @@ fn observation_sample(hello: &Value) -> Value {
         "diagnostics":[]
     })
 }
+fn unavailable_source(
+    authority: &str,
+    code: &str,
+    reason: godot_agent_kit::observation::SourceReason,
+) -> Value {
+    json!({"authority":authority,"availability":"unavailable","text":null,"collection":null,
+        "witness":null,"staleness":null,"reason":{"code":code,"action":reason.action()},
+        "invalidated_evidence":null})
+}
 
 #[derive(Clone, Copy)]
 enum Mode {
+    ObservationAt(&'static str, ObservationMode),
     Observation(ObservationMode),
     SourceCapableNoObserve,
     Valid,
@@ -183,7 +193,7 @@ enum Mode {
     Oversized,
     Silence,
 }
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ObservationMode {
     Valid,
     PartialDivergence,
@@ -202,6 +212,26 @@ enum ObservationMode {
     FactOutsideSample,
     RecheckBeforeSample,
     WrongRecheckIdentity,
+    ClosedCached,
+    ClosedUnloaded,
+    ClosedUnloadedUnknown,
+    ClosedDenyRecheck,
+    ClosedDisconnectRecheck,
+    ClosedSilentRecheck,
+    ClosedReplaceDisk,
+    MissingClosed,
+    InvalidUnknown,
+    InvalidSyntax,
+    MissingDisk,
+    UnreadableDisk,
+    ResourceUnavailable,
+    BufferUnavailable,
+    OpenUnknown,
+    ExactResource,
+    ExactBuffer,
+    ExcessClosedResource,
+    Builtin,
+    BuiltinUnknown,
     Stable,
     Empty,
     WrongIdentity,
@@ -225,7 +255,11 @@ enum ObservationMode {
     MalformedRecheck,
     UnavailableRecheck,
 }
-fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
+fn serve(
+    listener: TcpListener,
+    mode: Mode,
+    replacement: Option<PathBuf>,
+) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         listener.set_nonblocking(true).unwrap();
         let deadline = Instant::now() + Duration::from_secs(2);
@@ -262,7 +296,7 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
             socket.write_all(&4097u32.to_be_bytes()).unwrap();
             return;
         }
-        let caps = json!({"observe_gdscript":matches!(mode, Mode::Observation(_) | Mode::SourceCapableNoObserve),"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false});
+        let caps = json!({"observe_gdscript":matches!(mode, Mode::Observation(_) | Mode::ObservationAt(_, _) | Mode::SourceCapableNoObserve),"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false});
         let key = if matches!(mode, Mode::WrongSecret) {
             "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         } else {
@@ -331,18 +365,16 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
             finish["capabilities"]["unsaved_paths"] = json!(true);
         }
         frame(&mut socket, &finish);
-        if let Mode::Observation(reply) = mode {
+        if let Mode::Observation(reply) | Mode::ObservationAt(_, reply) = mode {
+            let path = if let Mode::ObservationAt(path, _) = mode {
+                path
+            } else {
+                "res://scripts/subject.gd"
+            };
             let observe = read_frame(&mut socket);
             assert_eq!(
                 observe,
-                json!([
-                    1,
-                    "observe",
-                    hello[2],
-                    hello[3],
-                    hello[4],
-                    "res://scripts/subject.gd"
-                ])
+                json!([1, "observe", hello[2], hello[3], hello[4], path])
             );
             match reply {
                 ObservationMode::Disconnect => return,
@@ -368,7 +400,147 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                 );
                 return;
             }
+            if matches!(reply, ObservationMode::BuiltinUnknown) {
+                frame(
+                    &mut socket,
+                    &json!({"v":1,"kind":"failure","request_id":hello[2],
+                    "session_id":hello[3],"project_root":hello[4],"script_path":path,
+                    "code":"unsupported_observation","stage":"read_editor"}),
+                );
+                return;
+            }
             let mut sample = observation_sample(&hello);
+            sample["script_path"] = json!(path);
+            sample["document"]["identity"]["resource_path"] = json!(path);
+            sample["R"]["witness"]["resource_path"] = json!(path);
+            sample["B"]["witness"]["resource_path"] = json!(path);
+            sample["dirty"]["witness"]["resource_path"] = json!(path);
+            if matches!(reply, ObservationMode::Builtin) {
+                sample["document"]["identity"]["kind"] = json!("builtin_gdscript");
+            }
+            if matches!(reply, ObservationMode::InvalidSyntax) {
+                let syntax = "extends Node\nfunc broken(\n";
+                sample["R"]["text"] = json!(syntax);
+                sample["B"]["text"] = json!(syntax);
+                sample["dirty"]["state"] = json!("clean");
+            }
+            if matches!(
+                reply,
+                ObservationMode::ClosedCached
+                    | ObservationMode::ClosedUnloaded
+                    | ObservationMode::ClosedUnloadedUnknown
+                    | ObservationMode::ClosedDenyRecheck
+                    | ObservationMode::ClosedDisconnectRecheck
+                    | ObservationMode::ClosedSilentRecheck
+                    | ObservationMode::ClosedReplaceDisk
+                    | ObservationMode::MissingClosed
+                    | ObservationMode::ExcessClosedResource
+            ) {
+                use godot_agent_kit::observation::{DirtyReason, SourceReason};
+                let stamp = editor_stamp(&hello);
+                sample["document"]["open_state"] = json!({"value":"not_open",
+                    "collection":stamp,"reason":null,"invalidated_evidence":null});
+                sample["document"]["identity"]["editor_instance_id"] = Value::Null;
+                sample["document"]["identity"]["buffer_instance_id"] = Value::Null;
+                sample["B"] =
+                    unavailable_source("B", "document_not_open", SourceReason::DocumentNotOpen);
+                sample["B"]["availability"] = json!("not_applicable");
+                sample["dirty"] = json!({"availability":"not_applicable","state":"not_applicable",
+                    "collection":null,"witness":null,
+                    "reason":{"code":"document_not_open","action":DirtyReason::DocumentNotOpen.action()},
+                    "invalidated_evidence":null});
+                if matches!(
+                    reply,
+                    ObservationMode::ClosedUnloaded
+                        | ObservationMode::ClosedUnloadedUnknown
+                        | ObservationMode::ClosedDenyRecheck
+                        | ObservationMode::ClosedDisconnectRecheck
+                        | ObservationMode::ClosedSilentRecheck
+                        | ObservationMode::ClosedReplaceDisk
+                        | ObservationMode::MissingClosed
+                ) {
+                    sample["R"] = unavailable_source(
+                        "R",
+                        "resource_not_loaded",
+                        SourceReason::ResourceNotLoaded,
+                    );
+                }
+                if matches!(reply, ObservationMode::ExcessClosedResource) {
+                    sample["R"]["text"] = json!(
+                        "λ".repeat(godot_agent_kit::observation::SOURCE_LIMIT_BYTES / 2) + "!"
+                    );
+                }
+                if matches!(
+                    reply,
+                    ObservationMode::ClosedUnloadedUnknown
+                        | ObservationMode::ClosedDenyRecheck
+                        | ObservationMode::ClosedDisconnectRecheck
+                        | ObservationMode::ClosedSilentRecheck
+                        | ObservationMode::ClosedReplaceDisk
+                        | ObservationMode::MissingClosed
+                ) {
+                    sample["document"]["identity"] = Value::Null;
+                    sample["document"]["validity"] = json!({"value":null,"collection":null,
+                        "reason":{"code":"unavailable","action":godot_agent_kit::observation::FactReason::Unavailable.action()},
+                        "invalidated_evidence":null});
+                }
+            }
+            if matches!(reply, ObservationMode::ResourceUnavailable) {
+                use godot_agent_kit::observation::SourceReason;
+                sample["R"] = unavailable_source(
+                    "R",
+                    "resource_unreadable",
+                    SourceReason::ResourceUnreadable,
+                );
+            }
+            if matches!(
+                reply,
+                ObservationMode::BufferUnavailable
+                    | ObservationMode::OpenUnknown
+                    | ObservationMode::InvalidUnknown
+            ) {
+                use godot_agent_kit::observation::{DirtyReason, SourceReason};
+                let (code, reason) = if matches!(
+                    reply,
+                    ObservationMode::OpenUnknown | ObservationMode::InvalidUnknown
+                ) {
+                    ("open_state_unknown", SourceReason::OpenStateUnknown)
+                } else {
+                    ("buffer_unreadable", SourceReason::BufferUnreadable)
+                };
+                sample["B"] = unavailable_source("B", code, reason);
+                sample["dirty"] = json!({"availability":"unavailable","state":"unknown",
+                    "collection":null,"witness":null,"reason":{"code":if matches!(reply, ObservationMode::OpenUnknown | ObservationMode::InvalidUnknown) { "open_state_unknown" } else { "dirty_attribution_unavailable" },
+                    "action":if matches!(reply, ObservationMode::OpenUnknown | ObservationMode::InvalidUnknown) { DirtyReason::OpenStateUnknown.action() } else { DirtyReason::DirtyAttributionUnavailable.action() }},
+                    "invalidated_evidence":null});
+                if matches!(
+                    reply,
+                    ObservationMode::OpenUnknown | ObservationMode::InvalidUnknown
+                ) {
+                    sample["document"]["identity"]["editor_instance_id"] = Value::Null;
+                    sample["document"]["identity"]["buffer_instance_id"] = Value::Null;
+                    sample["document"]["open_state"] = json!({"value":null,"collection":null,
+                        "reason":{"code":"open_state_unknown","action":godot_agent_kit::observation::FactReason::OpenStateUnknown.action()},
+                        "invalidated_evidence":null});
+                }
+                if matches!(reply, ObservationMode::InvalidUnknown) {
+                    sample["document"]["identity"] = Value::Null;
+                    sample["document"]["validity"]["value"] = json!("invalid");
+                    sample["R"] = unavailable_source(
+                        "R",
+                        "resource_not_loaded",
+                        SourceReason::ResourceNotLoaded,
+                    );
+                }
+            }
+            if matches!(reply, ObservationMode::ExactResource) {
+                sample["R"]["text"] =
+                    json!("λ".repeat(godot_agent_kit::observation::SOURCE_LIMIT_BYTES / 2));
+            }
+            if matches!(reply, ObservationMode::ExactBuffer) {
+                sample["B"]["text"] =
+                    json!("λ".repeat(godot_agent_kit::observation::SOURCE_LIMIT_BYTES / 2));
+            }
             if matches!(reply, ObservationMode::WrongRequest) {
                 sample["request_id"] = json!("another-request");
             }
@@ -509,23 +681,48 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                     | ObservationMode::WrongRecheckRequest
                     | ObservationMode::MalformedRecheck
                     | ObservationMode::UnavailableRecheck
+                    | ObservationMode::ClosedCached
+                    | ObservationMode::ClosedUnloaded
+                    | ObservationMode::ClosedUnloadedUnknown
+                    | ObservationMode::ClosedDenyRecheck
+                    | ObservationMode::ClosedDisconnectRecheck
+                    | ObservationMode::ClosedSilentRecheck
+                    | ObservationMode::ClosedReplaceDisk
+                    | ObservationMode::MissingClosed
+                    | ObservationMode::InvalidUnknown
+                    | ObservationMode::InvalidSyntax
+                    | ObservationMode::MissingDisk
+                    | ObservationMode::UnreadableDisk
+                    | ObservationMode::ResourceUnavailable
+                    | ObservationMode::BufferUnavailable
+                    | ObservationMode::OpenUnknown
+                    | ObservationMode::ExactResource
+                    | ObservationMode::ExactBuffer
+                    | ObservationMode::ExcessClosedResource
+                    | ObservationMode::ExcessSource
+                    | ObservationMode::ExcessBuffer
+                    | ObservationMode::Builtin
             ) {
+                // A direct sample consumer may close without asking for recheck.
+                // Full caller cases below still assert their terminal evidence.
+                if socket.peek(&mut [0u8; 1]).unwrap() == 0 {
+                    return;
+                }
                 let recheck = read_frame(&mut socket);
                 assert_eq!(
                     recheck,
-                    json!([
-                        1,
-                        "recheck",
-                        hello[2],
-                        hello[3],
-                        hello[4],
-                        "res://scripts/subject.gd"
-                    ])
+                    json!([1, "recheck", hello[2], hello[3], hello[4], path])
                 );
-                if matches!(reply, ObservationMode::DisconnectRecheck) {
+                if matches!(
+                    reply,
+                    ObservationMode::DisconnectRecheck | ObservationMode::ClosedDisconnectRecheck
+                ) {
                     return;
                 }
-                if matches!(reply, ObservationMode::SilentRecheck) {
+                if matches!(
+                    reply,
+                    ObservationMode::SilentRecheck | ObservationMode::ClosedSilentRecheck
+                ) {
                     thread::sleep(Duration::from_secs(5));
                     return;
                 }
@@ -534,18 +731,52 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                     socket.write_all(b"{}").unwrap();
                     return;
                 }
-                if matches!(reply, ObservationMode::DenyRecheck) {
+                if matches!(
+                    reply,
+                    ObservationMode::DenyRecheck | ObservationMode::ClosedDenyRecheck
+                ) {
                     frame(
                         &mut socket,
                         &json!({"v":1,"kind":"failure","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":"res://scripts/subject.gd","code":"out_of_project","stage":"recheck"}),
                     );
                     return;
                 }
+                if matches!(reply, ObservationMode::ClosedReplaceDisk) {
+                    let original = replacement.as_ref().expect("test controls this disk file");
+                    let next = original.with_extension("next");
+                    fs::write(
+                        &next,
+                        "λ".repeat(godot_agent_kit::observation::SOURCE_LIMIT_BYTES / 2) + "!",
+                    )
+                    .unwrap();
+                    fs::rename(next, original).unwrap();
+                }
                 let changes = match reply {
                     ObservationMode::Stable
                     | ObservationMode::Empty
                     | ObservationMode::UnavailableRecheck
-                    | ObservationMode::RecheckBeforeSample => json!([]),
+                    | ObservationMode::RecheckBeforeSample
+                    | ObservationMode::ClosedCached
+                    | ObservationMode::ClosedUnloaded
+                    | ObservationMode::ClosedUnloadedUnknown
+                    | ObservationMode::ClosedDenyRecheck
+                    | ObservationMode::ClosedDisconnectRecheck
+                    | ObservationMode::ClosedSilentRecheck
+                    | ObservationMode::ClosedReplaceDisk
+                    | ObservationMode::MissingClosed
+                    | ObservationMode::InvalidUnknown
+                    | ObservationMode::InvalidSyntax
+                    | ObservationMode::MissingDisk
+                    | ObservationMode::UnreadableDisk
+                    | ObservationMode::ResourceUnavailable
+                    | ObservationMode::BufferUnavailable
+                    | ObservationMode::OpenUnknown
+                    | ObservationMode::ExactResource
+                    | ObservationMode::ExactBuffer
+                    | ObservationMode::ExcessClosedResource
+                    | ObservationMode::ExcessSource
+                    | ObservationMode::ExcessBuffer
+                    | ObservationMode::Builtin => json!([]),
                     ObservationMode::ChangedResource => {
                         json!([{"surface":"R","code":"source_changed"}])
                     }
@@ -573,7 +804,7 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                         "9007199254740994"
                     });
                 stamp["finished_tick_us"] = json!("9007199254740995");
-                let mut rechecked = json!({"v":1,"kind":"recheck","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":"res://scripts/subject.gd","collection":stamp,"checks":"performed","detected_changes":changes,"reason":null});
+                let mut rechecked = json!({"v":1,"kind":"recheck","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":path,"collection":stamp,"checks":"performed","detected_changes":changes,"reason":null});
                 if matches!(reply, ObservationMode::WrongRecheckRequest) {
                     rechecked["request_id"] = json!("another-request");
                 }
@@ -607,7 +838,15 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
 fn attach(fixture: &Fixture, id: &str, mode: Mode) -> thread::JoinHandle<()> {
     let socket = listener();
     fixture.descriptor(id, socket.local_addr().unwrap().port());
-    serve(socket, mode)
+    serve(
+        socket,
+        mode,
+        if matches!(mode, Mode::Observation(ObservationMode::ClosedReplaceDisk)) {
+            Some(fixture.project.join("scripts/subject.gd"))
+        } else {
+            None
+        },
+    )
 }
 const ID1: &str = "00112233445566778899aabbccddeeff";
 const ID2: &str = "11112233445566778899aabbccddeeff";
@@ -630,6 +869,19 @@ fn invoke(
         command.args(["--session", session]);
     }
     command.output().unwrap()
+}
+fn invoke_at(fixture: &Fixture, locator: &str) -> std::process::Output {
+    std::process::Command::new(env!("CARGO_BIN_EXE_observe-gdscript"))
+        .args([
+            "--registry",
+            fixture.registry.to_str().unwrap(),
+            "--project",
+            fixture.project.to_str().unwrap(),
+            "--script",
+            locator,
+        ])
+        .output()
+        .unwrap()
 }
 
 #[test]
@@ -884,7 +1136,11 @@ fn same_named_projects_with_the_same_script_path_keep_disk_and_editor_lifetimes_
     let mut metadata: Value = serde_json::from_slice(&fs::read(&descriptor).unwrap()).unwrap();
     metadata["project_root"] = json!(other);
     fs::write(descriptor, serde_json::to_vec(&metadata).unwrap()).unwrap();
-    let second = serve(second_listener, Mode::Observation(ObservationMode::Stable));
+    let second = serve(
+        second_listener,
+        Mode::Observation(ObservationMode::Stable),
+        None,
+    );
     for (project, id, selected, unselected) in [
         (
             &fixture.project,
@@ -931,7 +1187,7 @@ fn rebound_ended_port_without_the_original_secret_cannot_release_project_source(
     fixture.descriptor(ID1, port);
     drop(old_listener);
     let rebound = TcpListener::bind(("127.0.0.1", port)).unwrap();
-    let impostor = serve(rebound, Mode::WrongSecret);
+    let impostor = serve(rebound, Mode::WrongSecret, None);
     let began = Instant::now();
     let output = invoke(&fixture, &fixture.project, Some(ID1));
     assert!(began.elapsed() < Duration::from_secs(5));
@@ -1828,10 +2084,536 @@ fn actual_caller_distinguishes_observed_empty_sources_from_unavailable() {
 }
 
 #[test]
+fn caller_keeps_other_sources_when_one_editor_authority_exceeds_its_limit() {
+    for (mode, unavailable, intact, intact_text) in [
+        (ObservationMode::ExcessSource, "R", "B", "x\n"),
+        (ObservationMode::ExcessBuffer, "B", "R", "\u{feff}x\r\n"),
+    ] {
+        let fixture = Fixture::new();
+        fs::create_dir(fixture.project.join("scripts")).unwrap();
+        fs::write(fixture.project.join("scripts/subject.gd"), "separate disk").unwrap();
+        let peer = attach(&fixture, ID1, Mode::Observation(mode));
+        let output = invoke(&fixture, &fixture.project, None);
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(result["outcome"], "limited_observation", "{mode:?}");
+        let snapshot = &result["snapshot"];
+        assert_eq!(snapshot["sources"]["D"]["text"], "separate disk");
+        assert_eq!(
+            snapshot["sources"][unavailable]["availability"],
+            "unavailable"
+        );
+        assert_eq!(
+            snapshot["sources"][unavailable]["reason"]["code"],
+            "too_large"
+        );
+        assert!(snapshot["sources"][unavailable]["text"].is_null());
+        assert_eq!(snapshot["sources"][intact]["text"], intact_text);
+        assert_eq!(snapshot["dirty"]["state"], "dirty");
+        assert_eq!(snapshot["agreement"], "divergent");
+        peer.join().unwrap();
+    }
+}
+
+#[test]
+fn closed_cached_unloaded_missing_and_non_gdscript_have_distinct_caller_outcomes() {
+    use ObservationMode::*;
+    for (mode, expected_r) in [
+        (ClosedCached, Some("\u{feff}x\r\n")),
+        (ClosedUnloaded, None),
+    ] {
+        let fixture = Fixture::new();
+        fs::create_dir(fixture.project.join("scripts")).unwrap();
+        fs::write(fixture.project.join("scripts/subject.gd"), "disk\n").unwrap();
+        let peer = attach(&fixture, ID1, Mode::Observation(mode));
+        let output = invoke(&fixture, &fixture.project, None);
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(output.status.code(), Some(0));
+        assert_eq!(result["outcome"], "not_open");
+        let snapshot = &result["snapshot"];
+        assert_eq!(snapshot["document"]["validity"]["value"], "valid");
+        assert_eq!(snapshot["document"]["open_state"]["value"], "not_open");
+        assert_eq!(snapshot["sources"]["D"]["text"], "disk\n");
+        assert_eq!(snapshot["sources"]["R"]["text"].as_str(), expected_r);
+        if expected_r.is_none() {
+            assert_eq!(
+                snapshot["sources"]["R"]["reason"]["code"],
+                "resource_not_loaded"
+            );
+        }
+        assert_eq!(snapshot["sources"]["B"]["availability"], "not_applicable");
+        assert_eq!(snapshot["dirty"]["availability"], "not_applicable");
+        assert_eq!(snapshot["comparisons"]["disk_buffer"], "unknown");
+        peer.join().unwrap();
+    }
+    for (locator, mode, expected) in [
+        ("res://scripts/subject.gd", MissingClosed, "missing_target"),
+        ("res://scripts/notes.txt", InvalidUnknown, "invalid_target"),
+    ] {
+        let fixture = Fixture::new();
+        fs::create_dir(fixture.project.join("scripts")).unwrap();
+        if mode == InvalidUnknown {
+            fs::write(
+                fixture.project.join("scripts/notes.txt"),
+                "PRIVATE_NON_SCRIPT",
+            )
+            .unwrap();
+        }
+        let peer = attach(&fixture, ID1, Mode::ObservationAt(locator, mode));
+        let output = invoke_at(&fixture, locator);
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(output.status.code(), Some(3), "{mode:?} {result}");
+        assert_eq!(result["outcome"], expected);
+        assert!(result["snapshot"].is_null());
+        assert_eq!(result["resolved_target"]["script_path"], locator);
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("PRIVATE_NON_SCRIPT"));
+        peer.join().unwrap();
+    }
+}
+
+#[test]
+fn syntax_invalid_gdscript_is_still_observable_and_open_missing_disk_retains_editor_facts() {
+    for (mode, disk_reason) in [
+        (ObservationMode::InvalidSyntax, None),
+        (ObservationMode::MissingDisk, Some("disk_missing")),
+        (ObservationMode::UnreadableDisk, Some("disk_unreadable")),
+    ] {
+        let fixture = Fixture::new();
+        fs::create_dir(fixture.project.join("scripts")).unwrap();
+        let source = fixture.project.join("scripts/subject.gd");
+        match mode {
+            ObservationMode::InvalidSyntax => {
+                fs::write(&source, "extends Node\nfunc broken(\n").unwrap()
+            }
+            ObservationMode::UnreadableDisk => {
+                fs::write(&source, "PRIVATE_UNREADABLE_DISK").unwrap();
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&source, fs::Permissions::from_mode(0o000)).unwrap();
+            }
+            _ => {}
+        }
+        let peer = attach(&fixture, ID1, Mode::Observation(mode));
+        let output = invoke(&fixture, &fixture.project, None);
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(
+            result["outcome"],
+            if disk_reason.is_some() {
+                "limited_observation"
+            } else {
+                "complete_observation"
+            },
+            "{mode:?} {result}"
+        );
+        assert_eq!(result["snapshot"]["document"]["validity"]["value"], "valid");
+        assert_eq!(
+            result["snapshot"]["document"]["open_state"]["value"],
+            "open"
+        );
+        assert_eq!(
+            result["snapshot"]["sources"]["D"]["reason"]["code"].as_str(),
+            disk_reason
+        );
+        assert!(result["snapshot"]["sources"]["R"]["text"]
+            .as_str()
+            .is_some());
+        assert!(result["snapshot"]["sources"]["B"]["text"]
+            .as_str()
+            .is_some());
+        assert!(
+            result["snapshot"]["comparisons"]["disk_resource"] == "unknown"
+                || disk_reason.is_none()
+        );
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("PRIVATE_UNREADABLE_DISK"));
+        peer.join().unwrap();
+    }
+}
+
+#[test]
+fn unavailable_editor_surfaces_and_unknown_open_never_infer_another_authority() {
+    for (mode, expected_source, reason) in [
+        (
+            ObservationMode::ResourceUnavailable,
+            "R",
+            "resource_unreadable",
+        ),
+        (ObservationMode::BufferUnavailable, "B", "buffer_unreadable"),
+        (ObservationMode::OpenUnknown, "B", "open_state_unknown"),
+    ] {
+        let fixture = Fixture::new();
+        fs::create_dir(fixture.project.join("scripts")).unwrap();
+        fs::write(fixture.project.join("scripts/subject.gd"), "independent D").unwrap();
+        let peer = attach(&fixture, ID1, Mode::Observation(mode));
+        let output = invoke(&fixture, &fixture.project, None);
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let snapshot = &result["snapshot"];
+        assert_eq!(
+            result["outcome"], "limited_observation",
+            "{mode:?} {result}"
+        );
+        assert_eq!(snapshot["sources"]["D"]["text"], "independent D");
+        assert_eq!(
+            snapshot["sources"][expected_source]["availability"],
+            "unavailable"
+        );
+        assert_eq!(
+            snapshot["sources"][expected_source]["reason"]["code"],
+            reason
+        );
+        assert!(snapshot["sources"][expected_source]["text"].is_null());
+        if mode == ObservationMode::OpenUnknown {
+            assert!(snapshot["document"]["open_state"]["value"].is_null());
+            assert_eq!(
+                snapshot["document"]["open_state"]["reason"]["code"],
+                "open_state_unknown"
+            );
+            assert_eq!(snapshot["dirty"]["state"], "unknown");
+        } else {
+            assert_eq!(snapshot["document"]["open_state"]["value"], "open");
+        }
+        peer.join().unwrap();
+    }
+}
+
+#[test]
+fn oversized_disk_keeps_independent_open_or_unknown_open_editor_facts() {
+    use godot_agent_kit::observation::SOURCE_LIMIT_BYTES;
+    for (mode, expected_open) in [
+        (ObservationMode::Stable, Some("open")),
+        (ObservationMode::OpenUnknown, None),
+    ] {
+        let fixture = Fixture::new();
+        fs::create_dir(fixture.project.join("scripts")).unwrap();
+        fs::write(
+            fixture.project.join("scripts/subject.gd"),
+            vec![b'z'; SOURCE_LIMIT_BYTES + 1],
+        )
+        .unwrap();
+        let peer = attach(&fixture, ID1, Mode::Observation(mode));
+        let output = invoke(&fixture, &fixture.project, None);
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let snapshot = &result["snapshot"];
+        assert_eq!(result["outcome"], "limited_observation", "{mode:?}");
+        assert_eq!(
+            snapshot["document"]["open_state"]["value"].as_str(),
+            expected_open
+        );
+        assert_eq!(snapshot["sources"]["D"]["reason"]["code"], "too_large");
+        assert!(snapshot["sources"]["D"]["text"].is_null());
+        assert_eq!(snapshot["sources"]["R"]["text"], "\u{feff}x\r\n");
+        if mode == ObservationMode::OpenUnknown {
+            assert_eq!(
+                snapshot["sources"]["B"]["reason"]["code"],
+                "open_state_unknown"
+            );
+            assert_eq!(snapshot["dirty"]["state"], "unknown");
+        } else {
+            assert_eq!(snapshot["sources"]["B"]["text"], "x\n");
+            assert_eq!(snapshot["dirty"]["state"], "dirty");
+        }
+        peer.join().unwrap();
+    }
+}
+
+#[test]
+fn builtin_identity_never_reads_container_and_absent_identity_is_unsupported() {
+    let locator = "res://scripts/scene.tscn::GDScript_abc";
+    for (mode, expected) in [
+        (ObservationMode::Builtin, "limited_observation"),
+        (ObservationMode::BuiltinUnknown, "unsupported_observation"),
+    ] {
+        let fixture = Fixture::new();
+        fs::create_dir(fixture.project.join("scripts")).unwrap();
+        fs::write(
+            fixture.project.join("scripts/scene.tscn"),
+            "PRIVATE_CONTAINER_SOURCE",
+        )
+        .unwrap();
+        let peer = attach(&fixture, ID1, Mode::ObservationAt(locator, mode));
+        let output = invoke_at(&fixture, locator);
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(result["outcome"], expected, "{mode:?} {result}");
+        if mode == ObservationMode::Builtin {
+            assert_eq!(
+                result["snapshot"]["document"]["identity"]["kind"],
+                "builtin_gdscript"
+            );
+            assert_eq!(
+                result["snapshot"]["sources"]["D"]["reason"]["code"],
+                "no_standalone_disk_source"
+            );
+            assert_eq!(result["snapshot"]["sources"]["R"]["text"], "\u{feff}x\r\n");
+            assert_eq!(result["snapshot"]["sources"]["B"]["text"], "x\n");
+        } else {
+            assert!(result["snapshot"].is_null());
+        }
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("PRIVATE_CONTAINER_SOURCE"));
+        peer.join().unwrap();
+    }
+}
+
+#[test]
+fn utf8_limit_at_exact_boundary_is_observed_per_editor_source() {
+    use godot_agent_kit::observation::{Availability, SOURCE_LIMIT_BYTES};
+    let exact = "λ".repeat(SOURCE_LIMIT_BYTES / 2);
+    for (mode, source) in [
+        (ObservationMode::ExactResource, "R"),
+        (ObservationMode::ExactBuffer, "B"),
+    ] {
+        let fixture = Fixture::new();
+        let peer = attach(&fixture, ID1, Mode::Observation(mode));
+        let request = fixture.request(Some(ID1));
+        let mut selected = fixture.resolve(Some(ID1), Duration::from_secs(2)).unwrap();
+        let started = Instant::now();
+        let sample = wire::observe(
+            &mut selected,
+            &request,
+            started,
+            started + Duration::from_secs(2),
+        )
+        .unwrap();
+        let observed = if source == "R" {
+            &sample.resource
+        } else {
+            &sample.buffer
+        };
+        assert_eq!(observed.availability(), Availability::Observed);
+        assert_eq!(observed.text(), Some(exact.as_str()));
+        assert_eq!(observed.text().unwrap().len(), SOURCE_LIMIT_BYTES);
+        assert!(observed.collection().is_some());
+        drop(selected);
+        peer.join().unwrap();
+    }
+}
+
+#[test]
+fn closed_disk_and_resource_limits_are_independent_of_not_open_status() {
+    use godot_agent_kit::observation::SOURCE_LIMIT_BYTES;
+    for (mode, disk_bytes, expected_disk, expected_resource) in [
+        (
+            ObservationMode::ClosedCached,
+            SOURCE_LIMIT_BYTES,
+            "observed",
+            "observed",
+        ),
+        (
+            ObservationMode::ClosedCached,
+            SOURCE_LIMIT_BYTES + 1,
+            "too_large",
+            "observed",
+        ),
+        (
+            ObservationMode::ExcessClosedResource,
+            SOURCE_LIMIT_BYTES,
+            "observed",
+            "too_large",
+        ),
+        (
+            ObservationMode::ClosedUnloaded,
+            SOURCE_LIMIT_BYTES + 1,
+            "too_large",
+            "resource_not_loaded",
+        ),
+        (
+            ObservationMode::ClosedUnloadedUnknown,
+            SOURCE_LIMIT_BYTES + 1,
+            "too_large",
+            "resource_not_loaded",
+        ),
+    ] {
+        let fixture = Fixture::new();
+        fs::create_dir(fixture.project.join("scripts")).unwrap();
+        fs::write(
+            fixture.project.join("scripts/subject.gd"),
+            format!(
+                "{}{}",
+                "λ".repeat(SOURCE_LIMIT_BYTES / 2),
+                if disk_bytes > SOURCE_LIMIT_BYTES {
+                    "!"
+                } else {
+                    ""
+                }
+            ),
+        )
+        .unwrap();
+        let peer = attach(&fixture, ID1, Mode::Observation(mode));
+        let output = invoke(&fixture, &fixture.project, None);
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(result["outcome"], "not_open", "{mode:?}");
+        let snapshot = &result["snapshot"];
+        assert_eq!(
+            snapshot["sources"]["D"]["availability"],
+            if expected_disk == "observed" {
+                "observed"
+            } else {
+                "unavailable"
+            }
+        );
+        assert_eq!(
+            snapshot["sources"]["D"]["reason"]["code"],
+            if expected_disk == "observed" {
+                Value::Null
+            } else {
+                json!(expected_disk)
+            }
+        );
+        if expected_disk == "observed" {
+            assert_eq!(
+                snapshot["sources"]["D"]["text"].as_str().unwrap().len(),
+                SOURCE_LIMIT_BYTES
+            );
+        } else {
+            assert!(snapshot["sources"]["D"]["text"].is_null());
+        }
+        assert_eq!(
+            snapshot["sources"]["R"]["reason"]["code"],
+            if expected_resource == "observed" {
+                Value::Null
+            } else {
+                json!(expected_resource)
+            }
+        );
+        assert_eq!(snapshot["sources"]["B"]["availability"], "not_applicable");
+        assert_eq!(snapshot["dirty"]["availability"], "not_applicable");
+        if mode == ObservationMode::ClosedUnloadedUnknown {
+            assert_eq!(snapshot["document"]["validity"]["value"], "valid");
+            assert_eq!(
+                snapshot["document"]["validity"]["collection"]["clock_id"],
+                "caller"
+            );
+            assert!(snapshot["document"]["identity"]["disk_file_id"]["inode"]
+                .as_str()
+                .is_some());
+            assert!(snapshot["document"]["identity"]["script_instance_id"].is_null());
+            assert!(snapshot["sources"]["D"]["witness"].is_null());
+        }
+        peer.join().unwrap();
+    }
+}
+
+#[test]
+fn closed_unloaded_invalid_utf8_disk_still_has_verified_identity_without_d_text() {
+    let fixture = Fixture::new();
+    fs::create_dir(fixture.project.join("scripts")).unwrap();
+    fs::write(fixture.project.join("scripts/subject.gd"), [0xff]).unwrap();
+    let peer = attach(
+        &fixture,
+        ID1,
+        Mode::Observation(ObservationMode::ClosedUnloadedUnknown),
+    );
+    let output = invoke(&fixture, &fixture.project, None);
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["outcome"], "not_open");
+    assert_eq!(result["snapshot"]["document"]["validity"]["value"], "valid");
+    assert_eq!(
+        result["snapshot"]["sources"]["D"]["reason"]["code"],
+        "invalid_utf8"
+    );
+    assert!(result["snapshot"]["sources"]["D"]["text"].is_null());
+    assert_eq!(
+        result["snapshot"]["sources"]["R"]["reason"]["code"],
+        "resource_not_loaded"
+    );
+    assert_eq!(
+        result["snapshot"]["sources"]["B"]["availability"],
+        "not_applicable"
+    );
+    peer.join().unwrap();
+}
+
+#[test]
+fn closed_oversized_disk_identity_change_invalidates_only_stale_disk_facts() {
+    use godot_agent_kit::observation::SOURCE_LIMIT_BYTES;
+    let fixture = Fixture::new();
+    fs::create_dir(fixture.project.join("scripts")).unwrap();
+    fs::write(
+        fixture.project.join("scripts/subject.gd"),
+        "λ".repeat(SOURCE_LIMIT_BYTES / 2) + "!",
+    )
+    .unwrap();
+    let peer = attach(
+        &fixture,
+        ID1,
+        Mode::Observation(ObservationMode::ClosedReplaceDisk),
+    );
+    let output = invoke(&fixture, &fixture.project, None);
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["outcome"], "limited_observation");
+    let snapshot = &result["snapshot"];
+    assert_eq!(
+        snapshot["sources"]["D"]["reason"]["code"],
+        "identity_changed"
+    );
+    assert_eq!(
+        snapshot["document"]["validity"]["reason"]["code"],
+        "identity_changed"
+    );
+    assert_eq!(
+        snapshot["document"]["validity"]["invalidated_evidence"]["value"],
+        "valid"
+    );
+    assert_eq!(snapshot["document"]["open_state"]["value"], "not_open");
+    assert_eq!(
+        snapshot["sources"]["R"]["reason"]["code"],
+        "resource_not_loaded"
+    );
+    assert_eq!(
+        snapshot["consistency"]["detected_changes"][0]["code"],
+        "identity_changed"
+    );
+    peer.join().unwrap();
+}
+
+#[test]
+fn closed_disk_limit_never_outweighs_denial_known_disconnect_or_deadline() {
+    use godot_agent_kit::observation::SOURCE_LIMIT_BYTES;
+    for (mode, expected) in [
+        (ObservationMode::ClosedDenyRecheck, "denied_access"),
+        (
+            ObservationMode::ClosedDisconnectRecheck,
+            "disconnected_editor",
+        ),
+        (ObservationMode::ClosedSilentRecheck, "timeout"),
+    ] {
+        let fixture = Fixture::new();
+        fs::create_dir(fixture.project.join("scripts")).unwrap();
+        fs::write(
+            fixture.project.join("scripts/subject.gd"),
+            "λ".repeat(SOURCE_LIMIT_BYTES / 2) + "!",
+        )
+        .unwrap();
+        let peer = attach(&fixture, ID1, Mode::Observation(mode));
+        let output = invoke(&fixture, &fixture.project, None);
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(result["outcome"], expected, "{mode:?}");
+        assert_ne!(result["outcome"], "not_open");
+        if expected == "denied_access" {
+            assert!(result["snapshot"].is_null());
+            assert!(result["resolved_target"].is_null());
+        } else {
+            assert_eq!(
+                result["snapshot"]["sources"]["D"]["reason"]["code"],
+                "too_large"
+            );
+            assert_eq!(
+                result["snapshot"]["sources"]["R"]["reason"]["code"],
+                if expected == "disconnected_editor" {
+                    "session_ended"
+                } else {
+                    "resource_not_loaded"
+                }
+            );
+            assert_eq!(result["snapshot"]["consistency"]["checks"], "unavailable");
+        }
+        assert!(output.stderr.is_empty());
+        assert!(!String::from_utf8_lossy(&output.stdout).contains(SECRET));
+        peer.join().unwrap();
+    }
+}
+
+#[test]
 fn ipc_events_validate_target_identity_and_reject_claimed_success() {
     use godot_agent_kit::observation::{
-        DecimalCounter, DetectedChange, Diagnostic, EngineVersion, FileIdentity, Recheck,
-        RecheckReason, Stage, Surface,
+        ClockId, CollectionStamp, DecimalCounter, DetectedChange, Diagnostic, EngineVersion,
+        FileIdentity, Recheck, RecheckReason, SourceReason, Stage, Surface,
     };
     let fixture = Fixture::new();
     let request = fixture.request(Some(ID1));
@@ -1862,6 +2644,55 @@ fn ipc_events_validate_target_identity_and_reject_claimed_success() {
     let mut wrong = serde_json::from_slice::<Value>(&event).unwrap();
     wrong["target"]["script_path"] = json!("res://scripts/other.gd");
     assert!(wire::decode_event(wrong.to_string().as_bytes(), &request, None, 1).is_err());
+    let file = FileIdentity::new(
+        DecimalCounter::new("22").unwrap(),
+        DecimalCounter::new("33").unwrap(),
+    );
+    let stamp = CollectionStamp::new(
+        ClockId::Caller,
+        DecimalCounter::new("0").unwrap(),
+        DecimalCounter::new("1").unwrap(),
+        1,
+    )
+    .unwrap();
+    let limited_disk = wire::encode_event(
+        &Event::DiskMetadata {
+            reason: SourceReason::TooLarge,
+            file: Some(file.clone()),
+            collection: stamp,
+        },
+        request.request_id(),
+    )
+    .unwrap();
+    assert!(matches!(
+        wire::decode_event(&limited_disk, &request, Some(&target), 2).unwrap(),
+        Event::DiskMetadata { reason: SourceReason::TooLarge, file: Some(id), .. }
+            if id == file
+    ));
+    let mut counterfeit: Value = serde_json::from_slice(&limited_disk).unwrap();
+    counterfeit["disk"]["reason"]["code"] = json!("disk_missing");
+    counterfeit["disk"]["reason"]["action"] = json!(SourceReason::DiskMissing.action());
+    assert_eq!(
+        wire::decode_event(
+            counterfeit.to_string().as_bytes(),
+            &request,
+            Some(&target),
+            2
+        )
+        .err()
+        .unwrap()
+        .outcome,
+        OutcomeKind::ProtocolError
+    );
+    let mut counterfeit: Value = serde_json::from_slice(&limited_disk).unwrap();
+    counterfeit["file_collection"]["clock_id"] = json!(format!("editor:{ID1}"));
+    assert!(wire::decode_event(
+        counterfeit.to_string().as_bytes(),
+        &request,
+        Some(&target),
+        2
+    )
+    .is_err());
     let failed = json!({"v":1,"request_id":request.request_id().as_str(),"kind":"failed",
         "failure":{"outcome":"complete_observation","diagnostic":{"code":"invalid_frame","stage":"read_editor","surface":"session","message":"Bridge response was invalid","action":"Inspect the affected stage and authority before a new observation"},"selection":null}});
     assert!(wire::decode_event(failed.to_string().as_bytes(), &request, Some(&target), 1).is_err());

@@ -213,6 +213,44 @@ All required local native, US3 GUI, privacy and export checks pass; exact scope,
 timings and the remaining full-feature/CI gates are recorded in
 [quickstart §2.6](quickstart.md#26-t006-routing-and-interruption-evidence-2026-09-27).
 
+### T007 implementation compliance
+
+T007 implements US4's closed/invalid/partly observable document boundary and
+independent source limits. I/II/IV/VII require actual cached or open GDScript
+identity, independent D/R/B, explicit unknown open state, and retention of
+unrelated evidence. Closed B/dirty alone are not applicable; syntax-invalid and
+empty GDScript remain valid observation subjects. The common reducer retains
+version-1 outcome and interruption precedence.
+
+V/X/XII: a built-in locator is validated against the same grammar at both
+adapters, and its container remains project-confined before/after collection.
+Only existing native editor/cache identity permits R/B observation; no scene
+loading, parsing, container-source read or editor selection manufactures facts.
+Unresolved built-in identity is unsupported. Per-source limits change only
+availability, never authorize operation-wide refusal or discard earlier facts.
+Negative fixture restrictions may withhold observability, not create evidence.
+
+VI/VIII require both US4 GUI groups, independent non-interference/privacy
+witnesses and renewed enabled/disabled/hook-only export inspection and actual
+launches. The protected workflow merely adds named groups under its unchanged
+reviewed-main/environment gate; local verification is not executed trusted CI.
+No dependency, schema, product operation or supported-version claim is added.
+
+The observation collector and assertions remain capability-specific; shared
+framing, routing, confinement, supervision and classification retain their
+durable ownership. No duplicate infrastructure or speculative framework is
+introduced. Mutation A–E and applied-edit durability remain inapplicable:
+this task performs no product mutation or UndoRedo. T008's cumulative acceptance
+and roadmap Phase 1 exit gates remain separate.
+
+Implementation review: both US4 groups, the expanded incremental privacy replay,
+clean-open regression and three export variants pass locally with independent
+native authority and scoped visual evidence. All 105 native tests and required
+baseline commands pass. Verified filesystem presence/absence retains its own
+collection stamp and never substitutes for unavailable D text; closed/unknown
+editor facts remain distinct. The exact evidence and remaining T008/CI gates are
+recorded in [quickstart §2.7](quickstart.md#27-t007-closed-and-partial-observation-evidence-2026-09-27).
+
 ## Project Structure
 
 ### Documentation (this feature)
