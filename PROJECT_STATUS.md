@@ -4,10 +4,10 @@
 
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
-- **Feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md)
-- **Feature state:** Complete — observation foundation
-- **Implemented tasks:** 8 / 8
-- **Merged tasks:** 8 / 8
+- **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
+- **Feature state:** Specification draft — quality-validated; planning not started
+- **Tasks:** Not derived; implementation not started
+- **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
 - **Current task:** None
 - **Mutation A–E and edit durability:** Pending
 
@@ -16,13 +16,22 @@
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001's observation foundation is complete: all eight tasks satisfy their approved acceptance and evidence requirements. Mutation A–E and edit durability gates remain pending. |
+| 1 — Live-editor script coherence | In progress | Feature 001's observation foundation is complete. Feature 002's open-script editing specification is drafted and quality-validated; mutation A–E and edit durability gates remain pending. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Active feature
 
-The active feature's [tasks.md](specs/001-observe-gdscript-state/tasks.md) remains
-authoritative for task completion, dependencies, scope, and acceptance criteria.
+Feature 002's [specification](specs/002-edit-open-gdscript/spec.md) and
+[requirements-quality checklist](specs/002-edit-open-gdscript/checklists/requirements.md)
+define a one-script, already-open editing capability with stale-write protection,
+independently verified D/R/B convergence, native Undo/Redo, and durability.
+The specification is a draft ready for planning; no plan, task list, or implementation
+was created. No mutation acceptance gate or support claim is established by this draft.
+
+## Completed observation foundation
+
+Feature 001's [tasks.md](specs/001-observe-gdscript-state/tasks.md) remains
+authoritative for its task completion, dependencies, scope, and acceptance criteria.
 T001–T008 are complete; all eight task PRs are merged, including [T008 PR #18](https://github.com/Peter-Tam/godot-agent-kit/pull/18).
 T008's [post-rebase real-editor evidence and completion review](specs/001-observe-gdscript-state/quickstart.md#29-rebased-t008-real-editor-acceptance-and-completion-2026-09-27)
 preserves all 13 groups and 194 cases, including twenty-read 6/8/6
@@ -48,7 +57,7 @@ version/platform support and Phase 1 mutation capabilities.
 
 **Feature 001 completion:** The observation foundation is complete and T008 is
 checked in `tasks.md`. No substantive behavioral/evidence requirement remains
-missing. No automatic merge or next-feature work is authorized. A protected
+missing. This completion does not authorize mutation implementation. A protected
 GitHub GUI environment, registered/ephemeral runner,
 manual dispatch or GUI-CI result is not required. The existing workflow remains
 [optional automation](.github/README.md); real-editor acceptance itself remains
