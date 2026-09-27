@@ -7,22 +7,23 @@
 - **Feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md)
 - **Feature state:** Complete — observation foundation
 - **Implemented tasks:** 8 / 8
-- **Merged tasks:** 7 / 8
-- **Current task:** T008 — Complete cumulative observation acceptance; delivered in [PR #18](https://github.com/Peter-Tam/godot-agent-kit/pull/18), awaiting review/merge. No next feature started.
+- **Merged tasks:** 8 / 8
+- **Current task:** None
+- **Mutation A–E and edit durability:** Pending
 
 ## Roadmap status
 
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001's observation foundation is complete: T001–T007 are merged and T008's full maintainer-operated real-editor/native/privacy/export evidence passes in PR #18. Mutation A–E and edit durability gates remain pending. |
+| 1 — Live-editor script coherence | In progress | Feature 001's observation foundation is complete: all eight tasks satisfy their approved acceptance and evidence requirements. Mutation A–E and edit durability gates remain pending. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Active feature
 
 The active feature's [tasks.md](specs/001-observe-gdscript-state/tasks.md) remains
 authoritative for task completion, dependencies, scope, and acceptance criteria.
-T001–T007 are complete and merged, including [T007 PR #17](https://github.com/Peter-Tam/godot-agent-kit/pull/17).
+T001–T008 are complete; all eight task PRs are merged, including [T008 PR #18](https://github.com/Peter-Tam/godot-agent-kit/pull/18).
 T008's [post-rebase real-editor evidence and completion review](specs/001-observe-gdscript-state/quickstart.md#29-rebased-t008-real-editor-acceptance-and-completion-2026-09-27)
 preserves all 13 groups and 194 cases, including twenty-read 6/8/6
 non-interference and native prior-history preservation. The complete suite ran
@@ -43,12 +44,12 @@ version/platform support and Phase 1 mutation capabilities.
 | T005 — Document-attributed unsaved/divergent and changing-document observations | Complete | [PR #15](https://github.com/Peter-Tam/godot-agent-kit/pull/15), merged into `main`; source branch absence verified locally and remotely. |
 | T006 — Source-attributed multi-session routing and live interruption outcomes | Complete | [PR #16](https://github.com/Peter-Tam/godot-agent-kit/pull/16), merged into `main`; source branch absence verified locally and remotely. |
 | T007 — Closed, invalid, and partly observable document inspection | Complete | [PR #17](https://github.com/Peter-Tam/godot-agent-kit/pull/17), merged into `main`; source branch absence verified locally and remotely. |
-| T008 — Feature-wide non-interference and verified compatibility/evidence baseline | Complete | [PR #18](https://github.com/Peter-Tam/godot-agent-kit/pull/18), awaiting review/merge; [complete maintainer-operated real-editor evidence and final review](specs/001-observe-gdscript-state/quickstart.md#29-rebased-t008-real-editor-acceptance-and-completion-2026-09-27), with ordinary hosted native/workflow CI. |
+| T008 — Feature-wide non-interference and verified compatibility/evidence baseline | Complete | [PR #18](https://github.com/Peter-Tam/godot-agent-kit/pull/18), merged into `main`; [complete maintainer-operated real-editor evidence and final review](specs/001-observe-gdscript-state/quickstart.md#29-rebased-t008-real-editor-acceptance-and-completion-2026-09-27), with ordinary hosted native/workflow CI. |
 
 **Feature 001 completion:** The observation foundation is complete and T008 is
 checked in `tasks.md`. No substantive behavioral/evidence requirement remains
-missing. PR #18 is not merged; no automatic merge or next-feature work is
-authorized. A protected GitHub GUI environment, registered/ephemeral runner,
+missing. No automatic merge or next-feature work is authorized. A protected
+GitHub GUI environment, registered/ephemeral runner,
 manual dispatch or GUI-CI result is not required. The existing workflow remains
 [optional automation](.github/README.md); real-editor acceptance itself remains
 mandatory, with claims limited to the documented exercised environment.
@@ -59,7 +60,7 @@ D = disk source; R = loaded Godot Resource/Script; B = visible editor buffer.
 
 | Gate | Status | Required evidence / boundary |
 | --- | --- | --- |
-| D/R/B observation foundation | Complete | T001–T008 satisfy the observation acceptance matrix, including real-editor independent witnesses, twenty-read/history preservation and hosted checks. T008 PR #18 awaits review/merge; this does not establish mutation safety. |
+| D/R/B observation foundation | Complete | T001–T008 satisfy the observation acceptance matrix, including real-editor independent witnesses, twenty-read/history preservation and hosted checks. Observation evidence does not establish mutation safety. |
 | A — Clean open-buffer edit | Pending | After an actual edit, D, R, and B converge without human reconciliation. |
 | B — Dirty human-buffer conflict | Pending | An attempted edit preserves unsaved human work and refuses safely or uses an explicitly designed resolution workflow. |
 | C — Real Undo/Redo | Pending | Apply → Undo → Redo produces verified transitions through Godot's editing history across applicable surfaces. |
