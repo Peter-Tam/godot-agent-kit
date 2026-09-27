@@ -4,11 +4,11 @@
 
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
-- **Feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md)
-- **Feature state:** Complete — observation foundation
-- **Implemented tasks:** 8 / 8
-- **Merged tasks:** 8 / 8
-- **Current task:** None
+- **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
+- **Feature state:** Design/tasks analyzed — granularity and consistency reviews passed; implementation not started
+- **Tasks:** 0 / 5 complete; implementation not started
+- **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
+- **Current task:** None — no implementation task selected
 - **Mutation A–E and edit durability:** Pending
 
 ## Roadmap status
@@ -16,13 +16,56 @@
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001's observation foundation is complete: all eight tasks satisfy their approved acceptance and evidence requirements. Mutation A–E and edit durability gates remain pending. |
+| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's design and five-task decomposition are complete; granularity review and spec/plan/tasks analysis passed, including local same-session mutation-entry safety. Implementation, mutation A–E and durability evidence remain pending; no mutation support is claimed. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Active feature
 
-The active feature's [tasks.md](specs/001-observe-gdscript-state/tasks.md) remains
-authoritative for task completion, dependencies, scope, and acceptance criteria.
+Feature 002's [specification](specs/002-edit-open-gdscript/spec.md) and
+[requirements-quality checklist](specs/002-edit-open-gdscript/checklists/requirements.md)
+define a one-script, already-open editing capability with stale-write protection,
+independently verified D/R/B convergence, native Undo/Redo, and durability.
+The [implementation plan](specs/002-edit-open-gdscript/plan.md) is now **design-complete**,
+with a [data model](specs/002-edit-open-gdscript/data-model.md),
+[caller contract](specs/002-edit-open-gdscript/contracts/edit-api.md),
+[private bridge contract](specs/002-edit-open-gdscript/contracts/bridge-protocol.md),
+[native primitive contracts](specs/002-edit-open-gdscript/contracts/native-integration.md)
+and [verification guide](specs/002-edit-open-gdscript/quickstart.md).
+The [selected design](specs/002-edit-open-gdscript/research.md#11-concrete-native-design-and-resumed-planning)
+uses the existing Rust/core and private bridge, standard GDExtension, and narrow
+engine APIs for guarded target-document saved-state finalization and exact-source
+GDScript validation. Core policy and independent verification remain in Rust.
+
+Completed [native research](specs/002-edit-open-gdscript/research.md#9-native-integration-continuation-c1c5)
+and its negative results remain evidence, not A–E acceptance. The later
+tooling-policy interruption remains an uncompleted probe, not a native failure;
+no bypass or equivalent rephrased retry occurred. The existing
+[concurrency audit](specs/002-edit-open-gdscript/research.md#10-phase-1-concurrency-boundary-audit-and-corrected-planning-decision)
+still excludes arbitrary non-cooperating same-inode serialization while preserving
+fresh stale/dirty checks, exact identity/confinement and non-success on invalidation.
+
+`/speckit.plan` completed its design artifacts and constitutional planning check.
+The subsequent [task list](specs/002-edit-open-gdscript/tasks.md) contains five
+pending PR-sized increments, with its required
+[granularity review](specs/002-edit-open-gdscript/tasks.md#granularity-review) passed.
+Three verifiable core/native foundations precede the first complete caller edit;
+US2–US4 safety and history are bundled with US1, followed by cumulative US5 acceptance.
+All 22 requirements, 26 scenarios and eight success criteria retain explicit owners.
+
+The local-overlap clarification extends US2.4 in place; T004 owns its real
+barrier/witness acceptance using the existing single-active collection/edit slot.
+`/speckit.analyze` completed after that clarification with no genuine consistency,
+coverage or constitutional findings. No implementation task is selected or started;
+no product implementation, engine patch, mutation acceptance or support claim was
+produced. Reviewed-artifact and one-task/one-PR gates remain required.
+**Feature 002 is not implemented or complete.**
+Delivery metadata: design, task-generation and clarification/analysis changes are carried by existing
+[PR #24](https://github.com/Peter-Tam/godot-agent-kit/pull/24), independently of feature completion.
+
+## Completed observation foundation
+
+Feature 001's [tasks.md](specs/001-observe-gdscript-state/tasks.md) remains
+authoritative for its task completion, dependencies, scope, and acceptance criteria.
 T001–T008 are complete; all eight task PRs are merged, including [T008 PR #18](https://github.com/Peter-Tam/godot-agent-kit/pull/18).
 T008's [post-rebase real-editor evidence and completion review](specs/001-observe-gdscript-state/quickstart.md#29-rebased-t008-real-editor-acceptance-and-completion-2026-09-27)
 preserves all 13 groups and 194 cases, including twenty-read 6/8/6
@@ -48,7 +91,7 @@ version/platform support and Phase 1 mutation capabilities.
 
 **Feature 001 completion:** The observation foundation is complete and T008 is
 checked in `tasks.md`. No substantive behavioral/evidence requirement remains
-missing. No automatic merge or next-feature work is authorized. A protected
+missing. This completion does not authorize mutation implementation. A protected
 GitHub GUI environment, registered/ephemeral runner,
 manual dispatch or GUI-CI result is not required. The existing workflow remains
 [optional automation](.github/README.md); real-editor acceptance itself remains
