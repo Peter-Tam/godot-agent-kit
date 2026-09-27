@@ -252,6 +252,52 @@ runners**. No settings were changed and no trusted GUI-CI run is claimed.
 See [quickstart §2.4](quickstart.md#24-t004-clean-open-evidence-2026-09-26) for local
 behavioral evidence and the remaining CI/support boundary.
 
+### T005 dirty-observation and verification provenance (2026-09-27)
+
+T005 changes no dependency, feature, toolchain or package version. The tracked
+lockfile remains SHA-256
+`dbba0e851819c51a4623e1b58b8cf7d583ff6ac372b66ea7e9f07b366db02fe1`;
+the existing T002 license/provenance/advisory review still describes that graph.
+No new advisory audit or additional-platform support is claimed.
+
+The exercised tools are Rust/Cargo 1.98.1, Python 3.10.9 and exact Godot
+`4.7.2.stable.official.ed1daf0bf`, full hash
+`ed1daf0bf001b61586d9930840f2f1394092c079`, on macOS 26.6.2 arm64.
+Fresh Godot and `macos.zip` template checksums match T002's documented official
+artifacts: respectively
+`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`
+and `88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`.
+The observer SHA-256 is
+`257ff839ef5a8994ad0a07e9efd8f47be221889c27450b0daac8e951d49e1e74`.
+The final four visible groups exercised driver
+`2749cb9d057460ace64ace6b78cdc161da81574bae0545dfb011c07289d5ad8a`;
+the earlier expanded privacy-guard replay and actual dirty-caller/registry
+smoke exercised driver
+`4bd45b03391e960e2837abbeb5b8334bd982c94c86f6432bfd3904a9203a764c`.
+Every run summary records its own exact driver identity.
+
+The real-editor evidence confirms three native details important to attribution:
+tab switching may copy B into R even while B is dirty; opening deduplicates an
+already-open path; closing a tab frees its ScriptEditorBase/CodeEdit. Fixtures
+therefore sample actual R, prepare duplicate paths only after opening distinct
+real resources, and verify native closure/replacement through actual object IDs.
+The product tests Node validity before a typed dereference, avoiding the observed
+freed-instance recheck failure. Fixture-only restrictions remove attribution,
+not source truth, and the collector never uses those controls in production.
+A native-close transition can coexist with a change to the independently held
+Resource. Its live regression confirms that both changes must be reported;
+closure cannot retain changed R as current. Nonunique loaded Resources retain
+an unreadable-attribution reason rather than a false unloaded-state claim.
+
+The added helper scripts are copied into the already excluded
+`addons/fixture_driver/` tree in every disposable project, including all three
+export variants. Actual ZIP/PCK inspection and release-app execution confirm
+the boundary. Native tests and owned-window screenshots establish only the
+documented local development increment; the unchanged protected trust boundary
+still requires actual trusted GUI CI before support is advertised. See
+[quickstart §2.5](quickstart.md#25-t005-dirty-and-changing-document-evidence-2026-09-27)
+for counts, timing, the closure regression and explicit visual-evidence limits.
+
 ## 5. Local bridge, session bootstrap, and confinement
 
 **Decision:** A per-editor `TCPServer` listens only on `127.0.0.1`. Choose a random high port and retry bounded bind collisions during plugin bootstrap; do not rely on undocumented port-zero behavior. The caller initializes a private registry outside the project. The addon must be explicitly enabled and receive that registry path through `GODOT_AGENT_KIT_REGISTRY`; absent/unsafe configuration disables the listener, not authentication.

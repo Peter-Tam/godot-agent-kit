@@ -1,6 +1,6 @@
 # Private Editor Observation Bridge — Version 1
 
-**Status:** T002 implements source-free bootstrap, authentication, routing, lifecycle and export isolation. T003 implements the Rust executor boundary (§8); T004 installs real observe/recheck collection (§9). This is private local integration, not MCP, a remote API, or a separate safety model. The [caller contract](observation-api.md) and [data model](../data-model.md) own user-visible semantics.
+**Status:** T002 implements source-free bootstrap, authentication, routing, lifecycle and export isolation. T003 implements the Rust executor boundary (§8); T004 installs real observe/recheck collection (§9); T005 extends request-local attribution and invalidation (§10). This is private local integration, not MCP, a remote API, or a separate safety model. The [caller contract](observation-api.md) and [data model](../data-model.md) own user-visible semantics.
 
 This is the initial version-1 implementation. It has no raw-token hello or legacy authentication path. No arbitrary code, object deserialization, process command, source write, Save, open/select, reload, rescan, or runtime operation is representable on the bridge.
 
@@ -278,3 +278,30 @@ decoder rather than relying on an older decoder's generic protocol refusal.
 Initial real-editor acceptance covers clean-open, repeated and empty observations,
 collector rechecks and independent R/B caps. The wider dirty/routing/closed matrix
 and full support claim remain T005–T008 work.
+
+## 10. T005 request-local attribution and invalidation
+
+The operations, fields, bounds and authentication exchange remain version 1.
+`observation.gd` retains its original enumeration and any changes already
+detected during collection until recheck. It never substitutes a replacement
+document's source or automatically rereads the request to hide instability.
+
+Before/after arrays must independently justify the target's unique
+script/editor association. Unrelated tab movement alone need not invalidate an
+unchanged target association; incomplete, nonunique or unsupported arrays cannot
+authorize a buffer. Unsaved paths are attributable only through the actual
+document map. If that attribution becomes unavailable, `checks: unavailable`
+retains any separately detected changes instead of claiming a complete check.
+
+Recheck distinguishes an original Resource whose path changed from a closed
+document, detects replacement objects, and validates editor/buffer references
+before dereferencing them. Source/version/dirty changes remain surface-specific.
+The existing Rust decoder, worker events and reducer propagate this evidence;
+no new Rust production API or outcome is introduced. The common core alone
+invalidates current facts and recomputes comparisons.
+
+The fixture-only bridge's transition barrier runs after the real caller receives
+the sample and reads D, immediately before the real editor recheck. Independent
+native witnesses bracket the preparation and subsequent read-only work. Negative
+collector restrictions only remove observability; they never supply fabricated
+positive source/dirty evidence and are not installed as a production capability.

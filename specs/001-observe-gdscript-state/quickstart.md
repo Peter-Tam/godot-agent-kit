@@ -1,6 +1,6 @@
 # Quickstart: Validate Live GDScript Observation
 
-**Status:** T001–T004 implement the reusable core, authenticated session boundary, bounded caller/worker, confined D and passive R/B/dirty collector. The driver implements `clean-open`, `session-boundary`, `executor-boundary`, and `export-boundary`; remaining story and cumulative groups belong to T005–T008. Evidence is recorded in §2.1–§2.4. No full-feature, mutation or supported-version claim is made.
+**Status:** T001–T005 implement the reusable core, authenticated session boundary, bounded caller/worker, confined D, passive R/B/dirty collector, and dirty/changing-document observations. The driver implements `clean-open`, `dirty-divergent`, `dirty-unavailable`, `changing-document`, `session-boundary`, `executor-boundary`, and `export-boundary`; remaining story and cumulative groups belong to T006–T008. Evidence is recorded in §2.1–§2.5. No full-feature, mutation or supported-version claim is made.
 
 This guide covers the entire observation-only specification. It does not implement the feature, derive tasks, or claim a mutation/UndoRedo/Phase 1 exit guarantee. Use the [data model](data-model.md), [caller contract](contracts/observation-api.md), and [bridge contract](contracts/bridge-protocol.md) for normative fields and outcomes instead of inferring semantics from exit status alone.
 
@@ -275,9 +275,79 @@ and source-free failures preserve V. Exact dependency/tool provenance is in
 Mutation A–E and applied-edit durability remain inapplicable. T004 does not complete
 Feature 001 or roadmap Phase 1.
 
+### 2.5. T005 dirty and changing-document evidence (2026-09-27)
+
+Run each US2 group against owned disposable GUI editors, using a separate empty,
+absolute, mode-0700 artifact directory for each invocation:
+
+```sh
+python3 godot-addon/tests/run_observation.py \
+  --godot "$GODOT" --observer "$OBSERVER" \
+  --scenario dirty-divergent --artifacts "$DIRTY_ARTIFACTS"
+python3 godot-addon/tests/run_observation.py \
+  --godot "$GODOT" --observer "$OBSERVER" \
+  --scenario dirty-unavailable --artifacts "$UNAVAILABLE_ARTIFACTS"
+python3 godot-addon/tests/run_observation.py \
+  --godot "$GODOT" --observer "$OBSERVER" \
+  --scenario changing-document --artifacts "$CHANGING_ARTIFACTS"
+```
+
+Observed on macOS **26.6.2 arm64**, exact Godot
+`4.7.2.stable.official.ed1daf0bf`, full hash
+`ed1daf0bf001b61586d9930840f2f1394092c079`:
+
+| Boundary | Executed evidence |
+|---|---|
+| Native | fmt, Clippy `-D warnings`, **85 tests**, doctest phase, docs and library/caller build passed. No doctest cases exist. The new caller regression covers nine dirty/divergence/transition event sequences. |
+| Dirty/divergent | **9 cases** including bootstrap: selected/non-selected dirty B, independently differing R, equal D/R/B with actual editor dirty state, each partial-equality arrangement, whitespace-only and CRLF-only differences. Complete observations preserve exact independent values and comparisons. **US2.1–2.** |
+| Dirty unavailable | **7 cases** including bootstrap: withheld dirty attribution, actual global unsaved work with its association map withheld, unsupported association, an actual empty Resource path, two actual nonunique paths, and mixed script/text/documentation tabs. Readable sources and known open state survive dirty uncertainty; no guessed B, clean state, target ambiguity or disconnection. **US2.3/5.** |
+| Changing document | **10 cases** including bootstrap: B/version, dirty, R, D, rename, removal, native close, a retained-R change after close, and same-path replacement. Fixture barriers execute after the caller's sample/D read and immediately before recheck. Affected facts are invalidated; closure is not a fabricated closed snapshot or permission to conceal an independent R change; replacement excludes every original identity-dependent source from current comparisons. **US2.4.** |
+| Non-interference | Independent before/after disk and native Script/CodeEdit/unsaved/identity/caret/selection/version/history-availability witnesses pass. Changing cases additionally preserve the post-preparation witness through the observer's recheck. Scoped native screenshots were captured and reviewed for dirty, non-selected, equal-but-dirty and mixed-tab surfaces. This is not T008's twenty-read/history-replay gate. |
+| Clean regression | The unmodified `clean-open` entrypoint passes **13 cases**, including empty sources, independent R/B caps, recheck/refusal boundaries and fresh repeat observations. |
+| Privacy | Existing source/authentication guards pass in the GUI/export runs. Expanded guards replay **75 incidental logs**, reject **13 source markers**, and pass an actual dirty caller/private-registry check. Synthetic source remains in intentional evidence, not incidental logs or descriptors. |
+| Export | **4 cases** including bootstrap: enabled, disabled and hook-only ZIP/PCK inspection and actual exported-app launches pass. The added fixture bridge/collector are physically included under the excluded fixture-driver tree; no tooling code, listener or advertisement ships. |
+| Workflow/coverage | Actionlint passes; the protected live workflow now offers the three US2 groups without changing its trust gate. `--scenario all` still exits 1 with the **eight remaining groups**. No hosted GUI run or support claim is implied. |
+
+Passing local evidence is under `~/.t005-acceptance-w55wyas0/`:
+`dirty-divergent-final`, `dirty-unavailable-integrated`,
+`changing-document-final`, `clean-open-final`, `export-verified`,
+`coverage-gate`, and `redaction-replay`. Final US2 caller durations were within
+**0.203 s**; clean/cap regression durations were within **0.364 s**. Each group records
+its exact binary/driver hashes, selected identities, intentional synthetic
+results, authority witnesses and timings.
+
+The initial attempt failed because the desktop was locked and the display asleep.
+Separate nonvisual diagnostics were labeled as such, not counted as GUI
+acceptance. After the desktop was unlocked, all four unmodified visible-editor
+entrypoints passed with scoped screenshots. Earlier failed/diagnostic directories
+are retained separately and are not passing visual evidence.
+
+The controlled native-close case reproduced a real bug: assigning a previously
+freed ScriptEditorBase to a typed variable aborted recheck and yielded
+`protocol_error`. Keeping Node references untyped until validity checks restores
+the structured limited/`document_closed` outcome; the retained real-editor
+regression now passes. Native tab switching can copy B into R, so fixtures assert
+the actual independently observed R rather than pinning it to D. Safe-save can
+replace D's inode, and that independently witnessed identity change invalidates
+D alone. No source divergence establishes which authority is stale: staleness
+remains unknown without causal evidence.
+
+Review also reproduced two attribution errors and retained their regressions:
+two actual loaded Scripts at one path were incorrectly reported as R not loaded,
+and closure hid an independent change to the retained Resource. The first now
+reports `resource_unreadable`; the second rechecks R independently and preserves
+both the R change and closure invalidations. Former R cannot enter comparisons.
+
+Constitutional scope and review are recorded in
+[plan](plan.md#t005-implementation-compliance); exact tool/dependency evidence is in
+[research](research.md#t005-dirty-observation-and-verification-provenance-2026-09-27).
+T005 adds no mutation, product UndoRedo capability, wire-schema change, or
+dependency. T006–T008, trusted GUI CI/support evidence and Phase 1 mutation gates
+remain open.
+
 ## 3. Fixture driver entrypoint
 
-The acceptance driver is `godot-addon/tests/run_observation.py`. T004 adds `clean-open` to the implemented boundary groups above; the following remains the full-feature contract, with `all` deliberately refusing incomplete coverage:
+The acceptance driver is `godot-addon/tests/run_observation.py`. T004/T005 add `clean-open` and the three US2 groups to the implemented boundary groups above; the following remains the full-feature contract, with `all` deliberately refusing incomplete coverage:
 
 ```sh
 REPO="$PWD"
@@ -362,4 +432,4 @@ A passing implementation report includes:
 - Native baseline and dependency review results; real-editor and export evidence on the declared candidate matrix. Hosted compile-only CI cannot replace GUI acceptance. Keep privileged GUI runners isolated from untrusted PR code and secrets.
 - No claim that complete observation means D/R/B convergence, clean state, permission to edit, applied mutation durability, or actual product UndoRedo support.
 
-The original planning command exercised only its bounded GUI feasibility experiment and design-artifact checks. T001–T004 evidence is recorded in §2.1–§2.4. The full product checks above remain prerequisites for later feature/support claims.
+The original planning command exercised only its bounded GUI feasibility experiment and design-artifact checks. T001–T005 evidence is recorded in §2.1–§2.5. The full product checks above remain prerequisites for later feature/support claims.
