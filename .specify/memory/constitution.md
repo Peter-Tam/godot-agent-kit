@@ -152,6 +152,56 @@ Features MUST NOT bypass the common transaction/coherence mechanism because dire
 mutation is easier. A capability that cannot preserve this safety contract MUST remain
 unsupported until it can.
 
+### XIII. Justify Complexity With Concrete Present Risk
+
+Complexity is a cost and MUST earn its place. Every new architectural layer, abstraction,
+service, dependency, process gate, approval step, CI boundary, security control, or operational
+requirement MUST address a concrete current requirement or a realistic identified failure mode.
+“It may be useful later,” generic best practice, enterprise convention, defense in depth by
+itself, or theoretical completeness MUST NOT be sufficient justification.
+
+The project MUST prefer the simplest design that satisfies the current specification,
+constitutional safety invariants, and demonstrated threat model. When multiple approaches
+provide materially equivalent correctness and safety, the approach with fewer moving parts,
+dependencies, operational steps, privileges, and maintenance obligations SHOULD be preferred.
+
+Safety controls MUST be proportional to the actual threat model. A control MUST identify what
+failure or attacker capability it prevents and why existing controls are insufficient.
+Redundant approval, review, isolation, provenance, or CI mechanisms MUST NOT be required solely
+to create procedural confidence when equivalent behavioral evidence already establishes the
+required guarantee.
+
+The project MUST NOT impose multi-maintainer, enterprise, release-scale, or hosted-infrastructure
+assumptions on workflows currently operated by a solo maintainer unless a concrete requirement
+makes them necessary. Human ceremony MUST NOT substitute for technical guarantees, and
+technical guarantees MUST NOT be duplicated by ceremony without demonstrated additional
+protection.
+
+Real behavioral evidence SHOULD be preferred over infrastructure ceremony. A requirement to
+prove behavior in real Godot MUST NOT silently become a requirement to reproduce that evidence
+through a particular CI provider, runner topology, approval system, or deployment mechanism
+unless that infrastructure itself is necessary to the guarantee being tested.
+
+New infrastructure and abstractions SHOULD provide independently useful value at the time they
+are introduced. Speculative generalization, premature extensibility, duplicate safety layers,
+and mechanisms whose only consumer is a hypothetical future requirement SHOULD be deferred
+until evidence establishes the need.
+
+Planning and review of any material complexity increase MUST be able to answer:
+
+1. What concrete current failure mode or requirement does this address?
+2. What is the simplest credible alternative?
+3. Why are existing mechanisms insufficient?
+4. What ongoing implementation, maintenance, operational, or contributor cost does it add?
+5. Why is that cost justified now?
+
+If these questions cannot be answered concretely, the complexity MUST NOT be introduced.
+
+This principle does not permit weakening editor coherence, preservation of human work,
+transaction verification, confinement, truthful diagnostics, or other constitutional safety
+invariants. Simplification means removing unnecessary mechanisms, not removing protections
+against demonstrated risks.
+
 ## Architecture and Compatibility
 
 - The external agent/server side SHOULD be primarily Rust. A thin GDScript EditorPlugin is the
@@ -231,4 +281,4 @@ Templates and commands consume the constitution at runtime and MUST NOT be rewri
 of the constitution-update workflow. Amendment reviews MUST verify that affected artifacts are
 aligned or explicitly tracked as blocking dependent work.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-25 | **Last Amended**: 2026-09-25
+**Version**: 1.1.0 | **Ratified**: 2026-09-25 | **Last Amended**: 2026-09-27
