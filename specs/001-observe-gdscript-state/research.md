@@ -407,19 +407,25 @@ The installed official 4.7.2 `macos.zip` export template matches
 `88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`;
 its release-archive provenance is recorded in T002 above.
 
-Repository API inspection found **zero environments and zero registered runners**.
-No environment protection, runner registration or repository security setting was
-changed. The complete manual GUI workflow retains its independent hosted trust
-gate and cannot execute without a reviewed immutable `main` revision and the
-protected isolated GUI environment. Hosted native CI covers compilation/tests
-on macOS 15 arm64; it cannot establish visible-buffer or macOS 26.6.2 GUI support.
-Actual trusted GUI CI remains an unmet T008 completion gate.
+Repository API inspection after the PR #19 rebase still found **zero environments
+and zero registered runners**. No protection, registration or security setting
+was changed. Both workflow files now come unchanged from merged PR #19:
+the trusted workflow definition is sourced from `main`, and its tested checkout
+can be the exact dispatch-main SHA or an independently approved eligible
+same-repository PR head. Approval must name that exact SHA; it does not replace
+the separate protected environment approval or isolated GUI runner. The former
+main-only tested-revision restriction is no longer the blocker. See the
+[shared CI procedure](../../.github/README.md). Hosted native/workflow checks
+cannot establish visible-buffer or macOS 26.6.2 GUI support; actual trusted GUI
+execution remains an unmet T008 completion gate.
 
-The complete local matrix, exact exercised driver/binary identities, native
-checks, result-only review and evidence paths are recorded in
-[quickstart §2.8](quickstart.md#28-t008-cumulative-local-acceptance-and-unmet-ci-gate-2026-09-27).
+The complete initial matrix and exact artifact identities are recorded in
+[quickstart §2.8](quickstart.md#28-t008-cumulative-local-acceptance-and-unmet-ci-gate-2026-09-27);
+[§2.9](quickstart.md#29-rebased-t008-local-verification-and-review-gate-2026-09-27)
+records the full post-rebase rerun, unchanged checksums, fresh clean advisory
+audit and the still-required exact-head review and protected GUI execution.
 No schema, core-module ownership or product capability was added by this
-acceptance cutover.
+acceptance cutover or rebase.
 
 ## 5. Local bridge, session bootstrap, and confinement
 

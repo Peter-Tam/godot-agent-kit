@@ -268,14 +268,23 @@ license/provenance/advisory review. Shared CI keeps responsibility-based naming
 and ownership; capability-specific assertions stay in the observation harness.
 No duplicate shared infrastructure or speculative abstraction is authorized.
 
-The complete GUI workflow must retain the hosted trust gate, exact reviewed
-immutable `main` revision, required independent environment review, main-only
-deployment policy, isolated one-job runner, read-only token and full-SHA action
-pins. Local acceptance and hosted native CI cannot substitute for actual trusted
-GUI CI. Repository API inspection on 2026-09-27 found no configured environments
-and no registered runners. This is an unmet gate, not permission to register a
-human workstation, relax protections, mark T008 complete or claim version support.
-Roadmap Phase 1 mutation gates remain separate.
+The complete GUI workflow is supplied by merged
+[PR #19](https://github.com/Peter-Tam/godot-agent-kit/pull/19); both workflow files
+are retained unchanged from `main`. The workflow definition must come from
+`main`, while its validated immutable checkout may be the exact dispatch-main
+SHA or an eligible same-repository PR head independently approved for that exact
+SHA. Latest-review reduction and PR-head/state revalidation precede the separate
+protected environment approval. The main-only environment policy, self-review
+prevention, isolated one-job runner, read-only token, full-SHA pins and immediate
+checkout-HEAD equality check remain intact. See the
+[shared operating procedure](../../.github/README.md).
+
+Local acceptance and hosted CI cannot substitute for actual trusted GUI CI.
+Repository API inspection on 2026-09-27 still found no configured environments
+or registered runners. Exact-head independent review, protected provisioning,
+environment approval and a successful full GUI run remain required. T008 stays
+unchecked; no human workstation registration, protection bypass, support claim
+or Phase 1 completion follows from this rebase.
 
 Implementation review: all 13 local groups pass (194 cases), including twenty
 fresh observations with unchanged independent witnesses and actual prior-history
@@ -286,7 +295,9 @@ cache state is observed, not inferred from import timing. The addon/core/caller
 remain unchanged. Workflow protection simulations and Actionlint pass, but no
 actual GUI CI ran; the known missing environment/runner keeps T008 unchecked.
 This satisfies local verification, not the remaining release/support gate.
-See [cumulative evidence](quickstart.md#28-t008-cumulative-local-acceptance-and-unmet-ci-gate-2026-09-27).
+The full post-rebase replay preserves those counts and passes all 29 merged
+workflow regressions without modifying the PR #19 trust implementation.
+See [fresh evidence and the exact-head review gate](quickstart.md#29-rebased-t008-local-verification-and-review-gate-2026-09-27).
 
 ## Project Structure
 

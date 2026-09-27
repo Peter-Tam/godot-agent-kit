@@ -23,11 +23,13 @@
 The active feature's [tasks.md](specs/001-observe-gdscript-state/tasks.md) remains
 authoritative for task completion, dependencies, scope, and acceptance criteria.
 T001–T007 are complete and merged, including [T007 PR #17](https://github.com/Peter-Tam/godot-agent-kit/pull/17).
-T008's [cumulative local evidence](specs/001-observe-gdscript-state/quickstart.md#28-t008-cumulative-local-acceptance-and-unmet-ci-gate-2026-09-27)
-covers all 13 groups and 194 cases, including twenty-read non-interference.
-It remains unchecked in `tasks.md`: no protected GUI environment or runner is
-configured, so the mandatory actual trusted GUI CI gate cannot run. Local
-implementation/validation is not task completion, merged delivery or version support.
+T008's [rebased local evidence](specs/001-observe-gdscript-state/quickstart.md#29-rebased-t008-local-verification-and-review-gate-2026-09-27)
+preserves all 13 groups and 194 cases, including twenty-read non-interference.
+Merged PR #19 supplies the trusted reviewed-PR dispatch infrastructure without
+any workflow diff in T008. It remains unchecked: independent exact-head review,
+protected environment/runner provisioning, environment approval and successful
+actual trusted GUI CI remain outstanding. Local or hosted verification is not
+task completion, merged delivery or version support.
 
 | Task | Status | Evidence |
 | --- | --- | --- |
@@ -38,13 +40,17 @@ implementation/validation is not task completion, merged delivery or version sup
 | T005 — Document-attributed unsaved/divergent and changing-document observations | Complete | [PR #15](https://github.com/Peter-Tam/godot-agent-kit/pull/15), merged into `main`; source branch absence verified locally and remotely. |
 | T006 — Source-attributed multi-session routing and live interruption outcomes | Complete | [PR #16](https://github.com/Peter-Tam/godot-agent-kit/pull/16), merged into `main`; source branch absence verified locally and remotely. |
 | T007 — Closed, invalid, and partly observable document inspection | Complete | [PR #17](https://github.com/Peter-Tam/godot-agent-kit/pull/17), merged into `main`; source branch absence verified locally and remotely. |
-| T008 — Feature-wide non-interference and verified compatibility/evidence baseline | Blocked | Full local GUI/native/privacy/export gates pass; [evidence and missing trusted GUI CI](specs/001-observe-gdscript-state/quickstart.md#28-t008-cumulative-local-acceptance-and-unmet-ci-gate-2026-09-27). No configured protected environment or registered runner. |
+| T008 — Feature-wide non-interference and verified compatibility/evidence baseline | Blocked | Full post-rebase local GUI/native/workflow/privacy/export gates pass; [fresh evidence and review/GUI CI gate](specs/001-observe-gdscript-state/quickstart.md#29-rebased-t008-local-verification-and-review-gate-2026-09-27). Exact-head independent approval and actual protected GUI CI remain required. |
 
-**Remaining for Feature 001:** Review T008's dedicated implementation/evidence PR,
-provision the protected isolated GUI CI boundary, and obtain its complete run on
-an explicitly trusted reviewed revision before marking T008 complete.
-No protection bypass, automatic merge or supported-version claim is authorized.
-The feature is not complete.
+**Remaining for Feature 001:** Obtain independent approval of the exact current
+head of [PR #18](https://github.com/Peter-Tam/godot-agent-kit/pull/18), provision
+the protected `live-editor` environment and isolated runner, then dispatch the
+trusted `main` workflow against that reviewed SHA. Separate environment approval
+and a successful complete GUI run are required before final evidence/status
+completion. Merged [PR #19](https://github.com/Peter-Tam/godot-agent-kit/pull/19)
+provides this unmerged-PR dispatch model; no merge-first gate remains.
+No protection bypass, automatic dispatch/merge or supported-version claim is
+authorized. T008 and the feature remain incomplete.
 
 ## Phase 1 exit gates
 
