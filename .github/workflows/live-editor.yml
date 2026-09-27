@@ -18,6 +18,11 @@ on:
           - dirty-divergent
           - dirty-unavailable
           - changing-document
+          - routing
+          - session-loss
+          - deadline
+          - confinement
+          - redaction
           - session-boundary
           - executor-boundary
           - export-boundary

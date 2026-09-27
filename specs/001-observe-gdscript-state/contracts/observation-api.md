@@ -1,6 +1,6 @@
 # Observation Caller Contract — Version 1
 
-**Status:** T001 implements the reusable Rust semantic library (§7); T002 implements source-free routing (§8); T003 implements the bounded caller/worker and confined disk boundary (§9); T004 adds the passive live-editor collector and clean-open vertical slice (§10); T005 extends document-attributed dirty/divergent and changing-document observation (§11). This is **not MCP**. [Data model](../data-model.md) defines normative results; [bridge contract](bridge-protocol.md) defines private integration.
+**Status:** T001 implements the reusable Rust semantic library (§7); T002 implements source-free routing (§8); T003 implements the bounded caller/worker and confined disk boundary (§9); T004 adds the passive live-editor collector and clean-open vertical slice (§10); T005 extends document-attributed dirty/divergent and changing-document observation (§11); T006 verifies source-bearing multi-session routing and interruption outcomes (§12). This is **not MCP**. [Data model](../data-model.md) defines normative results; [bridge contract](bridge-protocol.md) defines private integration.
 
 ## 1. Operations and invocation
 
@@ -281,3 +281,37 @@ transition immediately before recheck. These helpers live under the fixture
 driver's excluded tree; no restriction/transition option exists in the product
 caller or bridge. See [US2 evidence](../quickstart.md#25-t005-dirty-and-changing-document-evidence-2026-09-27).
 These observations grant no mutation permission or whole-feature support claim.
+
+## 12. T006 source-bearing routing and interruption outcomes
+
+The production caller, core and version-1 contract are unchanged. Native
+caller/worker regressions and independent real-editor acceptance now exercise
+the existing integration with distinguishable same-named projects, identical
+script paths, and concurrent sessions of one project. Exact selection binds
+every source/dirty/identity fact to the selected lifetime; omitted selection
+with two live sessions returns only the required `session_id` selector and
+candidate IDs, never a source-bearing snapshot.
+
+Absence before authentication yields `editor_unavailable`. Disable/re-enable
+and restart generate a new session and secret; requesting the ended ID never
+substitutes the replacement. An unclean process termination may leave private
+metadata behind. That descriptor is not liveness evidence: a dead endpoint is
+unavailable, while a rebound listener without the original secret is denied
+with `authentication_failed`, before source acquisition.
+
+Known post-authentication loss yields `disconnected_editor`. Before a validated
+sample, no source can be returned. After sample/D collection, independent D
+remains attributed to its original file/request, while R/B, open state and
+dirty evidence whose live currency ended move to `invalidated_evidence`.
+Their former text cannot enter current comparisons. Silence without known loss
+yields `timeout`, retaining the original interval's usable facts with
+`checks: unavailable` and `deadline_exceeded`, not fabricated disconnection.
+Malformed or mismatched replies yield `protocol_error`; only earlier validated
+facts survive. Denial at recheck suppresses all earlier source.
+
+The supervisor does not wait on a suspended editor or stopped owned worker,
+does not terminate editors, and never promotes queued late events after a
+terminal result. A subsequent successful attempt is caller-initiated and has
+fresh request identity and evidence. No interrupted/failed recheck produces
+complete/not-open success. See [US3 evidence](../quickstart.md#26-t006-routing-and-interruption-evidence-2026-09-27)
+for actual stages, deadlines, privacy, export checks and limitations.

@@ -10,6 +10,8 @@ var _last_id := ""
 var _cached_subject: GDScript
 var restriction := ""
 var transition := ""
+var interrupt_stage := ""
+var _interrupt_announced := false
 var _transition_record := {}
 var _unpathed_script: GDScript
 var _duplicate_script: GDScript
@@ -109,6 +111,19 @@ func _process(_delta: float) -> void:
 				else:
 					buffer.text = invalid_prefix + "b".repeat(amount - invalid_prefix.length())
 				response.merge(_document("res://scripts/subject.gd"))
+		"route_session_a", "route_session_b", "route_session_c":
+			var doc := _document("res://scripts/subject.gd")
+			if not doc.get("associated", false):
+				response.ok = false
+			else:
+				var script := EditorInterface.get_script_editor().get_open_scripts()[doc.index] as GDScript
+				var buffer := EditorInterface.get_script_editor().get_open_script_editors()[doc.index].get_base_editor() as CodeEdit
+				var tag := action.trim_prefix("route_session_").to_upper()
+				# Both positive authorities are the native GDScript and CodeEdit.
+				# Invalid B avoids Godot's idle copy of B into the prepared R.
+				buffer.text = "var =\n# ROUTE_BUFFER_" + tag + "\n"
+				script.source_code = "extends RefCounted\n# ROUTE_RESOURCE_" + tag + "\n"
+				response.merge(_document("res://scripts/subject.gd"))
 		"prepare_other":
 			response.merge(_prepare("res://scripts/other.gd"))
 			response.ok = response.get("ready", false)
@@ -141,10 +156,19 @@ func _process(_delta: float) -> void:
 				"unattributed_global" if action == "restrict_global" else (
 				"withhold_association" if action == "restrict_association" else ""))
 			response.restriction = restriction
+		"reject_sample_identity", "reject_recheck_identity", "reject_recheck_malformed", "reject_recheck_oversized":
+			# Negative wire restrictions only; the native collector still gathers
+			# actual R/B, but rejected bytes never become accepted evidence.
+			restriction = action
+			response.restriction = restriction
 		"transition_buffer", "transition_dirty", "transition_resource", "transition_disk", "transition_rename", "transition_remove", "transition_close", "transition_close_resource", "transition_replace":
 			transition = action.trim_prefix("transition_")
 			_transition_record = {}
 			response.transition = transition
+		"hold_observe", "hold_recheck", "release_hold":
+			interrupt_stage = action.trim_prefix("hold_") if action != "release_hold" else ""
+			_interrupt_announced = false
+			response.interrupt_stage = interrupt_stage
 		"transition_witness":
 			response.merge({"transition": transition, "record": _transition_record,
 				"document": _document("res://scripts/subject.gd")})
@@ -214,6 +238,27 @@ func _process(_delta: float) -> void:
 		return
 	if action == "quit":
 		get_tree().call_deferred("quit")
+
+
+func hold_at(stage: String) -> bool:
+	if interrupt_stage != stage:
+		return false
+	if not _interrupt_announced:
+		_interrupt_announced = _publish_event(stage)
+	return true
+
+
+func _publish_event(stage: String) -> bool:
+	var temporary := _control.path_join("event.tmp")
+	var file := FileAccess.open(temporary, FileAccess.WRITE)
+	if file == null:
+		return false
+	var written := file.store_string(JSON.stringify({"stage": stage}))
+	file.flush()
+	file.close()
+	if not written or FileAccess.set_unix_permissions(temporary, 384) != OK:
+		return false
+	return DirAccess.rename_absolute(temporary, _control.path_join("event.json")) == OK
 
 
 func _respond(response: Dictionary) -> bool:

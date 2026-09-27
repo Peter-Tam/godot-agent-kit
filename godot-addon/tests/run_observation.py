@@ -31,8 +31,7 @@ VERSION = "4.7.2.stable.official.ed1daf0bf"
 ENGINE_HASH = "ed1daf0bf001b61586d9930840f2f1394092c079"
 CAPABILITIES = ("observe_gdscript", "open_enumeration", "buffer_attribution",
                 "unsaved_paths", "cached_resource_lookup")
-MISSING_GROUPS = ("routing", "session-loss", "deadline", "confinement", "closed-and-invalid",
-                  "surface-limits", "sequential-readonly", "redaction")
+MISSING_GROUPS = ("closed-and-invalid", "surface-limits", "sequential-readonly")
 SOURCE_SENTINEL = b"T002_SYNTHETIC_SOURCE_ONLY"
 CAP_SENTINELS = (b"# " + b"r" * 64, b"# " + b"b" * 64)
 SOURCE_SENTINELS = (
@@ -41,6 +40,9 @@ SOURCE_SENTINELS = (
     b"DISTINCT_DISK_SOURCE", b"DISTINCT_UNIQUE_OBJECT", b"TRANSITION_BUFFER",
     b"TRANSITION_RESOURCE", b"TRANSITION_DISK", b"Synthetic plain-text editor tab.",
 )
+ROUTE_MARKERS = (b"ROUTE_PROJECT_A", b"ROUTE_PROJECT_B", b"ROUTE_RESOURCE_A",
+                 b"ROUTE_RESOURCE_B", b"ROUTE_RESOURCE_C", b"ROUTE_BUFFER_A",
+                 b"ROUTE_BUFFER_B", b"ROUTE_BUFFER_C")
 
 
 class Failure(Exception):
@@ -238,14 +240,18 @@ class Harness:
         self.registry = work / "registry"
         self.editors = []
         self.secrets = set()
+        self.source_markers = set(ROUTE_MARKERS)
         self.cases = []
         self.counter = 0
         self.probe = work / "route-probe"
         self.window_probe = work / "owned-window"
         self.summary = {"scenario": args.scenario, "cases": self.cases,
                         "source_observation": args.scenario in ("clean-open", "executor-boundary",
-                            "dirty-divergent", "dirty-unavailable", "changing-document"),
+                            "dirty-divergent", "dirty-unavailable", "changing-document",
+                            "routing", "session-loss", "deadline", "confinement", "redaction"),
                         "support_claim": False,
+                        "coverage_scope": "incremental" if args.scenario == "redaction"
+                                          else "selected_group",
                         "host": {"os": platform.mac_ver()[0], "arch": platform.machine()},
                         "godot_sha256": digest(args.godot),
                         "observer_sha256": digest(args.observer),
@@ -253,7 +259,7 @@ class Harness:
                         "lockfile_sha256": digest(REPO / "mcp-server" / "Cargo.lock")}
 
     def safe_log(self, name, payload):
-        require(all(marker not in payload for marker in SOURCE_SENTINELS),
+        require(all(marker not in payload for marker in (*SOURCE_SENTINELS, *self.source_markers)),
                 "redaction_source_" + name)
         for value in self.secrets:
             require(value not in payload, "redaction_authentication_" + name)
@@ -302,6 +308,7 @@ class Harness:
 
     def fixture(self, name, *, controlled=False):
         project = self.work / name
+        project.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(FIXTURE, project)
         shutil.copytree(REPO / "godot-addon" / "addons" / "godot_agent_kit",
                         project / "addons" / "godot_agent_kit")
@@ -330,7 +337,7 @@ class Harness:
         for path in sorted(self.registry.glob("*.json")):
             descriptor = json.loads(path.read_text())
             encoded = json.dumps(descriptor).encode()
-            require(all(marker not in encoded for marker in SOURCE_SENTINELS),
+            require(all(marker not in encoded for marker in (*SOURCE_SENTINELS, *self.source_markers)),
                     "descriptor_has_no_synthetic_source")
             self.secrets.add(descriptor["token"].encode())
             require(path.stat().st_uid == os.geteuid() and stat.S_IMODE(path.stat().st_mode) == 0o600,
@@ -580,16 +587,19 @@ class Harness:
                 "unsafe_registry_acl_not_repaired")
 
 
-    def observe(self, project, expected, exit_code, *, session=None, name=None):
-        command = [self.args.observer, "--registry", self.registry, "--project", project,
-                   "--script", "res://scripts/subject.gd"]
-        if session is not None:
-            command += ["--session", session]
+    def observe(self, project, expected, exit_code, *, session=None, name=None, script="res://scripts/subject.gd"):
         started = time.monotonic()
-        response = run(command, timeout=5.2)
+        response = run(self.observation_command(project, session, script), timeout=5.2)
         elapsed = time.monotonic() - started
         return self.observer_result(response.returncode, response.stdout, response.stderr,
                                     elapsed, expected, exit_code, name or expected)
+
+    def observation_command(self, project, session=None, script="res://scripts/subject.gd"):
+        command = [self.args.observer, "--registry", self.registry, "--project", project,
+                   "--script", script]
+        if session is not None:
+            command += ["--session", session]
+        return [str(value) for value in command]
 
     def observer_result(self, code, stdout, stderr, elapsed, expected, exit_code, name):
         require(stdout.endswith(b"\n") and stdout.count(b"\n") == 1, "caller_single_json_" + name)
@@ -731,7 +741,8 @@ class Harness:
             "disk_resource": "equal" if disk["text"] == doc["R"] else "different",
             "disk_buffer": "equal" if disk["text"] == doc["B"] else "different",
             "resource_buffer": "equal" if doc["R"] == doc["B"] else "different"} and
-                snapshot["agreement"] == "agree" and
+                snapshot["agreement"] == (
+                    "agree" if disk["text"] == doc["R"] == doc["B"] else "divergent") and
                 snapshot["consistency"]["checks"] == "performed" and
                 snapshot["consistency"]["detected_changes"] == [] and
                 snapshot["consistency"]["atomic"] is False,
@@ -1407,7 +1418,7 @@ class Harness:
                   before=initial_witness, after=final_witness, disk_sha256=before[0])
         self.rebound_port(project, replacement)
 
-    def rebound_port(self, project, descriptor):
+    def rebound_port(self, project, descriptor, *, source_bearing=False):
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listener.bind(("127.0.0.1", descriptor["port"]))
@@ -1422,12 +1433,14 @@ class Harness:
                     stream.settimeout(2)
                     hello, raw = receive(stream)
                     evidence["secret_absent"] = descriptor["token"].encode() not in raw
+                    self.secrets.add(hello[5].encode())
                     nonce = secrets.token_hex(32)
                     self.secrets.add(nonce.encode())
                     fake = {"v": 1, "kind": "challenge", "request_id": hello[2], "session_id": hello[3],
                             "project_root": hello[4], "godot_version": VERSION, "engine_hash": ENGINE_HASH,
                             "capabilities": {name: False for name in CAPABILITIES}, "client_nonce": hello[5],
                             "server_nonce": nonce, "server_proof": "0" * 64}
+                    self.secrets.add(fake["server_proof"].encode())
                     stream.sendall(packet(fake))
                     evidence["closed_before_client_auth"] = not stream.recv(1)
             except (OSError, EOFError, Failure):
@@ -1435,14 +1448,514 @@ class Harness:
         thread = threading.Thread(target=impostor, daemon=True)
         thread.start()
         try:
-            result = self.route(project, "DeniedAccess", descriptor["session_id"], "stale_descriptor_rebound_impostor")
-            require(result["code"] == "AuthenticationFailed", "impostor_specific_authentication_failure")
+            if source_bearing:
+                result = self.observe(project, "denied_access", 3, session=descriptor["session_id"],
+                                      name="source_bearing_rebound_impostor")
+                require(result["diagnostics"][0]["code"] == "authentication_failed" and
+                        result["resolved_target"] is None and result["snapshot"] is None,
+                        "source_bearing_impostor_authentication_failure")
+            else:
+                result = self.route(project, "DeniedAccess", descriptor["session_id"],
+                                    "stale_descriptor_rebound_impostor")
+                require(result["code"] == "AuthenticationFailed", "impostor_specific_authentication_failure")
             thread.join(timeout=5)
             require(not thread.is_alive() and evidence == {"secret_absent": True, "closed_before_client_auth": True},
                     "impostor_never_receives_secret_or_client_auth")
         finally:
             listener.close()
             path.unlink(missing_ok=True)
+
+    def distinct_project(self, parent, tag, *, controlled=False):
+        project = self.fixture(parent + "/same-name", controlled=controlled)
+        path = project / "scripts" / "subject.gd"
+        original = path.read_bytes()
+        require(original.count(SOURCE_SENTINEL) == 1, "fixture_route_sentinel")
+        path.write_bytes(original.replace(SOURCE_SENTINEL, ("ROUTE_PROJECT_" + tag).encode()))
+        return project
+
+    def prepared_route_editor(self, project, tag):
+        existing = {value["session_id"] for value in self.descriptors(project)}
+        editor = self.start_editor(project)
+        def new_descriptor():
+            candidates = [value for value in self.descriptors(project)
+                          if value["session_id"] not in existing]
+            require(len(candidates) <= 1, "one_owned_new_lifetime_" + tag)
+            return candidates[0] if candidates else None
+        descriptor = wait_for(new_descriptor, "route_advertisement_" + tag)
+        self.action(editor, "prepare_subject")
+        wait_for(lambda: (lambda w: w if w["subject"]["associated"] else None)(
+                 self.action(editor, "witness")), "route_document_ready_" + tag)
+        self.screenshot(editor, "route-" + tag + "-prepared-" + str(self.counter) + ".png")
+        prepared = self.action(editor, "route_session_" + tag.lower())
+        require(prepared["associated"] and prepared["R"] ==
+                "extends RefCounted\n# ROUTE_RESOURCE_" + tag + "\n" and
+                prepared["B"] == "var =\n# ROUTE_BUFFER_" + tag + "\n",
+                "route_native_distinct_authorities_" + tag)
+        shot = self.screenshot(editor, "route-" + tag + "-" + str(self.counter) + ".png")
+        witness = self.action(editor, "witness")
+        require(witness["subject"]["R"] == prepared["R"] and
+                witness["subject"]["B"] == prepared["B"] and
+                witness["current_script"] == "res://scripts/subject.gd",
+                "route_native_ready_" + tag)
+        return editor, descriptor, shot
+
+    def assert_route(self, result, project, editor, descriptor, *, name):
+        path = project / "scripts" / "subject.gd"
+        disk = disk_witness(path)
+        witness = self.action(editor, "witness")
+        self.compare_snapshot(result, descriptor, witness, disk, path)
+        require(result["selection"] is None and result["resolved_target"] ==
+                result["snapshot"]["target"] and result["resolved_target"]["project_root"] ==
+                str(project.resolve()) and result["snapshot"]["dirty"]["state"] ==
+                ("dirty" if witness["subject"]["dirty"] else "clean"),
+                "route_exact_attributed_target_" + name)
+        evidence = name + "-witness.json"
+        json_file(self.artifacts / evidence, {"disk": disk, "witness": witness, "result": result})
+        self.cases[-1].update(evidence=evidence, session_id=descriptor["session_id"],
+                              project_root=str(project.resolve()), disk_sha256=disk["sha256"])
+
+    def routing(self):
+        self.compile_window_probe()
+        first_project = self.distinct_project("routing-a", "A")
+        second_project = self.distinct_project("routing-b", "B")
+        require(first_project.name == second_project.name and first_project != second_project,
+                "distinct_real_namesake_projects")
+        first, one, first_shot = self.prepared_route_editor(first_project, "A")
+        second, two, second_shot = self.prepared_route_editor(second_project, "B")
+        require(one["session_id"] != two["session_id"] and
+                first_project.joinpath("scripts/subject.gd").read_bytes() !=
+                second_project.joinpath("scripts/subject.gd").read_bytes(), "distinct_namesake_lifetimes")
+        for project, editor, descriptor, shot, name in (
+                (first_project, first, one, first_shot, "namesake_project_a_omitted"),
+                (second_project, second, two, second_shot, "namesake_project_b_exact")):
+            before = self.action(editor, "witness")
+            disk_before = disk_witness(project / "scripts" / "subject.gd")
+            result = self.observe(project, "complete_observation", 0, name=name,
+                                  session=None if name.endswith("omitted") else descriptor["session_id"])
+            self.assert_route(result, project, editor, descriptor, name=name)
+            require(before == self.action(editor, "witness") and
+                    disk_before == disk_witness(project / "scripts" / "subject.gd"),
+                    "routing_read_only_" + name)
+            self.cases[-1]["screenshot"] = shot
+        third, three, third_shot = self.prepared_route_editor(first_project, "C")
+        require(len(self.descriptors(first_project)) == 2 and
+                one["session_id"] != three["session_id"], "two_real_same_project_sessions")
+        before_a, before_c = self.action(first, "witness"), self.action(third, "witness")
+        disk_before = disk_witness(first_project / "scripts" / "subject.gd")
+        ambiguous = self.observe(first_project, "ambiguous_target", 3, name="same_project_ambiguity")
+        require(ambiguous["resolved_target"] is None and ambiguous["snapshot"] is None and
+                ambiguous["selection"] is not None and
+                ambiguous["selection"]["missing_selector"] == "session_id" and
+                set(ambiguous["selection"]["candidate_sessions"]) ==
+                {one["session_id"], three["session_id"]},
+                "ambiguous_requires_session_and_discloses_no_source")
+        for editor, descriptor, shot, name in ((first, one, first_shot, "same_project_exact_a"),
+                                               (third, three, third_shot, "same_project_exact_c")):
+            result = self.observe(first_project, "complete_observation", 0,
+                                  session=descriptor["session_id"], name=name)
+            self.assert_route(result, first_project, editor, descriptor, name=name)
+            self.cases[-1]["screenshot"] = shot
+        require(before_a == self.action(first, "witness") and
+                before_c == self.action(third, "witness") and
+                disk_before == disk_witness(first_project / "scripts" / "subject.gd"),
+                "no_focus_or_source_mixing")
+        for result, forbidden in (
+                (self.artifacts.joinpath("namesake_project_a_omitted.json").read_bytes(),
+                 (b"ROUTE_PROJECT_B", b"ROUTE_RESOURCE_B", b"ROUTE_BUFFER_B")),
+                (self.artifacts.joinpath("namesake_project_b_exact.json").read_bytes(),
+                 (b"ROUTE_PROJECT_A", b"ROUTE_RESOURCE_A", b"ROUTE_BUFFER_A")),
+                (self.artifacts.joinpath("same_project_exact_a.json").read_bytes(),
+                 (b"ROUTE_RESOURCE_C", b"ROUTE_BUFFER_C")),
+                (self.artifacts.joinpath("same_project_exact_c.json").read_bytes(),
+                 (b"ROUTE_RESOURCE_A", b"ROUTE_BUFFER_A"))):
+            require(all(marker not in result for marker in forbidden),
+                    "unselected_project_or_session_absent_from_result")
+
+    def wait_barrier(self, editor, stage, process):
+        def reached():
+            require(process.poll() is None, "caller_exited_before_" + stage)
+            path = editor["control"] / "event.json"
+            if path.is_file():
+                result = json.loads(path.read_text())
+                return result if result == {"stage": stage} else None
+            require(editor["process"].poll() is None, "editor_exited_before_" + stage)
+            return None
+        return wait_for(reached, "fixture_observation_barrier_" + stage, timeout=3.5)
+
+    def interrupted_observation(self, project, editor, descriptor, stage, action, name, expected):
+        self.action(editor, "hold_" + stage)
+        event = editor["control"] / "event.json"
+        event.unlink(missing_ok=True)
+        path = project / "scripts" / "subject.gd"
+        disk = disk_witness(path)
+        before = self.action(editor, "witness")
+        shot = self.screenshot(editor, name + ".png")
+        started = time.monotonic()
+        process = subprocess.Popen(self.observation_command(project, descriptor["session_id"]),
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            barrier = self.wait_barrier(editor, stage, process)
+            if action == "terminate":
+                editor["process"].terminate()
+                editor["process"].wait(timeout=2)
+            elif action == "disable":
+                self.action(editor, "disable")
+            elif action == "suspend":
+                editor["process"].send_signal(signal.SIGSTOP)
+                editor["suspended"] = True
+            else:
+                raise Failure("unsupported_fixture_interruption")
+            stdout, stderr = process.communicate(timeout=max(0.1, 5.1 - (time.monotonic() - started)))
+            result = self.observer_result(process.returncode, stdout, stderr, time.monotonic() - started,
+                                          expected, 4, name)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate(timeout=2)
+            if editor["suspended"]:
+                editor["process"].send_signal(signal.SIGCONT)
+                editor["suspended"] = False
+        require(result["resolved_target"] is not None and
+                result["resolved_target"]["session_id"] == descriptor["session_id"] and
+                result["resolved_target"]["project_root"] == str(project.resolve()) and
+                result["resolved_target"]["script_path"] == "res://scripts/subject.gd" and
+                result["selection"] is None and disk == disk_witness(path),
+                "interrupted_original_authenticated_target_" + name)
+        if stage == "observe":
+            require(result["snapshot"] is None or
+                    all(value["availability"] != "observed" for value in
+                        result["snapshot"]["sources"].values()),
+                    "interruption_before_sample_cannot_claim_source_" + name)
+        else:
+            snapshot = result["snapshot"]
+            require(snapshot is not None and snapshot["target"] == result["resolved_target"] and
+                    snapshot["sources"]["D"]["availability"] == "observed" and
+                    snapshot["sources"]["D"]["text"] == disk["text"] and
+                    snapshot["consistency"]["checks"] == "unavailable" and
+                    snapshot["consistency"]["recheck_reason"] == (
+                        "session_ended" if expected == "disconnected_editor" else "deadline_exceeded"),
+                    "validated_partial_keeps_original_attribution_without_complete_" + name)
+            require(snapshot["sources"]["D"]["witness"]["disk_file_id"] ==
+                    {"device": disk["device"], "inode": disk["inode"]} and
+                    snapshot["document"]["identity"]["script_instance_id"] ==
+                    before["subject"]["script_id"] and
+                    snapshot["document"]["identity"]["buffer_instance_id"] ==
+                    before["subject"]["buffer_id"],
+                    "partial_document_and_disk_witnesses_" + name)
+            if expected == "disconnected_editor":
+                require(all(snapshot["sources"][surface]["availability"] == "unavailable" and
+                            snapshot["sources"][surface]["reason"]["code"] == "session_ended" and
+                            snapshot["sources"][surface]["invalidated_evidence"]["text"] ==
+                            before["subject"][surface] for surface in ("R", "B")) and
+                        snapshot["dirty"]["invalidated_evidence"]["state"] ==
+                        ("dirty" if before["subject"]["dirty"] else "clean") and
+                        snapshot["document"]["open_state"]["invalidated_evidence"]["value"] ==
+                        "open" and snapshot["comparisons"]["disk_resource"] == "unknown" and
+                        snapshot["comparisons"]["disk_buffer"] == "unknown",
+                        "known_loss_invalidates_original_live_facts_" + name)
+                for surface, identity in (("R", "script_instance_id"),
+                                          ("B", "buffer_instance_id")):
+                    prior = snapshot["sources"][surface]["invalidated_evidence"]
+                    require(prior["witness"][identity] == before["subject"][
+                        "script_id" if surface == "R" else "buffer_id"] and
+                        prior["collection"]["clock_id"] == "editor:" + descriptor["session_id"],
+                        "invalidated_source_keeps_original_witness_" + surface + "_" + name)
+            else:
+                require(all(snapshot["sources"][surface]["text"] == before["subject"][surface]
+                            for surface in ("R", "B")) and
+                        snapshot["document"]["open_state"]["value"] == "open",
+                        "silent_interruption_retains_original_sample_" + name)
+            evidence = name + "-witness.json"
+            json_file(self.artifacts / evidence,
+                      {"disk": disk, "before": before, "result": result, "barrier": barrier})
+            self.cases[-1]["evidence"] = evidence
+        self.cases[-1].update(barrier=stage, action=action, screenshot=shot,
+                              session_id=descriptor["session_id"])
+        return result
+
+    def session_loss(self):
+        self.compile_window_probe()
+        absent = self.fixture("session-loss-absent")
+        self.observe(absent, "editor_unavailable", 3, name="absent_project_no_autostart")
+        require(not self.descriptors(absent), "absence_does_not_launch_editor")
+        project, editor, descriptor, path = self.controlled_editor("session-loss")
+        self.observe(project, "editor_unavailable", 3, session="f" * 32,
+                     name="absent_exact_before_auth")
+        self.interrupted_observation(project, editor, descriptor, "observe", "disable",
+                                     "disconnect_after_auth_before_sample", "disconnected_editor")
+        wait_for(lambda: not self.descriptors(project), "disabled_descriptor_removed")
+        self.action(editor, "enable")
+        replacement = wait_for(lambda: next(iter(self.descriptors(project)), None),
+                               "reenabled_new_session")
+        require(replacement["session_id"] != descriptor["session_id"] and
+                replacement["token"] != descriptor["token"], "reenable_new_lifetime_and_secret")
+        self.observe(project, "editor_unavailable", 3, session=descriptor["session_id"],
+                     name="disabled_id_never_substituted")
+        self.action(editor, "release_hold")
+        self.interrupted_observation(project, editor, replacement, "recheck", "terminate",
+                                     "disconnect_after_sample_and_disk", "disconnected_editor")
+        self.close_editor(editor)
+        # An unclean process termination can leave a descriptor; it is not
+        # liveness evidence and must not authorize a replacement session.
+        self.observe(project, "editor_unavailable", 3, session=replacement["session_id"],
+                     name="ended_process_not_metadata_is_authority")
+        self.cases[-1]["stale_descriptor_retained"] = (
+            self.registry / (replacement["session_id"] + ".json")).exists()
+        restarted, fresh, shot = self.prepared_route_editor(project, "B")
+        require(fresh["session_id"] != replacement["session_id"] and
+                fresh["token"] != replacement["token"], "restart_new_session_lifetime")
+        self.observe(project, "editor_unavailable", 3, session=replacement["session_id"],
+                     name="ended_id_never_substituted")
+        result = self.observe(project, "complete_observation", 0,
+                              session=fresh["session_id"], name="new_session_only_new_request")
+        self.assert_route(result, project, restarted, fresh, name="new_session_only_new_request")
+        self.cases[-1]["screenshot"] = shot
+
+    def deadline(self):
+        self.compile_window_probe()
+        project, editor, descriptor, path = self.controlled_editor("deadline")
+        self.interrupted_observation(project, editor, descriptor, "recheck", "suspend",
+                                     "connected_silent_editor_after_sample_disk", "timeout")
+        require(editor["process"].poll() is None, "timeout_does_not_kill_owned_editor")
+        self.action(editor, "release_hold")
+        disk = disk_witness(path)
+        before = self.action(editor, "witness")
+        shot = self.screenshot(editor, "isolated-worker.png")
+        self.action(editor, "hold_recheck")
+        event = editor["control"] / "event.json"
+        event.unlink(missing_ok=True)
+        started = time.monotonic()
+        process = subprocess.Popen(self.observation_command(project, descriptor["session_id"]),
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        owned_worker = None
+        try:
+            barrier = self.wait_barrier(editor, "recheck", process)
+            def child_pid():
+                children = run(["/usr/bin/pgrep", "-P", process.pid])
+                values = children.stdout.split()
+                require(len(values) <= 1, "one_owned_worker_for_live_recheck")
+                return int(values[0]) if values else None
+            owned_worker = wait_for(child_pid, "live_worker_running_at_recheck", timeout=0.5)
+            os.kill(owned_worker, signal.SIGSTOP)
+            stdout, stderr = process.communicate(timeout=max(0.1, 5.1 - (time.monotonic() - started)))
+            result = self.observer_result(process.returncode, stdout, stderr, time.monotonic() - started,
+                                          "timeout", 4, "isolated_worker_after_sample_disk")
+            snapshot = result["snapshot"]
+            require(result["resolved_target"]["session_id"] == descriptor["session_id"] and
+                    snapshot is not None and snapshot["target"] == result["resolved_target"] and
+                    snapshot["sources"]["D"]["text"] == disk["text"] and
+                    snapshot["sources"]["R"]["text"] == before["subject"]["R"] and
+                    snapshot["sources"]["B"]["text"] == before["subject"]["B"] and
+                    snapshot["consistency"]["checks"] != "performed" and
+                    editor["process"].poll() is None and disk == disk_witness(path),
+                    "stalled_worker_preserves_real_editor_and_partial_evidence")
+            def gone():
+                try:
+                    os.kill(owned_worker, 0)
+                    return False
+                except ProcessLookupError:
+                    return True
+            wait_for(gone, "bounded_supervisor_reaps_owned_worker", timeout=2)
+            evidence = "isolated-worker-witness.json"
+            json_file(self.artifacts / evidence,
+                      {"before": before, "disk": disk, "result": result, "barrier": barrier})
+            self.cases[-1].update(evidence=evidence, screenshot=shot,
+                                  barrier="recheck", worker_reaped=True)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate(timeout=2)
+            if owned_worker is not None:
+                try:
+                    os.kill(owned_worker, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            self.action(editor, "release_hold")
+        # A caller-initiated attempt has fresh identity/evidence after timeout.
+        fresh = self.observe(project, "complete_observation", 0,
+                             session=descriptor["session_id"], name="fresh_after_deadline")
+        self.compare_snapshot(fresh, descriptor, self.action(editor, "witness"), disk, path)
+        require(fresh["request_id"] != result["request_id"],
+                "explicit_new_request_after_timeout")
+
+    def confinement(self):
+        self.compile_window_probe()
+        self.registry_refusal_cases()
+        project, editor, descriptor, path = self.controlled_editor("confinement")
+        shot = self.screenshot(editor, "confinement.png")
+        original = disk_witness(path)
+        before = self.action(editor, "witness")
+        self.authentication_cases(descriptor, editor)
+        for mode in ("reject_sample_identity", "reject_recheck_identity",
+                     "reject_recheck_malformed", "reject_recheck_oversized"):
+            self.action(editor, mode)
+            result = self.observe(project, "protocol_error", 4, session=descriptor["session_id"],
+                                  name="protocol_" + mode)
+            require(result["resolved_target"]["session_id"] == descriptor["session_id"] and
+                    result["selection"] is None, "protocol_error_retains_selected_identity_" + mode)
+            if mode == "reject_sample_identity":
+                require(result["snapshot"] is None,
+                        "invalid_sample_identity_never_supplies_source")
+            else:
+                partial = result["snapshot"]
+                require(partial is not None and partial["sources"]["D"]["text"] == original["text"] and
+                        partial["sources"]["R"]["text"] == before["subject"]["R"] and
+                        partial["sources"]["B"]["text"] == before["subject"]["B"] and
+                        partial["consistency"]["checks"] == "unavailable",
+                        "rejected_recheck_preserves_only_earlier_validated_evidence_" + mode)
+            self.action(editor, "restore_dirty")
+        for name, locator in (("parent_traversal", "res://../outside.gd"),
+                              ("absolute_path", str(self.work / "outside.gd")),
+                              ("user_scheme", "user://outside.gd"),
+                              ("remote_url", "https://example.invalid/script.gd"),
+                              ("decorated_path", "res://scripts/subject.gd?outside")):
+            result = self.observe(project, "invalid_request", 3, session=descriptor["session_id"],
+                                  name="refuse_" + name, script=locator)
+            require(result["resolved_target"] is None and result["snapshot"] is None,
+                    "invalid_locator_never_selects_source_" + name)
+        outside = self.work / "outside.gd"
+        outside.write_text("extends RefCounted\n# OUTSIDE_CONFIDENTIAL\n")
+        self.source_markers.add(b"OUTSIDE_CONFIDENTIAL")
+        alias = project / "scripts" / "escaped.gd"
+        alias.symlink_to(outside)
+        try:
+            result = self.observe(project, "denied_access", 3, session=descriptor["session_id"],
+                                  name="refuse_live_symlink_escape", script="res://scripts/escaped.gd")
+            require(result["snapshot"] is None and result["resolved_target"] is None and
+                    any(item["code"] == "out_of_project" for item in result["diagnostics"]),
+                    "symlink_refusal_before_authenticated_source")
+        finally:
+            alias.unlink(missing_ok=True)
+        stream, request_id = self.authenticated_peer(descriptor)
+        with stream:
+            for name, field, value in (("wrong_request", 2, "other-request"),
+                                       ("wrong_session", 3, "f" * 32),
+                                       ("wrong_project", 4, str(outside))):
+                if name != "wrong_request":
+                    stream.close()
+                    stream, request_id = self.authenticated_peer(descriptor)
+                message = [1, "observe", request_id, descriptor["session_id"],
+                           descriptor["project_root"], "res://scripts/subject.gd"]
+                message[field] = value
+                self.refused(stream, packet(message))
+                self.case("authenticated_refuse_" + name, screenshot=shot)
+        for name, payload in (("malformed", b"\x00\x00\x00\x03!!!"),
+                              ("oversized", struct.pack(">I", 4097))):
+            with self.authenticated_peer(descriptor)[0] as peer:
+                self.refused(peer, payload)
+            self.case("authenticated_refuse_" + name, screenshot=shot)
+        fake = dict(descriptor)
+        fake["session_id"] = "e" * 32 if descriptor["session_id"] != "e" * 32 else "d" * 32
+        fake_path = self.registry / (fake["session_id"] + ".json")
+        for mode, expected, code in (("unsafe_mode", "denied_access", "unsafe_registry"),
+                                      ("malformed_secret", "protocol_error", "invalid_frame")):
+            if mode == "malformed_secret":
+                fake["token"] = "not-a-secret"
+            json_file(fake_path, fake)
+            if mode == "unsafe_mode":
+                fake_path.chmod(0o644)
+            try:
+                result = self.observe(project, expected, 3 if expected == "denied_access" else 4,
+                                      session=descriptor["session_id"], name="refuse_" + mode)
+                require(result["snapshot"] is None and result["resolved_target"] is None and
+                        any(item["code"] == code for item in result["diagnostics"]),
+                        "unsafe_metadata_blocks_source_" + mode)
+            finally:
+                fake_path.unlink(missing_ok=True)
+        extras = []
+        try:
+            for index in range(32):
+                fake["session_id"] = format(index, "032x")
+                if fake["session_id"] == descriptor["session_id"]:
+                    fake["session_id"] = "f" * 32
+                fake["token"] = descriptor["token"]
+                candidate = self.registry / (fake["session_id"] + ".json")
+                require(not candidate.exists(), "capacity_unique_descriptor")
+                json_file(candidate, fake)
+                extras.append(candidate)
+            result = self.observe(project, "unsupported_observation", 2, session=descriptor["session_id"],
+                                  name="refuse_capacity_whole_request")
+            require(result["snapshot"] is None and result["resolved_target"] is None,
+                    "capacity_never_selects_convenient_candidate")
+        finally:
+            for candidate in extras:
+                candidate.unlink(missing_ok=True)
+        second = self.start_editor(project)
+        wait_for(lambda: len(self.descriptors(project)) == 2, "confinement_two_live_descriptors")
+        second["process"].send_signal(signal.SIGSTOP)
+        second["suspended"] = True
+        try:
+            unresolved = self.observe(project, "timeout", 4, name="unresolved_liveness_no_guess")
+            require(unresolved["snapshot"] is None and unresolved["resolved_target"] is None and
+                    unresolved["selection"] is None, "unresolved_liveness_source_free")
+        finally:
+            second["process"].send_signal(signal.SIGCONT)
+            second["suspended"] = False
+        self.close_editor(second)
+        wait_for(lambda: len(self.descriptors(project)) == 1, "confinement_second_session_ended")
+        self.action(editor, "hold_recheck")
+        event = editor["control"] / "event.json"
+        event.unlink(missing_ok=True)
+        started = time.monotonic()
+        process = subprocess.Popen(self.observation_command(project, descriptor["session_id"]),
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        backup = project / "scripts" / "subject-original.gd"
+        try:
+            barrier = self.wait_barrier(editor, "recheck", process)
+            path.rename(backup)
+            path.symlink_to(outside)
+            displaced = disk_witness(backup)
+            self.action(editor, "release_hold")
+            stdout, stderr = process.communicate(timeout=max(0.1, 5.1 - (time.monotonic() - started)))
+            refused = self.observer_result(process.returncode, stdout, stderr,
+                                           time.monotonic() - started, "denied_access", 3,
+                                           "refuse_symlink_after_validated_sample_disk")
+            require(refused["snapshot"] is None and refused["resolved_target"] is None and
+                    any(item["code"] == "out_of_project" for item in refused["diagnostics"]),
+                    "post_sample_symlink_race_suppresses_all_source")
+            self.cases[-1].update(barrier=barrier["stage"], screenshot=shot)
+            require(displaced == disk_witness(backup),
+                    "confined_observer_preserves_displaced_source")
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate(timeout=2)
+            if path.is_symlink():
+                path.unlink()
+            if backup.exists():
+                backup.rename(path)
+            self.action(editor, "release_hold")
+        restored = disk_witness(path)
+        after = self.action(editor, "witness")
+        evidence = "confinement-race-witness.json"
+        json_file(self.artifacts / evidence,
+                  {"original_disk": original, "restored_disk": restored,
+                   "before": before, "after": after, "result": refused})
+        self.cases[-1]["evidence"] = evidence
+        # Fixture renames change ctime. Source, identity and write metadata must
+        # survive, and the observer must not change any native editor witness.
+        require(all(original[key] == restored[key] for key in
+                    ("text", "sha256", "size", "device", "inode", "mtime_ns", "mode")),
+                "confinement_denials_preserve_original_disk")
+        require(before == after, "confinement_denials_preserve_original_editor")
+        self.close_editor(editor)
+        wait_for(lambda: not self.descriptors(project), "confinement_ended_session_cleanup")
+        self.rebound_port(project, descriptor, source_bearing=True)
+
+    def redaction(self):
+        # Incremental privacy gate for the selected/unselected routing and
+        # authentication paths; not T008's complete replay/privacy matrix.
+        self.routing()
+        project, editor, descriptor, path = self.controlled_editor("redaction-auth")
+        self.authentication_cases(descriptor, editor)
+        before = self.action(editor, "witness")
+        result = self.observe(project, "complete_observation", 0,
+                              session=descriptor["session_id"], name="redaction_selected")
+        self.compare_snapshot(result, descriptor, before, disk_witness(path), path)
+        require(before == self.action(editor, "witness"), "redaction_read_only")
+        self.close_editor(editor)
+        wait_for(lambda: not self.descriptors(project), "redaction_auth_ended")
+        self.rebound_port(project, descriptor, source_bearing=True)
 
     def export_boundary(self):
         template = Path.home() / "Library" / "Application Support" / "Godot" / "export_templates" / "4.7.2.stable" / "macos.zip"
@@ -1587,7 +2100,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--godot", required=True, type=Path)
     parser.add_argument("--observer", required=True, type=Path)
-    parser.add_argument("--scenario", required=True, choices=("all", "clean-open", "session-boundary", "executor-boundary", "export-boundary", "dirty-divergent", "dirty-unavailable", "changing-document", *MISSING_GROUPS))
+    parser.add_argument("--scenario", required=True, choices=("all", "clean-open", "session-boundary", "executor-boundary", "export-boundary", "dirty-divergent", "dirty-unavailable", "changing-document", "routing", "session-loss", "deadline", "confinement", "redaction", *MISSING_GROUPS))
     parser.add_argument("--artifacts", required=True, type=Path)
     args = parser.parse_args()
     os.umask(0o077)
@@ -1599,9 +2112,10 @@ def main():
     require(metadata.st_uid == os.geteuid() and stat.S_IMODE(metadata.st_mode) == 0o700 and
             not list(args.artifacts.iterdir()), "empty_private_artifact_directory")
     if args.scenario == "all" or args.scenario in MISSING_GROUPS:
-        missing = list(MISSING_GROUPS) if args.scenario == "all" else [args.scenario]
+        missing = [*MISSING_GROUPS, "redaction"] if args.scenario == "all" else [args.scenario]
         json_file(args.artifacts / "summary.json", {"status": "failed",
-                  "stage": "coverage", "missing_groups": missing, "support_claim": False})
+                  "stage": "coverage", "missing_groups": missing,
+                  "incremental_groups": ["redaction"], "support_claim": False})
         print("Missing coverage: " + ", ".join(missing))
         return 1
     # Home is deliberately used instead of /tmp's symlink/writable ancestry.
@@ -1622,6 +2136,16 @@ def main():
                 harness.dirty_unavailable()
             elif args.scenario == "changing-document":
                 harness.changing_document()
+            elif args.scenario == "routing":
+                harness.routing()
+            elif args.scenario == "session-loss":
+                harness.session_loss()
+            elif args.scenario == "deadline":
+                harness.deadline()
+            elif args.scenario == "confinement":
+                harness.confinement()
+            elif args.scenario == "redaction":
+                harness.redaction()
             else:
                 harness.export_boundary()
             harness.summary["status"] = "passed"

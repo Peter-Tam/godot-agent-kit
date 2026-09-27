@@ -78,10 +78,11 @@ impl Drop for Fixture {
     }
 }
 fn listener() -> TcpListener {
-    for attempt in 0..1000 {
+    for _ in 0..1000 {
+        // Reserve one distinct port per attempt across concurrent fixture tests.
         let port = 50000
-            + ((std::process::id() as usize * 97 + NEXT.fetch_add(1, Ordering::Relaxed) + attempt)
-                % 15000) as u16;
+            + ((std::process::id() as usize * 97 + NEXT.fetch_add(1, Ordering::Relaxed)) % 15000)
+                as u16;
         if let Ok(listener) = TcpListener::bind(("127.0.0.1", port)) {
             return listener;
         }
@@ -167,6 +168,7 @@ fn observation_sample(hello: &Value) -> Value {
 #[derive(Clone, Copy)]
 enum Mode {
     Observation(ObservationMode),
+    SourceCapableNoObserve,
     Valid,
     WrongSecret,
     Reflection,
@@ -217,6 +219,11 @@ enum ObservationMode {
     OverlargeFrame,
     Disconnect,
     Silent,
+    DisconnectRecheck,
+    SilentRecheck,
+    WrongRecheckRequest,
+    MalformedRecheck,
+    UnavailableRecheck,
 }
 fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
     thread::spawn(move || {
@@ -255,7 +262,7 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
             socket.write_all(&4097u32.to_be_bytes()).unwrap();
             return;
         }
-        let caps = json!({"observe_gdscript":matches!(mode, Mode::Observation(_)),"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false});
+        let caps = json!({"observe_gdscript":matches!(mode, Mode::Observation(_) | Mode::SourceCapableNoObserve),"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false});
         let key = if matches!(mode, Mode::WrongSecret) {
             "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         } else {
@@ -497,6 +504,11 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                     | ObservationMode::DocumentReplaced
                     | ObservationMode::PartialChanged
                     | ObservationMode::PartialClosed
+                    | ObservationMode::DisconnectRecheck
+                    | ObservationMode::SilentRecheck
+                    | ObservationMode::WrongRecheckRequest
+                    | ObservationMode::MalformedRecheck
+                    | ObservationMode::UnavailableRecheck
             ) {
                 let recheck = read_frame(&mut socket);
                 assert_eq!(
@@ -510,6 +522,18 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                         "res://scripts/subject.gd"
                     ])
                 );
+                if matches!(reply, ObservationMode::DisconnectRecheck) {
+                    return;
+                }
+                if matches!(reply, ObservationMode::SilentRecheck) {
+                    thread::sleep(Duration::from_secs(5));
+                    return;
+                }
+                if matches!(reply, ObservationMode::MalformedRecheck) {
+                    socket.write_all(&2u32.to_be_bytes()).unwrap();
+                    socket.write_all(b"{}").unwrap();
+                    return;
+                }
                 if matches!(reply, ObservationMode::DenyRecheck) {
                     frame(
                         &mut socket,
@@ -520,6 +544,7 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                 let changes = match reply {
                     ObservationMode::Stable
                     | ObservationMode::Empty
+                    | ObservationMode::UnavailableRecheck
                     | ObservationMode::RecheckBeforeSample => json!([]),
                     ObservationMode::ChangedResource => {
                         json!([{"surface":"R","code":"source_changed"}])
@@ -549,6 +574,13 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
                     });
                 stamp["finished_tick_us"] = json!("9007199254740995");
                 let mut rechecked = json!({"v":1,"kind":"recheck","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":"res://scripts/subject.gd","collection":stamp,"checks":"performed","detected_changes":changes,"reason":null});
+                if matches!(reply, ObservationMode::WrongRecheckRequest) {
+                    rechecked["request_id"] = json!("another-request");
+                }
+                if matches!(reply, ObservationMode::UnavailableRecheck) {
+                    rechecked["checks"] = json!("unavailable");
+                    rechecked["reason"] = json!("unavailable");
+                }
                 if matches!(
                     reply,
                     ObservationMode::PartialChanged | ObservationMode::PartialClosed
@@ -563,7 +595,8 @@ fn serve(listener: TcpListener, mode: Mode) -> thread::JoinHandle<()> {
             }
             return;
         }
-        // A selected session must not receive a source-bearing frame during T002 routing.
+        // Source-capable ambiguity must not issue observe; the source-free
+        // T002 modes also close without requesting any document authority.
         socket
             .set_read_timeout(Some(Duration::from_millis(150)))
             .unwrap();
@@ -579,6 +612,25 @@ fn attach(fixture: &Fixture, id: &str, mode: Mode) -> thread::JoinHandle<()> {
 const ID1: &str = "00112233445566778899aabbccddeeff";
 const ID2: &str = "11112233445566778899aabbccddeeff";
 const ID3: &str = "22222233445566778899aabbccddeeff";
+fn invoke(
+    fixture: &Fixture,
+    project: &std::path::Path,
+    session: Option<&str>,
+) -> std::process::Output {
+    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_observe-gdscript"));
+    command.args([
+        "--registry",
+        fixture.registry.to_str().unwrap(),
+        "--project",
+        project.to_str().unwrap(),
+        "--script",
+        "res://scripts/subject.gd",
+    ]);
+    if let Some(session) = session {
+        command.args(["--session", session]);
+    }
+    command.output().unwrap()
+}
 
 #[test]
 fn two_authenticated_sessions_outweigh_later_protocol_and_timeout() {
@@ -713,6 +765,187 @@ fn ended_exact_id_does_not_connect_to_a_new_live_session() {
         replacement.accept().err().unwrap().kind(),
         std::io::ErrorKind::WouldBlock
     );
+}
+
+#[test]
+fn actual_caller_refuses_source_until_unique_selection_and_binds_exact_session() {
+    let fixture = Fixture::new();
+    fs::create_dir(fixture.project.join("scripts")).unwrap();
+    let disk = "# selected project and session only\n";
+    fs::write(fixture.project.join("scripts/subject.gd"), disk).unwrap();
+    let first = attach(&fixture, ID1, Mode::SourceCapableNoObserve);
+    let second = attach(&fixture, ID2, Mode::SourceCapableNoObserve);
+    let started = Instant::now();
+    let output = invoke(&fixture, &fixture.project, None);
+    assert!(started.elapsed() < Duration::from_secs(5));
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stderr.is_empty());
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["outcome"], "ambiguous_target");
+    assert_eq!(result["selection"]["missing_selector"], "session_id");
+    assert_eq!(result["selection"]["candidate_sessions"], json!([ID1, ID2]));
+    assert!(result["resolved_target"].is_null());
+    assert!(result["snapshot"].is_null());
+    assert!(!String::from_utf8_lossy(&output.stdout).contains(disk));
+    first.join().unwrap();
+    second.join().unwrap();
+
+    // Two advertisements exist, but only the exact session's authenticated
+    // channel may receive observe/recheck or contribute project source.
+    fs::remove_file(fixture.registry.join(format!("{ID1}.json"))).unwrap();
+    let unused = listener();
+    fixture.descriptor(ID1, unused.local_addr().unwrap().port());
+    fs::remove_file(fixture.registry.join(format!("{ID2}.json"))).unwrap();
+    let selected = attach(&fixture, ID2, Mode::Observation(ObservationMode::Stable));
+    let started = Instant::now();
+    let output = invoke(&fixture, &fixture.project, Some(ID2));
+    assert!(started.elapsed() < Duration::from_secs(5));
+    assert_eq!(output.status.code(), Some(0));
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["outcome"], "complete_observation");
+    assert_eq!(result["resolved_target"]["session_id"], ID2);
+    assert_eq!(
+        result["resolved_target"]["project_root"],
+        fixture.project.to_str().unwrap()
+    );
+    assert_eq!(
+        result["snapshot"]["target"]["script_path"],
+        "res://scripts/subject.gd"
+    );
+    assert_eq!(result["snapshot"]["sources"]["D"]["text"], disk);
+    assert_eq!(
+        result["snapshot"]["sources"]["R"]["collection"]["clock_id"],
+        format!("editor:{ID2}")
+    );
+    assert_eq!(
+        result["snapshot"]["sources"]["B"]["witness"]["resource_path"],
+        "res://scripts/subject.gd"
+    );
+    assert!(!String::from_utf8_lossy(&output.stdout).contains(SECRET));
+    unused.set_nonblocking(true).unwrap();
+    assert_eq!(
+        unused.accept().unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+    selected.join().unwrap();
+}
+
+#[test]
+fn absent_and_ended_exact_sessions_never_substitute_a_replacement_or_read_disk() {
+    let fixture = Fixture::new();
+    fs::create_dir(fixture.project.join("scripts")).unwrap();
+    let disk = "# source that absence cannot disclose\n";
+    fs::write(fixture.project.join("scripts/subject.gd"), disk).unwrap();
+    let absent = invoke(&fixture, &fixture.project, Some(ID1));
+    assert_eq!(absent.status.code(), Some(3));
+    let first: Value = serde_json::from_slice(&absent.stdout).unwrap();
+    assert_eq!(first["outcome"], "editor_unavailable");
+    assert!(first["snapshot"].is_null());
+
+    let ended = listener();
+    let old_port = ended.local_addr().unwrap().port();
+    drop(ended);
+    fixture.descriptor(ID1, old_port);
+    let replacement = listener();
+    fixture.descriptor(ID2, replacement.local_addr().unwrap().port());
+    let output = invoke(&fixture, &fixture.project, Some(ID1));
+    assert_eq!(output.status.code(), Some(3));
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["outcome"], "editor_unavailable");
+    assert!(result["snapshot"].is_null());
+    assert!(result["resolved_target"].is_null());
+    assert!(!String::from_utf8_lossy(&output.stdout).contains(disk));
+    replacement.set_nonblocking(true).unwrap();
+    assert_eq!(
+        replacement.accept().unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+}
+#[test]
+fn same_named_projects_with_the_same_script_path_keep_disk_and_editor_lifetimes_separate() {
+    // A controlled peer supplies R/B shapes; only the independently confined D
+    // is a filesystem observation here. The live GUI scenario proves actual R/B.
+    let fixture = Fixture::new();
+    let other_parent = fixture.home.join("other");
+    DirBuilder::new().mode(0o700).create(&other_parent).unwrap();
+    let other = other_parent.join("project");
+    DirBuilder::new().mode(0o700).create(&other).unwrap();
+    for (project, source) in [
+        (&fixture.project, "# project A only\n"),
+        (&other, "# project B only\n"),
+    ] {
+        fs::create_dir(project.join("scripts")).unwrap();
+        fs::write(project.join("scripts/subject.gd"), source).unwrap();
+    }
+    let first = attach(&fixture, ID1, Mode::Observation(ObservationMode::Stable));
+    let second_listener = listener();
+    fixture.descriptor(ID2, second_listener.local_addr().unwrap().port());
+    let descriptor = fixture.registry.join(format!("{ID2}.json"));
+    let mut metadata: Value = serde_json::from_slice(&fs::read(&descriptor).unwrap()).unwrap();
+    metadata["project_root"] = json!(other);
+    fs::write(descriptor, serde_json::to_vec(&metadata).unwrap()).unwrap();
+    let second = serve(second_listener, Mode::Observation(ObservationMode::Stable));
+    for (project, id, selected, unselected) in [
+        (
+            &fixture.project,
+            ID1,
+            "# project A only\n",
+            "# project B only\n",
+        ),
+        (&other, ID2, "# project B only\n", "# project A only\n"),
+    ] {
+        let began = Instant::now();
+        let output = invoke(&fixture, project, None);
+        assert!(began.elapsed() < Duration::from_secs(5));
+        assert_eq!(output.status.code(), Some(0));
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(result["outcome"], "complete_observation");
+        assert_eq!(result["resolved_target"]["session_id"], id);
+        assert_eq!(
+            result["resolved_target"]["project_root"],
+            project.to_str().unwrap()
+        );
+        assert_eq!(result["snapshot"]["sources"]["D"]["text"], selected);
+        assert_eq!(
+            result["snapshot"]["sources"]["R"]["collection"]["clock_id"],
+            format!("editor:{id}")
+        );
+        assert_eq!(
+            result["snapshot"]["document"]["identity"]["resource_path"],
+            "res://scripts/subject.gd"
+        );
+        assert!(!String::from_utf8_lossy(&output.stdout).contains(unselected));
+    }
+    first.join().unwrap();
+    second.join().unwrap();
+}
+
+#[test]
+fn rebound_ended_port_without_the_original_secret_cannot_release_project_source() {
+    let fixture = Fixture::new();
+    fs::create_dir(fixture.project.join("scripts")).unwrap();
+    let disk = "# source never exposed to an unproved listener\n";
+    fs::write(fixture.project.join("scripts/subject.gd"), disk).unwrap();
+    let old_listener = listener();
+    let port = old_listener.local_addr().unwrap().port();
+    fixture.descriptor(ID1, port);
+    drop(old_listener);
+    let rebound = TcpListener::bind(("127.0.0.1", port)).unwrap();
+    let impostor = serve(rebound, Mode::WrongSecret);
+    let began = Instant::now();
+    let output = invoke(&fixture, &fixture.project, Some(ID1));
+    assert!(began.elapsed() < Duration::from_secs(5));
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stderr.is_empty());
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["outcome"], "denied_access");
+    assert_eq!(result["diagnostics"][0]["code"], "authentication_failed");
+    assert!(result["resolved_target"].is_null());
+    assert!(result["snapshot"].is_null());
+    for source in [disk, SECRET] {
+        assert!(!String::from_utf8_lossy(&output.stdout).contains(source));
+    }
+    impostor.join().unwrap();
 }
 
 #[test]
@@ -1146,6 +1379,150 @@ fn mismatched_recheck_cannot_complete_and_keeps_only_earlier_validated_facts() {
     assert_eq!(result["snapshot"]["consistency"]["checks"], "unavailable");
     assert!(!String::from_utf8(output.stdout).unwrap().contains(SECRET));
     peer.join().unwrap();
+}
+
+#[test]
+fn mismatched_or_malformed_pre_sample_evidence_never_triggers_a_disk_read() {
+    for mode in [
+        ObservationMode::WrongIdentity,
+        ObservationMode::WrongRequest,
+        ObservationMode::WrongDocument,
+        ObservationMode::DuplicateRequired,
+        ObservationMode::OverlargeFrame,
+    ] {
+        let fixture = Fixture::new();
+        fs::create_dir(fixture.project.join("scripts")).unwrap();
+        let disk = "# pre-sample protocol failure is source-free\n";
+        fs::write(fixture.project.join("scripts/subject.gd"), disk).unwrap();
+        let peer = attach(&fixture, ID1, Mode::Observation(mode));
+        let started = Instant::now();
+        let output = invoke(&fixture, &fixture.project, Some(ID1));
+        assert!(started.elapsed() < Duration::from_secs(5), "{mode:?}");
+        assert_eq!(output.status.code(), Some(4), "{mode:?}");
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(result["outcome"], "protocol_error", "{mode:?}");
+        assert_eq!(result["resolved_target"]["session_id"], ID1);
+        assert!(result["snapshot"].is_null(), "{mode:?}");
+        assert!(!String::from_utf8_lossy(&output.stdout).contains(disk));
+        assert!(!String::from_utf8_lossy(&output.stdout).contains(SECRET));
+        peer.join().unwrap();
+    }
+}
+
+#[test]
+fn actual_caller_preserves_attributed_partial_facts_across_live_interruptions() {
+    // Controlled authenticated peers test transport/consumer transitions, not
+    // whether Godot can really observe R, B or document-specific dirty state.
+    use ObservationMode::*;
+    for (mode, expected, exit, after_sample) in [
+        (Disconnect, "disconnected_editor", 4, false),
+        (DisconnectRecheck, "disconnected_editor", 4, true),
+        (SilentRecheck, "timeout", 4, true),
+        (WrongRecheckRequest, "protocol_error", 4, true),
+        (MalformedRecheck, "protocol_error", 4, true),
+        (UnavailableRecheck, "limited_observation", 2, true),
+    ] {
+        let fixture = Fixture::new();
+        fs::create_dir(fixture.project.join("scripts")).unwrap();
+        let disk = "# independent selected disk source\n";
+        fs::write(fixture.project.join("scripts/subject.gd"), disk).unwrap();
+        let peer = attach(&fixture, ID1, Mode::Observation(mode));
+        let started = Instant::now();
+        let output = invoke(&fixture, &fixture.project, Some(ID1));
+        assert!(started.elapsed() < Duration::from_secs(5), "{mode:?}");
+        assert_eq!(output.status.code(), Some(exit), "{mode:?}");
+        assert!(output.stderr.is_empty(), "{mode:?}");
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(result["outcome"], expected, "{mode:?}");
+        assert_eq!(result["resolved_target"]["session_id"], ID1, "{mode:?}");
+        assert_eq!(
+            result["resolved_target"]["project_root"],
+            fixture.project.to_str().unwrap(),
+            "{mode:?}"
+        );
+        assert_eq!(
+            result["resolved_target"]["script_path"], "res://scripts/subject.gd",
+            "{mode:?}"
+        );
+        assert!(
+            result["interval"]["elapsed_us"].as_u64().unwrap() < 5_000_000,
+            "{mode:?}"
+        );
+        assert!(!String::from_utf8_lossy(&output.stdout).contains(SECRET));
+        if !after_sample {
+            assert!(result["snapshot"].is_null(), "{mode:?}");
+            assert!(!String::from_utf8_lossy(&output.stdout).contains(disk));
+        } else {
+            let snapshot = &result["snapshot"];
+            assert_eq!(snapshot["target"]["session_id"], ID1, "{mode:?}");
+            assert_eq!(
+                snapshot["document"]["identity"]["resource_path"], "res://scripts/subject.gd",
+                "{mode:?}"
+            );
+            assert_eq!(snapshot["sources"]["D"]["text"], disk, "{mode:?}");
+            assert_eq!(
+                snapshot["sources"]["D"]["collection"]["clock_id"], "caller",
+                "{mode:?}"
+            );
+            assert_eq!(snapshot["consistency"]["checks"], "unavailable", "{mode:?}");
+            assert_eq!(
+                snapshot["sources"]["R"]["collection"]["clock_id"],
+                if matches!(mode, DisconnectRecheck) {
+                    Value::Null
+                } else {
+                    json!(format!("editor:{ID1}"))
+                },
+                "{mode:?}"
+            );
+            if matches!(mode, DisconnectRecheck) {
+                for surface in ["R", "B"] {
+                    assert!(
+                        snapshot["sources"][surface].get("text").is_none(),
+                        "{mode:?}"
+                    );
+                    assert_eq!(
+                        snapshot["sources"][surface]["reason"]["code"], "session_ended",
+                        "{mode:?}"
+                    );
+                    assert_eq!(
+                        snapshot["sources"][surface]["invalidated_evidence"]["collection"]
+                            ["clock_id"],
+                        format!("editor:{ID1}"),
+                        "{mode:?}"
+                    );
+                }
+                assert_eq!(
+                    snapshot["sources"]["R"]["invalidated_evidence"]["text"],
+                    "\u{feff}x\r\n"
+                );
+                assert_eq!(
+                    snapshot["sources"]["B"]["invalidated_evidence"]["text"],
+                    "x\n"
+                );
+                assert_eq!(snapshot["dirty"]["invalidated_evidence"]["state"], "dirty");
+                assert!(snapshot["document"]["open_state"]["value"].is_null());
+                assert_eq!(snapshot["comparisons"]["disk_resource"], "unknown");
+                assert_eq!(snapshot["consistency"]["recheck_reason"], "session_ended");
+            } else {
+                assert_eq!(
+                    snapshot["sources"]["R"]["text"], "\u{feff}x\r\n",
+                    "{mode:?}"
+                );
+                assert_eq!(snapshot["sources"]["B"]["text"], "x\n", "{mode:?}");
+                assert_eq!(snapshot["dirty"]["state"], "dirty", "{mode:?}");
+                assert_eq!(
+                    snapshot["consistency"]["recheck_reason"],
+                    if matches!(mode, SilentRecheck) {
+                        "deadline_exceeded"
+                    } else {
+                        "unavailable"
+                    },
+                    "{mode:?}"
+                );
+            }
+        }
+        peer.join().unwrap();
+    }
 }
 
 #[test]
@@ -1680,19 +2057,41 @@ fn actual_caller_completes_supported_peer_and_preserves_rechecked_partial_eviden
 }
 
 #[test]
-fn selected_channel_cannot_be_reused_for_another_request_or_project() {
+fn selected_channel_cannot_be_reused_for_another_request_project_session_or_document() {
     let fixture = Fixture::new();
     let peer = attach(&fixture, ID1, Mode::Valid);
     let mut selected = fixture.resolve(None, Duration::from_secs(2)).unwrap();
-    for (id, root) in [
-        ("another_request", fixture.project.to_str().unwrap()),
-        ("try_1", "/different_project"),
+    for (id, root, session, script) in [
+        (
+            "another_request",
+            fixture.project.to_str().unwrap(),
+            None,
+            "res://scripts/subject.gd",
+        ),
+        (
+            "try_1",
+            "/different_project",
+            None,
+            "res://scripts/subject.gd",
+        ),
+        (
+            "try_1",
+            fixture.project.to_str().unwrap(),
+            Some(ID2),
+            "res://scripts/subject.gd",
+        ),
+        (
+            "try_1",
+            fixture.project.to_str().unwrap(),
+            None,
+            "res://scripts/other.gd",
+        ),
     ] {
         let request = ObservationRequest::new(
             RequestId::new(id).unwrap(),
             ProjectRoot::new(root).unwrap(),
-            None,
-            ResourcePath::new("res://scripts/subject.gd").unwrap(),
+            session.map(|value| SessionId::new(value).unwrap()),
+            ResourcePath::new(script).unwrap(),
         );
         let start = Instant::now();
         let failure = wire::observe(
