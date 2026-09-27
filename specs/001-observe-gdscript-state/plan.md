@@ -1,16 +1,16 @@
 # Implementation Plan: Observe Live GDScript Editor State Safely
 
-**Git branch**: `main` (no feature/task branch created) | **Feature identifier**: `001-observe-gdscript-state` | **Date**: 2026-09-26 | **Spec**: [spec.md](spec.md)
+**Planning base**: `main` | **Feature identifier**: `001-observe-gdscript-state` | **Date**: 2026-09-26 | **Spec**: [spec.md](spec.md)
 
 **Input**: `specs/001-observe-gdscript-state/spec.md`
 
-**Status**: Phase 0 research and Phase 1 design prepared for review. The specification is ready for planning; neither it nor this plan authorizes implementation. Stop after design; derive tasks separately. The setup helper returned `BRANCH=001-observe-gdscript-state` from its feature pointer, not from Git; the actual checkout remains `main`.
+**Status**: Feature 001's observation foundation is implemented and its cumulative acceptance is complete; T008 is delivered in [PR #18](https://github.com/Peter-Tam/godot-agent-kit/pull/18), awaiting review/merge. This document retains the initial design and per-task compliance history. Required acceptance is ordinary hosted native/workflow CI plus complete maintainer-operated real-editor evidence; dedicated GUI CI is optional. Roadmap Phase 1 remains in progress.
 
 ## Summary
 
 Provide one-script, observation-only inspection of an explicitly selected live Godot editor/project. Independently read disk (D), already-loaded GDScript source (R), live CodeEdit text (B), document-open state, and attributable editor dirty state. Return exact text, comparisons, limitations, and bounded structured outcomes without changing files, editor selection, documents, or history. A complete dirty/divergent observation is valid information, not a mutation conflict or permission to edit.
 
-Use one Rust package with protocol-independent evidence/classification semantics and a small local caller, plus a thin Godot EditorPlugin over an authenticated loopback bridge. A real GUI-editor feasibility experiment established the positive clean/dirty/non-selected-buffer API path on the exact candidate Godot version. Full implementation acceptance, CI, and support remain gated.
+Use one Rust package with protocol-independent evidence/classification semantics and a small local caller, plus a thin Godot EditorPlugin over an authenticated loopback bridge. A real GUI-editor feasibility experiment established the positive clean/dirty/non-selected-buffer API path on the exact candidate Godot version. Complete implementation acceptance is established by the hosted checks and maintainer-operated real-editor matrix recorded below, not by the planning experiment alone.
 
 ## Technical Context
 
@@ -22,7 +22,7 @@ Use one Rust package with protocol-independent evidence/classification semantics
 
 **Testing**: Rust built-in unit/integration tests for semantic invariants and boundaries; isolated Python-driven real-Godot GUI acceptance for source/dirty/session claims. Exact-version export generation and artifact/runtime inspection prove tooling isolation. No test dependency or permanent mock editor framework is selected. [quickstart.md](quickstart.md) defines the planned executable acceptance entrypoint and all scenario groups.
 
-**Target Platform**: Initial candidate is macOS arm64 (`aarch64-apple-darwin`). Native CI targets macOS 15 arm64; real-editor evidence targets macOS 26.6.2 arm64 with a GUI-capable trusted CI/release runner. The planning smoke ran on the latter. Neither an API reference nor native compilation earns OS/editor support; record actual matrix evidence before advertising any supported combination. No Linux/Windows or other Godot-version claim.
+**Target Platform**: Initial candidate is macOS arm64 (`aarch64-apple-darwin`). Native CI targets macOS 15 arm64; required real-editor evidence is executed on a documented maintainer-operated real Mac, exercised on macOS 26.6.2 arm64. Dedicated GUI CI is optional automation for reproducing that evidence. Neither an API reference nor native compilation earns OS/editor support; record actual matrix evidence before advertising any supported combination. No Linux/Windows or other Godot-version claim.
 
 **Project Type**: Reusable observation library, minimal local JSON-result caller/worker, and editor addon. This is an observation subset of roadmap Phase 1, not an MCP surface, generalized transaction framework, broad editor orchestrator, or distribution feature.
 
@@ -45,7 +45,7 @@ Use one Rust package with protocol-independent evidence/classification semantics
 | III — Native semantics | Public Godot APIs own R/B/dirty. No mutation or UndoRedo capability; native mutation-route requirements remain reserved for later features. |
 | IV — Verified outcomes | Acceptance/collection are not complete observation. Known target, all applicable facts, and no detected invalidation are required. Outcome precedence preserves refusal/interruption/partial evidence. No mutation-success state exists. |
 | V — Least privilege | Explicit project, mutually authenticated loopback, private descriptors, project-rooted D, unsafe-path refusal, and no telemetry, arbitrary execution, remote access, or outside-project content access. Fresh session-bound HMAC proofs authenticate both peers without transmitting the secret, including after stale-descriptor port reuse. The narrow session-metadata permission is confined to the tool's own private state location under FR-016. Worker execution is fixed internal infrastructure, not a caller command. |
-| VI — Real-editor gates | Positive clean/dirty/non-selected feasibility observed. All 21 spec scenarios, edge cases, sequential reads, and exact-version CI remain implementation gates. Mutation A/B/D/E and applied-edit Save/reparse/rescan/runtime durability are inapplicable because no edit is applied; C is inapplicable because no UndoRedo support is claimed. This earns no mutation Phase 1 exit guarantee. |
+| VI — Real-editor gates | All 21 spec scenarios, seven edge cases, twenty sequential reads, hosted native/workflow checks and complete maintainer-operated real-editor acceptance on the pinned candidate are required. Dedicated GUI CI is optional. Mutation A/B/D/E and applied-edit Save/reparse/rescan/runtime durability are inapplicable because no edit is applied; C is inapplicable because no product UndoRedo support is claimed. This earns no mutation Phase 1 exit guarantee. |
 | VII — Protocol independence | Local caller → common observation core → Godot integration. Core has no MCP, JSON, socket, or Godot-object dependency; transport DTOs convert at the boundary. No second safety model. |
 | VIII — Tooling isolation | EditorPlugin only, no gameplay authority/autoload; export hook plus production-preset exclusion, verified with enabled/disabled exports and actual exported launch. |
 | IX — Small surface | One observation operation and registry bootstrap; explicit source-free selector feedback, no broad tool catalog, session control, or MCP exposure. |
@@ -132,12 +132,11 @@ evidence, not the product collector as its oracle.
 
 VIII/XI: the expanded addon/driver remains under existing export exclusions and
 requires renewed artifact/actual-export regression evidence. No dependency is
-added. The protected manual live workflow is sourced from `main`; the hosted gate
-validates the explicitly selected immutable tested revision and main-only
-environment policy before a GUI job is eligible. It has no PR trigger, no
-persisted checkout credentials, and no repository secrets. The dedicated GUI
-runner must be clean, isolated, ephemeral and single-job, not a persistent human
-workstation. Missing provisioning is not a passing CI/support gate.
+added. The optional manual live workflow is sourced from `main`; if used, its
+hosted revision/environment checks, isolated single-job runner and read-only,
+secret-free execution boundary still apply. Those are conditions for using that
+automation, not requirements for maintainer-operated local acceptance or Feature
+001 completion. Missing GUI-CI provisioning does not block valid real-editor evidence.
 
 Mutation A–E and applied-edit durability remain inapplicable because no mutation
 or product UndoRedo capability exists. T004 is the US1 development increment,
@@ -249,7 +248,7 @@ clean-open regression and three export variants pass locally with independent
 native authority and scoped visual evidence. All 105 native tests and required
 baseline commands pass. Verified filesystem presence/absence retains its own
 collection stamp and never substitutes for unavailable D text; closed/unknown
-editor facts remain distinct. The exact evidence and remaining T008/CI gates are
+editor facts remain distinct. The exact evidence and then-pending T008 acceptance are
 recorded in [quickstart §2.7](quickstart.md#27-t007-closed-and-partial-observation-evidence-2026-09-27).
 
 ### T008 implementation compliance
@@ -269,40 +268,41 @@ license/provenance/advisory review. Shared CI keeps responsibility-based naming
 and ownership; capability-specific assertions stay in the observation harness.
 No duplicate shared infrastructure or speculative abstraction is authorized.
 
-The complete GUI workflow was supplied by merged
-[PR #19](https://github.com/Peter-Tam/godot-agent-kit/pull/19);
-the solo-maintainer authorization model is in the
-[shared operating procedure](../../.github/README.md). The workflow definition
-must come from `main`, while its validated immutable checkout may be the exact
-dispatch-main SHA or the explicitly selected exact current head of one eligible
-same-repository PR. Maintainer dispatch with that SHA authorizes execution:
-neither independent PR review nor separate environment approval is required.
-The hosted gate validates current PR head/state and the main-only `live-editor`
-environment policy (no deployment reviewers or secrets); the clean isolated
-ephemeral one-job runner verifies checkout HEAD against the full SHA before the
-complete suite. Read-only scoped credentials and no administrator bypass remain
-required.
+The required acceptance venue is a documented maintainer-operated real Mac with
+the pinned Godot candidate, plus ordinary hosted GitHub native/workflow checks.
+The maintainer's complete `--scenario all` run must retain every independent
+authority, non-interference, history, privacy, export, timing and result-review
+requirement. Record OS/architecture, Godot version/engine hash, Rust version and
+harness/driver/lockfile identities; retain collected executable/template hashes
+as provenance, not mandatory hash-match gates.
 
-Local acceptance and hosted CI cannot substitute for actual trusted GUI CI.
-At the 2026-09-27 PR #19 rebase inspection, no environment or runner was
-registered; that historical count is not a statement of current provisioning.
-Protected execution of the full suite on the explicitly selected current
-eligible head remains pending until observed. T008 stays unchecked; no human
-workstation registration, protection bypass, support claim or Phase 1 completion
-follows from local evidence.
+The existing [live workflow](../../.github/workflows/live-editor.yml) is optional
+future automation for reproducing the same real-editor acceptance in CI. Its
+environment, ephemeral runner and exact-SHA dispatch are not T008 or Feature 001
+completion prerequisites. If that workflow is used, its existing security
+boundary remains governed by the [shared operating procedure](../../.github/README.md);
+this correction neither redesigns it nor provisions infrastructure.
 
-Implementation review: all 13 local groups pass (194 cases), including twenty
-fresh observations with unchanged independent witnesses and actual prior-history
-replay. All 105 native tests and required baselines pass; full privacy and three
-export variants pass. Result-only review retains explicit authority/target/limit
-knowledge. Fixture setup and evidence namespaces are isolated per group; native
-cache state is observed, not inferred from import timing. The addon/core/caller
-remain unchanged. At the PR #19 rebase, workflow protection simulations and
-Actionlint passed, but no actual GUI CI ran; T008 remained unchecked. This
-satisfies local verification, not the remaining release/support gate. The full
-post-rebase replay preserves those counts and passed all 29 then-merged workflow
-regressions without modifying the PR #19 trust implementation. See
-[historical local evidence and the protected GUI CI gate](quickstart.md#29-rebased-t008-local-verification-and-trusted-gui-ci-gate-2026-09-27).
+Constitutional review: VI/X require real observed editor evidence and truthful
+outcomes; Architecture and Compatibility requires appropriate CI **and**
+real-Godot integration testing, not a particular CI provider or self-hosted GUI
+runner. Hosted native/workflow checks plus the documented complete real-editor
+run satisfy that distinction without amending the constitution. I–V/VII–XII,
+all 18 functional requirements, 21 scenarios, seven edge cases and task
+dependencies remain unchanged. Mutation A–E and edit durability remain separate.
+
+Implementation/evidence review: all 13 real-editor groups pass (194 cases),
+including twenty fresh 6/8/6 observations with unchanged independent witnesses
+and actual prior-history replay. All 105 native tests and required baselines
+pass; full privacy and three export variants pass. Result-only review retains
+explicit authority/target/limit knowledge. Fixture setup and evidence namespaces
+are isolated per group; native cache state is observed, not inferred from import
+timing. The product, harness, fixture and lockfile remain unchanged after the
+post-rebase run, so its recorded evidence remains valid without an expensive
+rerun for documentation-only changes. Together with hosted CI, it satisfies
+T008; Feature 001's observation foundation is complete. No protected GUI CI run,
+broader supported-platform/version claim or Phase 1 completion is asserted.
+See [real-editor evidence and completion](quickstart.md#29-rebased-t008-real-editor-acceptance-and-completion-2026-09-27).
 
 ## Project Structure
 
