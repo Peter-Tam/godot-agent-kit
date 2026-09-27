@@ -396,15 +396,18 @@ Default `cargo test` includes doctests; `cargo test --all-targets` alone does **
 
 ### Rust LSP development tooling
 
-Launch OMP from the repository root. `.omp/lsp.yaml` enables the nested Cargo project
-with OMP 18.3.2: its POSIX `sh` command enters `mcp-server/` and uses `rustup which
-rust-analyzer` to select the analyzer from `mcp-server/rust-toolchain.toml`.
+Launch OMP from the repository root. `.omp/lsp.yaml` selects the nested Cargo project:
+its POSIX `sh` command enters `mcp-server/` and uses `rustup which rust-analyzer`
+to select the analyzer from `mcp-server/rust-toolchain.toml`.
 That toolchain declares both `rust-analyzer` and `rust-src` for standard-library navigation.
 
 OMP's protocol `rootUri`/`workspaceFolders` remain the repository root; `linkedProjects`
-restricts rust-analyzer's Cargo workspace to `mcp-server/Cargo.toml`. No root Cargo
-workspace is needed. After changing LSP configuration, use OMP's LSP `reload` action
-with `file: "*"`. Run the Cargo baseline commands above from `mcp-server/`.
+restricts rust-analyzer's Cargo workspace to `mcp-server/Cargo.toml`. Keep that value
+in both `initOptions` and `settings.rust-analyzer`: the later `workspace/configuration`
+response replaces initialization settings rather than merging them. Omitting it from
+runtime settings causes workspace-discovery errors despite an initially loaded project.
+No root Cargo workspace is needed. After changing LSP configuration, use OMP's LSP
+`reload` action with `file: "*"`. Run the Cargo baseline commands above from `mcp-server/`.
 
 ## Dependencies, security, compatibility
 
