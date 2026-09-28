@@ -5,10 +5,10 @@
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
 - **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** Implementation in progress — protocol-independent edit core complete
-- **Tasks:** 1 / 5 complete
+- **Feature state:** Implementation in progress — edit core and read-only native validation complete
+- **Tasks:** 2 / 5 complete
 - **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
-- **Current task:** T001 — Complete; no subsequent task started
+- **Current task:** T002 — Complete; T003 has not started
 - **Mutation A–E and edit durability:** Pending
 
 ## Roadmap status
@@ -16,7 +16,7 @@
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's T001 core is complete with Rust regressions and external-consumer evidence. Native/CLI implementation, mutation A–E and durability remain pending; no mutation support is claimed. |
+| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's edit core and read-only native validation are complete with Rust, real-editor, privacy/export and stock-observation evidence. Native application/finalization, CLI mutation, A–E and edit durability remain pending; no mutation support is claimed. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Active feature
@@ -46,7 +46,7 @@ fresh stale/dirty checks, exact identity/confinement and non-success on invalida
 
 `/speckit.plan` completed its design artifacts and constitutional planning check.
 The subsequent [task list](specs/002-edit-open-gdscript/tasks.md) contains five
-PR-sized increments; T001 is complete and T002–T005 remain pending. Its required
+PR-sized increments; T001–T002 are complete and T003–T005 remain pending. Its required
 [granularity review](specs/002-edit-open-gdscript/tasks.md#granularity-review) passed.
 Three verifiable core/native foundations precede the first complete caller edit;
 US2–US4 safety and history are bundled with US1, followed by cumulative US5 acceptance.
@@ -66,13 +66,26 @@ Clippy, rustdoc and an external library consumer exercising all five outcomes.
 The initial parallel run's existing socket-test `AddrInUse` failure is recorded;
 no transport behavior was changed.
 
-**Feature 002 remains incomplete.** No native API/engine patch, CLI edit, bridge
-cutover or real mutation acceptance is included in T001. Reviewed-artifact and
-one-task/one-PR sequencing gates still apply; T002 has not started.
-Delivery metadata: design artifacts were merged in
+**T002 is complete:** the matched C++17/public-ABI integration invokes Godot's real
+parser/analyzer with confined, source-attributed dependency reads and effect
+refusals. [T002 acceptance](specs/002-edit-open-gdscript/quickstart.md#10-t002-native-validation-acceptance-2026-09-28)
+records 54 native cases, 194 stock-observation cases with the native artifact
+installed, a missing-native D/R/B smoke, 155 Rust tests, three ABI regressions,
+20 workflow regressions and the exact patched-editor/native build identities.
+Prior native history and dirty D/R/B state remain unchanged; enabled, disabled
+and hook-only exported games exclude tooling and execute without native dependencies.
+
+**Feature 002 remains incomplete.** T003's native writes/finalization and edit
+guards, T004's caller/bridge cutover, and T005's cumulative mutation acceptance
+remain pending. The validation revision does not advertise the editing API family.
+T003 has not started; its implementation waits for T002's task PR to merge unless
+stacking is explicitly authorized.
+
+Delivery metadata: approved design artifacts were merged in
 [PR #24](https://github.com/Peter-Tam/godot-agent-kit/pull/24).
-T001 is delivered separately on `task/T001-script-edit-core`; completion does not
-depend on that PR's review or merge state.
+T001 was delivered by [PR #25](https://github.com/Peter-Tam/godot-agent-kit/pull/25);
+T002 is delivered separately on `task/T002-native-gdscript-validation`.
+Task completion does not depend on PR review or merge state.
 
 ## Completed observation foundation
 

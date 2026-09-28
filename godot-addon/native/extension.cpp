@@ -1,0 +1,186 @@
+#include "native.hpp"
+
+#include <array>
+#include <cstring>
+#include <thread>
+
+namespace gak {
+Api api;
+void *library = nullptr;
+namespace {
+Session session;
+bool registered = false;
+
+template <typename T> bool load(T &destination, GDExtensionInterfaceGetProcAddress proc, const char *name) {
+    destination = reinterpret_cast<T>(proc(name));
+    return destination != nullptr;
+}
+
+bool supported_engine() {
+    GDExtensionGodotVersion2 v{};
+    api.version(&v);
+    return v.major == 4 && v.minor == 7 && v.patch == 2 && v.hash &&
+            std::strcmp(v.hash, GAK_ENGINE_HASH) == 0 && v.status && std::strcmp(v.status, "stable") == 0 &&
+            v.build && std::strcmp(v.build, GAK_ENGINE_BUILD) == 0;
+}
+
+bool engine_revision() {
+    Name cls("GDScript"), method("gdscript_validation_api_revision"), edited("get_edited_resource"), base("ScriptEditorBase"), validate("validate_gdscript_source");
+    if (!api.bind(cls.ptr(), method.ptr(), GAK_HASH_GDSCRIPT_REVISION) ||
+            !api.bind(cls.ptr(), validate.ptr(), GAK_HASH_GDSCRIPT_VALIDATE) ||
+            !api.bind(base.ptr(), edited.ptr(), GAK_HASH_SCRIPT_EDITOR_EDITED)) { return false; }
+    Value value = call(nullptr, "GDScript", "gdscript_validation_api_revision", GAK_HASH_GDSCRIPT_REVISION);
+    int64_t revision = 0;
+    if (value.type() != GDEXTENSION_VARIANT_TYPE_INT) { return false; }
+    api.to[GDEXTENSION_VARIANT_TYPE_INT](&revision, value.ptr());
+    return revision == 1;
+}
+
+enum class Action { Configure, Close, Validate, Revision, BuildId };
+
+void native_callback(void *userdata, const GDExtensionConstVariantPtr *arguments, GDExtensionInt count,
+        GDExtensionVariantPtr destination, GDExtensionCallError *error) {
+    error->error = GDEXTENSION_CALL_OK;
+    const Action action = *static_cast<Action *>(userdata);
+    if (action == Action::BuildId) {
+        if (count == 0) { copy_into(destination, string(GAK_BUILD_ID)); }
+        return;
+    }
+    if (action == Action::Revision) {
+        if (count == 0 && std::this_thread::get_id() == session.main_thread && engine_revision()) {
+            copy_into(destination, integer(1));
+        } else { copy_into(destination, integer(0)); }
+        return;
+    }
+    if (action == Action::Close) {
+        if (count == 0 && std::this_thread::get_id() == session.main_thread) { close(session); }
+        return;
+    }
+    if (action == Action::Configure) {
+        bool ok = false;
+        if (count == 1 && api.type(arguments[0]) == GDEXTENSION_VARIANT_TYPE_STRING &&
+                std::this_thread::get_id() == session.main_thread && engine_revision()) {
+            Value id(arguments[0]);
+            ok = configure(session, bytes(id));
+        }
+        copy_into(destination, boolean(ok));
+        return;
+    }
+    if (action == Action::Validate) {
+        if (count != 3) {
+            Value result = validation(session, {});
+            copy_into(destination, result);
+            return;
+        }
+        Value source(arguments[0]), path(arguments[1]), correlation(arguments[2]);
+        Value result = validation(session, {&source, &path, &correlation});
+        copy_into(destination, result);
+    }
+}
+
+Action configure_action = Action::Configure, close_action = Action::Close, validate_action = Action::Validate;
+Action revision_action = Action::Revision, build_action = Action::BuildId;
+
+Value callable(Action &action) {
+    Storage<GAK_SIZE_CALLABLE> storage;
+    GDExtensionCallableCustomInfo2 info{};
+    info.callable_userdata = &action;
+    info.token = library;
+    info.call_func = native_callback;
+    api.new_callable(storage.ptr(), &info);
+    Value value = wrap(GDEXTENSION_VARIANT_TYPE_CALLABLE, storage.ptr());
+    api.ptr_destructor(GDEXTENSION_VARIANT_TYPE_CALLABLE)(storage.ptr());
+    return value;
+}
+
+void *engine_singleton() {
+    Name name("Engine");
+    return api.singleton(name.ptr());
+}
+
+void editor_initialize(void *, GDExtensionInitializationLevel level) {
+    if (level != GDEXTENSION_INITIALIZATION_EDITOR || !supported_engine() || !engine_binary_matches()) { return; }
+    session.main_thread = std::this_thread::get_id();
+    void *engine = engine_singleton();
+    if (!engine) { return; }
+    Value key = name("godot_agent_kit_native_validation");
+    Value found = call(engine, "Object", "has_meta", 2619796661ULL, {&key});
+    if (found.type() != GDEXTENSION_VARIANT_TYPE_BOOL || truth(found)) { return; }
+    Value metadata = dict();
+    put(metadata, "configure", callable(configure_action));
+    put(metadata, "close", callable(close_action));
+    put(metadata, "validate", callable(validate_action));
+    put(metadata, "api_revision", callable(revision_action));
+    put(metadata, "build_id", callable(build_action));
+    Value done = call(engine, "Object", "set_meta", 3776071444ULL, {&key, &metadata});
+    (void)done;
+    registered = true;
+}
+
+void editor_deinitialize(void *, GDExtensionInitializationLevel level) {
+    if (level != GDEXTENSION_INITIALIZATION_EDITOR) { return; }
+    close(session);
+    if (registered) {
+        void *engine = engine_singleton();
+        if (engine) {
+            Value key = name("godot_agent_kit_native_validation");
+            Value removed = call(engine, "Object", "remove_meta", 3304788590ULL, {&key});
+            (void)removed;
+        }
+        registered = false;
+    }
+}
+} // namespace
+} // namespace gak
+
+extern "C" __attribute__((visibility("default"))) GDExtensionBool script_edit_library_init(
+        GDExtensionInterfaceGetProcAddress proc, GDExtensionClassLibraryPtr library,
+        GDExtensionInitialization *initialization) {
+    using namespace gak;
+    api = Api{};
+    gak::library = library;
+    if (!load(api.version, proc, "get_godot_version2") ||
+            !load(api.new_nil, proc, "variant_new_nil") ||
+            !load(api.new_copy, proc, "variant_new_copy") ||
+            !load(api.destroy, proc, "variant_destroy") ||
+            !load(api.type, proc, "variant_get_type") ||
+            !load(api.variant_call, proc, "variant_call") ||
+            !load(api.construct, proc, "variant_construct") ||
+            !load(api.get_from, proc, "get_variant_from_type_constructor") ||
+            !load(api.get_to, proc, "get_variant_to_type_constructor") ||
+            !load(api.get_internal, proc, "variant_get_ptr_internal_getter") ||
+            !load(api.ptr_destructor, proc, "variant_get_ptr_destructor") ||
+            !load(api.new_string, proc, "string_new_with_utf8_chars_and_len") ||
+            !load(api.string_utf8, proc, "string_to_utf8_chars") ||
+            !load(api.new_name, proc, "string_name_new_with_utf8_chars") ||
+            !load(api.dictionary_index, proc, "dictionary_operator_index") ||
+            !load(api.dictionary_index_const, proc, "dictionary_operator_index_const") ||
+            !load(api.has_key, proc, "variant_has_key") ||
+            !load(api.array_index_const, proc, "array_operator_index_const") ||
+            !load(api.new_callable, proc, "callable_custom_create2") ||
+            !load(api.singleton, proc, "global_get_singleton") ||
+            !load(api.bind, proc, "classdb_get_method_bind") ||
+            !load(api.bound_call, proc, "object_method_bind_call") ||
+            !load(api.class_tag, proc, "classdb_get_class_tag") ||
+            !load(api.cast_to, proc, "object_cast_to") ||
+            !load(api.instance_id, proc, "object_get_instance_id")) { return 0; }
+    for (const auto kind : {GDEXTENSION_VARIANT_TYPE_BOOL, GDEXTENSION_VARIANT_TYPE_INT,
+            GDEXTENSION_VARIANT_TYPE_STRING, GDEXTENSION_VARIANT_TYPE_STRING_NAME,
+            GDEXTENSION_VARIANT_TYPE_OBJECT, GDEXTENSION_VARIANT_TYPE_CALLABLE,
+            GDEXTENSION_VARIANT_TYPE_DICTIONARY, GDEXTENSION_VARIANT_TYPE_ARRAY}) {
+        api.from[kind] = api.get_from(kind);
+        api.to[kind] = api.get_to(kind);
+        api.internal[kind] = api.get_internal(kind);
+        if (!api.from[kind] || !api.to[kind] || !api.internal[kind]) { return 0; }
+    }
+    for (auto kind : {GDEXTENSION_VARIANT_TYPE_STRING, GDEXTENSION_VARIANT_TYPE_STRING_NAME,
+            GDEXTENSION_VARIANT_TYPE_CALLABLE, GDEXTENSION_VARIANT_TYPE_DICTIONARY,
+            GDEXTENSION_VARIANT_TYPE_ARRAY}) {
+        if (!api.ptr_destructor(kind)) { return 0; }
+    }
+    initialization->minimum_initialization_level = GDEXTENSION_INITIALIZATION_EDITOR;
+    initialization->userdata = nullptr;
+    initialization->initialize = editor_initialize;
+    initialization->deinitialize = editor_deinitialize;
+    return 1;
+}

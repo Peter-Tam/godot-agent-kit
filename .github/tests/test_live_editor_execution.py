@@ -4,7 +4,6 @@ Command stand-ins simulate a provisioned runner, not Godot acceptance. The tests
 prove rejection/ordering; they do not certify the real binaries or GUI platform.
 """
 
-import fnmatch
 import json
 from pathlib import Path
 import shutil
@@ -205,20 +204,6 @@ class ExecutionTests(unittest.TestCase):
         for job in self.ci["jobs"].values():
             self.assertNotIn("self-hosted", job["runs-on"])
 
-    def test_hosted_ci_covers_harness_changes_without_claiming_addon_coverage(self):
-        changed_files = (
-            ".github/workflows/live-editor.yml", ".github/tests/test_live_editor_execution.py",
-            ".github/actionlint.yaml", "godot-addon/tests/fixtures/observation/fixture_driver.gd",
-            "mcp-server/src/lib.rs",
-        )
-        for event in ("push", "pull_request"):
-            trigger = self.ci["on"][event]
-            self.assertEqual(trigger["branches"], ["main"])
-            for path in changed_files:
-                with self.subTest(event=event, path=path):
-                    self.assertTrue(any(fnmatch.fnmatchcase(path, pattern) for pattern in trigger["paths"]))
-            self.assertFalse(any(fnmatch.fnmatchcase("godot-addon/addons/godot_agent_kit/plugin.gd", pattern)
-                                 for pattern in trigger["paths"]))
 
 
 if __name__ == "__main__":

@@ -258,6 +258,8 @@ class Harness:
         self.work = work
         self.artifacts = args.artifacts
         self.registry = work / "registry"
+        self.version = getattr(args, "candidate_version", VERSION)
+        self.engine_hash = getattr(args, "candidate_engine_hash", ENGINE_HASH)
         self.editors = []
         self.secrets = set()
         self.source_markers = set(ROUTE_MARKERS)
@@ -338,10 +340,10 @@ class Harness:
 
     def initialize(self):
         version = run([self.args.godot, "--version"])
-        require(version.returncode == 0 and version.stdout.decode().strip() == VERSION, "exact_godot_version")
+        require(version.returncode == 0 and version.stdout.decode().strip() == self.version, "exact_godot_version")
         require(platform.system() == "Darwin" and platform.machine() == "arm64", "candidate_platform")
-        self.summary["godot_version"] = VERSION
-        self.summary["engine_hash"] = ENGINE_HASH
+        self.summary["godot_version"] = self.version
+        self.summary["engine_hash"] = self.engine_hash
         if self.args.scenario in ("all", "export-boundary"):
             require(self.summary["macos_template_sha256"] is not None,
                     "exact_macos_export_template_missing")
@@ -418,7 +420,7 @@ class Harness:
             self.secrets.add(descriptor["token"].encode())
             require(path.stat().st_uid == os.geteuid() and stat.S_IMODE(path.stat().st_mode) == 0o600,
                     "descriptor_owner_mode")
-            require(descriptor["godot_version"] == VERSION and descriptor["engine_hash"] == ENGINE_HASH,
+            require(descriptor["godot_version"] == self.version and descriptor["engine_hash"] == self.engine_hash,
                     "descriptor_exact_engine")
             if project is None or Path(descriptor["project_root"]).resolve() == project.resolve():
                 descriptors.append(descriptor)
@@ -443,7 +445,7 @@ class Harness:
                   "project": project, "suspended": False}
         self.editors.append(editor)
         witness = self.action(editor, "witness", timeout=60)
-        require(witness["editor_hint"] and witness["version"] == VERSION and witness["engine_hash"] == ENGINE_HASH,
+        require(witness["editor_hint"] and witness["version"] == self.version and witness["engine_hash"] == self.engine_hash,
                 "live_editor_identity")
         return editor
 

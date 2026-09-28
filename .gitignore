@@ -11,6 +11,11 @@ release/
 __pycache__/
 *.pyc
 
+# Generated native ABI/build artifacts and installed editor-only library metadata.
+godot-addon/native/build/
+godot-addon/addons/godot_agent_kit/native/*.dylib
+godot-addon/addons/godot_agent_kit/native/build-manifest.json
+
 # Local environment, logs, and editor state.
 .env*
 *.log
