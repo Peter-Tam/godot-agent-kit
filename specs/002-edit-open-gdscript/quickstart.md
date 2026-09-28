@@ -2,6 +2,8 @@
 
 **Status:** T001's protocol-independent core and T002's read-only native validation primitive are implemented and verified; see [§9](#9-t001-core-acceptance-2026-09-27) and [§10](#10-t002-native-validation-acceptance-2026-09-28). Feature 002 remains in progress. The native build and `run_script_edit.py --scenario native-validation` are available. The writer/finalizer, edit caller, full-feature runner and mutation A–E/durability acceptance remain T003–T005 work; their commands and scenarios below are planned, not executed claims.
 
+**Historical recipe boundary:** The patched native API family revision 1, private Resource/document mtime synchronization and no-callback/tag-last finalizer instructions in the older prerequisites, native A cases and mechanism-specific caller/bridge recipes below are superseded for T003 by the [current stock native §3 saved-transition contract](contracts/native-integration.md#3-primitive-a-guarded-target-document-saved-transition). Do **not** follow the old patch recipe for T003 or treat it as a final stock API/bridge shape. The executed T001/T002 evidence in §9/§10 is unchanged; all behavioral scenarios and A–E/durability gates below remain required.
+
 Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [caller](contracts/edit-api.md), [bridge](contracts/bridge-protocol.md), [native](contracts/native-integration.md) contracts as normative semantics. Do not infer success from process exit, a save acknowledgment or the finalizer's copied fields.
 
 ## 1. Prerequisites and exact candidate
