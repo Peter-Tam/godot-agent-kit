@@ -5,10 +5,10 @@
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
 - **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** Core/patched validation complete; P1 stock saved state selected, §15 final V2 validation/effect design hold, mutation pending
+- **Feature state:** Core/patched validation complete; P1 stock saved state selected unchanged; §16 H3 finds no useful safe saved-handler admission profile for demonstrated composition; mutation pending
 - **Tasks:** 2 / 5 complete
 - **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
-- **Current task:** T003 unstarted/not implementation-ready; on V2 design hold for focused attributed-dependency callback admission and independently unselected/unproved explicit stock validation
+- **Current task:** T003 unstarted/not implementation-ready; §16 H3 callback/generation/deferred-effect hold and separate explicit exact-source stock-validator obligation
 - **Mutation A–E and edit durability:** Pending; no product mutation support or T003 readiness claim
 
 ## Roadmap status
@@ -16,7 +16,7 @@
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's edit core and patched read-only native validation are complete. [P1 saved-state research §14](specs/002-edit-open-gdscript/research.md#14-stock-post-persistence-saved-transition-research-2026-09-28) selects guarded descriptor persistence then the exact native Callable on stock. [§15 validation/effect decision V2](specs/002-edit-open-gdscript/research.md#15-stock-validation-and-effect-confinement-research-2026-09-28) remains a design hold: focused callback-admission question plus independently unselected/unproved explicit stock validator. Both obligations must pass; T003 unstarted, T004/T005, A–E and durability pending. |
+| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's edit core and patched read-only native validation are complete. [P1 saved-state research §14](specs/002-edit-open-gdscript/research.md#14-stock-post-persistence-saved-transition-research-2026-09-28) selects guarded descriptor persistence then the exact native Callable on stock. [§16 H3](specs/002-edit-open-gdscript/research.md#16-stock-saved-handler-admission-research-2026-09-28) establishes no useful safe admission profile for the demonstrated saved-handler/public-observer composition, leaving multiple independent generation/export, current-editor/ordinary-callback and deferred-debugger obligations; the explicit exact-source validator remains separately unresolved. T003 unstarted, T004/T005, A–E and durability pending. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Active feature
@@ -30,13 +30,20 @@ The [implementation plan](specs/002-edit-open-gdscript/plan.md),
 and [§14 saved-state research](specs/002-edit-open-gdscript/research.md#14-stock-post-persistence-saved-transition-research-2026-09-28)
 select P1 for the **post-persistence saved-state transition only**. The prior
 patched-engine finalizer is historical, not an approved product route.
-[§15 stock validation/effect research](specs/002-edit-open-gdscript/research.md#15-stock-validation-and-effect-confinement-research-2026-09-28)
-concludes **V2: design hold**, with the next focused question being a useful
-source/context admission boundary for unavoidable target-version stock
-validation/export/deferred callbacks on attributed dependency bytes and
-generations before forbidden dispatch. A qualifying explicit stock validator
-remains independently unselected/unproved. Both obligations must pass;
-a successful callback-admission experiment alone cannot make T003 ready.
+[§15 V2](specs/002-edit-open-gdscript/research.md#15-stock-validation-and-effect-confinement-research-2026-09-28)
+posed a focused callback-admission question. [§16 stock saved-handler admission
+research](specs/002-edit-open-gdscript/research.md#16-stock-saved-handler-admission-research-2026-09-28)
+concludes **H3: no useful safe profile established for the demonstrated
+official-stock saved-handler/public-observer composition**. The minimum
+preload and literal-extends source/dependency cases proved meaningful P1
+saved-state mechanics but not a qualifying safety rule. Independent
+source/dependency/parser and shallow/export generation (including reverse
+consumers), current-editor/function-discovery and ordinary callback closure,
+and shared deferred debugger routing/completion remain unresolved before
+dispatch. An explicit exact-source stock validator remains independently
+unselected/unproved. Neither a successful saved tag nor post-effect observation
+authorizes T003; no accepting predicate or alternative unsafe-tail replacement
+is selected.
 The [data model](specs/002-edit-open-gdscript/data-model.md),
 [caller contract](specs/002-edit-open-gdscript/contracts/edit-api.md),
 [private bridge contract](specs/002-edit-open-gdscript/contracts/bridge-protocol.md)
@@ -79,12 +86,17 @@ Resource mtime is not numerically read/set; the tested standalone-script
 Save/reopen behavior across a natural timestamp-second change is bounded
 evidence, not a universal metadata guarantee. The handler can execute native
 validation even when automatic debugger reload is disabled, and may schedule
-deferred debugger reload conditionally. Separate ordinary editor validation
+deferred debugger reload conditionally. Its names-update tail transitively
+calls `get_functions()` on the **current** editor, which can validate current B,
+not necessarily the selected target. Separate ordinary editor validation
 and export handlers can mutate R/exports or apply pending dragged properties;
 direct saved handling does **not** unconditionally refresh target exports.
 Neither a handler return, next idle tick nor observable public debugger
 session proves that agent-originated work for a specific source version
-drained. No running-game, A–E or callback-confinement claim follows P1.
+drained. A persisted metadata=false/unchecked menu state is not a supported
+effective scheduling fence: §16 observed active runtime behavior change
+from 17 to 31 despite that displayed state. No running-game safety,
+A–E or callback-confinement claim follows P1.
 
 After the Callable, independent target/version/dirty/namespace rechecks precede
 eventual separate stock validation and final independent D/R/B verification.
@@ -101,14 +113,25 @@ still applies to the unchanged decomposition. The [prior `/speckit.analyze`
 identified an unresolved saved-state mechanism **then** and is historical
 after P1. The [post-persistence analysis](specs/002-edit-open-gdscript/plan.md#post-persistence-design-review)
 also predates §15: it retained 100% requirement/scenario ownership and one
-acknowledged HIGH stock validation/effect blocker but did **not** assess this
-latest V2 decision. The new [stock validation and effect design review](specs/002-edit-open-gdscript/plan.md#stock-validation-and-effect-design-review)
-records the actual installed `/speckit.analyze` workflow against §15: 30/30
-buildable requirements, 26/26 scenarios and 8/8 edge cases retain task owners,
-with U1 HIGH acknowledged as an implementation-readiness hold, no CRITICAL
-constitutional conflict and no product mutation proof. T003 is still unstarted/
-on hold, not ready. US2.4 still requires T004's same-session barrier/witness
-acceptance through the existing single-active collection/edit slot.
+acknowledged HIGH stock validation/effect blocker but did **not** assess the
+later V2 or H3 decisions. The [stock validation and effect design review](specs/002-edit-open-gdscript/plan.md#stock-validation-and-effect-design-review)
+records the installed `/speckit.analyze` workflow against **§15 V2** and
+remains historical. The [saved-handler admission design
+review](specs/002-edit-open-gdscript/plan.md#saved-handler-admission-design-review)
+records the actual installed read-only workflow for **§16 H3**: verified
+Feature 002 override, passed prerequisite, no registered hooks, 30/30
+buildable requirements, 26/26 numbered scenarios and 8/8 edge cases with
+task ownership, five tasks with two complete, no unmapped task, new
+requirement ambiguity, harmful duplication or CRITICAL constitutional conflict.
+U1 remains an intentional HIGH implementation-readiness hold. Evidence/source
+review identified material research corrections, and semantic review identified
+a current research-introduction inconsistency. Those six documentation
+corrections were verified against pinned source and retained evidence;
+Markdown, local links and source anchors passed. This research/design assessment is
+complete, **not** proof of a safe stock admission architecture, explicit
+validator, mutation acceptance or T003 readiness. T003 remains unstarted.
+US2.4 still requires T004's same-session barrier/witness acceptance through
+the existing single-active collection/edit slot.
 
 **T001 is complete:** the reusable Rust core checks clean revision eligibility,
 fresh evidence, application certainty and independent verification, and emits
@@ -149,13 +172,23 @@ observed invalid inputs. Public ClassDB/global-class/autoload metadata is
 available but not a full semantic or callback proof. Restricted helper and
 public-ABI adaptation remain unselected, unexhausted options; conservative
 source-scanner/refusal proposals are not a new `@tool`-only policy or validator.
-The V2 hold asks next whether a useful attributed-dependency source/context
-admission boundary can prevent forbidden stock validation/export/deferred
-callback dispatch. Independently, an explicit stock validator must be selected
-and proved; one callback experiment cannot make T003 ready. The [actual
-stock validation/effect design review](specs/002-edit-open-gdscript/plan.md#stock-validation-and-effect-design-review)
-retains U1 HIGH without weakening the spec or acceptance guarantees. Affected
-design review and a passing analysis gate remain prerequisites to implementation.
+[§16 H3](specs/002-edit-open-gdscript/research.md#16-stock-saved-handler-admission-research-2026-09-28)
+found no useful safe profile for the tested stock/public-observer composition:
+same-path diagnostics followed **current disk type semantics** despite old
+compiled method metadata, so stale parser consumption was not demonstrated;
+no public consumed parser/dependency generation witness or pre-dispatch
+source/export/current-editor/deferred-work effect closure was established.
+The active game changed from 17 to 31 under metadata=false/menu-unchecked
+startup; only disposable-project effective menu setter experiments bounded
+runtime off at 17 and on at 31, not a product scheduling fence. Separately,
+an explicit exact-source stock validator must be selected and proved.
+Neither research interval makes T003 ready. The [actual §16 H3 design
+review](specs/002-edit-open-gdscript/plan.md#saved-handler-admission-design-review)
+retained U1 HIGH without weakening the spec or acceptance guarantees; the
+earlier [§15 V2 review](specs/002-edit-open-gdscript/plan.md#stock-validation-and-effect-design-review)
+is historical. The research/design assessment is complete, while correction
+verification and resolution of the independent callback and explicit-validator
+obligations remain prerequisites to T003 implementation.
 Standard-extension topology/version,
 receipt and guard maintenance remains proportionate against custom editor
 installation/trust, per-version patched binary distribution and team
