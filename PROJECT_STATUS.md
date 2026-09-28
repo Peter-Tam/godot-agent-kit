@@ -5,56 +5,71 @@
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
 - **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** [§17 M3/F-blocking](specs/002-edit-open-gdscript/research.md#17-minimal-behavioral-finalization-research-2026-09-28): tested minimal no-handler finalization fails later ordinary Save/history; held P1 saved-handler candidate remains unsafe under §16 H3. Core/patched validation complete; mutation pending.
+- **Feature state:** [§18 T1 preserved-mtime finalization research complete](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28): selected guarded handler-free design resolves the observed §17 later-Save/history failure in stock GUI research on macOS arm64. Product mutation, exact-source stock validation and A–E acceptance remain pending.
 - **Tasks:** 2 / 5 complete
 - **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
-- **Current task:** T003 unstarted/not implementation-ready; supported behavioral finalization and safe effect boundaries unresolved, with a separate explicit exact-source stock-validator obligation
-- **Mutation A–E and edit durability:** Pending; no product mutation support or T003 readiness claim
+- **Current task:** T003 **unstarted/not implementation-ready**; the preserved-mtime finalization design is selected, but one architectural hold remains: select, prove and review a stock validator returning exact-source valid/invalid/unavailable with attributable consumed root/dependency source/context and diagnostics, bounded confined reads/effects and truthful unavailable results. Generic forbidden-effect and human-work safety remain implementation/acceptance invariants, not a second admission blocker. T004/T005 remain pending.
+- **Mutation A–E and edit durability:** Pending; no product mutation support or wider-platform claim follows the completed research.
 
 ## Roadmap status
 
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001 is complete; Feature 002's edit core and patched read-only native validation are complete. [§17 M3/F-blocking](specs/002-edit-open-gdscript/research.md#17-minimal-behavioral-finalization-research-2026-09-28) rejects the tested minimal handler-free finalization for false later Save/history behavior, not every handler-free route. [§14 P1](specs/002-edit-open-gdscript/research.md#14-stock-post-persistence-saved-transition-research-2026-09-28) remains a held saved-state-only handler candidate under [§16 H3](specs/002-edit-open-gdscript/research.md#16-stock-saved-handler-admission-research-2026-09-28), without a useful safe admission profile; the explicit exact-source stock validator is separately unresolved. T003 unstarted, T004/T005, A–E and durability pending. |
+| 1 — Live-editor script coherence | In progress | Feature 001 is complete; Feature 002's T001 core and T002 patched read-only native validation remain complete. [§18 T1](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) completes **research/design** for the selected same-fd preserved-mtime handler-free finalizer after stock macOS arm64 GUI Save/history/effect observations. [§17 M3](specs/002-edit-open-gdscript/research.md#17-minimal-behavioral-finalization-research-2026-09-28) and [§14 P1](specs/002-edit-open-gdscript/research.md#14-stock-post-persistence-saved-transition-research-2026-09-28)/[§16 H3](specs/002-edit-open-gdscript/research.md#16-stock-saved-handler-admission-research-2026-09-28) remain preserved historical, **superseded for production**. Explicit exact-source valid/invalid/unavailable stock validation remains separately unresolved; T003 is unstarted, T004/T005, A–E and durability pending. Other platforms unresolved. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
-## Current §17 disposition
+## Current §18 disposition — selected research, pending product
 
-[Minimal behavioral finalization research §17](specs/002-edit-open-gdscript/research.md#17-minimal-behavioral-finalization-research-2026-09-28)
-tests guarded native CodeEdit B edit, explicit Script R sync, retained-descriptor
-D persistence, public Resource edited=false and direct CodeEdit saved-version tag,
-**without a saved handler**. Independent getters initially found intended
-D=R=B, clean current/saved version and stable target/unrelated state. After
-newer human typing, a real stock ordinary Save instead displayed **“Files have
-been modified outside Godot”** and did not persist the newer text; a separate
-Undo → ordinary Save → Redo → Save sequence encountered the dialog and an
-extra history step. The valid unrelated dirty no-final-newline fixture was
-unchanged during the candidate interval; clean reopen and fresh-launch
-durability observations do not cancel the Save/history failure. The source
-audit found no bounded supported narrow behavioral reconciliation respecting
-live identity, history and effect constraints. The **M3/F-blocking** result
-is specific to this tested route, **not** proof all handler-free routes fail,
-the full handler is required, or private numeric timestamp/cache parity is required.
+[§18 preserved-mtime behavioral finalization research](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28)
+selects **T1**: prepare an exact clean target/Save profile and retained project
+and exact-file descriptors; record original target fd mtime T0 and exact
+Script/editor/CodeEdit/source/current/saved identities; one native CodeEdit
+complex B edit → guarded explicit Script R setter/readback → guarded same-fd
+D write/truncate/fsync/pread → fresh receipt/source/version/namespace guards
+→ `futimens` on the **same retained fd** with atime `UTIME_OMIT`, mtime T0
+→ fstat/readback/identity/namespace checks → fresh guards → public Resource
+edited=false → fresh guards → CodeEdit saved-version tag → **STOP**. It uses
+no saved-handler discovery/call, `ResourceSaver`, `resource_saved` broadcast,
+broad Save, private Godot mtime setter, forced reload or unrelated edits.
 
-Behavioral acceptance requires independently clean intended D/R/B; guards
-against stale or newer human edits, redirected persistence and unrelated or
-forbidden effects; truthful partial/unknown outcomes; usable native
-Undo → ordinary Save → Redo → Save and earlier history; later human ordinary
-Save without false external-change reconciliation; reopen and applicable
-persistence/durability. Intermediate D/R/B/internal divergence is permitted
-within the guarded attempt; there is no externally atomic every-step
-requirement. Private writable timestamp equality, native cache generation
-parity and replay of the whole Save/handler callback history are **not**
-acceptance substitutes. Runtime hot reload was not observed in the tested
-active game and is not required by the specification; runtime-effect safety
-and normal fresh-launch durability still matter. The [§14 P1 route](specs/002-edit-open-gdscript/research.md#14-stock-post-persistence-saved-transition-research-2026-09-28)
-remains held for saved state only: [§16 H3](specs/002-edit-open-gdscript/research.md#16-stock-saved-handler-admission-research-2026-09-28)
-still blocks callback admission, and explicit exact-source valid/invalid/
-unavailable stock validation is independently unresolved. Neither candidate
-is a production route; T003 has not started and no A–E gate is passed. The
-local retained §17 experiment artifacts are not a public durable reproduction
-or Feature acceptance run.
+The accepted stock GUI evidence is **16 distinct case observations**:
+15 in the final campaign plus **one separate corrected current-build settled
+history case**, not a passing 16/16 campaign or product A–E acceptance.
+The candidate gave independently clean intended D/R/B23 and native history,
+later human B29 ordinary Save without the false external-change dialog,
+Undo18 → Save18 → Redo23 → Save23 → Undo18 → Undo17 → Redo18 → Redo23,
+reopen and fresh-launch durability, ordinary scan/reparse and fresh consumer
+behavior on the tested fixture. The stock control passed; [§17's no-restore
+negative](specs/002-edit-open-gdscript/research.md#17-minimal-behavioral-finalization-research-2026-09-28)
+still records the false later Save dialog and an additional history step.
+The historical extra step's causal reconciliation path was **not** proved.
+Failed same-fd restoration after successful content write or failed T0
+readback is **known partial applied-unverified**, never false not-applied,
+clean success or implicit rollback; a retained-fd `EBADF` case left D/R/B23
+dirty with no saved tag. Leaf/parent namespace replacements did not redirect
+writes or retimestamp replacement files. Generic forbidden-effect,
+newer-human-work, non-selected/unrelated-document and identity guards remain
+mandatory, not a license for broad callback effects.
+
+This is **research/design only** on official Godot 4.7.2
+`ed1daf0bf` (binary SHA-256
+`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`)
+and macOS 26.6.2 arm64; other platforms are unresolved. No production T003
+native attempt/API, callback, wire schema or Feature mutation acceptance
+was implemented or exercised. The independent architectural blocker is a
+qualifying **exact-source valid/invalid/unavailable stock validator** with
+bounded source/context attribution and forbidden-effect safety; the T002
+patched validator is reference/hazard inventory, not this stock solution.
+Existing outcomes, guards, normal Save/history/reparse/rescan/fresh-launch
+and privacy/export gates are unchanged. Private Resource/cache timestamp
+parity, full handler replay and active-game hot reload are not implied.
+The [§14 P1 handler mechanics](specs/002-edit-open-gdscript/research.md#14-stock-post-persistence-saved-transition-research-2026-09-28),
+[§16 H3 handler-admission limits](specs/002-edit-open-gdscript/research.md#16-stock-saved-handler-admission-research-2026-09-28)
+and [§17 M3 failed no-restore route](specs/002-edit-open-gdscript/research.md#17-minimal-behavioral-finalization-research-2026-09-28)
+are retained as historical research, **not current production prerequisites**.
+Raw local §18 artifacts are evidence provenance, not a public durable
+reproduction or T003 acceptance run.
 
 ## Active feature
 
@@ -62,39 +77,33 @@ Feature 002's [specification](specs/002-edit-open-gdscript/spec.md) and
 [requirements-quality checklist](specs/002-edit-open-gdscript/checklists/requirements.md)
 define a one-script, already-open editing capability with stale-write protection,
 independently verified D/R/B convergence, native Undo/Redo, and durability.
-The [implementation plan](specs/002-edit-open-gdscript/plan.md),
+The [implementation plan](specs/002-edit-open-gdscript/plan.md) and
 [native contract](specs/002-edit-open-gdscript/contracts/native-integration.md)
-and [§14 saved-state research](specs/002-edit-open-gdscript/research.md#14-stock-post-persistence-saved-transition-research-2026-09-28)
-retain P1 for the **post-persistence saved-state question only**, on hold
-under §16 H3 rather than approved as the product finalizer. The prior
-patched-engine finalizer is historical, not an approved product route.
-[§15 V2](specs/002-edit-open-gdscript/research.md#15-stock-validation-and-effect-confinement-research-2026-09-28)
-posed a focused callback-admission question. [§16 stock saved-handler admission
-research](specs/002-edit-open-gdscript/research.md#16-stock-saved-handler-admission-research-2026-09-28)
-concludes **H3: no useful safe profile established for the demonstrated
-official-stock saved-handler/public-observer composition**. The minimum
-preload and literal-extends source/dependency cases proved meaningful P1
-saved-state mechanics but not a qualifying safety rule. Independent
-source/dependency/parser and shallow/export generation (including reverse
-consumers), current-editor/function-discovery and ordinary callback closure,
-and shared deferred debugger routing/completion remain unresolved before
-dispatch. An explicit exact-source stock validator remains independently
-unselected/unproved. Neither a successful saved tag nor post-effect observation
-authorizes T003; no accepting predicate or alternative unsafe-tail replacement
-is selected.
+select [§18 T1's preserved-mtime handler-free design](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28)
+for **future T003 implementation**, with exact target and source/version guards,
+same retained-fd T0 restoration/readback before edited=false/CodeEdit tag, and
+no saved-handler call or broad Save. [§14 P1](specs/002-edit-open-gdscript/research.md#14-stock-post-persistence-saved-transition-research-2026-09-28),
+[§16 H3](specs/002-edit-open-gdscript/research.md#16-stock-saved-handler-admission-research-2026-09-28)
+and the former patched-engine finalizer remain historical route evidence,
+**not current handler admission, topology, callback-generation or
+deferred-debugger prerequisites**. [§17 M3](specs/002-edit-open-gdscript/research.md#17-minimal-behavioral-finalization-research-2026-09-28)
+records the earlier measured failure **without** T0 restoration. Generic
+forbidden-effect safety, identity/session/version and namespace guards,
+human/unrelated-work preservation and independent verification still apply.
+The separate explicit exact-source valid/invalid/unavailable stock validator
+has not been selected or proved; neither a clean saved tag nor §18's research
+can authorize a product edit.
 The [data model](specs/002-edit-open-gdscript/data-model.md),
 [caller contract](specs/002-edit-open-gdscript/contracts/edit-api.md),
 [private bridge contract](specs/002-edit-open-gdscript/contracts/bridge-protocol.md)
-and [quickstart recipes](specs/002-edit-open-gdscript/quickstart.md) are
-intentionally unchanged: their patched-family-1/finalizer-specific API,
-bridge and build instructions remain **historical**, not the current T003
-stock recipe. The [native §3 contract](specs/002-edit-open-gdscript/contracts/native-integration.md#3-primitive-a-guarded-target-document-saved-transition)
-keeps the held P1 saved sequence for its saved-state-only question. No final production native/bridge
-wire schema or editing API has been implemented by this research. The product
-target remains official stock Godot, addon and bundled standard GDExtension;
-Rust retains core policy and independent verification. T002's patched native
-validator remains completed semantic oracle/reference and hazard inventory,
-not a product patched dependency or proof of stock validation/effect safety.
+and [quickstart recipes](specs/002-edit-open-gdscript/quickstart.md) describe
+existing models and historical patched-family-1/API/bridge/build mechanics
+where identified; **no final production native/bridge wire schema or editing
+API has been implemented** by this research. The product target remains
+official stock Godot, addon and bundled standard GDExtension; Rust retains
+core policy and independent verification. T002's patched native validator
+remains completed semantic oracle/reference and hazard inventory, not a
+product patched dependency or proof of stock validation/effect safety.
 
 The [F3 stock-save research](specs/002-edit-open-gdscript/research.md#13-stock-target-save-finalization-research-2026-09-28)
 demonstrates successful ordinary stock target Save performs real native saved-state
@@ -105,7 +114,7 @@ an unrelated dirty buffer/history. Direct `ResourceSaver.save` does not complete
 the ScriptEditor saved transition. The audited routes therefore do not qualify;
 this is **historical F3 evidence**, not a conclusion that every stock route fails.
 [§14 post-persistence research](specs/002-edit-open-gdscript/research.md#14-stock-post-persistence-saved-transition-research-2026-09-28)
-established the held P1 candidate's saved-state mechanics: exact CodeEdit native edit, explicit Script R sync and
+historically established P1's **now-superseded production candidate** saved-state mechanics: exact CodeEdit native edit, explicit Script R sync and
 retained-descriptor D persistence followed by fresh same-attempt receipt,
 namespace, exact open-document/Script/CodeEdit/session/path/source and
 post-complex-edit frozen **current** plus preparation-time **saved** version
@@ -136,11 +145,13 @@ effective scheduling fence: §16 observed active runtime behavior change
 from 17 to 31 despite that displayed state. No running-game safety,
 A–E or callback-confinement claim follows P1.
 
-For held P1, post-Callable target/version/dirty/namespace rechecks precede
-eventual separate stock validation and final independent D/R/B verification.
-Known B/R/D changes with failed receipt or partial bookkeeping remain
-applied-unverified; no newer human work is restored or tagged saved. These
-mechanics do not discharge §17's later ordinary Save/history behavioral gate.
+For historical P1, post-Callable target/version/dirty/namespace rechecks
+preceded eventual separate stock validation and final independent D/R/B
+verification. Known B/R/D changes with failed receipt or partial bookkeeping
+remained applied-unverified; no newer human work was restored or tagged saved.
+These facts remain research evidence, not a selected saved-handler product
+route or a new prerequisite. §17's later ordinary Save/history failure was
+specific to the un-restored no-handler route and is addressed by §18 T1.
 
 `/speckit.plan` completed the earlier design artifacts and planning check. The
 [task list](specs/002-edit-open-gdscript/tasks.md) retains five PR-sized
@@ -171,11 +182,22 @@ historical research/design assessment was complete, **not** proof of a safe
 stock admission architecture, explicit validator, mutation acceptance,
 §17 behavioral finalization or T003 readiness. T003 remains unstarted.
 
-The [current §17 minimal behavioral finalization design
+The [§17 minimal behavioral finalization design
 review](specs/002-edit-open-gdscript/plan.md#minimal-behavioral-finalization-design-review)
-completed the installed `/speckit.analyze` research assessment of M3/F-blocking
-with unchanged task ownership and an intentional HIGH U1 hold. It is not a
-T003 implementation-readiness pass or mutation acceptance.
+completed the installed `/speckit.analyze` research assessment of the
+then-current M3/F-blocking disposition with unchanged task ownership and an
+intentional HIGH U1 hold. It is **historical after §18 T1** and is not a
+T003 implementation-readiness pass, new T1 analysis result or mutation
+acceptance.
+
+The [§18 preserved-mtime design review](specs/002-edit-open-gdscript/plan.md#preserved-mtime-behavioral-finalization-design-review)
+reran the installed `/speckit.analyze` workflow with the verified feature
+override and no registered hooks. After correcting three publication
+inconsistencies, 30/30 buildable requirements, 26/26 scenarios and 8/8 edge
+cases retain ownership, with no remaining CRITICAL conflict or unmapped task.
+U1 remains HIGH solely for exact-source valid/invalid/unavailable stock
+validation; T003 stays unstarted. This is completed research/design review,
+not product implementation readiness.
 
 US2.4 still requires T004's same-session barrier/witness acceptance through
 the existing single-active collection/edit slot.
@@ -191,11 +213,12 @@ The initial parallel run's existing socket-test `AddrInUse` failure is recorded;
 no transport behavior was changed.
 T001's numeric `SavedStateEvidence` Resource/document mtime fields and reducer's
 disk-mtime equality/finalizer-step checks are its **historical implemented
-interface**, not stock P1 evidence. T004 owns migration of affected typed core
-evidence/reducer and caller/native/bridge contracts before integrating P1;
-unavailable private Resource mtime must not be invented. T001 acceptance remains
-valid against its then-approved contract; no replacement wire/API shape is
-decided here and no sixth task is added.
+interface**, not the selected stock §18 finalization evidence. T004 owns
+migration of affected typed core evidence/reducer and caller/native/bridge
+contracts before integrating the selected route; unavailable private Resource
+mtime must not be invented. T001 acceptance remains valid against its
+then-approved contract; no replacement wire/API shape is decided here and no
+sixth task is added.
 
 **T002 is complete:** the matched C++17/public-ABI integration invokes Godot's real
 parser/analyzer with confined, source-attributed dependency reads and effect
@@ -206,11 +229,18 @@ installed, a missing-native D/R/B smoke, 155 Rust tests, three ABI regressions,
 Prior native history and dirty D/R/B state remain unchanged; enabled, disabled
 and hook-only exported games exclude tooling and execute without native dependencies.
 
-**Feature 002 remains incomplete.** T003's native writes/behavioral saved-state
-finalization and edit guards, T004's caller/bridge cutover and T005's cumulative
-mutation acceptance remain pending. The patched validation revision does not
-advertise the editing API family. T003 has not started and must not implement
-historical patched A or the measured failing §17 minimal route.
+**Feature 002 remains incomplete.** T003's selected native same-fd T0
+restoration, guarded saved-state finalization and edit guards, T004's
+caller/bridge cutover and T005's cumulative mutation acceptance remain
+pending. The patched validation revision does not advertise the editing API
+family. T003 is **unstarted**, must not implement historical patched A, held
+P1 handler or the measured failing §17 no-restore route. Its sole remaining
+architectural hold is selection, proof and review of an exact-source
+valid/invalid/unavailable stock validator with attributable consumed root/
+dependency source/context and diagnostics, bounded confined reads/effects
+and truthful unavailable results. General forbidden-effect and human-work
+safety remain implementation and acceptance invariants, not additional
+architectural admission prerequisites.
 [§15](specs/002-edit-open-gdscript/research.md#15-stock-validation-and-effect-confinement-research-2026-09-28)
 records measured stock limits: `reload(false)` skips export refresh but still
 parses, analyzes, compiles and can initialize; the broad editor-mode
@@ -221,31 +251,36 @@ available but not a full semantic or callback proof. Restricted helper and
 public-ABI adaptation remain unselected, unexhausted options; conservative
 source-scanner/refusal proposals are not a new `@tool`-only policy or validator.
 [§16 H3](specs/002-edit-open-gdscript/research.md#16-stock-saved-handler-admission-research-2026-09-28)
-found no useful safe profile for the tested stock/public-observer composition:
-same-path diagnostics followed **current disk type semantics** despite old
-compiled method metadata, so stale parser consumption was not demonstrated;
-no public consumed parser/dependency generation witness or pre-dispatch
-source/export/current-editor/deferred-work effect closure was established.
-The active game changed from 17 to 31 under metadata=false/menu-unchecked
-startup; only disposable-project effective menu setter experiments bounded
-runtime off at 17 and on at 31, not a product scheduling fence. Separately,
-an explicit exact-source stock validator must be selected and proved.
-Neither §15 nor §16 made T003 ready. The [actual §16 H3 design
-review](specs/002-edit-open-gdscript/plan.md#saved-handler-admission-design-review)
-retained U1 HIGH without weakening the spec or acceptance guarantees; the
-earlier [§15 V2 review](specs/002-edit-open-gdscript/plan.md#stock-validation-and-effect-design-review)
-is historical. [§17 M3](specs/002-edit-open-gdscript/research.md#17-minimal-behavioral-finalization-research-2026-09-28)
-adds a distinct blocked behavioral finalization route; the [current §17
-analysis](specs/002-edit-open-gdscript/plan.md#minimal-behavioral-finalization-design-review)
-assesses that disposition but establishes no safe alternative. Supported normal
-Save/history behavior, safe confinement of any unavoidable callbacks and
-independently proved exact-source validation remain prerequisites to T003.
-The smaller no-handler candidate avoided callback topology but failed the
-actual Save/history invariants; held P1 carries Callable topology/version
-and callback/deferred-effect costs under H3. A custom editor would add trusted
-installation, patched binary distribution and team replacement, with no
-justified waiver of human-work, history or effect safety. No private numeric
-timestamp/cache parity or full handler replay is a requirement by itself.
+historically found no useful safe profile for the tested stock saved-handler/
+public-observer composition: same-path diagnostics followed **current disk
+type semantics** despite old compiled method metadata, so stale parser
+consumption was not demonstrated; no public consumed parser/dependency
+generation witness or pre-dispatch source/export/current-editor/deferred-work
+effect closure was established. The active game changed from 17 to 31 under
+metadata=false/menu-unchecked startup; only disposable-project effective
+menu setter experiments bounded runtime off at 17 and on at 31, not a product
+scheduling fence. These are **historical route-specific limits**, not
+handler-generation gates for §18's selected sequence.
+The [§16 H3 design review](specs/002-edit-open-gdscript/plan.md#saved-handler-admission-design-review)
+retained a HIGH U1 hold for its then-current route without weakening the spec;
+the [§15 V2 review](specs/002-edit-open-gdscript/plan.md#stock-validation-and-effect-design-review)
+is likewise historical. [§17 M3](specs/002-edit-open-gdscript/research.md#17-minimal-behavioral-finalization-research-2026-09-28)
+found the no-restore handler-free candidate initially clean but blocked later
+human ordinary Save and introduced an additional history step in its corrected
+history case. Its [installed §17 assessment](specs/002-edit-open-gdscript/plan.md#minimal-behavioral-finalization-design-review)
+preceded T1; neither historical route describes the current disposition.
+[§18 T1](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28)
+selects same-retained-fd T0 restoration with readback **before** guarded
+public edited=false and CodeEdit tag, without handler topology/callback
+machinery. The sole remaining architectural hold is independently qualified
+**exact-source stock validation with valid/invalid/unavailable outcomes**,
+attributed consumed source/context and diagnostics, bounded confined reads/
+effects and truthful unavailable results. General forbidden-effect safety
+and all behavior, history, human-work and durability gates remain mandatory
+during implementation and acceptance, not additional design holds. Neither
+research completion nor patched T002 validation makes
+T003 ready or confers product mutation support. No private numeric
+timestamp/cache parity or full handler replay is required by itself.
 
 Delivery metadata: design artifacts merged in
 [PR #24](https://github.com/Peter-Tam/godot-agent-kit/pull/24);
