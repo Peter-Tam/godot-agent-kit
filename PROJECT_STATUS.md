@@ -5,18 +5,18 @@
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
 - **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** Implementation in progress — edit core and read-only native validation complete
+- **Feature state:** Core/validation implemented; production mutation design reopened at stock saved-state integration
 - **Tasks:** 2 / 5 complete
 - **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
-- **Current task:** T002 — Complete; T003 has not started
-- **Mutation A–E and edit durability:** Pending
+- **Current task:** T003 not started; research/design-review hold after completed T001–T002
+- **Mutation A–E and edit durability:** Pending; no supported mutation design selected
 
 ## Roadmap status
 
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's edit core and read-only native validation are complete with Rust, real-editor, privacy/export and stock-observation evidence. Native application/finalization, CLI mutation, A–E and edit durability remain pending; no mutation support is claimed. |
+| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's edit core and read-only native validation are complete. [Stock target-save research](specs/002-edit-open-gdscript/research.md#13-stock-target-save-finalization-research-2026-09-28) reopens mutation design: audited stock Save routes fail confinement/unrelated-work guarantees despite real native saved-state/history behavior. T003 is unstarted; CLI mutation, A–E and durability remain pending. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Active feature
@@ -25,40 +25,48 @@ Feature 002's [specification](specs/002-edit-open-gdscript/spec.md) and
 [requirements-quality checklist](specs/002-edit-open-gdscript/checklists/requirements.md)
 define a one-script, already-open editing capability with stale-write protection,
 independently verified D/R/B convergence, native Undo/Redo, and durability.
-The [implementation plan](specs/002-edit-open-gdscript/plan.md) is now **design-complete**,
-with a [data model](specs/002-edit-open-gdscript/data-model.md),
+The [implementation plan](specs/002-edit-open-gdscript/plan.md) and
+[native contract](specs/002-edit-open-gdscript/contracts/native-integration.md)
+retain the patched-engine finalizer as a **historical design baseline, not an
+approved production implementation**. Their earlier design-complete status has
+been reopened at stock saved-state integration. The unchanged [data model](specs/002-edit-open-gdscript/data-model.md),
 [caller contract](specs/002-edit-open-gdscript/contracts/edit-api.md),
-[private bridge contract](specs/002-edit-open-gdscript/contracts/bridge-protocol.md),
-[native primitive contracts](specs/002-edit-open-gdscript/contracts/native-integration.md)
-and [verification guide](specs/002-edit-open-gdscript/quickstart.md).
-The [selected design](specs/002-edit-open-gdscript/research.md#11-concrete-native-design-and-resumed-planning)
-uses the existing Rust/core and private bridge, standard GDExtension, and narrow
-engine APIs for guarded target-document saved-state finalization and exact-source
-GDScript validation. Core policy and independent verification remain in Rust.
+[private bridge contract](specs/002-edit-open-gdscript/contracts/bridge-protocol.md)
+and [verification guide](specs/002-edit-open-gdscript/quickstart.md) remain
+historical artifacts until a qualifying replacement mutation design is selected;
+no replacement API/data contract has yet been chosen. Product mutation targets
+official stock Godot, addon and bundled standard GDExtension. Rust retains core
+policy and independent verification; T002's patched native validation evidence
+remains complete and separate from this saved-state decision.
 
-Completed [native research](specs/002-edit-open-gdscript/research.md#9-native-integration-continuation-c1c5)
-and its negative results remain evidence, not A–E acceptance. The later
-tooling-policy interruption remains an uncompleted probe, not a native failure;
-no bypass or equivalent rephrased retry occurred. The existing
-[concurrency audit](specs/002-edit-open-gdscript/research.md#10-phase-1-concurrency-boundary-audit-and-corrected-planning-decision)
-still excludes arbitrary non-cooperating same-inode serialization while preserving
-fresh stale/dirty checks, exact identity/confinement and non-success on invalidation.
+The [F3 stock-save research](specs/002-edit-open-gdscript/research.md#13-stock-target-save-finalization-research-2026-09-28)
+demonstrates successful ordinary stock target Save performs real native saved-state
+bookkeeping/history, including a descriptor-backed saver. It also demonstrates
+that non-OK custom-saver failures fall through to builtin path writes (observed
+outside-project redirection), and target Save applies every open script, changing
+an unrelated dirty buffer/history. Direct `ResourceSaver.save` does not complete
+the ScriptEditor saved transition. Audited routes therefore do not qualify; F3
+neither proves every possible stock architecture impossible nor selects a patch,
+custom editor, or current-tab Save. [Prior research](specs/002-edit-open-gdscript/research.md#9-native-integration-continuation-c1c5)
+and [concurrency boundaries](specs/002-edit-open-gdscript/research.md#10-phase-1-concurrency-boundary-audit-and-corrected-planning-decision)
+remain evidence/requirements; validation and effect-confinement work is a
+separate question, not a solution to this save-path gap.
 
-`/speckit.plan` completed its design artifacts and constitutional planning check.
-The subsequent [task list](specs/002-edit-open-gdscript/tasks.md) contains five
-PR-sized increments; T001–T002 are complete and T003–T005 remain pending. Its required
-[granularity review](specs/002-edit-open-gdscript/tasks.md#granularity-review) passed.
-Three verifiable core/native foundations precede the first complete caller edit;
-US2–US4 safety and history are bundled with US1, followed by cumulative US5 acceptance.
-All 22 requirements, 26 scenarios and eight success criteria retain explicit owners.
+`/speckit.plan` completed the earlier design artifacts and planning check. The
+[task list](specs/002-edit-open-gdscript/tasks.md) retains five PR-sized
+increments; T001–T002 are complete, T003–T005 pending, with the same dependencies
+and ownership of all 22 requirements, 26 scenarios and eight success criteria.
+The earlier [granularity review](specs/002-edit-open-gdscript/tasks.md#granularity-review)
+still applies to the unchanged task decomposition. The current
+[`/speckit.analyze` rerun](specs/002-edit-open-gdscript/plan.md#stock-research-artifact-review)
+retains full requirement ownership and identifies one **HIGH, acknowledged
+implementation blocker**: no qualifying stock target-save mechanism is selected.
+It is not a T003 readiness pass. US2.4 still requires T004's same-session
+barrier/witness acceptance through the existing single-active collection/edit slot.
 
-The local-overlap clarification extends US2.4 in place; T004 owns its real
-barrier/witness acceptance using the existing single-active collection/edit slot.
-`/speckit.analyze` completed after that clarification with no genuine consistency,
-coverage or constitutional findings. **T001 is complete:** the reusable Rust core
-checks clean revision eligibility, fresh evidence, application certainty and
-independent verification, and emits all five typed outcomes without acquiring or
-mutating editor state.
+**T001 is complete:** the reusable Rust core checks clean revision eligibility,
+fresh evidence, application certainty and independent verification, and emits
+all five typed outcomes without acquiring or mutating editor state.
 
 [T001 acceptance](specs/002-edit-open-gdscript/quickstart.md#9-t001-core-acceptance-2026-09-27):
 48 edit-core regressions, 153 full-suite tests in the serial run, formatting,
@@ -76,16 +84,21 @@ Prior native history and dirty D/R/B state remain unchanged; enabled, disabled
 and hook-only exported games exclude tooling and execute without native dependencies.
 
 **Feature 002 remains incomplete.** T003's native writes/finalization and edit
-guards, T004's caller/bridge cutover, and T005's cumulative mutation acceptance
-remain pending. The validation revision does not advertise the editing API family.
-T003 has not started; its implementation waits for T002's task PR to merge unless
-stacking is explicitly authorized.
+guards, T004's caller/bridge cutover and T005's cumulative mutation acceptance
+remain pending. The validation revision does not advertise the editing API
+family. T003 has not started and must not implement the historical patched A
+recipe: it is held for evidence of a supported stock one-target, fail-closed
+saved-state mechanism preserving unrelated work, followed by review of affected
+design artifacts. The spec and acceptance guarantees are unchanged. Bounded
+extension complexity would avoid custom-editor installation/trust, per-version
+binary distribution and maintenance if safe; product cost cannot excuse a
+redirected write or unrelated history change.
 
-Delivery metadata: approved design artifacts were merged in
-[PR #24](https://github.com/Peter-Tam/godot-agent-kit/pull/24).
-T001 was delivered by [PR #25](https://github.com/Peter-Tam/godot-agent-kit/pull/25);
-T002 is delivered separately on `task/T002-native-gdscript-validation`.
-Task completion does not depend on PR review or merge state.
+Delivery metadata: design artifacts merged in
+[PR #24](https://github.com/Peter-Tam/godot-agent-kit/pull/24);
+T001 delivered by [PR #25](https://github.com/Peter-Tam/godot-agent-kit/pull/25);
+T002 delivered by merged [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29).
+Task completion is independent of PR merge/review status.
 
 ## Completed observation foundation
 
