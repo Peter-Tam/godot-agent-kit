@@ -8,7 +8,7 @@ on:
       - .github/workflows/**
       - .github/tests/**
       - .github/actionlint.yaml
-      - godot-addon/tests/**
+      - godot-addon/**
       - mcp-server/**
   pull_request:
     branches:
@@ -17,7 +17,7 @@ on:
       - .github/workflows/**
       - .github/tests/**
       - .github/actionlint.yaml
-      - godot-addon/tests/**
+      - godot-addon/**
       - mcp-server/**
   workflow_dispatch:
 
@@ -73,3 +73,40 @@ jobs:
           cargo test --locked
           cargo doc --no-deps --locked
           cargo build --locked --bin observe-gdscript
+
+  editor-native:
+    name: Editor native build
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: Check native ABI refusal boundaries
+        run: python3 -m unittest discover -s godot-addon/tests -p test_native_build.py -v
+      - name: Check out pinned engine
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: godotengine/godot
+          ref: ed1daf0bf001b61586d9930840f2f1394092c079
+          path: engine-source
+          persist-credentials: false
+      - name: Prepare pinned engine build
+        run: |
+          test "$(uname -m)" = arm64
+          test "$(git -C engine-source rev-parse HEAD)" = ed1daf0bf001b61586d9930840f2f1394092c079
+          python3 -m venv "$RUNNER_TEMP/native-build"
+          "$RUNNER_TEMP/native-build/bin/python" -m pip install --disable-pip-version-check SCons==4.10.1
+          git -C engine-source apply --check "$GITHUB_WORKSPACE/godot-addon/native/engine-api.patch"
+          git -C engine-source apply "$GITHUB_WORKSPACE/godot-addon/native/engine-api.patch"
+      - name: Build patched editor
+        working-directory: engine-source
+        run: |
+          "$RUNNER_TEMP/native-build/bin/python" -m SCons -j3 \
+            platform=macos target=editor arch=arm64 dev_build=no debug_symbols=no \
+            optimize=none vulkan=no metal=no accesskit=no angle=no tests=yes
+      - name: Build matched public-ABI extension
+        run: |
+          python3 godot-addon/native/build.py \
+            --godot "$GITHUB_WORKSPACE/engine-source/bin/godot.macos.editor.arm64"

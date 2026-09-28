@@ -2,9 +2,9 @@
 
 **Date**: 2026-09-27 | **Specification**: [spec.md](spec.md) | **Gate record**: [plan.md](plan.md)
 
-**Current status: Planning complete — concrete native integration selected (State A).** Section 11 resolves the finalization and validation design responsibilities and the normal design artifacts are generated; implementation and acceptance remain pending. Completed runtime results and pinned-source/API findings remain evidence. The later native probe did not complete because the coding environment refused it on cybersecurity-policy grounds; that tooling limitation is not technical evidence against native integration. Section 10's guarded single-editor concurrency boundary is retained. No implementation, tasks, engine patch or mutation-support claim follows from this planning decision.
+**Current status: Planning complete — concrete native integration selected (State A).** Section 11 records the completed design; later T001 core and T002 native-validation implementation evidence is recorded in [quickstart §§9–10](quickstart.md#9-t001-core-acceptance-2026-09-27). Native mutation/caller acceptance remains pending. The historical native probe interruption was a tooling-policy limitation, not technical evidence against native integration; it remains an incomplete probe. Section 10's guarded single-editor concurrency boundary is retained. No mutation-support claim follows from this research.
 
-**Continuation boundary:** Define the two narrow native capability contracts and complete the installed `/speckit.plan` workflow, including its ordinary design artifacts and constitutional review. This is source/API inspection and design, not a new runtime experiment. No filter bypass, equivalent rephrased retry, broad API probing, task generation or product implementation is performed. Plans specify how future implementation will establish guarantees; a finished binary and A–E proof are not prerequisites for writing the plan.
+**Planning continuation boundary (historical):** Define the two narrow native capability contracts and complete the installed `/speckit.plan` workflow, including its ordinary design artifacts and constitutional review. That continuation was source/API inspection and design, not a new runtime experiment. No filter bypass, equivalent rephrased retry, broad API probing, task generation or product implementation was performed in that pass. Plans specify how later implementation will establish guarantees; a finished binary and A–E proof are not prerequisites for writing the plan.
 
 **Evidence history:** Sections 1–7 preserve the initial investigation published as `5748899`; §8 records A/B research published as `c0e3f66`. Section 9 records completed native observations from `9e5095e`; its overbroad concurrency conclusions are corrected in §10. Section 10 records the tooling-policy interruption, authoritative boundary audit and scoped specification clarification published as `9368ba7`. Section 11 supersedes the earlier planning-blocked decision, not the experimental evidence. Outcome 3D remains withdrawn; failures remain failures and no historical observation becomes feature acceptance.
 
@@ -524,3 +524,32 @@ Still **unimplemented/unverified**: engine APIs/effect guards, the completed nat
 This continuation changes no behavioral specification: §10's existing concurrency clarification is sufficient. No new runtime probe, blocked-experiment retry, source implementation, engine patch, task list, analysis command, additional PR or merge is performed. The source/API inspection and documentation/workflow checks are the only new evidence category.
 
 **Contract review corrections:** Read-only native and flow reviews identified two concrete issues before publication: observation v1 supplies only current buffer version, so saved-version evidence now comes from fresh preparation; transitive relative dependencies must resolve against each referring script's directory, not always the root target. Both contracts and their affected descriptions are corrected. Current cached source text is also distinguished from proof of the generation used to produce cached analysis metadata. These are documentation/source-review results, not runtime acceptance.
+
+## 12. T002 implementation evidence (2026-09-28)
+
+The separately authorized T002 task implements only Primitive B: the existing
+Godot validator, a call-local dependency/effect context, generated-public-ABI
+C++17 dispatch, and a confined native reader. No private-layout cast, private
+binary symbol, external validator, writer or finalizer was introduced.
+
+The exact `4.7.2.stable.custom_build.ed1daf0bf` acceptance build passed 54
+native GUI/lifecycle/export cases. The existing stock editor passed all 194
+observation cases with the native artifact present; an unbuilt-checkout smoke
+proved complete D/R/B observation with no installed native API.
+[Quickstart §10](quickstart.md#10-t002-native-validation-acceptance-2026-09-28)
+records actual commands, build/ABI/artifact hashes, source/effect boundary
+witnesses, checks and the implementation-shape/constitutional review.
+[Native build instructions](../../godot-addon/native/README.md) record the
+reproduction path and dependency/license review.
+
+Runtime review reproduced and corrected scripted diagnostic stringification,
+false-valid failed-autoload analysis and cyclic parser-reference retention.
+Real hook-only export exposed a stale generated extension-registry entry;
+`.gdignore` and explicit plugin loading fixed it without changing the exporter
+or other extensions. The plan's complexity record covers the actual effect
+fixture and loading decisions.
+
+These new implementation results do not amend historical failed/incomplete
+probes or certify the full editing family. Native mutation/finalization,
+edit-generated callback guards, caller integration and A–E/durability remain
+T003–T005 work. Only the recorded tests-enabled macOS arm64 candidate is verified.

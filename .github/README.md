@@ -176,10 +176,17 @@ The `ci.yml` hosted workflow-validation job runs the trust-gate and shell-stage
 regressions without starting a GUI runner. Shell-stage tests use simulated
 candidate metadata to prove refusal and execution ordering, not real-editor
 acceptance. Both main-push and main-targeting PR path filters include
-`godot-addon/tests/**`: harness/fixture changes rerun workflow validation and
-native hosted checks. This does not imply hosted product-addon coverage;
-`godot-addon/addons/**` is not included. Fixture tests and Actionlint do not
-prove an actual protected deployment or real-editor result.
+`godot-addon/**`, alongside Rust and workflow paths.
+
+The hosted `editor-native` job checks out the exact Godot base, checks/applies
+the native API patch, builds a macOS arm64 Compatibility editor with `tests=yes`,
+then generates its public ABI and builds the matched C++17 extension. SCons is
+pinned to 4.10.1 in an isolated build environment; checkout actions retain full
+SHA pins and no credentials. This is build/API compatibility evidence, not
+visible-buffer, effect-sentinel, or production-export acceptance. See the
+[native build instructions](../godot-addon/native/README.md) and the selected
+task's real-editor evidence. No additional self-hosted workflow or approval gate
+is introduced.
 
 Workflow configuration and its regression simulations do not prove live-editor
 behavior. Complete maintainer-operated real-editor evidence plus ordinary

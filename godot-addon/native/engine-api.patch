@@ -1,0 +1,1652 @@
+diff --git a/core/extension/gdextension.h b/core/extension/gdextension.h
+index a3a6007..4e4f7c5 100644
+--- a/core/extension/gdextension.h
++++ b/core/extension/gdextension.h
+@@ -128,6 +128,8 @@ protected:
+ 	static void _bind_methods();
+ 
+ public:
++	// Internal check for editor-only APIs accepting native GDExtension callbacks.
++	static bool is_native_custom_callable(const Callable &p_callable);
+ 	HashMap<String, String> class_icon_paths;
+ 
+ 	virtual bool editor_can_reload_from_file() override { return false; } // Reloading is handled in a special way.
+diff --git a/core/extension/gdextension_interface.cpp b/core/extension/gdextension_interface.cpp
+index 8aa07c1..f111f6b 100644
+--- a/core/extension/gdextension_interface.cpp
++++ b/core/extension/gdextension_interface.cpp
+@@ -234,6 +234,16 @@ public:
+ 	}
+ };
+ 
++bool GDExtension::is_native_custom_callable(const Callable &p_callable) {
++	// is_custom alone includes scripted lambdas, bound script methods, and
++	// engine method-pointer callables. Only the public native ABI constructor
++	// creates this concrete type; reject object-bound extension callbacks.
++	return p_callable.is_custom() &&
++			dynamic_cast<const CallableCustomExtension *>(p_callable.get_custom()) != nullptr &&
++			p_callable.get_object_id() == ObjectID() && p_callable.get_method() == StringName() &&
++			p_callable.is_valid();
++}
++
+ // Core interface functions.
+ GDExtensionInterfaceFunctionPtr gdextension_get_proc_address(const char *p_name) {
+ 	return GDExtension::get_interface_function(p_name);
+diff --git a/core/io/resource_loader.h b/core/io/resource_loader.h
+index d1af3a0..cf6de80 100644
+--- a/core/io/resource_loader.h
++++ b/core/io/resource_loader.h
+@@ -103,6 +103,9 @@ typedef void (*ResourceLoadedCallback)(Ref<Resource> p_resource, const String &p
+ class ResourceLoader {
+ 	friend class LoadToken;
+ 	friend class CoreBind::ResourceLoader;
++#ifdef TOOLS_ENABLED
++	friend class GDScriptValidationContext;
++#endif
+ 
+ 	enum {
+ 		MAX_LOADERS = 64
+diff --git a/editor/script/script_editor_base.cpp b/editor/script/script_editor_base.cpp
+index 01da199..44abdb0 100644
+--- a/editor/script/script_editor_base.cpp
++++ b/editor/script/script_editor_base.cpp
+@@ -50,6 +50,7 @@ void ScriptEditorBase::_bind_methods() {
+ 	ADD_SIGNAL(MethodInfo("search_in_files_requested", PropertyInfo(Variant::STRING, "text")));
+ 	ClassDB::bind_method(D_METHOD("add_syntax_highlighter", "highlighter"), &ScriptEditorBase::add_syntax_highlighter);
+ 	ClassDB::bind_method(D_METHOD("get_base_editor"), &ScriptEditorBase::get_base_editor);
++	ClassDB::bind_method(D_METHOD("get_edited_resource"), &ScriptEditorBase::get_edited_resource);
+ 
+ 	// First use in ScriptTextEditor.
+ 	ADD_SIGNAL(MethodInfo("request_save_history"));
+diff --git a/modules/gdscript/gdscript.cpp b/modules/gdscript/gdscript.cpp
+index f9f9567..97a2ee7 100644
+--- a/modules/gdscript/gdscript.cpp
++++ b/modules/gdscript/gdscript.cpp
+@@ -1076,6 +1076,14 @@ void GDScript::_get_property_list(List<PropertyInfo> *p_properties) const {
+ 
+ void GDScript::_bind_methods() {
+ 	ClassDB::bind_vararg_method(METHOD_FLAGS_DEFAULT, "new", &GDScript::_new, MethodInfo("new"));
++#ifdef TOOLS_ENABLED
++	ClassDB::bind_static_method("GDScript", D_METHOD("gdscript_validation_api_revision"), &GDScript::gdscript_validation_api_revision);
++	ClassDB::bind_static_method("GDScript", D_METHOD("validate_gdscript_source", "source", "source_path", "read_context", "correlation"), &GDScript::validate_gdscript_source);
++#ifdef TESTS_ENABLED
++	ClassDB::bind_static_method("GDScript", D_METHOD("gdscript_validation_test_set_object", "object"), &GDScript::gdscript_validation_test_set_object);
++	ClassDB::bind_static_method("GDScript", D_METHOD("gdscript_validation_test_clear_object"), &GDScript::gdscript_validation_test_clear_object);
++#endif
++#endif
+ }
+ 
+ void GDScript::set_path_cache(const String &p_path) {
+@@ -1350,6 +1358,11 @@ void GDScript::_save_orphaned_subclasses() {
+ 			continue;
+ 		}
+ 		// subclass is not released
++#ifdef TOOLS_ENABLED
++		if (validation_shallow) {
++			continue;
++		}
++#endif
+ 		GDScriptLanguage::get_singleton()->add_orphan_subclass(subclass.fully_qualified_name, subclass.id);
+ 	}
+ }
+diff --git a/modules/gdscript/gdscript.h b/modules/gdscript/gdscript.h
+index b88596b..f5540dc 100644
+--- a/modules/gdscript/gdscript.h
++++ b/modules/gdscript/gdscript.h
+@@ -61,6 +61,9 @@ class GDScript : public Script {
+ 	bool valid = false;
+ 	bool reloading = false;
+ 	bool _is_abstract = false;
++#ifdef TOOLS_ENABLED
++	bool validation_shallow = false;
++#endif
+ 
+ 	struct MemberInfo {
+ 		int index = 0;
+@@ -87,6 +90,7 @@ class GDScript : public Script {
+ 	friend class GDScriptLambdaCallable;
+ 	friend class GDScriptLambdaSelfCallable;
+ 	friend class GDScriptLanguage;
++	friend class GDScriptValidationContext;
+ 	friend struct GDScriptUtilityFunctionsDefinitions;
+ 
+ 	Ref<GDScriptNativeClass> native;
+@@ -228,6 +232,14 @@ public:
+ #endif
+ 
+ 	static String canonicalize_path(const String &p_path);
++#ifdef TOOLS_ENABLED
++	static int gdscript_validation_api_revision();
++	static Dictionary validate_gdscript_source(const String &p_source, const String &p_source_path, const Callable &p_read_context, const Dictionary &p_correlation);
++#ifdef TESTS_ENABLED
++	static bool gdscript_validation_test_set_object(Object *p_object);
++	static bool gdscript_validation_test_clear_object();
++#endif
++#endif
+ 	_FORCE_INLINE_ static bool is_canonically_equal_paths(const String &p_path_a, const String &p_path_b) {
+ 		return canonicalize_path(p_path_a) == canonicalize_path(p_path_b);
+ 	}
+diff --git a/modules/gdscript/gdscript_analyzer.cpp b/modules/gdscript/gdscript_analyzer.cpp
+index 1973bfe..d198a43 100644
+--- a/modules/gdscript/gdscript_analyzer.cpp
++++ b/modules/gdscript/gdscript_analyzer.cpp
+@@ -33,6 +33,9 @@
+ #include "gdscript.h"
+ #include "gdscript_utility_callable.h"
+ #include "gdscript_utility_functions.h"
++#ifdef TOOLS_ENABLED
++#include "gdscript_validation.h"
++#endif
+ 
+ #include "core/config/engine.h"
+ #include "core/config/project_settings.h"
+@@ -52,6 +55,50 @@
+ #define UNNAMED_ENUM "<anonymous enum>"
+ #define ENUM_SEPARATOR "."
+ 
++#ifdef TOOLS_ENABLED
++static bool validation_safe_type_script(const Variant &p_script) {
++	return p_script.get_type() != Variant::OBJECT || p_script.get_validated_object() == nullptr ||
++			GDScriptValidationContext::get_active()->allows_static_object(p_script.get_validated_object());
++}
++
++static bool validation_safe_value(const Variant &p_value, int p_depth = 0) {
++	if (p_depth > 32 || p_value.get_type() == Variant::OBJECT || p_value.get_type() == Variant::CALLABLE || p_value.get_type() == Variant::SIGNAL) {
++		return false;
++	}
++	if (p_value.get_type() == Variant::ARRAY) {
++		Array values = p_value;
++		if (!validation_safe_type_script(values.get_typed_script())) {
++			return false;
++		}
++		for (int i = 0; i < values.size(); i++) {
++			if (!validation_safe_value(values[i], p_depth + 1)) {
++				return false;
++			}
++		}
++	} else if (p_value.get_type() == Variant::DICTIONARY) {
++		Dictionary values = p_value;
++		if (!validation_safe_type_script(values.get_typed_key_script()) || !validation_safe_type_script(values.get_typed_value_script())) {
++			return false;
++		}
++		Array keys = values.keys();
++		for (int i = 0; i < keys.size(); i++) {
++			if (!validation_safe_value(keys[i], p_depth + 1) || !validation_safe_value(values[keys[i]], p_depth + 1)) {
++				return false;
++			}
++		}
++	}
++	return true;
++}
++
++static bool validation_allow_values(const Variant &p_left, const Variant &p_right = Variant()) {
++	GDScriptValidationContext *validation = GDScriptValidationContext::get_active();
++	if (validation && (!validation_safe_value(p_left) || !validation_safe_value(p_right))) {
++		validation->refuse("unsupported_effect");
++		return false;
++	}
++	return true;
++}
++#endif
+ static MethodInfo info_from_utility_func(const StringName &p_function) {
+ 	ERR_FAIL_COND_V(!Variant::has_utility_function(p_function), MethodInfo());
+ 
+@@ -800,12 +847,27 @@ GDScriptParser::DataType GDScriptAnalyzer::resolve_datatype(GDScriptParser::Type
+ 					}
+ 					result = ref->get_parser()->head->get_datatype();
+ 				} else {
++#ifdef TOOLS_ENABLED
++					if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++						validation->refuse("unsupported_effect");
++						return bad_type;
++					}
++#endif
+ 					result = make_script_meta_type(ResourceLoader::load(path, "Script"));
+ 				}
+ 			}
+ 		} else if (ProjectSettings::get_singleton()->has_autoload(first) && ProjectSettings::get_singleton()->get_autoload(first).is_singleton) {
+ 			const ProjectSettings::AutoloadInfo &autoload = ProjectSettings::get_singleton()->get_autoload(first);
+ 			String script_path;
++#ifdef TOOLS_ENABLED
++			if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++				if (!autoload.path.ends_with(".gd")) {
++					validation->refuse("unsupported_effect");
++					return bad_type;
++				}
++				script_path = autoload.path;
++			} else
++#endif
+ 			if (ResourceLoader::get_resource_type(autoload.path) == "PackedScene") {
+ 				// Try to get script from scene if possible.
+ 				if (GDScriptLanguage::get_singleton()->has_any_global_constant(autoload.name)) {
+@@ -1712,6 +1774,11 @@ void GDScriptAnalyzer::resolve_annotation(GDScriptParser::AnnotationNode *p_anno
+ 			Variant converted_to;
+ 			const Variant *converted_from = &value;
+ 			Callable::CallError call_error;
++#ifdef TOOLS_ENABLED
++			if (!validation_allow_values(value)) {
++				return;
++			}
++#endif
+ 			Variant::construct(argument_info.type, converted_to, &converted_from, 1, call_error);
+ 
+ 			if (call_error.error != Callable::CallError::CALL_OK) {
+@@ -2773,6 +2840,11 @@ void GDScriptAnalyzer::update_const_expression_builtin_type(GDScriptParser::Expr
+ 	Variant converted_to;
+ 	const Variant *converted_from = &p_expression->reduced_value;
+ 	Callable::CallError call_error;
++#ifdef TOOLS_ENABLED
++	if (!validation_allow_values(p_expression->reduced_value)) {
++		return;
++	}
++#endif
+ 	Variant::construct(p_type.builtin_type, converted_to, &converted_from, 1, call_error);
+ 	if (call_error.error) {
+ 		push_error(vformat(R"(Failed to convert a value of type "%s" to "%s".)", value_type.to_string(), p_type.to_string()), p_expression);
+@@ -3143,6 +3215,11 @@ void GDScriptAnalyzer::reduce_binary_op(GDScriptParser::BinaryOpNode *p_binary_o
+ 		p_binary_op->is_constant = true;
+ 		if (p_binary_op->variant_op < Variant::OP_MAX) {
+ 			bool valid = false;
++#ifdef TOOLS_ENABLED
++			if (!validation_allow_values(p_binary_op->left_operand->reduced_value, p_binary_op->right_operand->reduced_value)) {
++				return;
++			}
++#endif
+ 			Variant::evaluate(p_binary_op->variant_op, p_binary_op->left_operand->reduced_value, p_binary_op->right_operand->reduced_value, p_binary_op->reduced_value, valid);
+ 			if (!valid) {
+ 				if (p_binary_op->reduced_value.get_type() == Variant::STRING) {
+@@ -3294,6 +3371,15 @@ void GDScriptAnalyzer::reduce_call(GDScriptParser::CallNode *p_call, bool p_is_a
+ 
+ 				Callable::CallError err;
+ 				Variant value;
++#ifdef TOOLS_ENABLED
++				if (GDScriptValidationContext::is_active()) {
++					for (const Variant *arg : args) {
++						if (!validation_allow_values(*arg)) {
++							return;
++						}
++					}
++				}
++#endif
+ 				Variant::construct(builtin_type, value, (const Variant **)args.ptr(), args.size(), err);
+ 
+ 				switch (err.error) {
+@@ -3852,6 +3938,11 @@ void GDScriptAnalyzer::reduce_dictionary(GDScriptParser::DictionaryNode *p_dicti
+ 		reduce_expression(element.value);
+ 
+ 		if (element.key->is_constant) {
++#ifdef TOOLS_ENABLED
++			if (!validation_allow_values(element.key->reduced_value)) {
++				return;
++			}
++#endif
+ 			if (elements.has(element.key->reduced_value)) {
+ 				push_error(vformat(R"(Key "%s" was already used in this dictionary (at line %d).)", element.key->reduced_value, elements[element.key->reduced_value]->start_line), element.key);
+ 			} else {
+@@ -3919,6 +4010,12 @@ GDScriptParser::DataType GDScriptAnalyzer::make_global_class_meta_type(const Str
+ 
+ 		return ref->get_parser()->head->get_datatype();
+ 	} else {
++#ifdef TOOLS_ENABLED
++		if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++			validation->refuse("unsupported_effect");
++			return type;
++		}
++#endif
+ 		return make_script_meta_type(ResourceLoader::load(path, "Script"));
+ 	}
+ }
+@@ -4026,7 +4123,11 @@ Ref<GDScriptParserRef> GDScriptAnalyzer::find_cached_external_parser_for_class(c
+ 
+ Ref<GDScript> GDScriptAnalyzer::get_depended_shallow_script(const String &p_path, Error &r_error) {
+ 	// To keep a local cache of the parser for resolving external nodes later.
+-	const String path = ResourceUID::ensure_path(p_path);
++	const String path =
++#ifdef TOOLS_ENABLED
++			GDScriptValidationContext::is_active() ? p_path :
++#endif
++													 ResourceUID::ensure_path(p_path);
+ 	parser->get_depended_parser_for(path);
+ 	Ref<GDScript> scr = GDScriptCache::get_shallow_script(path, r_error, parser->script_path);
+ 	return scr;
+@@ -4585,6 +4686,22 @@ void GDScriptAnalyzer::reduce_identifier(GDScriptParser::IdentifierNode *p_ident
+ 			result.kind = GDScriptParser::DataType::NATIVE;
+ 			result.builtin_type = Variant::OBJECT;
+ 			result.native_type = SNAME("Node");
++#ifdef TOOLS_ENABLED
++			if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++				if (!autoload.path.ends_with(".gd")) {
++					validation->refuse("unsupported_effect");
++					return;
++				}
++				Ref<GDScriptParserRef> single_parser = parser->get_depended_parser_for(autoload.path);
++				if (single_parser.is_null() || single_parser->raise_status(GDScriptParserRef::INHERITANCE_SOLVED) != OK) {
++					if (validation->get_failure().is_empty()) {
++						push_error("Could not resolve the autoload GDScript dependency.", p_identifier);
++					}
++					return;
++				}
++				result = type_from_metatype(single_parser->get_parser()->head->get_datatype());
++			} else
++#endif
+ 			if (ResourceLoader::get_resource_type(autoload.path) == "GDScript") {
+ 				Ref<GDScriptParserRef> single_parser = parser->get_depended_parser_for(autoload.path);
+ 				if (single_parser.is_valid()) {
+@@ -4636,6 +4753,11 @@ void GDScriptAnalyzer::reduce_identifier(GDScriptParser::IdentifierNode *p_ident
+ 		// TODO: Remove this check once `globals` does only contain publicly available things.
+ 		if (!ClassDB::class_exists(name)) {
+ 			Variant constant = GDScriptLanguage::get_singleton()->get_any_global_constant(name);
++#ifdef TOOLS_ENABLED
++			if (!validation_allow_values(constant)) {
++				return;
++			}
++#endif
+ 			p_identifier->set_datatype(type_from_variant(constant, p_identifier));
+ 			p_identifier->is_constant = true;
+ 			p_identifier->reduced_value = constant;
+@@ -4736,40 +4858,52 @@ void GDScriptAnalyzer::reduce_preload(GDScriptParser::PreloadNode *p_preload) {
+ 		push_error("Preloaded path must be a constant string.", p_preload->path);
+ 	} else {
+ 		p_preload->resolved_path = p_preload->path->reduced_value;
+-		// TODO: Save this as script dependency.
+-		if (p_preload->resolved_path.is_relative_path()) {
+-			p_preload->resolved_path = parser->script_path.get_base_dir().path_join(p_preload->resolved_path);
+-		}
+-		p_preload->resolved_path = p_preload->resolved_path.simplify_path();
+-		if (!ResourceLoader::exists(p_preload->resolved_path)) {
+-			Ref<FileAccess> file_check = FileAccess::create(FileAccess::ACCESS_RESOURCES);
+-
+-			if (file_check->file_exists(p_preload->resolved_path)) {
+-				push_error(vformat(R"(Preload file "%s" has no resource loaders (unrecognized file extension).)", p_preload->resolved_path), p_preload->path);
+-			} else {
+-				push_error(vformat(R"(Preload file "%s" does not exist.)", p_preload->resolved_path), p_preload->path);
++#ifdef TOOLS_ENABLED
++		if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++			p_preload->resolved_path = validation->resolve_path(p_preload->resolved_path, parser->script_path);
++			if (p_preload->resolved_path.is_empty()) {
++				return;
+ 			}
+-		} else {
+-			// TODO: Don't load if validating: use completion cache.
+-
+-			// Must load GDScript separately to permit cyclic references
+-			// as ResourceLoader::load() detects and rejects those.
+-			const String &res_type = ResourceLoader::get_resource_type(p_preload->resolved_path);
+-			if (res_type == "GDScript") {
+-				Error err = OK;
+-				Ref<GDScript> res = get_depended_shallow_script(p_preload->resolved_path, err);
+-				p_preload->resource = res;
+-				if (err != OK) {
+-					push_error(vformat(R"(Could not preload resource script "%s".)", p_preload->resolved_path), p_preload->path);
++			Error err = OK;
++			p_preload->resource = get_depended_shallow_script(p_preload->resolved_path, err);
++			if (err != OK && validation->get_failure().is_empty()) {
++				push_error(vformat(R"(Could not preload resource script "%s".)", p_preload->resolved_path), p_preload->path);
++			}
++		} else
++#endif
++		{
++			if (p_preload->resolved_path.is_relative_path()) {
++				p_preload->resolved_path = parser->script_path.get_base_dir().path_join(p_preload->resolved_path);
++			}
++			p_preload->resolved_path = p_preload->resolved_path.simplify_path();
++			if (!ResourceLoader::exists(p_preload->resolved_path)) {
++				Ref<FileAccess> file_check = FileAccess::create(FileAccess::ACCESS_RESOURCES);
++
++				if (file_check->file_exists(p_preload->resolved_path)) {
++					push_error(vformat(R"(Preload file "%s" has no resource loaders (unrecognized file extension).)", p_preload->resolved_path), p_preload->path);
++				} else {
++					push_error(vformat(R"(Preload file "%s" does not exist.)", p_preload->resolved_path), p_preload->path);
+ 				}
+ 			} else {
+-				Error err = OK;
+-				p_preload->resource = ResourceLoader::load(p_preload->resolved_path, res_type, ResourceFormatLoader::CACHE_MODE_REUSE, &err);
+-				if (err == ERR_BUSY) {
+-					p_preload->resource = ResourceLoader::ensure_resource_ref_override_for_outer_load(p_preload->resolved_path, res_type);
+-				}
+-				if (p_preload->resource.is_null()) {
+-					push_error(vformat(R"(Could not preload resource file "%s".)", p_preload->resolved_path), p_preload->path);
++				// Must load GDScript separately to permit cyclic references
++				// as ResourceLoader::load() detects and rejects those.
++				const String &res_type = ResourceLoader::get_resource_type(p_preload->resolved_path);
++				if (res_type == "GDScript") {
++					Error err = OK;
++					Ref<GDScript> res = get_depended_shallow_script(p_preload->resolved_path, err);
++					p_preload->resource = res;
++					if (err != OK) {
++						push_error(vformat(R"(Could not preload resource script "%s".)", p_preload->resolved_path), p_preload->path);
++					}
++				} else {
++					Error err = OK;
++					p_preload->resource = ResourceLoader::load(p_preload->resolved_path, res_type, ResourceFormatLoader::CACHE_MODE_REUSE, &err);
++					if (err == ERR_BUSY) {
++						p_preload->resource = ResourceLoader::ensure_resource_ref_override_for_outer_load(p_preload->resolved_path, res_type);
++					}
++					if (p_preload->resource.is_null()) {
++						push_error(vformat(R"(Could not preload resource file "%s".)", p_preload->resolved_path), p_preload->path);
++					}
+ 				}
+ 			}
+ 		}
+@@ -4840,6 +4974,11 @@ void GDScriptAnalyzer::reduce_subscript(GDScriptParser::SubscriptNode *p_subscri
+ 			}
+ 			if (!base_is_gdscript) {
+ 				// Just try to get it.
++#ifdef TOOLS_ENABLED
++				if (!validation_allow_values(p_subscript->base->reduced_value)) {
++					return;
++				}
++#endif
+ 				Variant value = p_subscript->base->reduced_value.get_named(p_subscript->attribute->name, valid);
+ 				if (valid) {
+ 					p_subscript->is_constant = true;
+@@ -4921,6 +5060,11 @@ void GDScriptAnalyzer::reduce_subscript(GDScriptParser::SubscriptNode *p_subscri
+ 			// Just try to get it.
+ 			bool valid = false;
+ 			// TODO: Check if `p_subscript->base->reduced_value` is GDScript.
++#ifdef TOOLS_ENABLED
++			if (!validation_allow_values(p_subscript->base->reduced_value, p_subscript->index->reduced_value)) {
++				return;
++			}
++#endif
+ 			Variant value = p_subscript->base->reduced_value.get(p_subscript->index->reduced_value, &valid);
+ 			if (!valid) {
+ 				push_error(vformat(R"(Cannot get index "%s" from "%s".)", p_subscript->index->reduced_value, p_subscript->base->reduced_value), p_subscript->index);
+@@ -5262,6 +5406,11 @@ void GDScriptAnalyzer::reduce_unary_op(GDScriptParser::UnaryOpNode *p_unary_op)
+ 
+ 	if (p_unary_op->operand->is_constant) {
+ 		p_unary_op->is_constant = true;
++#ifdef TOOLS_ENABLED
++		if (!validation_allow_values(p_unary_op->operand->reduced_value)) {
++			return;
++		}
++#endif
+ 		p_unary_op->reduced_value = Variant::evaluate(p_unary_op->variant_op, p_unary_op->operand->reduced_value, Variant());
+ 		result = type_from_variant(p_unary_op->reduced_value, p_unary_op);
+ 	}
+@@ -5379,6 +5528,11 @@ Variant GDScriptAnalyzer::make_subscript_reduced_value(GDScriptParser::Subscript
+ 
+ 	if (p_subscript->is_attribute) {
+ 		bool is_valid = false;
++#ifdef TOOLS_ENABLED
++		if (!validation_allow_values(base_value)) {
++			return Variant();
++		}
++#endif
+ 		Variant value = base_value.get_named(p_subscript->attribute->name, is_valid);
+ 		if (is_valid) {
+ 			r_is_reduced = true;
+@@ -5394,6 +5548,11 @@ Variant GDScriptAnalyzer::make_subscript_reduced_value(GDScriptParser::Subscript
+ 		}
+ 
+ 		bool is_valid = false;
++#ifdef TOOLS_ENABLED
++		if (!validation_allow_values(base_value, index_value)) {
++			return Variant();
++		}
++#endif
+ 		Variant value = base_value.get(index_value, &is_valid);
+ 		if (is_valid) {
+ 			r_is_reduced = true;
+@@ -5430,6 +5589,15 @@ Variant GDScriptAnalyzer::make_call_reduced_value(GDScriptParser::CallNode *p_ca
+ 
+ 		Variant result;
+ 		Callable::CallError ce;
++#ifdef TOOLS_ENABLED
++		if (GDScriptValidationContext::is_active()) {
++			for (const Variant &arg : args) {
++				if (!validation_allow_values(arg)) {
++					return Variant();
++				}
++			}
++		}
++#endif
+ 		Variant::construct(type, result, argptrs, args.size(), ce);
+ 		if (ce.error) {
+ 			return Variant();
+@@ -5469,6 +5637,11 @@ Variant GDScriptAnalyzer::make_binary_op_reduced_value(GDScriptParser::BinaryOpN
+ 
+ 	Variant result;
+ 	bool valid = false;
++#ifdef TOOLS_ENABLED
++	if (!validation_allow_values(left_op_value, right_op_value)) {
++		return Variant();
++	}
++#endif
+ 	Variant::evaluate(p_binary_op->variant_op, left_op_value, right_op_value, result, valid);
+ 	if (!valid) {
+ 		return Variant();
+@@ -5505,6 +5678,11 @@ Variant GDScriptAnalyzer::make_ternary_op_reduced_value(GDScriptParser::TernaryO
+ 		return Variant();
+ 	}
+ 
++#ifdef TOOLS_ENABLED
++	if (!validation_allow_values(condition_value, true_expr_value) || !validation_allow_values(false_expr_value)) {
++		return Variant();
++	}
++#endif
+ 	r_is_reduced = true;
+ 	return condition_value.booleanize() ? true_expr_value : false_expr_value;
+ }
+@@ -5531,6 +5709,11 @@ Variant GDScriptAnalyzer::make_cast_reduced_value(GDScriptParser::CastNode *p_ca
+ 		Variant result;
+ 		const Variant *argptr = &operand_value;
+ 		Callable::CallError ce;
++#ifdef TOOLS_ENABLED
++		if (!validation_allow_values(operand_value)) {
++			return Variant();
++		}
++#endif
+ 		Variant::construct(cast_type.builtin_type, result, &argptr, 1, ce);
+ 		if (ce.error) {
+ 			return Variant();
+@@ -5683,6 +5866,14 @@ Variant GDScriptAnalyzer::make_variable_default_value(GDScriptParser::VariableNo
+ GDScriptParser::DataType GDScriptAnalyzer::type_from_script(const Ref<Script> &p_script, const GDScriptParser::Node *p_source, bool p_is_meta_type) {
+ 	ERR_FAIL_COND_V(!p_script.is_valid(), GDScriptParser::DataType());
+ 
++#ifdef TOOLS_ENABLED
++	if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++		if (!validation->allows_static_object(p_script.ptr())) {
++			validation->refuse("unsupported_effect");
++			return GDScriptParser::DataType();
++		}
++	}
++#endif
+ 	GDScriptParser::DataType result;
+ 	result.is_constant = true;
+ 	result.kind = GDScriptParser::DataType::NATIVE;
+@@ -5738,6 +5929,34 @@ GDScriptParser::DataType GDScriptAnalyzer::type_from_variant(const Variant &p_va
+ 	result.builtin_type = p_value.get_type();
+ 	result.type_source = GDScriptParser::DataType::ANNOTATED_EXPLICIT; // Constant has explicit type.
+ 
++#ifdef TOOLS_ENABLED
++	if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++		if (p_value.get_type() == Variant::OBJECT && !validation->allows_static_object(p_value.get_validated_object())) {
++			validation->refuse("unsupported_effect");
++			return GDScriptParser::DataType();
++		}
++		if (p_value.get_type() == Variant::ARRAY) {
++			Array array = p_value;
++			Variant typed_script = array.get_typed_script();
++			if (typed_script.get_type() == Variant::OBJECT && typed_script.get_validated_object() &&
++					!validation->allows_static_object(typed_script.get_validated_object())) {
++				validation->refuse("unsupported_effect");
++				return GDScriptParser::DataType();
++			}
++		} else if (p_value.get_type() == Variant::DICTIONARY) {
++			Dictionary dictionary = p_value;
++			Variant key_script = dictionary.get_typed_key_script();
++			Variant value_script = dictionary.get_typed_value_script();
++			if ((key_script.get_type() == Variant::OBJECT && key_script.get_validated_object() &&
++							!validation->allows_static_object(key_script.get_validated_object())) ||
++					(value_script.get_type() == Variant::OBJECT && value_script.get_validated_object() &&
++							!validation->allows_static_object(value_script.get_validated_object()))) {
++				validation->refuse("unsupported_effect");
++				return GDScriptParser::DataType();
++			}
++		}
++	}
++#endif
+ 	if (p_value.get_type() == Variant::ARRAY) {
+ 		const Array &array = p_value;
+ 		if (array.get_typed_script()) {
+@@ -5823,6 +6042,25 @@ GDScriptParser::DataType GDScriptAnalyzer::type_from_property_hint_string(const
+ 		result.native_type = p_type_name;
+ 	} else if (ScriptServer::is_global_class(p_type_name)) {
+ 		// Just load this as it shouldn't be a GDScript.
++#ifdef TOOLS_ENABLED
++		if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++			String path = ScriptServer::get_global_class_path(p_type_name);
++			if (!path.ends_with(".gd")) {
++				validation->refuse("unsupported_effect");
++				return result;
++			}
++			Ref<GDScriptParserRef> ref = parser->get_depended_parser_for(path);
++			if (ref.is_null() || ref->raise_status(GDScriptParserRef::INHERITANCE_SOLVED) != OK) {
++				parser->push_error("Could not resolve GDScript property hint class.");
++				result.kind = GDScriptParser::DataType::VARIANT;
++				return result;
++			}
++			result = type_from_metatype(ref->get_parser()->head->get_datatype());
++			result.type_source = GDScriptParser::DataType::ANNOTATED_EXPLICIT;
++			result.is_constant = false;
++			return result;
++		}
++#endif
+ 		Ref<Script> script = ResourceLoader::load(ScriptServer::get_global_class_path(p_type_name));
+ 		result.kind = GDScriptParser::DataType::SCRIPT;
+ 		result.builtin_type = Variant::OBJECT;
+@@ -5854,6 +6092,25 @@ GDScriptParser::DataType GDScriptAnalyzer::type_from_property(const PropertyInfo
+ 			result.script_path = ScriptServer::get_global_class_path(p_property.class_name);
+ 			result.native_type = ScriptServer::get_global_class_native_base(p_property.class_name);
+ 
++#ifdef TOOLS_ENABLED
++			if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++				if (!result.script_path.ends_with(".gd")) {
++					validation->refuse("unsupported_effect");
++					return result;
++				}
++				Ref<GDScriptParserRef> ref = parser->get_depended_parser_for(result.script_path);
++				if (ref.is_null() || ref->raise_status(GDScriptParserRef::INHERITANCE_SOLVED) != OK) {
++					parser->push_error("Could not resolve GDScript property class.");
++					result.kind = GDScriptParser::DataType::VARIANT;
++					return result;
++				}
++				result = type_from_metatype(ref->get_parser()->head->get_datatype());
++				result.type_source = GDScriptParser::DataType::ANNOTATED_EXPLICIT;
++				result.is_read_only = p_is_readonly;
++				result.is_constant = false;
++				return result;
++			}
++#endif
+ 			Ref<Script> scr = ResourceLoader::load(ScriptServer::get_global_class_path(p_property.class_name));
+ 			if (scr.is_valid()) {
+ 				result.script_type = scr;
+@@ -6645,7 +6902,17 @@ Error GDScriptAnalyzer::resolve_dependencies() {
+ 		if (K.value.is_null()) {
+ 			return ERR_PARSE_ERROR;
+ 		}
+-		K.value->raise_status(GDScriptParserRef::INHERITANCE_SOLVED);
++#ifdef TOOLS_ENABLED
++		if (GDScriptValidationContext::is_active()) {
++			Error dependency_error = K.value->raise_status(GDScriptParserRef::INHERITANCE_SOLVED);
++			if (dependency_error != OK) {
++				return dependency_error;
++			}
++		} else
++#endif
++		{
++			K.value->raise_status(GDScriptParserRef::INHERITANCE_SOLVED);
++		}
+ 	}
+ 
+ 	return parser->errors.is_empty() ? OK : ERR_PARSE_ERROR;
+diff --git a/modules/gdscript/gdscript_cache.cpp b/modules/gdscript/gdscript_cache.cpp
+index efa4ff3..8252d8d 100644
+--- a/modules/gdscript/gdscript_cache.cpp
++++ b/modules/gdscript/gdscript_cache.cpp
+@@ -34,6 +34,9 @@
+ #include "gdscript_analyzer.h"
+ #include "gdscript_compiler.h"
+ #include "gdscript_parser.h"
++#ifdef TOOLS_ENABLED
++#include "gdscript_validation.h"
++#endif
+ 
+ #include "core/io/file_access.h"
+ #include "core/io/resource_loader.h"
+@@ -70,16 +73,33 @@ Error GDScriptParserRef::raise_status(Status p_new_status) {
+ 	ERR_FAIL_COND_V(parser == nullptr && status != EMPTY, ERR_BUG);
+ 
+ 	if (p_new_status < status) {
++#ifdef TOOLS_ENABLED
++		if (GDScriptValidationContext::is_active()) {
++			return result;
++		}
++#endif
+ 		return OK;
+ 	}
+ 
+ 	while (result == OK && p_new_status > status) {
+ 		switch (status) {
+ 			case EMPTY: {
+-				// Calling parse will clear the parser, which can destruct another GDScriptParserRef which can clear the last reference to the script with this path, calling remove_script, which clears this GDScriptParserRef.
+-				// It's ok if its the first thing done here.
++				// Validation uses guarded, call-local bytes even when an existing
++				// global parser or loaded Script has the same resource path.
+ 				get_parser()->clear();
+ 				status = PARSED;
++#ifdef TOOLS_ENABLED
++				if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++					String source = validation->source_for(path);
++					if (!validation->get_failure().is_empty()) {
++						result = ERR_UNAVAILABLE;
++						break;
++					}
++					source_hash = source.hash();
++					result = get_parser()->parse(source, path, false);
++					break;
++				}
++#endif
+ 				String remapped_path = ResourceLoader::path_remap(path);
+ 				if (remapped_path.has_extension("gdc")) {
+ 					Vector<uint8_t> tokens = GDScriptCache::get_binary_tokens(remapped_path);
+@@ -215,6 +235,11 @@ void GDScriptCache::remove_script(const String &p_path) {
+ }
+ 
+ Ref<GDScriptParserRef> GDScriptCache::get_parser(const String &p_path, GDScriptParserRef::Status p_status, Error &r_error, const String &p_owner) {
++#ifdef TOOLS_ENABLED
++	if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++		return validation->get_parser(p_path, p_status, r_error, p_owner);
++	}
++#endif
+ 	MutexLock lock(singleton->mutex);
+ 	Ref<GDScriptParserRef> ref;
+ 	if (!p_owner.is_empty() && p_path != p_owner) {
+@@ -301,6 +326,11 @@ Vector<uint8_t> GDScriptCache::get_binary_tokens(const String &p_path) {
+ }
+ 
+ Ref<GDScript> GDScriptCache::get_shallow_script(const String &p_path, Error &r_error, const String &p_owner) {
++#ifdef TOOLS_ENABLED
++	if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++		return validation->get_shallow_script(p_path, r_error, p_owner);
++	}
++#endif
+ 	MutexLock lock(singleton->mutex);
+ 
+ 	if (!p_owner.is_empty() && p_path != p_owner) {
+@@ -344,6 +374,13 @@ Ref<GDScript> GDScriptCache::get_shallow_script(const String &p_path, Error &r_e
+ }
+ 
+ Ref<GDScript> GDScriptCache::get_full_script(const String &p_path, Error &r_error, const String &p_owner, bool p_update_from_disk) {
++#ifdef TOOLS_ENABLED
++	if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++		validation->refuse("unsupported_effect");
++		r_error = ERR_UNAVAILABLE;
++		return Ref<GDScript>();
++	}
++#endif
+ 	MutexLock lock(singleton->mutex);
+ 
+ 	if (!p_owner.is_empty() && p_path != p_owner) {
+diff --git a/modules/gdscript/gdscript_cache.h b/modules/gdscript/gdscript_cache.h
+index 7a96442..10e8a0e 100644
+--- a/modules/gdscript/gdscript_cache.h
++++ b/modules/gdscript/gdscript_cache.h
+@@ -63,6 +63,7 @@ private:
+ 	bool abandoned = false;
+ 
+ 	friend class GDScriptCache;
++	friend class GDScriptValidationContext;
+ 	friend class GDScript;
+ 
+ public:
+diff --git a/modules/gdscript/gdscript_compiler.cpp b/modules/gdscript/gdscript_compiler.cpp
+index 563d1ac..39249b5 100644
+--- a/modules/gdscript/gdscript_compiler.cpp
++++ b/modules/gdscript/gdscript_compiler.cpp
+@@ -34,6 +34,9 @@
+ #include "gdscript_analyzer.h"
+ #include "gdscript_byte_codegen.h"
+ #include "gdscript_cache.h"
++#ifdef TOOLS_ENABLED
++#include "gdscript_validation.h"
++#endif
+ #include "gdscript_utility_functions.h"
+ 
+ #include "core/config/engine.h"
+@@ -3138,13 +3141,22 @@ void GDScriptCompiler::make_scripts(GDScript *p_script, const GDScriptParser::Cl
+ 		if (old_subclasses.has(name)) {
+ 			subclass = old_subclasses[name];
+ 		} else {
++#ifdef TOOLS_ENABLED
++			if (!GDScriptValidationContext::is_active()) {
++				subclass = GDScriptLanguage::get_singleton()->get_orphan_subclass(inner_class->fqcn);
++			}
++#else
+ 			subclass = GDScriptLanguage::get_singleton()->get_orphan_subclass(inner_class->fqcn);
++#endif
+ 		}
+ 
+ 		if (subclass.is_null()) {
+ 			subclass.instantiate();
+ 		}
+ 
++#ifdef TOOLS_ENABLED
++		subclass->validation_shallow = p_script->validation_shallow;
++#endif
+ 		subclass->_owner = p_script;
+ 		subclass->path = p_script->path;
+ 		p_script->subclasses.insert(name, subclass);
+diff --git a/modules/gdscript/gdscript_editor.cpp b/modules/gdscript/gdscript_editor.cpp
+index b29b1ce..d432658 100644
+--- a/modules/gdscript/gdscript_editor.cpp
++++ b/modules/gdscript/gdscript_editor.cpp
+@@ -31,6 +31,12 @@
+ #include "gdscript.h"
+ #include "gdscript_analyzer.h"
+ #include "gdscript_parser.h"
++#ifdef TOOLS_ENABLED
++#include "gdscript_validation.h"
++#include "core/extension/gdextension.h"
++#include "core/os/os.h"
++#include "core/os/thread.h"
++#endif
+ #include "gdscript_tokenizer.h"
+ #include "gdscript_utility_functions.h"
+ 
+@@ -149,8 +155,24 @@ bool GDScriptLanguage::validate(const String &p_script, const String &p_path, Li
+ 
+ 	Error err = parser.parse(p_script, p_path, false);
+ 	if (err == OK) {
++#ifdef TOOLS_ENABLED
++		if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++			validation->set_validation_stage("analyze");
++		}
++#endif
+ 		err = analyzer.analyze();
+ 	}
++#ifdef TOOLS_ENABLED
++	if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++		// A root analysis cannot certify a dependency whose current parser failed.
++		for (const KeyValue<String, Ref<GDScriptParserRef>> &dependency : validation->get_parser_refs()) {
++			if (!dependency.value->get_parser()->get_errors().is_empty()) {
++				err = ERR_PARSE_ERROR;
++				break;
++			}
++		}
++	}
++#endif
+ #ifdef DEBUG_ENABLED
+ 	if (r_warnings) {
+ 		for (const GDScriptWarning &E : parser.get_warnings()) {
+@@ -176,7 +198,20 @@ bool GDScriptLanguage::validate(const String &p_script, const String &p_path, Li
+ 				r_errors->push_back(e);
+ 			}
+ 
+-			for (KeyValue<String, Ref<GDScriptParserRef>> E : parser.get_depended_parsers()) {
++			const HashMap<String, Ref<GDScriptParserRef>> *dependencies = &parser.get_depended_parsers();
++#ifdef TOOLS_ENABLED
++			if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++				dependencies = &validation->get_parser_refs();
++			}
++#endif
++			for (const KeyValue<String, Ref<GDScriptParserRef>> &E : *dependencies) {
++#ifdef TOOLS_ENABLED
++				if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++					if (E.key == validation->get_root_path()) {
++						continue;
++					}
++				}
++#endif
+ 				GDScriptParser *depended_parser = E.value->get_parser();
+ 				for (const GDScriptParser::ParserError &pe : depended_parser->get_errors()) {
+ 					ScriptLanguage::ScriptError e;
+diff --git a/modules/gdscript/gdscript_parser.cpp b/modules/gdscript/gdscript_parser.cpp
+index 9037df6..6561a86 100644
+--- a/modules/gdscript/gdscript_parser.cpp
++++ b/modules/gdscript/gdscript_parser.cpp
+@@ -32,6 +32,9 @@
+ 
+ #include "gdscript.h"
+ #include "gdscript_tokenizer_buffer.h"
++#ifdef TOOLS_ENABLED
++#include "gdscript_validation.h"
++#endif
+ 
+ #include "core/config/project_settings.h"
+ #include "core/io/resource_loader.h"
+@@ -870,17 +873,25 @@ void GDScriptParser::parse_program() {
+ }
+ 
+ Ref<GDScriptParserRef> GDScriptParser::get_depended_parser_for(const String &p_path) {
++	String path = p_path;
++#ifdef TOOLS_ENABLED
++	if (GDScriptValidationContext *validation = GDScriptValidationContext::get_active()) {
++		path = validation->resolve_path(p_path, script_path);
++		if (path.is_empty()) {
++			return Ref<GDScriptParserRef>();
++		}
++	}
++#endif
+ 	Ref<GDScriptParserRef> ref;
+-	if (depended_parsers.has(p_path)) {
+-		ref = depended_parsers[p_path];
++	if (depended_parsers.has(path)) {
++		ref = depended_parsers[path];
+ 	} else {
+ 		Error err = OK;
+-		ref = GDScriptCache::get_parser(p_path, GDScriptParserRef::EMPTY, err, script_path);
++		ref = GDScriptCache::get_parser(path, GDScriptParserRef::EMPTY, err, script_path);
+ 		if (ref.is_valid()) {
+-			depended_parsers[p_path] = ref;
++			depended_parsers[path] = ref;
+ 		}
+ 	}
+-
+ 	return ref;
+ }
+ 
+diff --git a/modules/gdscript/gdscript_validation.cpp b/modules/gdscript/gdscript_validation.cpp
+new file mode 100644
+index 0000000..9e4e12f
+--- /dev/null
++++ b/modules/gdscript/gdscript_validation.cpp
+@@ -0,0 +1,341 @@
++/**************************************************************************/
++/*  gdscript_validation.cpp                                               */
++/**************************************************************************/
++/*                         This file is part of:                          */
++/*                             GODOT ENGINE                               */
++/*                        https://godotengine.org                         */
++/**************************************************************************/
++/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
++/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
++/*                                                                        */
++/* Permission is hereby granted, free of charge, to any person obtaining  */
++/* a copy of this software and associated documentation files (the        */
++/* "Software"), to deal in the Software without restriction, including    */
++/* without limitation the rights to use, copy, modify, merge, publish,    */
++/* distribute, sublicense, and/or sell copies of the Software, and to     */
++/* permit persons to whom the Software is furnished to do so, subject to  */
++/* the above copyright notice and this permission notice shall be         */
++/* included in all copies or substantial portions of the Software.        */
++/*                                                                        */
++/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
++/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
++/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
++/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
++/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
++/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
++/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
++/**************************************************************************/
++
++#include "gdscript_validation.h"
++
++#ifdef TOOLS_ENABLED
++
++#include "gdscript_compiler.h"
++#include "gdscript_parser.h"
++
++#include "core/config/project_settings.h"
++#include "core/io/resource_loader.h"
++#include "core/object/script_language.h"
++#include "core/string/translation_server.h"
++
++thread_local GDScriptValidationContext *GDScriptValidationContext::active = nullptr;
++
++GDScriptValidationContext::GDScriptValidationContext(const String &p_root_path, const String &p_source, const Callable &p_reader) :
++		reader(p_reader), root_path(p_root_path), root_source(p_source) {
++	// The caller must have rejected a nested invocation before construction.
++	active = this;
++	project_context = capture_project_context();
++}
++
++GDScriptValidationContext::~GDScriptValidationContext() {
++	// Keep the map's owning references while breaking cyclic dependency edges.
++	for (KeyValue<String, Ref<GDScriptParserRef>> &entry : parsers) {
++		entry.value->clear();
++	}
++	parsers.clear();
++	shallow_scripts.clear();
++	active = nullptr;
++}
++
++void GDScriptValidationContext::refuse(const String &p_reason) {
++	if (failure.is_empty()) {
++		failure = p_reason;
++	}
++}
++
++Dictionary GDScriptValidationContext::call_reader(const String &p_path, bool p_recheck) {
++	Variant path = p_path;
++	Variant recheck = p_recheck;
++	const Variant *arguments[] = { &path, &recheck };
++	Variant reply;
++	Callable::CallError call_error;
++	reader.callp(arguments, 2, reply, call_error);
++	if (call_error.error != Callable::CallError::CALL_OK || reply.get_type() != Variant::DICTIONARY) {
++		refuse("dependency_unavailable");
++		return Dictionary();
++	}
++	return reply;
++}
++
++String GDScriptValidationContext::resolve_path(const String &p_path, const String &p_owner) {
++	if (p_path.is_empty() || p_path.contains("::") || p_path.begins_with("uid://")) {
++		refuse("unsupported_effect");
++		return String();
++	}
++	if (p_path.begins_with("user://")) {
++		refuse("access_denied");
++		return String();
++	}
++	String candidate = p_path;
++	if (candidate.is_relative_path()) {
++		candidate = p_owner.get_base_dir().path_join(candidate);
++	}
++	candidate = candidate.simplify_path();
++	if (candidate.utf8().length() > 2048) {
++		refuse("path_limit");
++		return String();
++	}
++	if (!candidate.begins_with("res://") || candidate == "res://" || candidate.begins_with("res://../") ||
++			candidate.contains("/../")) {
++		refuse("access_denied");
++		return String();
++	}
++	if (!candidate.ends_with(".gd")) {
++		refuse("unsupported_effect");
++		return String();
++	}
++	return candidate;
++}
++
++String GDScriptValidationContext::capture_project_context() const {
++	ProjectSettings *settings = ProjectSettings::get_singleton();
++	String sample = settings->get_resource_path() + "\n" + itos(settings->get_version()) + "\n";
++	// Sort before hashing: HashMap iteration order is deliberately unspecified.
++	PackedStringArray entries;
++	LocalVector<StringName> classes;
++	ScriptServer::get_global_class_list(classes);
++	for (const StringName &name : classes) {
++		entries.push_back("class\t" + String(name) + "\t" + ScriptServer::get_global_class_path(name) + "\t" + String(ScriptServer::get_global_class_native_base(name)));
++	}
++	for (const KeyValue<StringName, ProjectSettings::AutoloadInfo> &item : settings->get_autoload_list()) {
++		entries.push_back("autoload\t" + String(item.key) + "\t" + item.value.path + "\t" + itos(item.value.is_singleton));
++	}
++	entries.sort();
++	for (const String &entry : entries) {
++		sample += entry + "\n";
++	}
++	PackedStringArray remaps;
++	for (const KeyValue<String, Vector<String>> &entry : ResourceLoader::translation_remaps) {
++		for (const String &target : entry.value) {
++			remaps.push_back(entry.key + "\t" + target);
++		}
++	}
++	remaps.sort();
++	for (const String &remap : remaps) {
++		sample += "translation-remap\t" + remap + "\n";
++	}
++	sample += "locale\t" + TranslationServer::get_singleton()->get_locale();
++	return sample.sha256_text();
++}
++
++bool GDScriptValidationContext::read_source(const String &p_path) {
++	if (p_path == root_path || sources.has(p_path)) {
++		return true;
++	}
++	if (missing.has(p_path)) {
++		return false;
++	}
++	if (sources.size() >= 32) {
++		refuse("dependency_limit");
++		return false;
++	}
++	if (ResourceLoader::translation_remaps.has(p_path)) {
++		refuse("unsupported_remap");
++		return false;
++	}
++	// ResourceLoader::path_remap itself reads .remap files and can log a raw
++	// path. Probe through the confined reader BEFORE any loader/remap callback.
++	Dictionary remap = call_reader(p_path + ".remap", false);
++	if (!failure.is_empty()) {
++		return false;
++	}
++	if (remap.get("status", "") != "missing") {
++		refuse(remap.get("reason", "unsupported_remap") == "access_denied" ? "access_denied" : "unsupported_remap");
++		return false;
++	}
++
++	Dictionary answer = call_reader(p_path, false);
++	if (!failure.is_empty()) {
++		return false;
++	}
++	String status = answer.get("status", "");
++	if (status == "missing") {
++		missing[p_path] = "missing_dependency";
++		return false;
++	}
++	if (status != "ok") {
++		String reason = answer.get("reason", "");
++		refuse(reason == "access_denied" || reason == "outside_project" ? "access_denied" :
++				reason == "unsupported_remap" ? "unsupported_remap" : "dependency_unavailable");
++		return false;
++	}
++	if (answer.get("source", Variant()).get_type() != Variant::STRING ||
++			answer.get("source_sha256", Variant()).get_type() != Variant::STRING ||
++			answer.get("identity", Variant()).get_type() != Variant::DICTIONARY ||
++			answer.get("utf8_bytes", Variant()).get_type() != Variant::INT) {
++		refuse("dependency_unavailable");
++		return false;
++	}
++	String source = answer["source"];
++	String hash = answer["source_sha256"];
++	int64_t bytes = answer["utf8_bytes"];
++	Dictionary identity = answer["identity"];
++	if (bytes < 0 || bytes > 512 * 1024 || dependency_bytes + bytes > 4 * 1024 * 1024) {
++		refuse("dependency_limit");
++		return false;
++	}
++	if (source.utf8().length() != bytes || source.sha256_text() != hash || identity.get("device", Variant()).get_type() != Variant::STRING || identity.get("inode", Variant()).get_type() != Variant::STRING) {
++		refuse("dependency_unavailable");
++		return false;
++	}
++	SourceRecord record;
++	record.source = source;
++	record.witness["path"] = p_path;
++	record.witness["identity"] = identity;
++	record.witness["source_sha256"] = hash;
++	record.witness["utf8_bytes"] = bytes;
++	sources[p_path] = record;
++	dependency_bytes += bytes;
++	return true;
++}
++
++String GDScriptValidationContext::source_for(const String &p_path) {
++	if (p_path == root_path) {
++		return root_source;
++	}
++	if (!read_source(p_path)) {
++		return String();
++	}
++	return sources[p_path].source;
++}
++
++Ref<GDScriptParserRef> GDScriptValidationContext::get_parser(const String &p_path, GDScriptParserRef::Status p_status, Error &r_error, const String &p_owner) {
++	String path = resolve_path(p_path, p_owner.is_empty() ? root_path : p_owner);
++	if (path.is_empty() || (!read_source(path) && path != root_path)) {
++		r_error = failure.is_empty() ? ERR_FILE_NOT_FOUND : ERR_UNAVAILABLE;
++		return Ref<GDScriptParserRef>();
++	}
++	Ref<GDScriptParserRef> ref;
++	if (parsers.has(path)) {
++		ref = parsers[path];
++	} else {
++		ref.instantiate();
++		ref->path = path;
++		ref->abandoned = true; // Never erase a normal parser cache entry on destruction.
++		parsers[path] = ref;
++	}
++	r_error = ref->raise_status(p_status);
++	if (!failure.is_empty()) {
++		r_error = ERR_UNAVAILABLE;
++	}
++	return ref;
++}
++
++Ref<GDScript> GDScriptValidationContext::get_shallow_script(const String &p_path, Error &r_error, const String &p_owner) {
++	String path = resolve_path(p_path, p_owner.is_empty() ? root_path : p_owner);
++	if (path.is_empty()) {
++		r_error = ERR_UNAVAILABLE;
++		return Ref<GDScript>();
++	}
++	if (shallow_scripts.has(path)) {
++		r_error = OK;
++		return shallow_scripts[path];
++	}
++	Ref<GDScriptParserRef> parsed = get_parser(path, GDScriptParserRef::PARSED, r_error, p_owner);
++	if (parsed.is_null() || r_error != OK || !failure.is_empty()) {
++		return Ref<GDScript>();
++	}
++	Ref<GDScript> script;
++	script.instantiate();
++	script->validation_shallow = true;
++	script->set_path_cache(path);
++	script->set_source_code(source_for(path));
++	// make_scripts constructs only named shallow metadata. No reload, bytecode,
++	// static initializer, script instance, ResourceLoader or global cache entry.
++	GDScriptCompiler::make_scripts(script.ptr(), parsed->get_parser()->get_tree(), false);
++	shallow_scripts[path] = script;
++	return script;
++}
++
++Dictionary GDScriptValidationContext::witness_for(const String &p_path) const {
++	if (const SourceRecord *record = sources.getptr(p_path)) {
++		return record->witness;
++	}
++	return Dictionary();
++}
++
++bool GDScriptValidationContext::allows_static_object(Object *p_object) const {
++	if (p_object == nullptr) {
++		return false;
++	}
++	if (Object::cast_to<GDScriptNativeClass>(p_object)) {
++		return true;
++	}
++	GDScript *script = Object::cast_to<GDScript>(p_object);
++	if (script == nullptr) {
++		return false;
++	}
++	for (const KeyValue<String, Ref<GDScript>> &entry : shallow_scripts) {
++		if (script->get_root_script() == entry.value.ptr()) {
++			return true;
++		}
++	}
++	return false;
++}
++
++Dictionary GDScriptValidationContext::finish(bool &r_context_current, bool &r_dependencies_current) {
++	Dictionary result;
++	result["context"] = project_context;
++	r_context_current = capture_project_context() == project_context;
++	result["context_current"] = r_context_current;
++	Array dependencies;
++	r_dependencies_current = true;
++	PackedStringArray source_paths;
++	for (const KeyValue<String, SourceRecord> &source : sources) {
++		source_paths.push_back(source.key);
++	}
++	source_paths.sort();
++	for (const String &path : source_paths) {
++		const SourceRecord &record = sources[path];
++		dependencies.push_back(record.witness);
++		if (ResourceLoader::translation_remaps.has(path) || call_reader(path + ".remap", false).get("status", "") != "missing") {
++			r_context_current = false;
++		}
++		Dictionary current = call_reader(path, true);
++		if (current.get("status", "") != "ok" || current.get("identity", Dictionary()) != record.witness["identity"] || current.get("source_sha256", "") != record.witness["source_sha256"] || current.get("utf8_bytes", -1) != record.witness["utf8_bytes"] || current.get("source", Variant()).get_type() != Variant::STRING || String(current["source"]).sha256_text() != String(record.witness["source_sha256"])) {
++			r_dependencies_current = false;
++		}
++	}
++	PackedStringArray missing_paths;
++	for (const KeyValue<String, String> &missing_source : missing) {
++		missing_paths.push_back(missing_source.key);
++	}
++	missing_paths.sort();
++	for (const String &path : missing_paths) {
++		if (ResourceLoader::translation_remaps.has(path) || call_reader(path + ".remap", false).get("status", "") != "missing") {
++			r_context_current = false;
++		}
++		if (call_reader(path, true).get("status", "") != "missing") {
++			r_dependencies_current = false;
++		}
++	}
++	result["dependencies"] = dependencies;
++	result["context_current"] = r_context_current;
++	result["dependencies_current"] = r_dependencies_current;
++	if (!r_context_current || !r_dependencies_current) {
++		refuse("context_invalidated");
++	}
++	return result;
++}
++
++#endif // TOOLS_ENABLED
+diff --git a/modules/gdscript/gdscript_validation.h b/modules/gdscript/gdscript_validation.h
+new file mode 100644
+index 0000000..83952f6
+--- /dev/null
++++ b/modules/gdscript/gdscript_validation.h
+@@ -0,0 +1,90 @@
++/**************************************************************************/
++/*  gdscript_validation.h                                                 */
++/**************************************************************************/
++/*                         This file is part of:                          */
++/*                             GODOT ENGINE                               */
++/*                        https://godotengine.org                         */
++/**************************************************************************/
++/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
++/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
++/*                                                                        */
++/* Permission is hereby granted, free of charge, to any person obtaining  */
++/* a copy of this software and associated documentation files (the        */
++/* "Software"), to deal in the Software without restriction, including    */
++/* without limitation the rights to use, copy, modify, merge, publish,    */
++/* distribute, sublicense, and/or sell copies of the Software, and to     */
++/* permit persons to whom the Software is furnished to do so, subject to  */
++/* the following conditions:                                              */
++/*                                                                        */
++/* The above copyright notice and this permission notice shall be         */
++/* included in all copies or substantial portions of the Software.        */
++/*                                                                        */
++/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
++/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
++/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
++/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
++/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
++/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
++/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
++/**************************************************************************/
++
++#pragma once
++
++#ifdef TOOLS_ENABLED
++
++#include "gdscript_cache.h"
++
++#include "core/templates/hash_map.h"
++#include "core/variant/variant.h"
++
++// Only installed during the synchronous, editor-main-thread ClassDB invocation.
++// Parser references and shallow scripts here are NOT the global cache: a cached
++// Script's source getter cannot attest which bytes built its AST or metadata.
++class GDScriptValidationContext {
++	struct SourceRecord {
++		String source;
++		Dictionary witness;
++	};
++
++	static thread_local GDScriptValidationContext *active;
++	Callable reader;
++	String root_path;
++	String root_source;
++	String failure;
++	String project_context;
++	HashMap<String, SourceRecord> sources;
++	HashMap<String, Ref<GDScriptParserRef>> parsers;
++	HashMap<String, Ref<GDScript>> shallow_scripts;
++	HashMap<String, String> missing;
++	uint64_t dependency_bytes = 0;
++	String validation_stage = "parse";
++
++	Dictionary call_reader(const String &p_path, bool p_recheck);
++	bool read_source(const String &p_path);
++	String capture_project_context() const;
++
++public:
++	static GDScriptValidationContext *get_active() { return active; }
++	static bool is_active() { return active != nullptr; }
++	static bool has_nested_call() { return active != nullptr; }
++
++	GDScriptValidationContext(const String &p_root_path, const String &p_source, const Callable &p_reader);
++	~GDScriptValidationContext();
++
++	void refuse(const String &p_reason);
++	const String &get_failure() const { return failure; }
++	String resolve_path(const String &p_path, const String &p_owner);
++	String source_for(const String &p_path);
++	Ref<GDScriptParserRef> get_parser(const String &p_path, GDScriptParserRef::Status p_status, Error &r_error, const String &p_owner);
++	Ref<GDScript> get_shallow_script(const String &p_path, Error &r_error, const String &p_owner);
++	Dictionary finish(bool &r_context_current, bool &r_dependencies_current);
++	Dictionary witness_for(const String &p_path) const;
++	void set_validation_stage(const String &p_stage) { validation_stage = p_stage; }
++	const String &get_validation_stage() const { return validation_stage; }
++	const HashMap<String, String> &get_missing_sources() const { return missing; }
++	const HashMap<String, Ref<GDScriptParserRef>> &get_parser_refs() const { return parsers; }
++	const String &get_root_path() const { return root_path; }
++	bool allows_static_object(Object *p_object) const;
++};
++
++#endif // TOOLS_ENABLED
+diff --git a/modules/gdscript/gdscript_validation_api.cpp b/modules/gdscript/gdscript_validation_api.cpp
+new file mode 100644
+index 0000000..96ffc05
+--- /dev/null
++++ b/modules/gdscript/gdscript_validation_api.cpp
+@@ -0,0 +1,294 @@
++/**************************************************************************/
++/*  gdscript_validation_api.cpp                                           */
++/**************************************************************************/
++/*                         This file is part of:                          */
++/*                             GODOT ENGINE                               */
++/*                        https://godotengine.org                         */
++/**************************************************************************/
++/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
++/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
++/*                                                                        */
++/* Permission is hereby granted, free of charge, to any person obtaining  */
++/* a copy of this software and associated documentation files (the        */
++/* "Software"), to deal in the Software without restriction, including    */
++/* without limitation the rights to use, copy, modify, merge, publish,    */
++/* distribute, sublicense, and/or sell copies of the Software, and to     */
++/* permit persons to whom the Software is furnished to do so, subject to  */
++/* the above copyright notice and this permission notice shall be         */
++/* included in all copies or substantial portions of the Software.        */
++/*                                                                        */
++/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
++/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
++/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
++/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
++/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
++/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
++/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
++/**************************************************************************/
++
++#include "gdscript.h"
++
++#ifdef TOOLS_ENABLED
++
++#include "gdscript_validation.h"
++
++#include "core/config/engine.h"
++#include "core/extension/gdextension.h"
++#include "core/os/os.h"
++#include "core/os/thread.h"
++
++#ifdef TESTS_ENABLED
++// The fixture alone can install an actual project Object constant, so the
++// analyzer's dynamic getter branch has a live sentinel. This is absent from
++// normal editor builds and cannot register arbitrary symbols.
++static const StringName &validation_test_symbol() {
++	static const StringName name("ValidationEffectSentinel");
++	return name;
++}
++
++static ObjectID validation_test_object_id;
++
++bool GDScript::gdscript_validation_test_set_object(Object *p_object) {
++	if (!Thread::is_main_thread() || !Engine::get_singleton()->is_editor_hint() ||
++			GDScriptValidationContext::is_active() || p_object == nullptr ||
++			validation_test_object_id != ObjectID() ||
++			GDScriptLanguage::get_singleton()->has_any_global_constant(validation_test_symbol())) {
++		return false;
++	}
++	validation_test_object_id = p_object->get_instance_id();
++	GDScriptLanguage::get_singleton()->add_named_global_constant(validation_test_symbol(), p_object);
++	return true;
++}
++
++bool GDScript::gdscript_validation_test_clear_object() {
++	if (!Thread::is_main_thread() || !Engine::get_singleton()->is_editor_hint() ||
++			GDScriptValidationContext::is_active() || validation_test_object_id == ObjectID() ||
++			!GDScriptLanguage::get_singleton()->has_any_global_constant(validation_test_symbol())) {
++		return false;
++	}
++	Variant value = GDScriptLanguage::get_singleton()->get_any_global_constant(validation_test_symbol());
++	if (value.get_type() != Variant::OBJECT || value.get_validated_object() == nullptr ||
++			value.get_validated_object()->get_instance_id() != validation_test_object_id) {
++		return false;
++	}
++	GDScriptLanguage::get_singleton()->remove_named_global_constant(validation_test_symbol());
++	validation_test_object_id = ObjectID();
++	return true;
++}
++#endif // TESTS_ENABLED
++
++int GDScript::gdscript_validation_api_revision() {
++	return 1;
++}
++
++static bool validation_ascii_hex(const String &p_value, int p_length) {
++	if (p_value.length() != p_length) {
++		return false;
++	}
++	for (int i = 0; i < p_length; i++) {
++		const char32_t c = p_value[i];
++		if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) {
++			return false;
++		}
++	}
++	return true;
++}
++
++static bool validation_request_id(const String &p_value) {
++	if (p_value.is_empty() || p_value.length() > 64) {
++		return false;
++	}
++	for (int i = 0; i < p_value.length(); i++) {
++		const char32_t c = p_value[i];
++		if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '-' || c == '_')) {
++			return false;
++		}
++	}
++	return true;
++}
++
++static bool validation_document_id(const Variant &p_id) {
++	if (p_id.get_type() != Variant::STRING) {
++		return false;
++	}
++	String value = p_id;
++	if (value.is_empty() || value.length() > 20 || value[0] == '0') {
++		return false;
++	}
++	for (int i = 0; i < value.length(); i++) {
++		if (value[i] < '0' || value[i] > '9') {
++			return false;
++		}
++	}
++	return true;
++}
++
++struct ValidationErrorLess {
++	bool operator()(const ScriptLanguage::ScriptError &p_a, const ScriptLanguage::ScriptError &p_b) const {
++		if (p_a.path != p_b.path) {
++			return p_a.path < p_b.path;
++		}
++		if (p_a.line != p_b.line) {
++			return p_a.line < p_b.line;
++		}
++		if (p_a.column != p_b.column) {
++			return p_a.column < p_b.column;
++		}
++		return p_a.message < p_b.message;
++	}
++};
++
++Dictionary GDScript::validate_gdscript_source(const String &p_source, const String &p_source_path, const Callable &p_read_context, const Dictionary &p_correlation) {
++	const uint64_t started_tick = OS::get_singleton()->get_ticks_usec();
++	const String source_hash = p_source.sha256_text();
++	const int64_t source_bytes = p_source.utf8().length();
++	Dictionary result;
++	result["status"] = "unavailable";
++	result["reason"] = Variant();
++	result["request_id"] = p_correlation.get("request_id", Variant());
++	result["session_id"] = p_correlation.get("session_id", Variant());
++	result["document"] = p_correlation.get("document", Variant());
++	result["purpose"] = p_correlation.get("purpose", Variant());
++	result["source_path"] = Variant();
++	Dictionary input;
++	input["source_sha256"] = source_hash;
++	input["utf8_bytes"] = source_bytes;
++	result["input"] = input;
++	result["dependencies"] = Array();
++	result["context"] = Variant();
++	result["context_current"] = false;
++	result["dependencies_current"] = false;
++	result["diagnostics"] = Array();
++	result["diagnostics_complete"] = false;
++	result["stage"] = "not_started";
++
++	String refusal;
++	Variant document_value = p_correlation.get("document", Variant());
++	Dictionary document;
++	if (document_value.get_type() == Variant::DICTIONARY) {
++		document = document_value;
++	}
++	const Variant request = p_correlation.get("request_id", Variant());
++	const Variant session = p_correlation.get("session_id", Variant());
++	const Variant expected = p_correlation.get("expected_source_sha256", Variant());
++	if (!Thread::is_main_thread() || !Engine::get_singleton()->is_editor_hint()) {
++		refusal = "wrong_thread";
++	} else if (GDScriptValidationContext::has_nested_call()) {
++		refusal = "reentrant";
++	} else if (!GDExtension::is_native_custom_callable(p_read_context)) {
++		refusal = "unsupported_effect";
++	} else if (source_bytes > 512 * 1024) {
++		refusal = "source_limit";
++	} else if (!p_source_path.begins_with("res://") || p_source_path != p_source_path.simplify_path() ||
++			!p_source_path.ends_with(".gd") || p_source_path.contains("::") || p_source_path.utf8().length() > 2048) {
++		refusal = "access_denied";
++	} else if (request.get_type() != Variant::STRING || !validation_request_id(request) ||
++			session.get_type() != Variant::STRING || !validation_ascii_hex(session, 32) ||
++			expected.get_type() != Variant::STRING || !validation_ascii_hex(expected, 64) ||
++			source_hash != String(expected) || document.is_empty() ||
++			!validation_document_id(document.get("resource_instance_id", Variant())) ||
++			!validation_document_id(document.get("editor_instance_id", Variant())) ||
++			!validation_document_id(document.get("buffer_instance_id", Variant())) ||
++			(p_correlation.get("purpose", "") != "preflight" &&
++					p_correlation.get("purpose", "") != "post_change" &&
++					p_correlation.get("purpose", "") != "unchanged")) {
++		refusal = "invalid_binding";
++	} else {
++		result["source_path"] = p_source_path;
++		GDScriptValidationContext validation(p_source_path, p_source, p_read_context);
++		List<ScriptLanguage::ScriptError> errors;
++		const bool parsed = GDScriptLanguage::get_singleton()->validate(p_source, p_source_path, nullptr, &errors, nullptr, nullptr);
++		result["stage"] = validation.get_validation_stage();
++
++		Vector<ScriptLanguage::ScriptError> sorted_errors;
++		for (const ScriptLanguage::ScriptError &error : errors) {
++			sorted_errors.push_back(error);
++		}
++		sorted_errors.sort_custom<ValidationErrorLess>();
++		Array diagnostics;
++		for (const ScriptLanguage::ScriptError &error : sorted_errors) {
++			if (diagnostics.size() == 64 || error.message.utf8().length() > 2048) {
++				validation.refuse("diagnostic_limit");
++				break;
++			}
++			Dictionary diagnostic;
++			const bool is_root = error.path == p_source_path;
++			Dictionary witness = validation.witness_for(error.path);
++			const bool known_missing = validation.get_missing_sources().has(error.path);
++			if (!is_root && witness.is_empty() && !known_missing) {
++				validation.refuse("attribution_unavailable");
++				diagnostic["path"] = Variant();
++				diagnostic["path_reason"] = "unavailable";
++				diagnostic["message"] = "Dependency diagnostic cannot be attributed.";
++			} else {
++				diagnostic["path"] = error.path;
++				diagnostic["path_reason"] = Variant();
++				diagnostic["message"] = error.message;
++			}
++			diagnostic["origin"] = is_root ? "root" : "dependency";
++			diagnostic["source_sha256"] = is_root ? Variant(source_hash) : witness.get("source_sha256", Variant());
++			diagnostic["line"] = error.line > 0 ? Variant(error.line) : Variant();
++			diagnostic["column"] = error.column > 0 ? Variant(error.column) : Variant();
++			bool parse_error = validation.get_validation_stage() == "parse";
++			if (!is_root) {
++				const Ref<GDScriptParserRef> *ref = validation.get_parser_refs().getptr(error.path);
++				parse_error = ref && ref->is_valid() && (*ref)->get_status() == GDScriptParserRef::PARSED;
++			}
++			diagnostic["category"] = parse_error ? "parse_error" : "analysis_error";
++			diagnostics.push_back(diagnostic);
++		}
++		PackedStringArray missing_paths;
++		for (const KeyValue<String, String> &missing : validation.get_missing_sources()) {
++			missing_paths.push_back(missing.key);
++		}
++		missing_paths.sort();
++		for (const String &missing_path : missing_paths) {
++			if (diagnostics.size() == 64) {
++				validation.refuse("diagnostic_limit");
++				break;
++			}
++			Dictionary diagnostic;
++			diagnostic["origin"] = "dependency";
++			diagnostic["path"] = missing_path;
++			diagnostic["path_reason"] = Variant();
++			diagnostic["source_sha256"] = Variant();
++			diagnostic["line"] = Variant();
++			diagnostic["column"] = Variant();
++			diagnostic["category"] = "missing_dependency";
++			diagnostic["message"] = "Referenced GDScript source is missing.";
++			diagnostics.push_back(diagnostic);
++		}
++		bool context_current = false;
++		bool dependencies_current = false;
++		Dictionary evidence = validation.finish(context_current, dependencies_current);
++		result["dependencies"] = evidence["dependencies"];
++		result["context"] = evidence["context"];
++		result["context_current"] = context_current;
++		result["dependencies_current"] = dependencies_current;
++		result["diagnostics"] = diagnostics;
++		if (!validation.get_failure().is_empty()) {
++			refusal = validation.get_failure();
++		} else {
++			const bool has_missing = !validation.get_missing_sources().is_empty();
++			result["status"] = parsed && !has_missing ? "valid" : "invalid";
++			result["reason"] = has_missing ? Variant("dependency_error") :
++					parsed ? Variant() : Variant(validation.get_validation_stage() == "parse" ? "parse_error" : "analysis_error");
++			result["diagnostics_complete"] = true;
++		}
++	}
++	if (!refusal.is_empty()) {
++		result["reason"] = refusal;
++		if (refusal == "access_denied" || refusal == "attribution_unavailable") {
++			// Parser messages can contain the unconfined, caller-supplied path.
++			result["diagnostics"] = Array();
++		}
++	}
++	Dictionary collection;
++	collection["clock_id"] = "editor";
++	collection["started_tick"] = uitos(started_tick);
++	collection["finished_tick"] = uitos(OS::get_singleton()->get_ticks_usec());
++	result["collection"] = collection;
++	return result;
++}
++
++#endif // TOOLS_ENABLED

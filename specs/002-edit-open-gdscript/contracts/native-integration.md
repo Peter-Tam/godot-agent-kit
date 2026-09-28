@@ -1,6 +1,6 @@
 # Native Script Editing Integration Contract
 
-**Status:** Selected planning contract; not implemented or runtime-verified. Names below identify required operations, not existing Godot bindings. Applies to the exact candidate in [plan.md](../plan.md). The [data model](../data-model.md) owns common field meanings; the Rust/core alone classifies terminal outcomes.
+**Status:** Primitive B is implemented and runtime-verified by [T002](../quickstart.md#10-t002-native-validation-acceptance-2026-09-28). Primitive A, document inspection/edit guards and caller integration remain planned T003/T004 scope. Names for those later operations are required contracts, not existing bindings. Applies to the exact candidate in [plan.md](../plan.md). The [data model](../data-model.md) owns common field meanings; the Rust/core alone classifies terminal outcomes.
 
 ## 1. Ownership and minimum exposure
 
@@ -16,6 +16,8 @@ Use the existing editor plugin/private bridge, a small C++17 GDExtension using G
 | Target-local guarding of automatic validation caused by the agent edit | Small editor-side companion to those APIs; not a second transaction policy. |
 
 Engine API family revision **1** comprises `inspect_script_document`, a paired `begin_script_edit_guard` / `end_script_edit_guard`, Primitive A `finalize_script_document`, and Primitive B `validate_gdscript_source`. The inspection/guard operations exist only to make A/B independently observable and prevent the normal editor validation path from bypassing their effect boundary. They expose no generic object-call, filesystem, evaluator, or history-control API to the bridge/caller.
+
+T002 exposes the narrower `GDScript.gdscript_validation_api_revision()` and `validate_gdscript_source` ClassDB bindings plus `ScriptEditorBase.get_edited_resource()` association readback. Its editor-local native metadata reports **validation** revision `1`, not completion of the family above. No bridge capability or edit operation is advertised; see the [implemented native surface](../../../godot-addon/native/README.md#integration-surface-and-acceptance).
 
 `inspect_script_document` independently reads the exact Script/document/CodeEdit association, document path/mtime baseline, Resource edited/mtime fields, and CodeEdit current/saved versions. It never tags, saves, synchronizes, loads, opens or selects. Existing R/B/dirty observation remains separate. Missing this readback capability means edit capability is unavailable, not an inferred successful finalization.
 

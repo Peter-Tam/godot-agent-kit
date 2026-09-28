@@ -1,6 +1,6 @@
 # Quickstart: Verify Guarded Open-GDScript Editing
 
-**Status:** T001's protocol-independent core is implemented and verified; see [§9](#9-t001-core-acceptance-2026-09-27). Feature 002 remains in progress. The native/CLI implementation and A–E acceptance below remain future work. Commands involving `edit-gdscript`, the native build entrypoint or `run_script_edit.py` are planned interfaces, **not commands executed or currently available here**. Existing observation evidence and pure core verification do not establish mutation support.
+**Status:** T001's protocol-independent core and T002's read-only native validation primitive are implemented and verified; see [§9](#9-t001-core-acceptance-2026-09-27) and [§10](#10-t002-native-validation-acceptance-2026-09-28). Feature 002 remains in progress. The native build and `run_script_edit.py --scenario native-validation` are available. The writer/finalizer, edit caller, full-feature runner and mutation A–E/durability acceptance remain T003–T005 work; their commands and scenarios below are planned, not executed claims.
 
 Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [caller](contracts/edit-api.md), [bridge](contracts/bridge-protocol.md), [native](contracts/native-integration.md) contracts as normative semantics. Do not infer success from process exit, a save acknowledgment or the finalizer's copied fields.
 
@@ -13,13 +13,13 @@ Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [calle
 - Compatible exact-version export templates; editor-only API additions must not require shipped tooling or a patched gameplay authority. Verify actual exported execution, not only a preset's text.
 - Empty absolute mode-0700 artifact directories and a draining stdout consumer. Harness starts/stops only its owned editor/runtime children and records bounded waits and cleanup.
 
-The implementation-owned native build entrypoint is planned as:
+The implemented native build entrypoint is:
 
 ```sh
 python3 godot-addon/native/build.py --godot "$EDIT_GODOT"
 ```
 
-It must use the matched public GDExtension C ABI, compile only the owned native source, install the editor-only artifact under the addon, and record build/ABI/provenance information. It must not download/build an arbitrary engine automatically, substitute an unmatched binary, or create a release/update service. Implementation must provide the exact-base engine patch and reproducible application/build instructions alongside that native source. No patch checksum is invented before the patch exists.
+It uses the matched public GDExtension C ABI, compiles the owned native source, installs the editor-only artifact and records build/ABI/provenance information. The [native build guide](../../godot-addon/native/README.md) supplies exact-base patch application and engine build instructions. It does not download/build an arbitrary engine automatically or create a release/update service. T002 implements only validation, not the complete editing API family.
 
 Confirm actual candidate/tool identities during implementation:
 
@@ -29,7 +29,7 @@ rustc +1.98.1 --version
 python3 --version
 ```
 
-The harness must independently check advertised native capabilities/build identity and exercised behavior; a version string alone is insufficient. Stock/unmatched/missing-native cases must refuse mutation source-free while retaining supported observation behavior. No runtime probes, policy-blocked experiments or filter retries are authorized by this planning continuation.
+The harness independently checks native capabilities/build identity and exercised behavior; a version string alone is insufficient. Stock/unmatched/missing-native cases must retain supported observation behavior without granting edit capability. The original planning continuation authorized no runtime experiment; §10 records the separately authorized T002 implementation evidence.
 
 ## 2. Rust and boundary checks
 
@@ -49,7 +49,7 @@ The native implementation also needs isolated real-engine regressions for A/B, u
 
 ## 3. Owned real-editor runner
 
-Reuse existing observation harness setup, authentication, owned-window capture, independent D/R/B/dirty/history witnesses, process cleanup and artifact handling. Add the focused planned runner with this invocation:
+Reuse existing observation harness setup, authentication, owned-window capture, independent D/R/B/dirty/history witnesses, process cleanup and artifact handling. T002's implemented validation-only invocation is in §10. The complete caller runner below belongs to T004/T005 and is **not available at T002**:
 
 ```sh
 python3 godot-addon/tests/run_script_edit.py \
@@ -57,7 +57,7 @@ python3 godot-addon/tests/run_script_edit.py \
   --scenario all --artifacts "$EDIT_ARTIFACTS"
 ```
 
-`OBSERVER` and `MUTATOR` identify the newly built callers; the native artifact is installed by the native build into the addon copied to the fixture. The runner accepts the named groups below and `all`. It creates its own registry/project, enables only owned fixture/product plugins, opens the target explicitly during setup, prepares the requested clean/dirty/history states, and drives actual caller requests. Product edit/observation code cannot call the fixture helpers to manufacture eligibility or proof.
+In that planned full-feature runner, `OBSERVER` and `MUTATOR` identify the newly built callers; the native artifact is installed by the native build into the addon copied to the fixture. It will accept the named groups below and `all`, create its own registry/project, prepare the requested clean/dirty/history states, and drive actual caller requests. Product edit/observation code cannot call fixture helpers to manufacture eligibility or proof.
 
 A request uses a newly returned complete clean agreeing observation as `basis`; the runner sends the input JSON directly to `edit-gdscript` stdin. Do not put source/credentials in argv or use a temp-source filename as a product escape hatch. Use a new request ID each attempt and preserve original request/session/document attribution in artifacts. Native Save/Undo/Redo/open/reparse/rescan/runtime actions are explicit **fixture/developer** interactions, not new product commands.
 
@@ -116,7 +116,7 @@ Use controlled safe fixture sentinels to establish that excluded loaders, dynami
 
 Exercise wrong thread/context, nested/reentrant validation, changed target/source/dependency/global-class mapping, limits and incomplete result. Confirm automatic validation/function discovery and queued application/export callbacks caused by the edit cannot bypass the controlled path after its explicit return/guard close. Subsequent independent human edits and unrelated ordinary editor behavior must still work normally.
 
-Runtime proof of these new hooks remains required during implementation. A currently disallowed experiment is not retried, rephrased or claimed to pass in this planning continuation; source reasoning does not replace future behavior evidence.
+T002's non-mutating B proof is recorded in §10. Guarding ordinary editor callbacks caused by an actual edit remains T003 work and requires its own real-editor evidence. No historical incomplete probe is converted into acceptance by source reasoning or this implementation.
 
 ### Additional representation, availability and access edges
 
@@ -256,3 +256,156 @@ infrastructure is introduced.
 and native integration. No CLI edit, bridge-v2 migration, engine patch, actual
 Undo/Redo, mutation timing, A–E, export/durability or Godot-support claim follows from
 T001. Those feature gates remain mandatory and pending, not inapplicable or passed.
+
+## 10. T002 native validation acceptance (2026-09-28)
+
+**T002 is complete.** Primitive B runs the real Godot parser/analyzer through
+generated public GDExtension C ABI and ClassDB dispatch. This is read-only native
+integration evidence, not an edit caller, Primitive A, or mutation acceptance.
+T003–T005 remain pending.
+
+### Executed build and runtime evidence
+
+The maintainer-operated candidate was macOS **26.6.2 arm64**, Godot
+`4.7.2.stable.custom_build.ed1daf0bf`, Rust **1.98.1**, Apple clang
+`21.0.0 (clang-2100.3.34.2)`, SDK **27.0**, and SCons **4.10.1**.
+The SDK version is build provenance, not a claim to have tested another host.
+The engine build used `target=editor arch=arm64 dev_build=no debug_symbols=no
+optimize=none tests=yes vulkan=no metal=no angle=no accesskit=no`.
+The native build used C++17, `-O2`, hidden visibility and
+`-Wall -Wextra -Werror`. Exact reproduction is in the
+[native build guide](../../godot-addon/native/README.md).
+
+| Identity | Recorded value |
+|---|---|
+| Godot source base | `ed1daf0bf001b61586d9930840f2f1394092c079` |
+| Engine patch SHA-256 | `1b1508c4c79dcb77af86685aef828e97b0d5857be6e4285ff2b7b72ecfe75f2a` |
+| Patched editor SHA-256 | `45a64b260c8347b4496bf7d0caabcbf2ff2e49530d051bf0434e8866990ba338` |
+| Native build ID | `5c76fe0f323be3189970f16351d88adcd27cc5cd4beba477b1bc84094b34c362` |
+| Native library SHA-256 | `32e4766e5b47948bf5b0dd5ee79eae10288566b757655a0f1b7c743a1fa521b0` |
+| Native build-manifest SHA-256 | `7f02424b31f522642d1a1e856949b871923070e2f66a7a7bd421e8777e95aa5e` |
+| Generated C header SHA-256 | `640b48188708ba0016f8d7ace9e0e1d3279a41fa1226c59ff3193b15538bd254` |
+| Generated ABI / ClassDB API SHA-256 | `7d8c0a039d9743eb8ebf88681ae0c641d8d3aa5ffca11081745a84da803e09a1` / `ee94edcf1f0f485080a92d8d2e01b4e646103de3df625377f9ec6755a6fbaa87` |
+| Observation caller SHA-256 | `ccb9366f5a71ff6fc211e0900df5885c0b13fa19da97a7665058838d492c0d80` |
+| Stock Godot / macOS export-template SHA-256 | `c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf` / `88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792` |
+
+Executed from the repository root, with absolute paths and separate empty private
+artifact directories:
+
+```sh
+python3 godot-addon/native/build.py --godot "$EDIT_GODOT"
+python3 godot-addon/tests/run_script_edit.py \
+  --godot "$EDIT_GODOT" --observer "$OBSERVER" \
+  --scenario native-validation --artifacts "$NATIVE_ARTIFACTS"
+python3 godot-addon/tests/run_observation.py \
+  --godot "$STOCK_GODOT" --observer "$OBSERVER" \
+  --scenario all --artifacts "$OBSERVATION_ARTIFACTS"
+```
+
+- **54 native cases passed:** bootstrap, 50 validation/lifecycle cases and three
+  actual production exports (enabled, disabled, hook-only). Native state checks
+  independently compared D bytes/identity/metadata, R/B text, associations, dirty
+  and current/saved versions, caret/selection and prior Undo/Redo. Owned GUI
+  before/after captures were byte-identical, SHA-256
+  `8dd739e8906d5238d47d9e07839360a8f216bd0b82c6d2ec3843b7c09dc000db`.
+- **194 existing observation cases passed**, all 13 groups, on
+  `4.7.2.stable.official.ed1daf0bf` with the final native artifact installed.
+  This includes the existing twenty-read/history, routing, privacy and export
+  coverage; the unsupported native artifact did not widen the stock bridge.
+- A separate owned **missing-native smoke passed** after removing only the
+  copied fixture's library/build manifest. The editor had no native API metadata;
+  the actual caller returned complete observation with independently matched
+  D/R/B and an owned-window capture.
+- Rust formatting, Clippy with `-D warnings`, `cargo test --locked`
+  (**155 tests**, with the doctest target also executed), and rustdoc passed.
+  Three ABI refusal regressions, 20 workflow boundary/execution regressions,
+  Python compilation, Actionlint and the validation-only CLI help smoke passed.
+  The local patched-engine/native build passed. Hosted `ci.yml` now runs that
+  build boundary; workflow validation is not a claim of a hosted GUI run.
+
+Final local artifacts are retained under
+`/var/folders/2r/m9lt6gb17wgbzcw9zzf6mp_80000gn/T/godot-agent-kit-native-ex09m3nz/`:
+
+| Artifact | Summary SHA-256 |
+|---|---|
+| `native-acceptance/summary.json` | `f397774e96779c99fdb2d8fa783250182cc789e06773d72a1c3a5c5b65d23a49` |
+| `stock-observation-final/summary.json` | `4959c6a0a0fca5d8ffc39fc68097021ca18d6f0f275bb5c9e30639cd961f01dd` |
+| `missing-native-evidence/summary.json` | `48535409902874b706162f0dda938dbf219e8a30cfa8fc5a569b343198d7bceb` |
+
+These are local acceptance artifacts, not portable download links or committed
+build/editor state. Summaries retain per-case witnesses, artifact hashes and
+runtime/export results. Historical failed attempts remain failed evidence.
+
+### Coverage, discovered failures and fixes
+
+The native cases cover valid Unicode/empty source; root parser/analyzer and
+dependency errors; missing versus denied/unreadable/symlink/ACL dependencies;
+nested relative/transitive resolution; fresh attribution despite stale caches;
+actual mid-call dependency invalidation; changed autoload context; native
+reentrancy; wrong path/hash/document/session/thread; and close/disable/re-enable.
+Exact and over-limit cases cover root/dependency source bytes, dependency count,
+4 MiB aggregate bytes, 64 diagnostics, 2048-byte dependency paths and 2048-byte
+diagnostic messages. Unsupported binary/remapped inputs and excluded loaders,
+tool/static initialization, constructors, getters and diagnostic stringification
+have independent refusal/effect evidence.
+
+Review findings were reproduced and fixed before acceptance:
+
+- Duplicate-key diagnostic formatting could call a scripted `_to_string()` after
+  effect refusal. The analyzer now guards the value before formatting; the actual
+  effect sentinel remains untouched.
+- A failed autoload dependency could yield `valid`. Dependency-analysis failures
+  now propagate with dependency-attributed diagnostics.
+- Cyclic call-local parser references leaked. Cleanup breaks dependency edges
+  while retaining the owning map; 32 repeated cyclic validations preserve the
+  observed object count.
+- The native reader needed a final size/identity check, and generated double or
+  missing precision could select undersized ABI storage. Both are checked;
+  double/unknown/32-bit ABI regressions fail closed.
+- Skipping the native manifest during export still left its path in Godot's
+  generated extension registry. `.gdignore` plus explicit editor-plugin loading
+  removed automatic discovery; all three real exported applications run without
+  tooling, a missing native dependency, or a listener.
+
+Earlier locked-desktop capture failures were not counted as visual proof.
+The unlocked final run used a process-scoped display-idle assertion and actual
+owned-window capture. Fixture loader sentinels are armed only during the native
+call, and ordinary editor R convergence is observed before measuring B's
+non-interference; startup/import activity is not mislabeled as a validation effect.
+
+### Implementation shape and constitutional review
+
+`extension.cpp` owns C-ABI registration, exact-build gating and callable lifetime;
+`native.hpp` owns the shared opaque-value ABI wrappers and session state;
+`validation.cpp` owns the project-bound read-only reader/invocation pipeline.
+Its helpers remain private, its idle/running/closing state has one enum, retained
+dependency witnesses do not copy full source buffers, and document IDs are
+decoded once rather than allocated repeatedly during editor enumeration.
+No writer/finalizer declarations or speculative public APIs were added.
+
+The engine's scoped read/parser/effect context and ClassDB result marshaling are
+separate small units. Existing large analyzer/cache files retain their original
+responsibilities; the patch adds checks at their real resolution/evaluation
+sites rather than another parser or a generic execution framework. The existing
+plugin owns enable/disable and export lifecycle. Responsibility-based naming is
+retained; task IDs occur in acceptance fixtures/docs, not product APIs.
+
+Principles I–IV/VI/X/XII: B reports actual source/context-attributed validation,
+preserves independently observed source/dirty/history state and refuses missing,
+invalidated or unsupported evidence. This does not verify any mutation.
+V/VII/IX/XI: confinement/effect limits stay at the Godot boundary, the bridge v1
+and Rust policy remain unchanged, and the implementation uses the public C ABI
+without private binary layouts, private-symbol linkage or another parser.
+VIII: actual enabled/disabled/hook-only exports prove tooling exclusion.
+XIII: the existing [complexity record](plan.md#complexity-tracking) justifies the
+native build, scoped context, test-only effect witness and explicit loading
+against demonstrated failures. No new service, approval gate, runtime dependency,
+provider-specific GUI prerequisite or duplicate transaction policy was introduced.
+
+**Limits:** evidence applies only to the recorded macOS arm64, tests-enabled
+patched editor/native build and the separately tested stock observation build.
+No other platform/version, `tests=no` native build, patched-editor bridge support,
+project-wide compilation, global execution sandbox or atomic same-inode snapshot
+is claimed. The full editing family, edit-generated callback guard, bound writes,
+finalization, caller/bridge cutover and mutation A–E/Save/reopen/runtime durability
+remain pending. Preserving existing Undo/Redo is not proof of agent-edit Undo/Redo.
