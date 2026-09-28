@@ -4,11 +4,13 @@
 
 **Input**: Feature specification from `/specs/002-edit-open-gdscript/spec.md`
 
-**Status**: **Planning/design complete; implementation in progress.** Design artifacts were merged in [PR #24](https://github.com/Peter-Tam/godot-agent-kit/pull/24). T001's reusable core and T002's read-only native validation are complete with [core](quickstart.md#9-t001-core-acceptance-2026-09-27) and [native](quickstart.md#10-t002-native-validation-acceptance-2026-09-28) acceptance evidence; T003–T005 remain pending. No native/CLI mutation support or A–E acceptance is claimed.
+**Status**: **Production mutation design reopened at stock target saved-state integration; T003 on research hold.** The [stock Save research](research.md#13-stock-target-save-finalization-research-2026-09-28) found no qualifying route among those audited, despite real native saved-state bookkeeping/history on successful stock Save. The patched-engine design below is retained as a historical baseline, **not** an approved implementation or product path. T001's reusable core and T002's read-only native validation are complete with [core](quickstart.md#9-t001-core-acceptance-2026-09-27) and [native](quickstart.md#10-t002-native-validation-acceptance-2026-09-28) acceptance evidence; T003–T005 and all mutation A–E/durability acceptance remain pending. The product target is official stock Godot, addon and bundled standard GDExtension.
 
 ## Summary
 
 Deliver one native, revision-guarded whole-source edit to an existing open standalone GDScript in one explicitly selected local editor. A caller supplies a checked prior-observation basis and intended source; Rust/core freshly checks independent D/R/B, dirty state and identities, authorizes application, and independently verifies resulting source, clean/saved state and source-attributed parse evidence before success. Refused/unchanged requests add no source/history changes; partial/uncertain changes never imply rollback or retry safety.
+
+The following selected boundary and Primitive A design describe the historical PR #24 patched-engine candidate, not an executable recommendation. Current research does **not** select the patch, a current-tab Save shortcut, or a replacement stock API; T003 must not start until a supported stock target-save mechanism satisfies the unchanged requirements and affected artifacts are reviewed.
 
 Selected boundary:
 
@@ -22,9 +24,9 @@ edit-gdscript / typed caller
   -> independent Rust D and fresh editor R/B/dirty/saved-state verification
 ```
 
-The two previously unresolved capabilities now have concrete [native contracts](contracts/native-integration.md): A guards successful persistence and updates exact target document/Resource/saved-version bookkeeping; B returns exact-source native parser/analyzer results under a confined, non-evaluating dependency/effect policy. Small inspection/target-guard companions make those guarantees observable and prevent automatic editor callbacks from bypassing them. Standard GDExtension alone supplies object access, native text/history calls and descriptor I/O, but not the two unbound engine capabilities.
+The historical [native contract](contracts/native-integration.md) proposed A to update target document/Resource/saved-version bookkeeping and B for confined exact-source validation. B is implemented as T002, but its patched validation evidence does not authorize mutation. [Stock Save research §13](research.md#13-stock-target-save-finalization-research-2026-09-28) distinguishes **demonstrated positive stock runtime** (successful ordinary target Save, including a descriptor-backed saver, completes native saved-state/history behavior) from **demonstrated negative stock runtime** (a truthful custom-saver failure falls through to the builtin path writer, including an outside-project redirected write; target Save applies all open scripts and changes an unrelated dirty buffer/history; direct descriptor-backed `ResourceSaver.save` lacks the ScriptEditor saved transition). The **stock public API/source finding** explains the dispatcher fallback and all-script application. The **unresolved technical question** is a different supported fail-closed, target-only stock composition. None of the audited paths meets the mandatory guarantees; this does not rule out every possible architecture. Runtime evidence is limited to pinned official Godot 4.7.2 on macOS arm64, not product A–E acceptance.
 
-The [research decision](research.md#11-concrete-native-design-and-resumed-planning) preserves every completed positive/negative observation. The policy-interrupted probe is not a technical failure or a successful experiment. No runtime probe or engine patch was performed in this continuation. The [Phase 1 concurrency boundary](spec.md#phase-1-concurrency-boundary) now explicitly distinguishes required local kit-entry serialization from excluded broader coordination; the same existing integration slot supplies it.
+The earlier [§11 design decision](research.md#11-concrete-native-design-and-resumed-planning), policy interruption and [Phase 1 concurrency boundary](spec.md#phase-1-concurrency-boundary) remain historical evidence/requirements, not current authorization to implement its patch. The spec, data model and quickstart remain unchanged because no replacement mutation API or data contract has been selected; validation/effect-confinement research is separate from this saved-state question.
 
 ## Technical Context
 
@@ -32,9 +34,9 @@ The [research decision](research.md#11-concrete-native-design-and-resumed-planni
 
 **Primary Dependencies**: Reuse existing locked `serde =1.0.229`, `serde_json =1.0.151`, `cap-std =4.0.3`, `ring =0.17.14` and existing system toolchain. No new Rust crate, godot-cpp layer, parser, process service or transport. Generate/use the pinned engine's public GDExtension C interface and opaque object/Variant dispatch, preserving upstream SDK notices. Native OS I/O uses the demonstrated macOS descriptor APIs.
 
-**Engine candidate**: Godot **4.7.2**, base commit `ed1daf0bf001b61586d9930840f2f1394092c079`, plus the **planned editor/GDScript API family revision 1** and matched extension. This is a future patched development build, **not** the already-tested official stock binary. Record base commit, exact patch digest, reported engine version/hash, API/native build ID, compiler/SDK and actual binary hashes in implementation evidence. The patch digest/binary do not exist yet and are not fabricated. Support is limited to exact builds that later pass CI and real-editor acceptance; no wildcard patch/platform support or unsafe override.
+**Engine candidate (historical, not approved for production mutation):** The earlier plan selected Godot **4.7.2**, base commit `ed1daf0bf001b61586d9930840f2f1394092c079`, plus a future editor/GDScript API family revision 1 and matched extension. This patched editor was not the tested official stock binary, and its proposed A/guard patch is not approved for T003. T002's patched validation acceptance remains historical and complete. No A patch digest/binary exists to claim. The current product target is official stock Godot plus addon and bundled standard GDExtension; any qualifying implementation needs its own exact-build provenance and real-editor proof.
 
-**Target Platform**: Initial mutation candidate is maintainer-operated **macOS 26.6.2 arm64** with a GUI editor, matching the prior bounded research environment. No Linux/Windows or distribution expansion. Stock Godot retains observation-only capability under the migrated bridge; edit is unavailable without the matched native API. The patched editor must independently pass observation regression before its observation compatibility is claimed.
+**Target Platform (historical evidence scope):** The bounded research exercised official stock Godot **4.7.2** on maintainer-operated **macOS 26.6.2 arm64** GUI. No other platform/version mutation support is inferred. A custom or patched editor is not an automatic alternative when a stock route fails; no mutation capability is currently advertised.
 
 **Storage**: Existing owner-private source-free session registry; one existing project script; request-local memory/descriptors/evidence. No new persistent mutation token store, source cache, replay cache, backup/journal or recovery service. A descriptor-bound write is not crash-atomic storage.
 
@@ -48,7 +50,7 @@ The [research decision](research.md#11-concrete-native-design-and-resumed-planni
 
 **Scale/Scope**: Root/replacement and each source ≤512 KiB UTF-8; bounded 32 dependency sources / 4 MiB dependency bytes; one active editor collection/edit slot; inherited 32-peer/descriptor bounds. Full-source LF representation, explicit unsupported NUL/CR/BOM refusal, and native Save-profile eligibility preserve exact source rather than normalize it. Caller/bridge/diagnostic bounds are in the contracts.
 
-## Selected Design
+## Historical Selected Design — Reopened at Stock Saved-State Integration
 
 ### 1. Core intent, revision and compatibility
 
@@ -105,17 +107,15 @@ An editor-local remaining-time expiry stops new stages when control returns. Nat
 
 The finalizer/writer response is not independent evidence. Rust reads/rechecks D through its own project capability; the existing collector freshly reads actual R and B and document-attributed dirty state, plus the separate native saved-state getter. Recheck source/identity/version and validation dependency/context/save-profile witnesses. Missing, changed, known-stale or divergent evidence prevents success even if an earlier/later sample happens to agree. Return explicit changed/unchanged/refused/applied-unverified/application-unknown and actionable reasons.
 
-### 5. Implementation and evidence boundaries
+### 5. Historical implementation and evidence boundaries (not T003 authorization)
 
-Keep the engine adaptation in a small reviewable patch against the pinned base, owned alongside addon native integration. It adds supported API exposure and the necessary local effect/inspection guards; it is not a custom module or engine distribution project. Build it using the engine's existing build system; record actual build tools/dependencies/provenance and preserve applicable licenses. A local patched development editor is necessary to implement/test the selected APIs; publishing/bundling a custom editor, updater or release channel is not part of this feature.
+The PR #24 candidate proposed a small reviewable pinned engine adaptation alongside addon native integration. Its patch/Primitive A instructions below remain available for comparison, not implementation under the current stock-only product target. Neither a matched patched editor nor a current-tab Save workaround is selected by F3. T003 must first establish a concrete supported stock, fail-closed one-target save composition or report the technical blocker for design review; do not weaken the spec or begin mutation work on the historical recipe.
 
-The native library must fail closed on unavailable/mismatched APIs, unload/disable cleanly, retain no gameplay registration outside the editor, and remain excluded from production exports even when the addon is disabled. Retain lifecycle ownership and private session cleanup. No public execution/force/outside-project permission surface is introduced.
-
-Implementation must prove the selected source-backed positive path and all mandatory cases, not declare every edit unsupported. Exact hook code, build artifacts, controlled fault injection and regression results are implementation work. If they reveal a genuine unsupported guarantee, fix the integration or report that concrete blocker; never substitute a weaker success definition.
+The native library's historical lifecycle/export and exact-hook proof obligations remain useful constraints for any later reviewed candidate, but the separate saved-state integration research must resolve redirected persistence and all-script side effects before an implementation route is authorized.
 
 ## Constitution Check
 
-**Initial research gate:** Passed for bounded design research; historical runtime routes remained non-qualifying where recorded. **Post-design gate:** **PASS for planning**, with no known constitutional MUST left without a defined design/verification obligation. This is not an implementation/acceptance pass, plan approval or feature completion.
+**Historical planning check:** The earlier bounded design research and post-design planning check passed for the then-selected patched candidate; this was not an implementation/acceptance pass. **Current disposition:** [§13 stock research](research.md#13-stock-target-save-finalization-research-2026-09-28) reopens the native saved-state integration: demonstrated fallback writes and unrelated buffer/history modification violate the required confinement and human-work boundaries of the audited stock routes. No waiver, relaxed guarantee or new implementation approval follows. The prior matrix below records the historical proposal's obligations, not their discharge. Independent D/R/B evidence, truthful partial outcomes, native history and A–E remain required; the [current analysis](#stock-research-artifact-review) records the unresolved stock-mechanism blocker.
 
 | Governing obligation | Design and future evidence |
 |---|---|
@@ -127,8 +127,8 @@ Implementation must prove the selected source-backed positive path and all manda
 | VII / IX — protocol-independent, small composable surface | One typed/core edit and one CLI, existing private bridge, no MCP; core owns policy, native owns engine-local primitives. No duplicate transaction model. |
 | VIII — tooling/gameplay isolation | Editor-only native integration; real exports and runtime checked with enabled/disabled addon and native artifacts, not reliance on `addons/` or `@tool`. |
 | XI — independent implementation and dependency review | Public engine source/ABI, own narrow integration, existing locked Rust dependencies. Preserve SDK notices, review exact new native build inputs/advisories/licenses before their implementation delivery. No unreviewed copied framework. |
-| XIII — proportional complexity | Each selected mechanism has a present gap, simpler rejected alternative and ongoing cost below and in research §11.5. No daemon/lock/journal/approval/CI machinery for unpromised guarantees. |
-| Architecture/compatibility/workflow | Durable component ownership, explicit private v2 migration/public edit v1, observation v1 preserved. No tasks/implementation/merge in this planning continuation; later one approved task/PR at a time. |
+| XIII — proportional complexity (historical candidate) | Earlier patch/extension costs are recorded below and in research §11.5; [§13](research.md#13-stock-target-save-finalization-research-2026-09-28) now prefers a bounded supported extension over custom editor installation/trust, per-version patched binaries and team editor replacement **if** it can meet the same guarantees. Correctness is not exchanged for cheaper distribution. |
+| Architecture/compatibility/workflow (historical candidate) | Earlier private v2/public edit v1 and one-task/one-PR cutover are proposed, not authorized now. T003 is pending on stock integration research/design review; T004/T005 retain their dependencies. |
 
 All A–E are applicable, including C because native Undo/Redo is claimed. At least one permitted runtime fixture must prove changed behavior. No missing runtime/buffer/parse observation is an inapplicability justification. Feature and task completion depend on acceptance evidence, separately from GitHub review/merge metadata. Feature completion would not automatically complete Roadmap Phase 1.
 
@@ -151,7 +151,7 @@ specs/002-edit-open-gdscript/
 +-- tasks.md                        subsequent task derivation and granularity review
 ```
 
-The subsequent [task list](tasks.md) records five PR-sized increments and its completed granularity review. It was generated by `/speckit.tasks`, not the earlier planning command. Read-only `/speckit.analyze` completed after the local-overlap clarification with no genuine consistency findings. T001 is complete; the remaining implementation increments retain their original scope and dependencies.
+The [task list](tasks.md) retains five PR-sized increments, completed granularity review, and unchanged dependencies; T001–T002 are complete. The earlier read-only `/speckit.analyze` result applies to the earlier design after local-overlap clarification, not to this reopened stock decision. The [current rerun](#stock-research-artifact-review) preserves requirement ownership but does not clear T003's stock saved-state prerequisite or authorize its implementation.
 
 ### Source Code (repository root)
 
@@ -192,7 +192,7 @@ godot-addon/
 
 ## Complexity Tracking
 
-No constitutional violation/waiver is requested. Required Principle XIII decisions are recorded here rather than hiding added cost behind “native” or “security-sensitive.”
+No constitutional violation/waiver is requested. This table retains PR #24's **historical patched-candidate** cost accounting, not a currently selected implementation. [Stock research §13](research.md#13-stock-target-save-finalization-research-2026-09-28) adds a product-cost reason to investigate bounded supported extension composition first: a custom editor entails installed binary trust, version-specific distribution, team replacement, CI and update maintenance. Those costs cannot justify accepting the demonstrated redirected write or unrelated history effect; the safe stock route remains unresolved.
 
 | Present mechanism/gap | Simplest alternative and insufficiency | Ongoing cost and present justification |
 |---|---|---|
@@ -212,4 +212,21 @@ No constitutional violation/waiver is requested. Required Principle XIII decisio
 
 The original plan-generation pass performed only feature-path/workflow resolution, pinned-source/API review, specification/design coverage and local-link/anchor/Markdown/whitespace/full-diff checks. No Cargo/product suites, engine build, runtime probe, filter retry, A–E acceptance, task generation or analysis command was run by that pass. The installed `setup-plan.sh --json` was executed with the verified Feature 002 directory and retained the existing plan; the installed template was resolved before completing these artifacts. Before/after-plan hook checks found no `.specify/extensions.yml`, so no hook was registered or bypassed. That pass's read-only native/flow contract review findings were corrected without changing the then-current specification.
 
-**Remaining material design questions:** None. The original planning continuation completed PR #24 without requiring a finished implementation as a planning prerequisite. The normal task derivation, granularity review and analysis subsequently passed. T002 now supplies the read-only validator and exact build/effect/export evidence; finalization, edit guarding and caller behavior remain the later approved tasks. One-task/one-PR sequencing and the post-PR stop still apply.
+**Remaining material design question:** Can a supported official-stock Godot/addon/standard-GDExtension composition finalize exactly one existing target with fail-closed descriptor-bound persistence, correct saved state/history and no unrelated buffer/history changes? The audited normal Save path provides real native bookkeeping, but its non-OK saver fallback and all-script application disqualify it; direct ResourceSaver lacks the document saved transition. [F3 and bounded evidence](research.md#13-stock-target-save-finalization-research-2026-09-28) do not prove every stock architecture impossible and do not approve a patch. T003 remains unstarted on research hold; its scope, task count/dependencies and A–E requirements remain unchanged. Parser/effect validation work is separate. Historical planning/analysis results cannot certify this changed design; review affected artifacts before any T003 implementation.
+
+### Stock research artifact review
+
+The read-only `/speckit.analyze` workflow was rerun on 2026-09-28 with the verified
+`SPECIFY_FEATURE_DIRECTORY=specs/002-edit-open-gdscript` override; its installed
+prerequisite helper passed and no before/after analysis hooks were registered.
+All 22 functional requirements and eight success criteria retain task owners
+(100% ownership coverage), with five tasks, two complete, and unchanged scenario
+and dependency coverage. No new ambiguity, duplication, unmapped task or
+constitutional waiver was found.
+
+**U1 — HIGH, acknowledged implementation-readiness blocker:** no supported stock
+one-target saved-state mechanism is selected that closes saver fallback and
+unrelated-buffer effects. The explicit T003 hold is therefore correct; this
+analysis is **not** a passing implementation-readiness result. Resolve that
+mechanism and review affected artifacts before `/speckit.implement T003`.
+The independent stock validation/effect-confinement question was not reassessed.

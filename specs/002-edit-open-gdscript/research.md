@@ -2,7 +2,9 @@
 
 **Date**: 2026-09-27 | **Specification**: [spec.md](spec.md) | **Gate record**: [plan.md](plan.md)
 
-**Current status: Planning complete — concrete native integration selected (State A).** Section 11 records the completed design; later T001 core and T002 native-validation implementation evidence is recorded in [quickstart §§9–10](quickstart.md#9-t001-core-acceptance-2026-09-27). Native mutation/caller acceptance remains pending. The historical native probe interruption was a tooling-policy limitation, not technical evidence against native integration; it remains an incomplete probe. Section 10's guarded single-editor concurrency boundary is retained. No mutation-support claim follows from this research.
+**Historical §11 planning status: State A — concrete patched native integration selected at that stage.** Section 11 records that design; later T001 core and T002 native-validation implementation evidence is recorded in [quickstart §§9–10](quickstart.md#9-t001-core-acceptance-2026-09-27). Native mutation/caller acceptance remains pending. The historical native probe interruption was a tooling-policy limitation, not technical evidence against native integration; it remains an incomplete probe. Section 10's guarded single-editor concurrency boundary is retained. No mutation-support claim follows from this research.
+
+**Current decision (2026-09-28):** [§13](#13-stock-target-save-finalization-research-2026-09-28) supersedes the historical inference in §§9–11 that native saved-state bookkeeping itself requires an engine hook: ordinary **stock** target Save completes that bookkeeping after a successful descriptor-backed custom saver. The audited stock composition nevertheless fails mandatory confinement/unrelated-work guarantees (**F3**); the §11 patched design is historical, not current authorization to implement T003 or distribute a custom editor. T001/T002 evidence remains historical and T003 remains pending.
 
 **Planning continuation boundary (historical):** Define the two narrow native capability contracts and complete the installed `/speckit.plan` workflow, including its ordinary design artifacts and constitutional review. That continuation was source/API inspection and design, not a new runtime experiment. No filter bypass, equivalent rephrased retry, broad API probing, task generation or product implementation was performed in that pass. Plans specify how later implementation will establish guarantees; a finished binary and A–E proof are not prerequisites for writing the plan.
 
@@ -553,3 +555,346 @@ These new implementation results do not amend historical failed/incomplete
 probes or certify the full editing family. Native mutation/finalization,
 edit-generated callback guards, caller integration and A–E/durability remain
 T003–T005 work. Only the recorded tests-enabled macOS arm64 candidate is verified.
+
+## 13. Stock target-save finalization research (2026-09-28)
+
+### 13.1 Decision, scope, provenance and evidence classes
+
+**F3 — no qualifying route selected among the audited stock finalization routes.** The
+positive result is important: a normal *single-script* Save in official stock Godot
+performs native Resource **and** script-document saved-state transitions after a
+successful exact-object descriptor-backed custom saver. The negative result is
+different: a truthful saver error does **not** veto later path-based built-in savers,
+and the normal Save applies changes to *all* script editors before dispatch.
+Replacement and unrelated-buffer cases below actually violate the feature's
+confinement/no-unrelated-work guarantees. This is not proof that every conceivable
+stock architecture is impossible, nor approval of a patched/custom editor.
+Retain the product goal of official stock Godot + addon + bundled standard
+GDExtension; no engine patches, product source, bridge, caller, packages, parser,
+functional-specification or task-count/dependency/acceptance changes result
+from this research. Task wording/status is updated to record the design hold.
+
+Evidence classes are **demonstrated positive stock runtime**, **demonstrated
+negative stock runtime**, **stock public API/source finding**, **inference needing
+runtime proof**, **unresolved technical question**, and **tooling/environment
+limitation**. A deliberate non-success in a finished GUI case is a negative
+behavioral result, not a failed run. These **19** final disposable GUI cases
+(plus one visual replay) are *not* the A–E release tests, implementation
+acceptance, or a new support claim.
+
+Pinned official runtime: `4.7.2.stable.official.ed1daf0bf` / source commit
+`ed1daf0bf001b61586d9930840f2f1394092c079`; editor SHA-256
+`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`.
+Owned research branch base `671ee50b00a81b6be24372308f4a5dd1925db495`;
+macOS 26.6.2 build 25G83, arm64, Apple clang 21.0.0, SDK 27.0,
+standard GUI display and Apple M2 Compatibility renderer. The generated
+official `gdextension_interface.h`, interface JSON and extension API hashes
+were respectively `640b48188708ba0016f8d7ace9e0e1d3279a41fa1226c59ff3193b15538bd254`,
+`7d8c0a039d9743eb8ebf88681ae0c641d8d3aa5ffca11081745a84da803e09a1`,
+and `d0e4c08c03b165156dabe6bfb6a906baf0069189f62035341230a246c86d6986`.
+The C++17 public-ABI probe library hash was
+`c748b4ea3100832cb2e2050c641a2525b784f5c5e28d190f96133d4d760e1ca8`;
+it used opaque Variant/Object dispatch and platform
+`openat`/`O_NOFOLLOW`/`pwrite`/`ftruncate`/`fsync`/readback, not internal
+engine headers, private layouts or symbols. Its scripted `@tool`
+`ResourceFormatSaver` called that writer and returned **real** status, never
+fake `OK`. The experiment compiled the native library using official
+generated headers with `-std=c++17 -Wall -Wextra -Werror -fPIC -dynamiclib
+-pthread`. It did not install a product dependency.
+
+**Local, uncommitted research artifacts**, not repo acceptance fixtures:
+`/var/folders/2r/m9lt6gb17wgbzcw9zzf6mp_80000gn/T/godot-target-save-research-feoq538g/`.
+`evidence/final-cases.json` SHA-256
+`a66e07ddbce458574c99f71ad178547061384f8eba1111b34bd1dc066ec72f31`
+contains complete final case records; `evidence/verified-claims.json` records
+50 checked independent facts, `evidence/public-inventory.json` the bound
+method inventory, and `evidence/provenance.json` the hashes. The separate
+`evidence/visual-replay.json` SHA-256
+`bf3ee093cb60ea0a8818e39e99bac0a7f08b72aa4e1b16fcffa25629b24dad0e`
+and inspected `evidence/stock-saved-final.png` SHA-256
+`0e91564abda55b3d63cb6f2544cedefbc13b6e7004266fd097830006c9c24bea`
+show the subject's `return 23` clean tab and the other script still dirty.
+These **local** evidence paths are not stable publication links; pinned public
+source links below are reproducible independently. During the experiment,
+the disposable `probe_native.cpp`, `run_probe.py`, `probe-notes.txt` and
+owned fixture were used to build against pinned generated official headers
+and execute
+`python3 run_probe.py --godot /Users/petertam/.local/bin/godot --case all`;
+the separate `--case happy_custom` visual replay was also executed.
+These temporary probe sources, library and source checkout are removed
+after recording the documentation; **retained** raw evidence/provenance/
+screenshot and the API sequence, case recipes and hashes here describe
+what another independent reproduction would have to rebuild and rerun.
+Each case created a new owner-private project, exited its actual GUI editor
+and cleaned only its sentinel-checked owned workspace; the outside-project
+sentinel for the symlink case was another *owned* sibling. All 19
+completed with process exit 0; the separate visual replay also exited 0.
+The expected built-in
+`Cannot save GDScript` error occurred only in the deliberately unwritable
+case. Independent Python component-wise no-follow descriptor reads/stat
+supplied D, not a Godot report of its own write. Real loaded Script getters
+supplied R; real CodeEdit getters, saved/current versions, native undo/redo,
+dirty paths and editor signals supplied B/editor witnesses. No synthetic
+`resource_saved`/menu signal, Save All, manual saved tagging, private
+shortcut invocation, preferences override, or global typing block was used.
+
+**Excluded evidence:** Early fixture instrumentation missed Dictionary
+overwrite on merge, a human injection, scripted-saver lifetime and a stale
+attached-state flag; those intermediate apparent passes are **not** counted.
+After corrections the entire final matrix was rerun. The prior tag-only
+ordinary-Save failure in §9 was *not* rerun. The earlier policy-interrupted
+experiment remains a tooling limitation, not a runtime negative or a
+workaround/bypass; it contributes no result to these 19 cases.
+
+### 13.2 A — actual ordered Save path; D/E — complete saved state
+
+**Stock public API/source finding:** On macOS the File Save shortcut is
+`script_editor/save`, Cmd+Alt+S (not Cmd+S / Save All). The fixture delivered
+real pressed/released `InputEventKey`s through public `Viewport.push_input`;
+the synchronous return followed actual native receipts and saved callbacks.
+For an ordinary standalone, nonimported GDScript resource:
+
+1. [`ScriptEditor::save_current_script`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_editor_plugin.cpp#L2420-L2447)
+   captures the *current* document, calls
+   [`_test_script_times_on_disk`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_editor_plugin.cpp#L803-L850)
+   (an all-open-document mtime reconciliation, **not** a conditional
+   object/revision write), autoformats the target, clears its script docs
+   and invokes `EditorNode::save_resource(resource)`. It does **not**
+   directly call GDScript `apply_code` here. Built-in/imported paths can
+   instead save a scene or ask for Save As and are outside this qualifying
+   route. [Shortcut binding](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_editor_plugin.cpp#L3954-L3965).
+2. [`EditorNode::save_resource_in_path`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/editor_node.cpp#L1736-L1750)
+   first calls `editor_data.apply_changes_in_editors()`. The
+   [`ScriptEditorPlugin::apply_changes`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_editor_plugin.cpp#L4381-L4383)
+   bridge reaches [`ScriptEditor::apply_scripts`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_editor_plugin.cpp#L2512-L2523):
+   every open script editor receives `insert_final_newline` when it is a
+   `TextEditorBase`, then `apply_code`. GDScript's
+   [`ScriptTextEditor::apply_code`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_text_editor.cpp#L227-L238)
+   transfers B into Script R and updates exports/cache; this step is not
+   isolated to the selected target.
+3. [`ResourceSaver::save`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/core/io/resource_saver.cpp#L102-L155)
+   tries each recognizing saver/path until one returns `OK`; its
+   [built-in GDScript saver](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/gdscript_resource_format.cpp#L149-L182)
+   opens the path for writing R. **On OK**, ResourceSaver clears the
+   inherited Object edited flag, takes a Resource mtime from the *path*
+   and runs the global save callback. That callback
+   [`EditorNode::_resource_saved`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/editor_node.cpp#L7833-L7844)
+   concerns filesystem/folding; within save recursion it is suppressed/
+   deferred, not an emitted `resource_saved` document transition.
+4. After OK,
+   [`EditorNode`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/editor_node.cpp#L1752-L1775)
+   handles Resource path/cache and fs/folding, emits actual `resource_saved`
+   and notifies plugins. Error returns at lines 1752–1760 *after*
+   all-editor application, without this signal/tag. The
+   [`ScriptEditor` handler](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_editor_plugin.cpp#L723-L742)
+   matches the actual Resource pointer; its
+   [`TextEditorBase::tag_saved_version`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_editor_base.cpp#L566-L573)
+   tags CodeEdit saved version **and** calls
+   [`ScriptEditorBase::tag_saved_version`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_editor_base.cpp#L91-L93)
+   for document mtime; the handler also updates names/built-ins and
+   schedules live-script reload. The target's docs update on return to
+   `save_current_script`. Tagging does not clear undo history. These
+   scene/export/runtime branches are *source findings*, not proof of
+   gameplay/export behavior.
+
+**Metadata correction:** Stock public
+[`EditorInterface::is_object_edited` and `set_object_edited`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/editor_interface.cpp#L714-L721)
+are actually [ClassDB-bound](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/editor_interface.cpp#L917-L924);
+they read/write the Resource's inherited Object edited flag. The §9
+blanket suggestion that it is unobservable from stock is superseded.
+The experiment **read** its false value after successful saves, not
+simulated success by writing the flag.
+
+| State / transition | Stock supported access in audited surface | Observed/source distinction |
+|---|---|---|
+| D contents / identity | Independent no-follow file descriptor reads/stat; native writer retains validated descriptors | Actual separate witness and actual receipt; a path read alone is not preventive. |
+| R source and Resource edited flag | `Script.source_code`; public `EditorInterface.is_object_edited`/`set_object_edited` | Read-only false after normal Saves. Direct ResourceSaver also updates the Resource's edited flag on OK. |
+| Resource last-modified time | No public direct read/write established for this internal Resource field | `ResourceSaver::save` updates it from path mtime on OK; **no private numeric value claimed**. |
+| B, current/saved versions, dirty/history | Public CodeEdit/TextEdit getters, undo/redo and `tag_saved_version`; `ScriptEditor.get_unsaved_files()` | Native Save's resource callback tags the specific document; direct ResourceSaver alone leaves it dirty. A manual CodeEdit tag is not full saved-state evidence. |
+| ScriptEditorBase document last-modified time | No supported direct read/write established on stock | Native handler calls the internal timestamp tag; behavioral witness below, **not** a direct numeric read. |
+| Native save event and UI | Real `EditorNode.resource_saved`, normal callbacks, native tab/dirty status and close/reopen | Direct ResourceSaver has no new native document event/tag; spoofing the signal is not a substitute. |
+
+**Demonstrated positive stock runtime:** Both `happy_builtin` and
+`happy_custom` saved a prior native 17→18 edit (version 2→4), then an
+agent 18→23 edit in one native complex operation (version 6). Ordinary
+Save produced D=R=B=23, current=saved=6 and a clean target; Undo to 18
+was version 4/6 dirty, then ordinary Save made D=R=B=18, version 4/4.
+Redo 23 remained available and saved clean at 6/6; earlier Undo→Undo
+still reached 17 and Redo→Redo returned to 23. Close/reopen returned
+clean D=R=B=23 with new editor/buffer identities. Each custom successful
+Save had one actual 44-byte descriptor write, flush/readback receipt
+and retained inode. The seed and agent saves crossed an mtime second
+(disk seconds 1790588946→1790588947); later Undo→Save needed **no**
+external-modification reconciliation. This is a strong behavioral
+saved-state witness across timestamp change, **not** an observation of
+private Resource/document mtime values. The other initially dirty
+newline-terminated document kept D, its dirty B and exercised native
+Undo/Redo; its R **may** have been synchronized by the selection or
+all-editor apply, so this happy case alone is not a no-side-effects
+claim. The inspected screenshot corroborates the final visible dirty
+markers, not all intermediate state.
+
+**Demonstrated negative stock runtime:** `direct` used the *same* real
+descriptor saver with `Script.set_source_code(B)` then direct
+`ResourceSaver.save(target,path)`; D=R=B=23, but current/saved=6/4,
+dirty and **no new** native `resource_saved` signal after the seed.
+Resource bookkeeping is not the missing document transition. §11's
+proposed special finalizer would be unnecessary for *successful normal
+Save* bookkeeping; its independent guard/inspection aims do not
+magically become stock public APIs.
+
+### 13.3 B/C — public candidates and exact-document selection
+
+The seven questions for each public candidate are **exact target,
+focus dependence, unrelated saves/work, native history, full saved
+bookkeeping, fresh guards, and attribution** (including what the API
+does *not* establish):
+
+| Candidate | Target | Focus | Unrelated saves/work | History | Full bookkeeping | Fresh guards | Attribution / disposition |
+|---|---|---|---|---|---|---|---|
+| `ScriptEditor.save_all_scripts()` | All scripts | No exact target | Actually saved unrelated dirty D (§4) | Broad native path | Broad callbacks | No target-only veto | Reject; earlier runtime finding, **not** repeated among 19 cases. |
+| Public keyboard/menu Save | Current script only | Must select target | All-editor apply can change other B/history; fallthrough may write wrong D | Native history preserved on happy path | Yes **on OK** | Can check before/after selection, not veto dispatch | Saved event matches Resource, but pathname fallback need not match validated object; unsafe. |
+| `EditorInterface.edit_script(held_script)` then Save | Held Script requested; postcheck identity | Changes current tab/focus | Same all-editor/fallback defects | Native on successful Save | Yes **on OK** | Open-membership/ID/epoch and postselection checks | `edit_script` can open/fallback by path; not proof of eligibility or safe write. |
+| Direct `ResourceSaver.save(held_resource,path)` | Exact Resource argument | None | Other tabs not automatically saved; path fallback remains | Does not clear undo | **No** document tag/event; Resource-only | Can guard D/R/B before call; cannot stop later saver | Real receipt binds descriptor write, not the missing editor transition. |
+| Front custom `ResourceFormatSaver` inside normal Save | Recognize object and path | Normal Save needs current tab | Other B may change; non-OK falls through | Native on OK | Yes **on OK** | Guard inside saver, but no error veto | Descriptor receipt on success; built-in path write after failure defeats exact-object attribution. |
+| CodeEdit tag / Object edited setter | Existing buffer/Object | None | No disk save | Tag does not clear undo | **No** document mtime/native save | Can check current version | Cannot turn indicators into a real attributed save. |
+| Internal EditorNode `save_resource(resource)` / ScriptEditor `save_current_script()` | Object argument / current tab respectively | Current tab for latter | Internal all-editor apply still occurs | Internal native behavior | Internal success path | Not supported stock extension entrypoints | `ScriptEditorBase.get_edited_resource`, `apply_code`, document tag likewise unbound on **stock** (T002 patched getter does not count). |
+| EditorCommandPalette / TabContainer | Palette no target command; tab child possible | Tab selection | Selection does not save | None itself | None itself | Exact-child tab route is source-only | No public `execute_command`; untested TabContainer composition cannot cancel fallback/all-editor work. |
+
+The stock ClassDB inventory includes ScriptEditor, ScriptEditorBase,
+EditorInterface, ResourceSaver/ResourceFormatSaver and CodeEdit, but
+**not** EditorNode as an exported ClassDB class. ResourceSaver exposes
+removal by a *known* `ResourceFormatSaver` reference, not enumeration
+of the built-in saver instance or an exclusive/stop-dispatch API.
+Adding more front savers merely adds more candidates before the
+built-in fallback. Its
+[`remove_custom_savers`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/core/io/resource_saver.cpp#L272-L282)
+removes instances with a ScriptInstance during
+[`EditorFileSystem` class refresh](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/file_system/editor_file_system.cpp#L2204-L2205).
+The corrected fixture registered its **scripted** saver immediately
+before synchronous Save, checked presence by a unique public recognized
+extension marker and removed the exact instance only if still present.
+A native ResourceFormatSaver has no ScriptInstance: do **not** infer
+that native extension registration inevitably suffers that fixture
+lifetime issue. Neither variant changes the source-level fallback rule.
+
+**Demonstrated positive bounded selection:** Stable equal-length
+`get_open_scripts` / `get_open_script_editors` arrays in the all-GDScript
+fixture identified one unique exact path and held the Script,
+ScriptEditorBase, CodeEdit and instance IDs. With the target initially
+nonselected, `EditorInterface.edit_script(held_script)` selected it;
+checking current Script/editor identities immediately afterward
+prevented assuming focus itself proves identity. After Save, a guarded
+selection epoch restored the previously selected *other* Script/focus.
+In `callback_retarget`, a real `resource_saved` callback selected other,
+changed the epoch, and the fixture **skipped** its restoration rather
+than overriding that newer selection. Only subject D was saved. The
+[`edit_script`/tab-switch source](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_editor_plugin.cpp#L2200-L2285)
+has Resource-pointer **or path** fallback and may open a missing
+document; [`_go_to_tab`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_editor_plugin.cpp#L360-L431)
+applies departing unsaved script, changes navigation/focus and notifies/
+validates. A future candidate must refuse a missing/duplicate/replaced
+open association before calling `edit_script`, then recheck after it;
+must not open a document to manufacture eligibility. Actual target
+Save was synchronous through `push_input`, with no ordinary OS typing
+interleaving in that nonyielding main-thread span; reentrant callbacks
+and alternate UI layouts still require proof. Selection does **not**
+repair the persistence/all-document problems.
+
+### 13.4 F/G — full final case matrix and safety boundaries
+
+All rows refer to the **final** 19 independent owned GUI cases. `D`
+is external disk text, `R` the held Script, `B` the real CodeEdit; numeric
+17/18/23/333/444/555 denote the synthetic `return` value, not test
+counts. Initial scripted source and independent D differed from user
+files: only disposable synthetic scripts were touched.
+
+| Case(s) | Demonstrated stock runtime and classification |
+|---|---|
+| `happy_builtin`, `happy_custom` | **Positive:** normal target Save completes the 17→18→23, Undo/Save/Redo/Save/close/reopen sequence above with real saved signals. Descriptor receipt on **every** custom Save; other dirty document with final newline remains dirty, its D and history preserved. |
+| `direct` | **Negative:** descriptor ResourceSaver succeeds, D=R=B=23, but target remains version 6/4 dirty and lacks a new editor save event. |
+| `read_only` | **Negative:** native pin is deliberately `O_RDONLY`; real `pwrite` EBADF 9, zero bytes and truthful `ERR_CANT_CREATE`; built-in fallback writes 23, tags 6 clean and emits `resource_saved`. Saver failure is not a veto. |
+| `unwritable` | **Positive failure semantics:** owned target mode 0400/parent 0500 plus read-only native pin; EBADF followed by built-in `Cannot save GDScript`, D=18, R/B=23, version 6/4 dirty, no new saved event. Application already occurred: **applied/unverified**, not not-applied/rollback. |
+| `identity_before`, `barrier_leaf`, `barrier_parent` | **Negative:** before-call replacement can be caught by a fresh outer guard, but the former stock save accepted same-second mtime; latter two replace owned leaf/parent *after* native final prewrite checks. Native reports detached/0 bytes/non-OK; built-in follows pathname, overwrites replacement 444→23, tags target clean. The after-check/built-in-open gap remains. |
+| `barrier_parent_symlink` | **Negative, decisive confinement witness:** after native barrier, owned project `scripts` parent becomes a link to an **owned outside-project sibling** with D=444. Native descriptor writer refuses detached/0 bytes; independent project no-follow D read refuses (errno 62), yet the independent outside sentinel is 23 after built-in fallback. No unowned data touched; postcheck cannot retract the wrong-object write. |
+| `human_during_saver` | **Negative:** external same-inode D changes to 444 at barrier; native detects `content_changed_or_unreadable` (errno 35), writes zero, returns failure; built-in still overwrites 444→23. This proves failure dispatch ignores detected invalidation, **not** an obligation to exclude every arbitrary transient same-inode writer. |
+| `preapply_stale`, `unchanged_no_history` | **Positive bounded guards:** preapply human B=444/version 6 after observing 18 causes refusal before AI source/history; unchanged source stays version 4 and Undo reaches 17 / Redo 18, with no extra save/history operation. These are *fixture guards*, not T003. |
+| `human_before_selection`, `human_after_selection`, `human_before_save` | **Positive bounded refusal:** after AI B application, a human B=444/version 8 at each named point makes guards refuse further selection/save; D remains 18 and old AI source is not reasserted. Since application already happened, outcome is **applied/unverified**, never safe whole-attempt not-applied. |
+| `human_in_saver` | **Negative bounded reentrancy:** scripted saver injects human CodeEdit B=555/version 8 after all-editor apply set R=23, before descriptor save. Writer really persists R=23; native callback tags *current* version 8 clean although B=555 ≠ D/R=23. No human text overwritten, but false clean marker. This fixture has no last-B check; a no-callout native saver could avoid this particular injection point. Error-return from a guard still meets the fallback defect. |
+| `human_on_saved` | **Positive bounded aftermath:** callback inserts human B=333 after native tag; current/saved=8/6 dirty, D=23, later R/B=333 through normal selection sync. Newer text retained; only **applied/unverified** may be reported. |
+| `other_no_final_newline` | **Negative unrelated work:** explicitly dirty *after seed*, unrelated B sentinel has no final newline, current/saved=5/2. Saving target inserts newline into unrelated B and changes version 5→6; unrelated D unchanged and dirty persists. Its Undo removes *only* that new newline; Redo restores it. “Not saved to disk” is insufficient: unrelated B and history changed. |
+| `callback_retarget` | **Positive bounded restoration:** Save target 23, callback selects other, epoch changes, restore=false and current=other; other D unsaved. Not proof against arbitrary callback ordering. |
+
+**Conditional selection safety:** a production candidate must establish
+one preexisting open target, uniquely match resource/path/document/buffer
+IDs and session/project, retain those references, refuse duplicates or
+replacement, and compare epoch/old focus before any restoration. Recheck
+the current Script/editor pair *after* selection and at subsequent
+boundaries. The successful fixture used a stable all-GDScript array; it
+does not establish arbitrary mixed-tab mapping or make `edit_script`
+safe simply because it accepts a Script.
+
+**Descriptor requirement and failed dispatch:** successful guarded
+`openat`/no-follow attached descriptor write, truncation, flush and
+readback binds actual D to the validated target; a descriptor held only
+for *observation* does not bind a later built-in pathname write. On
+detached/permission/content guard failure the extension must return
+truthful non-OK, yet
+[`ResourceSaver` continues to later savers](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/core/io/resource_saver.cpp#L110-L154);
+the built-in may write a different file (even outside the project)
+and trigger a misleading clean tag. Returning fake `OK` to suppress
+fallback would falsely complete saved state without successful D
+persistence, and post-write D/R/B verification cannot undo a wrong
+write. Preflight identity/digest guards reject already-observed stale
+states, not a replacement between final guard and fallback open.
+Adding a later check, saver, edited-flag/tag tweak, or callback observer
+does not supply a fail-closed exclusive dispatch. This is the precise
+known mandatory gap; arbitrary same-inode atomic serialization was
+not demanded by the scoped §10 concurrency clarification.
+
+### 13.5 H — architecture comparison, Principle XIII, disposition
+
+| Architecture | Positive finding / cost | Mandatory gap in the audited route |
+|---|---|---|
+| Direct `ResourceSaver` + public CodeEdit/metadata composition | Exact held Resource and descriptor writer can save D without focus; public edited flag and CodeEdit versions exist; lower editor coupling. | Real direct Save has no native document event/timestamp/tag. Manual tag cannot claim complete ordinary saved state, and normal direct dispatch still has path fallback. |
+| Stock current-tab Save + selection + front custom descriptor saver | **Actually** completes native bookkeeping/history after saver OK; can select/conditionally restore noncurrent target. Avoids custom editor distribution, patched-build CI and engine API maintenance. | Real non-OK falls through to built-in path saver, including an outside-project write. Earlier all-script apply changes unrelated B/history. No supported exclusive-veto or target-only apply primitive established in this route. |
+| §11 narrow patched/editor API finalizer + existing native writer | Historical planning proposal might expose precise guard/inspection/validation control. | Outside official-stock product goal. No automatic authorization, claimed implementation, upstream acceptance or evidence it solves the observed full route; do not silently switch T003 to it. |
+| Different supported stock composition | May retain stock-distribution advantage if someone identifies concrete fail-closed one-target primitives and exercises them. | **Unresolved technical question**, not a proved impossibility theorem. Requires its own complete runtime/safety evidence before selection. |
+
+**Principle XIII total product cost:** a standard bundled GDExtension
+adds C++17 build/ABI and platform compatibility, saver-instance lifetime,
+retained-descriptor error/identity management, selection/reentrant-state
+machine and regression burden. These are potentially proportionate
+because successful stock normal Save reuses real native history and
+bookkeeping, avoids editor replacement, patched binary installation/
+trust, exact-version custom builds and distribution, team setup,
+custom-editor CI and update burden. Conversely the simpler/cheaper
+stock path cannot be selected by accepting an observed outside-project
+write or unrelated buffer/history change. More extension-side checks
+improve refusal/attribution but cannot cancel a builtin write after a
+truthful error or undo the all-script apply before the saver runs.
+Private ABI/layout/symbol access or a fake-OK callback is not a
+cost-saving workaround. Do not add a generic journal, daemon, global
+typing block, arbitrary-writer lease or new infrastructure to mask this
+specific missing composition. The constraints of Constitution I–IV,
+V/VI/X/XII and the same unchanged feature specification still govern;
+withholding success preserves them, rather than weakening requirements.
+
+**Inference needing runtime proof:** a TabContainer identity-selection
+route, a native-only saver removing scripted class-refresh/reentrancy
+points, and arbitrary callback/UI ordering. None by itself resolves
+the **demonstrated** dispatch fallback or all-editor apply. **Unresolved
+technical question:** whether *another* supported stock, fail-closed,
+one-target save composition exists. Source validation, parser/dependency
+effect confinement and post-change attribution remain separate
+unresolved work and were not probed here. **Tooling/environment
+limitations:** only pinned official 4.7.2 on macOS arm64 was exercised;
+no other version/platform support, live game/export behavior, private
+mtime numeric values, complete callback-topology proof or A–E/full
+mutation acceptance is claimed. T001/T002 stay complete as recorded
+(T002's patched-editor evidence remains truthful historical evidence),
+T003 stays pending; task count, dependencies and acceptance remain
+unchanged while task wording/status records the design hold. The
+design decision is explicitly reopened, and current F3 withholds
+implementation authorization until a safe stock design is established
+and reviewed.
