@@ -1,6 +1,6 @@
 # Edit Open GDScript — Caller Contract v1
 
-**Status:** The protocol-independent Rust API is implemented by T001; the CLI/JSON adapter remains planned for T004. No command, native mutation support or MCP tool is introduced by T001. [Data model](../data-model.md) defines normative identity, evidence, stages, outcomes and deadline semantics.
+**Status:** T001's protocol-independent Rust API and reducer were implemented and accepted against the then-approved numeric saved-evidence layout; the CLI/JSON adapter remains planned for T004. [P1 stock research](../research.md#14-stock-post-persistence-saved-transition-research-2026-09-28) selects semantic public-reflection saved-state evidence, **not** an implemented change to T001's `SavedStateEvidence` or reducer. The existing reducer requires private Resource/document mtime fields and equality checks that stock P1 cannot supply; T004 must coherently migrate affected typed evidence, reducer and contracts before consuming P1, without forged private values. The [bridge contract's](bridge-protocol.md) family revision `1`, stock edit-false and patched-editor recipes are historical implementation planning, not the current stock selection or an active v2 cutover. Existing independent authorization, safety and result semantics remain normative. No command, native mutation support or MCP tool is introduced by T001. [Data model](../data-model.md#savedstateevidence) defines the selected semantic evidence and migration boundary.
 
 ## 1. One operation and invocation
 

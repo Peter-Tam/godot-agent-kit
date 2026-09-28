@@ -5,18 +5,18 @@
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
 - **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** Core/validation implemented; production mutation design reopened at stock saved-state integration
+- **Feature state:** Core/patched validation complete; P1 stock saved-state design selected, mutation integration pending
 - **Tasks:** 2 / 5 complete
 - **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
-- **Current task:** T003 not started; research/design-review hold after completed T001–T002
-- **Mutation A–E and edit durability:** Pending; no supported mutation design selected
+- **Current task:** T003 not started; on hold for independent stock validation/effect confinement and design review
+- **Mutation A–E and edit durability:** Pending; no product mutation support or T003 readiness claim
 
 ## Roadmap status
 
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's edit core and read-only native validation are complete. [Stock target-save research](specs/002-edit-open-gdscript/research.md#13-stock-target-save-finalization-research-2026-09-28) reopens mutation design: audited stock Save routes fail confinement/unrelated-work guarantees despite real native saved-state/history behavior. T003 is unstarted; CLI mutation, A–E and durability remain pending. |
+| 1 — Live-editor script coherence | In progress | Feature 001 is complete. Feature 002's edit core and patched read-only native validation are complete. [Stock post-persistence research §14](specs/002-edit-open-gdscript/research.md#14-stock-post-persistence-saved-transition-research-2026-09-28) selects P1 for the saved-state question only: guarded descriptor persistence followed by the actual public incoming-edge ScriptEditor native Callable on stock. T003 is unstarted/on hold for independent stock validation/effect confinement and review; caller mutation, A–E and durability remain pending. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Active feature
@@ -25,19 +25,24 @@ Feature 002's [specification](specs/002-edit-open-gdscript/spec.md) and
 [requirements-quality checklist](specs/002-edit-open-gdscript/checklists/requirements.md)
 define a one-script, already-open editing capability with stale-write protection,
 independently verified D/R/B convergence, native Undo/Redo, and durability.
-The [implementation plan](specs/002-edit-open-gdscript/plan.md) and
+The [implementation plan](specs/002-edit-open-gdscript/plan.md),
 [native contract](specs/002-edit-open-gdscript/contracts/native-integration.md)
-retain the patched-engine finalizer as a **historical design baseline, not an
-approved production implementation**. Their earlier design-complete status has
-been reopened at stock saved-state integration. The unchanged [data model](specs/002-edit-open-gdscript/data-model.md),
+and [§14 stock research](specs/002-edit-open-gdscript/research.md#14-stock-post-persistence-saved-transition-research-2026-09-28)
+select P1 for the **post-persistence saved-state transition only**. The prior
+patched-engine finalizer is a historical baseline, not an approved product
+route. The [data model](specs/002-edit-open-gdscript/data-model.md),
 [caller contract](specs/002-edit-open-gdscript/contracts/edit-api.md),
 [private bridge contract](specs/002-edit-open-gdscript/contracts/bridge-protocol.md)
-and [verification guide](specs/002-edit-open-gdscript/quickstart.md) remain
-historical artifacts until a qualifying replacement mutation design is selected;
-no replacement API/data contract has yet been chosen. Product mutation targets
-official stock Godot, addon and bundled standard GDExtension. Rust retains core
-policy and independent verification; T002's patched native validation evidence
-remains complete and separate from this saved-state decision.
+and [quickstart recipes](specs/002-edit-open-gdscript/quickstart.md) retain
+behavioral requirements, but their patched-family-1/finalizer-specific API,
+bridge and build instructions are **historical**, not the current T003 stock
+recipe. The [current native §3 contract](specs/002-edit-open-gdscript/contracts/native-integration.md#3-primitive-a-guarded-target-document-saved-transition)
+selects the stock saved transition. No final production native/bridge wire
+schema or editing API has been implemented by this research. Product
+mutation targets official stock Godot, addon and bundled standard GDExtension.
+Rust retains core policy and independent verification; T002's patched native
+validation evidence remains complete and separate from the stock saved-state
+decision, and does not establish stock validation/effect confinement.
 
 The [F3 stock-save research](specs/002-edit-open-gdscript/research.md#13-stock-target-save-finalization-research-2026-09-28)
 demonstrates successful ordinary stock target Save performs real native saved-state
@@ -45,23 +50,48 @@ bookkeeping/history, including a descriptor-backed saver. It also demonstrates
 that non-OK custom-saver failures fall through to builtin path writes (observed
 outside-project redirection), and target Save applies every open script, changing
 an unrelated dirty buffer/history. Direct `ResourceSaver.save` does not complete
-the ScriptEditor saved transition. Audited routes therefore do not qualify; F3
-neither proves every possible stock architecture impossible nor selects a patch,
-custom editor, or current-tab Save. [Prior research](specs/002-edit-open-gdscript/research.md#9-native-integration-continuation-c1c5)
-and [concurrency boundaries](specs/002-edit-open-gdscript/research.md#10-phase-1-concurrency-boundary-audit-and-corrected-planning-decision)
-remain evidence/requirements; validation and effect-confinement work is a
-separate question, not a solution to this save-path gap.
+the ScriptEditor saved transition. The audited routes therefore do not qualify;
+this is **historical F3 evidence**, not a conclusion that every stock route fails.
+[§14 post-persistence research](specs/002-edit-open-gdscript/research.md#14-stock-post-persistence-saved-transition-research-2026-09-28)
+instead establishes P1: exact CodeEdit native edit, explicit Script R sync and
+retained-descriptor D persistence followed by fresh same-attempt receipt,
+namespace, exact open-document/Script/CodeEdit/session/path/source and
+post-complex-edit frozen **current** plus preparation-time **saved** version
+guards. Preparation checks baseline current/saved (for example **6/6**);
+pre-edit guards use current **6**, then the complex edit freezes current **8**
+while saved remains **6**. Persistence and both pre-tag guards require **8/6**;
+the native tag yields **8/8**. Human current **10** or same-text **12**
+invalidates pre-tag authorization (without undoing known B/R/D effects).
+Public `EditorInterface.set_object_edited` clears Resource edited state;
+another guard precedes a direct call on the
+actual existing native ScriptEditor saved-handler Callable discovered through
+canonical ScriptEditor public incoming-signal connections. No signal emission,
+private handler name lookup, CodeEdit-only tag, custom saver or engine A patch.
+Native order tags CodeEdit saved version before document path mtime. Private
+Resource mtime is not numerically read/set; the tested standalone-script
+Save/reopen behavior across a natural timestamp-second change is bounded
+evidence, not a universal metadata guarantee. The handler can execute native
+validation even when automatic runtime reload is disabled, and schedules
+deferred debugger reload only when enabled: independent stock
+validation/effect confinement remains unresolved, with no running-game or A–E claim.
+
+After the Callable, independent target/version/dirty/namespace rechecks precede
+eventual separate stock validation and final independent D/R/B verification.
+Known B/R/D changes with failed receipt or partial bookkeeping remain
+applied-unverified; no newer human work is restored or tagged saved.
 
 `/speckit.plan` completed the earlier design artifacts and planning check. The
 [task list](specs/002-edit-open-gdscript/tasks.md) retains five PR-sized
 increments; T001–T002 are complete, T003–T005 pending, with the same dependencies
 and ownership of all 22 requirements, 26 scenarios and eight success criteria.
 The earlier [granularity review](specs/002-edit-open-gdscript/tasks.md#granularity-review)
-still applies to the unchanged task decomposition. The current
-[`/speckit.analyze` rerun](specs/002-edit-open-gdscript/plan.md#stock-research-artifact-review)
-retains full requirement ownership and identifies one **HIGH, acknowledged
-implementation blocker**: no qualifying stock target-save mechanism is selected.
-It is not a T003 readiness pass. US2.4 still requires T004's same-session
+still applies to the unchanged decomposition. [Prior `/speckit.analyze` §13
+result](specs/002-edit-open-gdscript/plan.md#stock-research-artifact-review)
+identified an unresolved saved-state mechanism **then**, but is historical
+after P1. The [post-persistence analysis](specs/002-edit-open-gdscript/plan.md#post-persistence-design-review)
+retains 100% requirement/scenario ownership, with no critical constitutional
+conflict and one acknowledged HIGH stock validation/effect-confinement
+blocker. T003 is still held, not ready. US2.4 still requires T004's same-session
 barrier/witness acceptance through the existing single-active collection/edit slot.
 
 **T001 is complete:** the reusable Rust core checks clean revision eligibility,
@@ -73,6 +103,13 @@ all five typed outcomes without acquiring or mutating editor state.
 Clippy, rustdoc and an external library consumer exercising all five outcomes.
 The initial parallel run's existing socket-test `AddrInUse` failure is recorded;
 no transport behavior was changed.
+T001's numeric `SavedStateEvidence` Resource/document mtime fields and reducer's
+disk-mtime equality/finalizer-step checks are its **historical implemented
+interface**, not stock P1 evidence. T004 owns migration of affected typed core
+evidence/reducer and caller/native/bridge contracts before integrating P1;
+unavailable private Resource mtime must not be invented. T001 acceptance remains
+valid against its then-approved contract; no replacement wire/API shape is
+decided here and no sixth task is added.
 
 **T002 is complete:** the matched C++17/public-ABI integration invokes Godot's real
 parser/analyzer with confined, source-attributed dependency reads and effect
@@ -83,22 +120,25 @@ installed, a missing-native D/R/B smoke, 155 Rust tests, three ABI regressions,
 Prior native history and dirty D/R/B state remain unchanged; enabled, disabled
 and hook-only exported games exclude tooling and execute without native dependencies.
 
-**Feature 002 remains incomplete.** T003's native writes/finalization and edit
-guards, T004's caller/bridge cutover and T005's cumulative mutation acceptance
-remain pending. The validation revision does not advertise the editing API
-family. T003 has not started and must not implement the historical patched A
-recipe: it is held for evidence of a supported stock one-target, fail-closed
-saved-state mechanism preserving unrelated work, followed by review of affected
-design artifacts. The spec and acceptance guarantees are unchanged. Bounded
-extension complexity would avoid custom-editor installation/trust, per-version
-binary distribution and maintenance if safe; product cost cannot excuse a
-redirected write or unrelated history change.
+**Feature 002 remains incomplete.** T003's native writes/stock saved transition
+and edit guards, T004's caller/bridge cutover and T005's cumulative mutation
+acceptance remain pending. The patched validation revision does not advertise
+the editing API family. T003 has not started and must not implement historical
+patched A; its independent stock native validation and edit-generated effect
+confinement problem remains unresolved, including the saved handler's
+validation and conditional deferred debugger reload. Review affected design
+artifacts and actual analysis before implementation. The spec and acceptance
+guarantees are unchanged. Standard-extension topology/version, receipt and
+guard maintenance is proportionate against custom editor installation/trust,
+per-version patched binary distribution and team replacement; correctness
+cannot be traded for reduced distribution cost.
 
 Delivery metadata: design artifacts merged in
 [PR #24](https://github.com/Peter-Tam/godot-agent-kit/pull/24);
 T001 delivered by [PR #25](https://github.com/Peter-Tam/godot-agent-kit/pull/25);
-T002 delivered by merged [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29).
-Task completion is independent of PR merge/review status.
+T002 delivered by merged [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29);
+the preceding [PR #30](https://github.com/Peter-Tam/godot-agent-kit/pull/30)
+is merged evidence. Task completion is independent of PR merge/review status.
 
 ## Completed observation foundation
 
