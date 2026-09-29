@@ -2,7 +2,7 @@
 
 mod observations;
 
-use super::validation::{bound_evidence, check_attribution};
+use super::validation::{bound_evidence, check_attribution, complete_fences};
 use super::{
     Application, AttemptProgress, ContextRecheck, EditDiagnostic, EditError, EditEvidence,
     EditOutcome, EditOutcomeKind, EditRequest, FinalizationResult, FinalizationStatus, History,
@@ -15,12 +15,12 @@ use crate::observation::{
 };
 
 /// Dispatch/entry lifecycle, independent of observed application and per-step progress.
-/// Only an attributable pre-entry discard can retire released authorization as not applied.
+/// A fresh guard alone does not release authority; acknowledged native discard retires it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum MutationGate {
     Preparing,
-    Authorized,
     Guarded,
+    Authorized,
     Entered,
     Discarded,
 }
@@ -76,6 +76,10 @@ impl EditAttempt {
             last_editor_tick: None,
             last_caller_tick: None,
         }
+    }
+    /// Original checked intent, retained without cloning source bytes or granting mutation.
+    pub fn request(&self) -> &EditRequest {
+        &self.request
     }
     fn record_failure(&mut self, reason: Reason) {
         if self.failure.is_none() || reason.suppresses_source() {
@@ -205,7 +209,7 @@ impl EditAttempt {
         self.require(
             result.purpose == purpose
                 && self.stage >= Stage::Prepared
-                && (purpose != ValidationPurpose::PostChange || self.stage >= Stage::Finalizing)
+                && (purpose != ValidationPurpose::PostChange || self.gate == MutationGate::Entered)
                 && (purpose != ValidationPurpose::Preflight || self.stage == Stage::Prepared)
                 && self.validation.iter().all(|r| r.purpose != purpose),
         )?;
@@ -218,14 +222,21 @@ impl EditAttempt {
             &result.session_id,
             &result.document,
             &result.collection,
-            true,
+            false,
         )?;
         check_attribution(&result, self.request.script_path(), &self.intended)
             .map_err(|error| self.reject(error))?;
         self.check_order(&result.collection)?;
         let complete =
-            result.diagnostics_complete && result.context_current && result.dependencies_current;
+            complete_fences(&result) && result.context_current && result.dependencies_current;
         if !complete {
+            // An incomplete parser verdict cannot certify invalidity. Preserve an
+            // already-unavailable result's concrete acquisition/context failure.
+            if result.status != ValidationStatus::Unavailable {
+                result.reason = result
+                    .reason
+                    .filter(|r| r.suppresses_source() || *r == Reason::EvidenceLimit);
+            }
             result.status = ValidationStatus::Unavailable;
             result.reason = Some(result.reason.unwrap_or(Reason::ValidationUnavailable));
         }
@@ -262,13 +273,13 @@ impl EditAttempt {
         };
         Ok(())
     }
-    /// Supervisor MUST call before releasing one-shot worker authorization.
+    /// Supervisor calls only after a matching fresh guard, just before one-shot release.
     pub fn authorize(&mut self) -> Result<(), EditError> {
         self.require(
             self.failure.is_none()
-                && self.stage >= Stage::Prepared
+                && self.stage == Stage::Preflight
                 && self.intent_changed == Some(true)
-                && self.gate == MutationGate::Preparing
+                && self.gate == MutationGate::Guarded
                 && self.validation.iter().any(|r| {
                     r.purpose == ValidationPurpose::Preflight && r.status == ValidationStatus::Valid
                 }),
@@ -277,6 +288,11 @@ impl EditAttempt {
         self.application = Application::Unknown;
         self.stage = Stage::Authorized;
         Ok(())
+    }
+    /// The fresh guard retains stale observations without granting mutation authority;
+    /// `Ok(())` alone is never permission to release worker authorization.
+    pub fn ready_to_apply(&self) -> bool {
+        self.gate == MutationGate::Guarded && self.failure.is_none()
     }
     /// Irreversible native rejection before source/history boundary. A timeout or abort is NOT
     /// a discard acknowledgment; this must come from the slot-owning native attempt.
@@ -289,8 +305,7 @@ impl EditAttempt {
             return Err(self.reject(EditError::InvalidEvidence));
         }
         self.require(
-            matches!(self.gate, MutationGate::Authorized | MutationGate::Guarded)
-                && self.application == Application::Unknown,
+            self.gate == MutationGate::Authorized && self.application == Application::Unknown,
         )?;
         self.check_native(&witness)?;
         self.gate = MutationGate::Discarded;
@@ -300,7 +315,7 @@ impl EditAttempt {
     }
     /// Record entry immediately BEFORE first native source/history operation.
     pub fn enter_application(&mut self) -> Result<(), EditError> {
-        self.require(self.failure.is_none() && self.gate == MutationGate::Guarded)?;
+        self.require(self.failure.is_none() && self.gate == MutationGate::Authorized)?;
         self.gate = MutationGate::Entered;
         self.stage = Stage::Applying;
         self.progress.buffer_application = Step {
@@ -471,12 +486,22 @@ impl EditAttempt {
             || !receipt.write_started
                 && (receipt.bytes_written != 0 || receipt.truncated || receipt.flushed)
             || receipt.reason == Some(Reason::Complete)
+            || receipt.restored && (!receipt.restore_attempted || receipt.restore_errno.is_some())
+            || receipt.restore_errno.is_some() && !receipt.restore_attempted
         {
             return Err(self.reject(EditError::InvalidEvidence));
         }
         self.check_order(&receipt.collection)?;
         self.stage = Stage::Persisting;
-        let complete = receipt.complete();
+        let complete = receipt.complete()
+            && self
+                .before
+                .as_ref()
+                .and_then(|e| e.disk_metadata.as_ref())
+                .is_some_and(|disk| {
+                    receipt.original_mtime.as_ref() == Some(&disk.mtime)
+                        && receipt.file_id == disk.identity
+                });
         if (receipt.bytes_written != 0 || receipt.truncated)
             && self.application != Application::Applied
         {
@@ -489,6 +514,8 @@ impl EditAttempt {
                 Reason::RevisionMismatch
             } else if !receipt.attached {
                 Reason::IdentityChanged
+            } else if receipt.restore_attempted || receipt.restore_errno.is_some() {
+                Reason::PersistenceFailure
             } else {
                 Reason::PersistenceUnknown
             }))
@@ -579,24 +606,6 @@ impl EditAttempt {
                             .and_then(|b| b.saved_state.as_ref())
                             .map(|s| &s.saved_version)
                     || result.after_saved != result.after_current
-                    || result.before_resource_mtime.as_ref()
-                        != self
-                            .before
-                            .as_ref()
-                            .and_then(|b| b.saved_state.as_ref())
-                            .map(|s| &s.resource_mtime)
-                    || result.before_document_mtime.as_ref()
-                        != self
-                            .before
-                            .as_ref()
-                            .and_then(|b| b.saved_state.as_ref())
-                            .map(|s| &s.document_mtime)
-                    || result.after_resource_mtime.is_none()
-                    || result.after_resource_mtime != result.after_document_mtime
-                    || self
-                        .persistence
-                        .as_ref()
-                        .is_some_and(|p| result.after_resource_mtime.as_ref() != p.mtime.as_ref())
                     || result.after_resource_edited != Some(false))
         {
             return Err(self.reject(EditError::InvalidEvidence));
@@ -685,10 +694,7 @@ impl EditAttempt {
             || self.application == Application::PartlyApplied
         {
             EditOutcomeKind::AppliedUnverified
-        } else if matches!(
-            self.gate,
-            MutationGate::Authorized | MutationGate::Guarded | MutationGate::Entered
-        ) {
+        } else if matches!(self.gate, MutationGate::Authorized | MutationGate::Entered) {
             EditOutcomeKind::ApplicationUnknown
         } else {
             EditOutcomeKind::Refused

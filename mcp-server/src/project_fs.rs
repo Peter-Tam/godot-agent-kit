@@ -425,6 +425,11 @@ fn disk_unavailable(reason: SourceReason) -> SourceObservation {
 pub(crate) struct DiskRead {
     pub(crate) source: SourceObservation,
     pub(crate) metadata: Option<DiskMetadata>,
+    /// Stable descriptor mtime in nanoseconds since Unix epoch; unavailable if unrepresentable.
+    pub(crate) mtime: Option<DecimalCounter>,
+    /// A confined read encountered a permission refusal. Observation still reports
+    /// only D unavailable; editing must suppress its entire source-derived result.
+    pub(crate) access_denied: bool,
 }
 
 /// Independent filesystem facts, never a source witness for unavailable text.
@@ -438,7 +443,15 @@ fn unavailable_read(reason: SourceReason) -> DiskRead {
     DiskRead {
         source: disk_unavailable(reason),
         metadata: None,
+        mtime: None,
+        access_denied: false,
     }
+}
+
+fn denied_read() -> DiskRead {
+    let mut reading = unavailable_read(SourceReason::DiskUnreadable);
+    reading.access_denied = true;
+    reading
 }
 
 fn caller_stamp(started: Instant, started_tick: u64) -> CollectionStamp {
@@ -459,6 +472,8 @@ fn missing_read(started: Instant, started_tick: u64) -> DiskRead {
             file: None,
             collection: caller_stamp(started, started_tick),
         }),
+        mtime: None,
+        access_denied: false,
     }
 }
 
@@ -490,6 +505,16 @@ fn disk_identity(meta: &cap_std::fs::Metadata) -> FileIdentity {
         DecimalCounter::new(meta.dev().to_string()).expect("device is decimal"),
         DecimalCounter::new(meta.ino().to_string()).expect("inode is decimal"),
     )
+}
+
+fn disk_mtime(meta: &cap_std::fs::Metadata) -> Option<DecimalCounter> {
+    let seconds = u64::try_from(meta.mtime()).ok()?;
+    let nanos = u64::try_from(meta.mtime_nsec()).ok()?;
+    if nanos >= 1_000_000_000 {
+        return None;
+    }
+    let value = seconds.checked_mul(1_000_000_000)?.checked_add(nanos)?;
+    DecimalCounter::new(value.to_string()).ok()
 }
 
 fn same_file_scope(a: &cap_std::fs::Metadata, b: &cap_std::fs::Metadata) -> bool {
@@ -552,9 +577,13 @@ fn disk_source(
             verify_selected_root(selected, stage)?;
             return Ok(missing_read(started, started_tick));
         }
-        Err(_) => {
+        Err(error) => {
             verify_selected_root(selected, stage)?;
-            return Ok(unavailable_read(SourceReason::DiskUnreadable));
+            return Ok(if error.kind() == io::ErrorKind::PermissionDenied {
+                denied_read()
+            } else {
+                unavailable_read(SourceReason::DiskUnreadable)
+            });
         }
     };
     if before.file_type().is_symlink() || before.permissions().mode() & 0o022 != 0 {
@@ -563,6 +592,10 @@ fn disk_source(
     if !before.is_file() {
         verify_selected_root(selected, stage)?;
         return Ok(unavailable_read(SourceReason::DiskUnreadable));
+    }
+    if before.permissions().mode() & 0o444 == 0 {
+        verify_selected_root(selected, stage)?;
+        return Ok(denied_read());
     }
     // O_NONBLOCK ensures a last-component FIFO substitution cannot stall open().
     // O_NOFOLLOW also closes the symlink-substitution window between lstat and open.
@@ -574,7 +607,7 @@ fn disk_source(
     options.read(true).custom_flags(SAFE_OPEN_FLAGS);
     let mut file = match parent.open_with(name, &options) {
         Ok(file) => file,
-        Err(_) => {
+        Err(error) => {
             if parent
                 .symlink_metadata(name)
                 .ok()
@@ -584,7 +617,11 @@ fn disk_source(
                 return Err(disk_denial(stage));
             }
             verify_selected_root(selected, stage)?;
-            return Ok(unavailable_read(SourceReason::DiskUnreadable));
+            return Ok(if error.kind() == io::ErrorKind::PermissionDenied {
+                denied_read()
+            } else {
+                unavailable_read(SourceReason::DiskUnreadable)
+            });
         }
     };
     let opened = file.metadata().map_err(|_| disk_denial(stage))?;
@@ -625,6 +662,10 @@ fn disk_source(
     {
         return Ok(unavailable_read(SourceReason::SourceChanged));
     }
+    let access_denied = read_result
+        .as_ref()
+        .err()
+        .is_some_and(|error| error.kind() == io::ErrorKind::PermissionDenied);
     let file_id = disk_identity(&after);
     let stamp = caller_stamp(started, started_tick);
     let unavailable = if read_result.is_err() {
@@ -650,6 +691,8 @@ fn disk_source(
                         Staleness::unknown(),
                     ),
                     metadata: None,
+                    mtime: disk_mtime(&after),
+                    access_denied: false,
                 });
             }
             Err(_) => SourceReason::InvalidUtf8,
@@ -661,6 +704,8 @@ fn disk_source(
             file: Some(file_id),
             collection: stamp,
         }),
+        mtime: disk_mtime(&after),
+        access_denied,
     })
 }
 
@@ -691,7 +736,7 @@ pub fn recheck_disk(
     initial: &SourceObservation,
     started: Instant,
 ) -> Result<Vec<DetectedChange>, RoutingFailure> {
-    recheck_disk_inner(selected, initial, None, started)
+    recheck_disk_inner(selected, initial, None, started).map(|(changes, _)| changes)
 }
 
 pub(crate) fn recheck_disk_read(
@@ -708,6 +753,23 @@ pub(crate) fn recheck_disk_read(
             .and_then(|metadata| metadata.file.as_ref()),
         started,
     )
+    .map(|(changes, _)| changes)
+}
+
+pub(crate) fn recheck_edit_disk_read(
+    selected: &SelectedSession,
+    initial: &DiskRead,
+    started: Instant,
+) -> Result<(Vec<DetectedChange>, bool), RoutingFailure> {
+    recheck_disk_inner(
+        selected,
+        &initial.source,
+        initial
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata.file.as_ref()),
+        started,
+    )
 }
 
 fn recheck_disk_inner(
@@ -715,7 +777,7 @@ fn recheck_disk_inner(
     initial: &SourceObservation,
     initial_identity: Option<&FileIdentity>,
     started: Instant,
-) -> Result<Vec<DetectedChange>, RoutingFailure> {
+) -> Result<(Vec<DetectedChange>, bool), RoutingFailure> {
     if initial.authority() != Authority::D
         || initial.witness().is_some_and(|w| {
             w.resource_path() != selected.target().script_path() || w.disk_file_id().is_none()
@@ -750,5 +812,5 @@ fn recheck_disk_inner(
     {
         changes.push(DetectedChange::Source(Authority::D));
     }
-    Ok(changes)
+    Ok((changes, fresh.access_denied))
 }

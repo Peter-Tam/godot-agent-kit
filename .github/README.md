@@ -13,6 +13,11 @@ satisfies the GUI requirement. Lack of a self-hosted runner does not block
 T008 when that substantive evidence and ordinary hosted CI pass. See
 [Feature 001 acceptance](../specs/001-observe-gdscript-state/quickstart.md#29-rebased-t008-real-editor-acceptance-and-completion-2026-09-27).
 
+The optional workflow currently runs observation acceptance. Guarded-edit caller
+and native groups use the separate
+[Feature 002 runner](../specs/002-edit-open-gdscript/quickstart.md#3-owned-real-editor-runner);
+an observation run does not establish mutation A–E or caller completion.
+
 The remaining sections describe conditions **only for choosing the optional
 self-hosted workflow**. It is sourced from `main` even when the tested
 `reviewed_sha` is an unmerged PR head, and has no PR, `pull_request_target` or

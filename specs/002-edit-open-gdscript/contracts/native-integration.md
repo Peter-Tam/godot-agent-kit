@@ -1,10 +1,10 @@
 # Native Script Editing Integration Contract
 
-**Status (2026-09-29):** T001–T003 are complete under [§18 T1](../research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) and [§19.9 R1 / L1](../research.md#199-capability-delta-readiness-review-2026-09-29). [T003 acceptance](../quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) and the [current private implementation](#7-current-private-implementation-boundary) describe the official-stock path. T002's patched validator is accepted historical evidence in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29), removed from HEAD and not a fallback. T004/T005 remain pending; the inherited endpoint limitation is non-blocking and no public edit capability exists.
+**Status (2026-09-29):** T001–T004 are complete under [§18 T1](../research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) and [§19.9 R1 / L1](../research.md#199-capability-delta-readiness-review-2026-09-29). [T003 acceptance](../quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) records the private stock boundary; [T004 caller acceptance](../quickstart.md#13-t004-caller-acceptance-2026-09-29) records the guarded caller and bridge-v2 integration. T005's cumulative gates remain pending. T002's patched validator is historical evidence in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29), not a fallback. The inherited stock endpoint limitation remains non-blocking.
 
 ## 1. Ownership and minimum exposure
 
-**T003 private boundary implemented, public product edit not yet exposed:** Official stock Godot plus addon and standard public-ABI C++17 GDExtension implement one guarded CodeEdit complex edit, explicit bound `Script.set_source_code`, descriptor-bound content persistence, same-fd T0 restoration, then public Resource edited=false and direct CodeEdit tag/STOP. No saved-handler Callable, ResourceSaver, full Save, engine patch or private Godot timestamp setter is used. T004 owns caller/core/bridge integration and feature A–E behavior.
+**Stock native boundary and guarded caller integration:** Official stock Godot plus addon and standard public-ABI C++17 GDExtension implement one guarded CodeEdit complex edit, explicit bound `Script.set_source_code`, descriptor-bound content persistence, same-fd T0 restoration, then public Resource edited=false and direct CodeEdit tag/STOP. No saved-handler Callable, ResourceSaver, full Save, engine patch or private Godot timestamp setter is used. T004 passed its required caller safety/history acceptance; T005 retains cumulative feature A–E.
 
 | Responsibility | Owner / selected mechanism / proof obligation |
 |---|---|
@@ -12,9 +12,9 @@
 | Authentication, routing, connection/attempt lifetime, marshaling | Existing private bridge and Godot integration. |
 | Native B edit, explicit Script R setter, retained-fd D content and metadata | Standard GDExtension through supported object methods and demonstrated macOS descriptor APIs. Exactly one logical content-persistence operation (`pwrite` calls as needed for eligible short writes, then truncate/fsync/readback), then a separately checked same-fd `futimens` restoration of T0 (atime omitted). |
 | Guarded saved transition and independent public saved-state evidence | Fresh target/source/version/receipt/namespace guards before the metadata syscall and before edited=false, then recheck and direct CodeEdit tag/STOP. Independent D/R/B, Resource edited flag, CodeEdit versions/dirty and exact association plus later ordinary Save/Undo/Redo/reopen must corroborate. No private numerical Resource/document mtime requirement. |
-| Exact-source validation and confined effects | **Implemented T003 private boundary:** existing supervised Rust worker owns bounded capture/staging, one-shot stock LSP child/protocol, per-source diagnostics/symbol fences, deadline and reaping. Addon/native retains editor getters/mutator. T004 still integrates authenticated typed caller/bridge/core evidence; T002 patched bindings are not a fallback. The inherited endpoint limitation is non-blocking, not a new single-client or global sandbox requirement. |
+| Exact-source validation and confined effects | The Rust caller supervisor owns bounded capture/staging, one-shot stock LSP child/protocol, per-source diagnostics/symbol fences, shared deadline and cleanup. Its edit worker acquires editor/D facts but cannot orphan a validator group by terminating. Addon/native retains editor getters/mutator. T002 patched bindings are not a fallback; the inherited endpoint limitation is not a single-client or global sandbox guarantee. |
 
-The earlier proposed engine API family revision **1** and T002's patched `GDScript` validator/ClassDB bindings are historical design/acceptance, not stock bindings. The now-removed implementation is archived in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29). T003's editor-local key is exactly `godot_agent_kit_native` with private revision `1`, not an advertised bridge editing capability; see the [stock native guide](../../../godot-addon/native/README.md#build-and-private-integration).
+The earlier proposed patched-engine API family and T002's `GDScript` validator/ClassDB bindings are historical design/acceptance, not stock bindings. Their implementation is archived in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29). The editor-local key remains `godot_agent_kit_native`, revision `1`; T004 binds that revision and the matched installed build into bridge-v2 authentication before advertising editing. See the [stock native guide](../../../godot-addon/native/README.md#build-and-private-integration).
 
 Preparation also inspects the target's native save-format settings and checks both the baseline and desired source against the same engine formatting rules in a non-mutating/check-only path. `save_current_script` runs `_auto_format_text` (trailing whitespace, final newlines and indentation); a later Save must not silently change the promised revision or destroy the Undo → Save → Redo case. Return `unsupported_representation/save_would_reformat` if either source would change, or if the relevant behavior cannot be established. Retain/recheck this fixed save-profile witness at application and verification. Never alter editor preferences, run formatting on the live document, or add a general formatter API. Representation limits are explicit; later independent human source/settings changes remain outside the successful interval.
 
@@ -233,7 +233,7 @@ The selected helper's inherited endpoint limitation is non-blocking under §19.9
 
 ### Placement in the edit flow
 
-**Implemented T003 private flow:** Changed intent validates freshly captured proposed source/closure before guarded native effects; after T1 application and STOP, another fresh helper validates independently captured actual source/dependencies/context. Invalid or unavailable post-change validation preserves known application as partial evidence; it never implies rollback or caller success. T004 owns complete authenticated caller/core outcome integration.
+**Caller-integrated stock flow:** Changed intent validates freshly captured proposed source/closure before guarded native effects; after T1 application and STOP, another fresh helper validates independently captured actual source/dependencies/context. The supervisor owns both helper invocations and cleanup under the same deadline. Invalid or unavailable post-change validation preserves known application as partial evidence; it never implies rollback or caller success.
 
 Unchanged intent uses one non-mutating validation and independent verification without native edit, writer, finalizer or history entry.
 
@@ -253,11 +253,11 @@ effective warning/context admission, all required URI diagnostics/symbol
 fences, valid/invalid/unavailable outcomes, stopped/failed-child cleanup,
 discarded-output/no-log privacy and independent user LSP behavior. The
 then-observed additional-client/disk-dependency probes support scoped owner
-attribution, not global endpoint exclusivity. T004/T005 still own authenticated
-caller and cumulative A–E/durability gates; earlier T002 patched results
-cannot discharge those later obligations.
+attribution, not global endpoint exclusivity. T004's authenticated caller gate
+has passed; T005 still owns cumulative A–E/durability evidence. Earlier T002
+patched results cannot discharge those later obligations.
 
-**T003 implemented and accepted the private stock boundary:** [quickstart §11](../quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) records real-editor, helper, history/durability, privacy/export and observation regression evidence. The earlier [capability-delta analysis](../plan.md#capability-delta-readiness-correction-review) established L1 readiness before implementation; it is not a current unstarted status. T004 still owns typed/core/caller/bridge integration and historical numeric-mtime/patched-validator evidence migration; public A–E and cumulative feature gates remain pending. No patched editor, custom saver, extra task or wider-platform support follows.
+**Accepted stock integration:** [Quickstart §11](../quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) records T003's private boundary. [Quickstart §13](../quickstart.md#13-t004-caller-acceptance-2026-09-29) records T004's migrated typed core/caller/bridge, public saved-state and stock parser evidence, all six caller groups, native primitives and observation regressions. T005's cumulative feature gates remain pending. No patched editor, custom saver, extra task or wider-platform support follows.
 
 ## 6. Pinned implementation basis
 
@@ -272,16 +272,16 @@ All engine references use `ed1daf0bf001b61586d9930840f2f1394092c079`:
 
 ## 7. Current private implementation boundary
 
-T003 adds `runner::stock_validation` and private admission/protocol/ownership
-modules in the existing Rust package. Its current executable consumer is
-`examples/stock_validation_fixture.rs`, not a product edit CLI. Trusted integration
-supplies request/session/project/purpose, proposed source or actual-D capture,
-effective selected-editor warning policy and bounded global-class names.
-Public ProjectSettings values can be StringName values; the fixture converts
-actual class names to strings rather than silently dropping that context.
-Disk configuration is an identity/change witness, not authority to replace
-effective editor overrides. T004 must bind and recheck this context through the
-authenticated caller/bridge; historical typed-core evidence remains unmigrated.
+`runner::stock_validation` and its private admission/protocol/ownership modules
+remain in the existing Rust package. T004's `edit-gdscript` supervisor is the
+product consumer; `examples/stock_validation_fixture.rs` remains test-only.
+Trusted integration supplies request/session/project/purpose, proposed source or
+actual-D capture, effective selected-editor warnings and bounded global-class
+names. StringName values are converted explicitly. Disk configuration is an
+identity/change witness, not authority to replace effective editor overrides.
+The authenticated bridge supplies fresh context, and the worker rechecks it
+against each actual capture. Typed validation retains caller-clock intervals,
+source-specific fences, cleanup and current dependency/context evidence.
 
 Helper child-spawn/reap facts are nullable after worker loss; they do not default
 to a false claim that no child existed. Scratch cleanup has separate confirmation.
@@ -290,6 +290,7 @@ existing detached reaper with a bounded acknowledgment, not unbounded waits or
 filesystem deletion on its result-delivery thread.
 
 The standard native metadata exposes private
+`edit_inspect(path, original_source, desired_source, document)`,
 `edit_prepare(path, expected_source, desired_source, correlation)`,
 `edit_advance(request_id, expected_stage)`, `edit_cancel(request_id)` and
 `edit_expire()`. Correlation contains request/session, exact document instance IDs
@@ -301,16 +302,17 @@ Stages are `prepared`, `buffer_applied`, `resource_applied`, `content_persisted`
 `prepared|ready|complete|refused|busy|partial` responses report primitive state and
 actual effects, **not** the core's terminal EditOutcome. `complete` requires
 independent caller-side validation and observation before product success.
-The private addon executes the six effect stages without yielding and holds the
-existing bridge collection slot until entered native work returns, including
-reentrant cancellation/shutdown. Between removal and insertion, a fresh
+Each native stage runs without yielding or pumping events. The bridge dispatches
+stages in order between drained progress frames and retains the existing shared
+slot throughout the attempt and any entered native work, including reentrant
+cancellation/shutdown. Between removal and insertion, a fresh
 association/source/current/saved check protects synchronous newer human text.
 Cleanup may retain a partial native history entry; it does not roll back.
 
 Fixture-only `GAK_FIXTURE` builds expose fault injection only in a separately
 identified library. The normal artifact has no fault callable. The
-[stock native guide](../../../godot-addon/native/README.md) documents build,
-exact-source/Save/effect limits and the sole current script-edit runner scenario
-`native-primitives`. Required stock GUI/history/durability/privacy/export and
-affected observation acceptance passed for T003. No public wire schema or edit
-capability is introduced by this private surface.
+[stock native guide](../../../godot-addon/native/README.md) documents build and
+exact-source/Save/effect limits. `native-primitives` retains the private
+regression groups; six caller groups exercise the public edit path.
+T003's earlier private acceptance does not replace T004 caller acceptance or
+T005 cumulative evidence, and state-only diagnostics do not replace GUI captures.

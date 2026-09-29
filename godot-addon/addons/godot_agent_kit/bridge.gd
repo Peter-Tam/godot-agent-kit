@@ -3,9 +3,10 @@ extends Node
 
 const VERSION := "4.7.2.stable.official.ed1daf0bf"
 const ENGINE_HASH := "ed1daf0bf001b61586d9930840f2f1394092c079"
-const DOMAIN := "godot-agent-kit/observation-bridge/v1"
+const DOMAIN := "godot-agent-kit/editor-bridge/v2"
 const ObservationScript = preload("res://addons/godot_agent_kit/observation.gd")
 const MAX_FRAME := 4096
+const MAX_SELECTED_REQUEST := 4 * 1024 * 1024
 const MAX_RESPONSE := 12 * 1024 * 1024
 const MAX_PEERS := 32
 const PEER_EXPIRY_USEC := 4500000
@@ -20,8 +21,8 @@ const CAPABILITIES := {
 	"buffer_attribution": true,
 	"unsaved_paths": true,
 	"cached_resource_lookup": true,
+	"edit_open_gdscript": false,
 }
-
 var _crypto := Crypto.new()
 var _filesystem := DirAccess.open("/")
 var _server: TCPServer
@@ -37,6 +38,9 @@ var _registry_identity := ""
 var _uid := ""
 var _project_identity := ""
 
+var _edit_owner: Node
+var _native_revision := 0
+var _native_build_id := ""
 var _active: Dictionary = {}
 
 
@@ -216,7 +220,7 @@ func _publish(port: int) -> bool:
 		or _filesystem.is_link(temp_path) or DirAccess.dir_exists_absolute(temp_path) or FileAccess.file_exists(temp_path):
 		return false
 	var descriptor := {
-		"v": 1, "session_id": _session, "project_root": _project,
+		"v": 2, "session_id": _session, "project_root": _project,
 		"godot_version": VERSION, "engine_hash": ENGINE_HASH,
 		"host": "127.0.0.1", "port": port, "token": _secret.hex_encode(),
 	}
@@ -268,12 +272,13 @@ func _remove_owned_temp(path: String) -> void:
 		DirAccess.remove_absolute(path)
 
 
-# The private native integration shares this slot with observation; no edit
-# opcode or source-bearing admission is exposed by bridge v1.
-func _claim_edit(owner: Node) -> bool:
+# The private native owner and the authenticated peer use the same slot.
+# Only the owner that claimed it can release it.
+func _claim_edit(owner: Node, peer: Dictionary = {}) -> bool:
 	if not is_instance_valid(owner) or _server == null or _session.is_empty() or not _active.is_empty():
 		return false
-	_active = {"edit_owner": owner}
+	_active = peer if not peer.is_empty() else {"edit_owner": owner}
+	_active.edit_owner = owner
 	return true
 
 
@@ -282,18 +287,42 @@ func _release_edit(owner: Node) -> void:
 		_active = {}
 
 
+func attach_edit(owner: Node, revision: int, build_id: String) -> void:
+	var valid: bool = is_instance_valid(owner) and owner.get("_bridge") == self \
+		and revision == 1 and _valid_hex(build_id, 64)
+	if valid:
+		var installed: Variant = Engine.get_meta("godot_agent_kit_native", {})
+		var family: Variant = owner.get("_native")
+		valid = installed is Dictionary and family is Dictionary \
+			and family.has_all(["api_revision", "build_id", "edit_inspect", "edit_prepare",
+				"edit_advance", "edit_cancel", "edit_expire"]) \
+			and family["api_revision"].call() == 1 and family["build_id"].call() == build_id \
+			and installed.get("build_id") == family["build_id"]
+	_edit_owner = owner if valid else null
+	_native_revision = 1 if valid else 0
+	_native_build_id = build_id if valid else ""
+
+
+func _capabilities() -> Dictionary:
+	var capabilities := CAPABILITIES.duplicate()
+	capabilities.edit_open_gdscript = is_instance_valid(_edit_owner) and _native_revision == 1
+	return capabilities
+
+
 func stop() -> void:
 	set_process(false)
 	var edit_owner: Variant = _active.get("edit_owner")
 	if is_instance_valid(edit_owner):
-		edit_owner.cancel_owned()
+		edit_owner.call("cancel_owned")
 	for peer in _peers:
 		peer.socket.disconnect_from_host()
 		if peer.has("collector"):
 			peer.collector.clear()
+		if peer.has("edit_collector"):
+			peer.edit_collector.clear()
 	# Reentrant shutdown may interrupt an already-entered native call. Its owner
 	# releases this marker only after the call and its history cleanup return.
-	if not _active.has("edit_owner"):
+	if not _active.has("edit_owner") or not is_instance_valid(edit_owner) or not edit_owner.call("is_active_stage"):
 		_active.clear()
 	_peers.clear()
 	_peer_cursor = 0
@@ -312,6 +341,9 @@ func stop() -> void:
 	_descriptor_identity = ""
 	_registry_identity = ""
 	_project_identity = ""
+	_edit_owner = null
+	_native_revision = 0
+	_native_build_id = ""
 
 
 func _exit_tree() -> void:
@@ -325,6 +357,9 @@ func _process(_delta: float) -> void:
 	var frame_start := Time.get_ticks_usec()
 	if _active.has("observation_since") and Time.get_ticks_usec() - int(_active.observation_since) >= PEER_EXPIRY_USEC:
 		_close_peer(_active)
+	if _active.has("edit_owner") and _active.has("expiry_tick_us") \
+			and Time.get_ticks_usec() >= int(_active.expiry_tick_us):
+		_close_peer(_active)
 	var budget := FRAME_BUDGET_BYTES
 	var schedule := _peers.duplicate()
 	if not schedule.is_empty():
@@ -337,6 +372,8 @@ func _process(_delta: float) -> void:
 		socket.poll()
 		if socket.get_status() != StreamPeerTCP.STATUS_CONNECTED or (peer.state in ["initial", "challenged"] and Time.get_ticks_usec() - int(peer.since) >= HANDSHAKE_EXPIRY_USEC):
 			_close_peer(peer)
+			continue
+		if peer.has("frame_pending"):
 			continue
 		if not peer.output.is_empty():
 			var remaining: int = peer.output.size() - peer.sent
@@ -358,6 +395,8 @@ func _process(_delta: float) -> void:
 			continue
 		while budget > 0 and Time.get_ticks_usec() - frame_start < FRAME_BUDGET_USEC and socket.get_available_bytes() > 0:
 			var required: int = (4 if peer.needed < 0 else peer.needed + 4) - peer.input.size()
+			if peer.needed > MAX_FRAME and not peer.get("large_prefix", false):
+				required = mini(required, 516 - peer.input.size())
 			if required <= 0:
 				_close_peer(peer)
 				break
@@ -370,14 +409,27 @@ func _process(_delta: float) -> void:
 			budget -= received.size()
 			if peer.needed < 0 and peer.input.size() == 4:
 				peer.needed = (int(peer.input[0]) << 24) | (int(peer.input[1]) << 16) | (int(peer.input[2]) << 8) | int(peer.input[3])
-				if peer.needed < 1 or peer.needed > MAX_FRAME:
+				var limit := MAX_SELECTED_REQUEST if peer.state == "authenticated" else MAX_FRAME
+				if peer.needed < 1 or peer.needed > limit:
 					_close_peer(peer)
 					break
+			if peer.needed > MAX_FRAME and not peer.get("large_prefix", false) \
+					and peer.input.size() == 516:
+				var prefix: String = peer.input.slice(4).get_string_from_utf8()
+				for whitespace in [" ", "\t", "\r", "\n"]:
+					prefix = prefix.replace(whitespace, "")
+				if not prefix.begins_with('[2,"edit_prepare",'):
+					_close_peer(peer)
+					break
+				peer.large_prefix = true
 			if peer.needed >= 0 and peer.input.size() == peer.needed + 4:
-				var message: PackedByteArray = peer.input.slice(4)
+				if peer.state == "authenticated":
+					peer.frame_pending = peer.input
+				else:
+					_handle_frame(peer, peer.input.slice(4))
 				peer.input = PackedByteArray()
 				peer.needed = -1
-				_handle_frame(peer, message)
+				peer.erase("large_prefix")
 				break
 	while Time.get_ticks_usec() - frame_start < FRAME_BUDGET_USEC and _server.is_connection_available():
 		var incoming := _server.take_connection()
@@ -393,24 +445,115 @@ func _process(_delta: float) -> void:
 		incoming.set_no_delay(true)
 		_peers.append({"socket": incoming, "since": Time.get_ticks_usec(), "state": "initial",
 			"input": PackedByteArray(), "needed": -1, "output": PackedByteArray(), "sent": 0})
-	# Getter work is a separate bounded pass, never inside the shared network
-	# time/byte budget. At most one active request may hold source references.
+	# Decode the at-most-one completed selected frame outside the shared network
+	# pass; its source-bearing JSON and native/getter work are separate stages.
+	for peer in schedule:
+		if peer.has("frame_pending") and _peers.has(peer):
+			var message: PackedByteArray = peer.frame_pending
+			peer.erase("frame_pending")
+			_handle_frame(peer, message.slice(4))
+			break
 	if not _active.is_empty() and _active.has("pending"):
-		_collect_pending()
+		if _active.has("edit_owner"):
+			_collect_edit(_active)
+		else:
+			_collect_pending()
 
 
 func _close_peer(peer: Dictionary) -> void:
-	peer.socket.disconnect_from_host()
 	if _active == peer:
-		_active = {}
+		if peer.has("edit_owner"):
+			var owner: Node = peer.edit_owner
+			if is_instance_valid(owner):
+				owner.call("cancel_owned")
+			if _active == peer and (not is_instance_valid(owner) or not owner.call("is_active_stage")):
+				_active = {}
+		else:
+			_active = {}
+	peer.socket.disconnect_from_host()
 	if peer.has("collector"):
 		peer.collector.clear()
 		peer.erase("collector")
+	if peer.has("edit_collector"):
+		peer.edit_collector.clear()
+		peer.erase("edit_collector")
 	_peers.erase(peer)
 
 
+# Godot's json_escape emits \v and leaves other C0 bytes raw. Repair only
+# those escapes in the already-serialized JSON: a literal "\\v" stays intact.
+# Ordinary payloads retain their original UTF-8 buffer without another copy.
+static func _json_wire(value: Variant) -> PackedByteArray:
+	var json := JSON.stringify(value)
+	var bytes := json.to_utf8_buffer()
+	var needs_repair := json.contains("\\v")
+	if not needs_repair:
+		for control in range(32):
+			if bytes.has(control):
+				needs_repair = true
+				break
+	if not needs_repair:
+		return bytes
+	var repairs := PackedInt32Array()
+	var extra := 0
+	var quoted := false
+	var escaped := false
+	for index in bytes.size():
+		var byte := bytes[index]
+		if not quoted:
+			if byte == 34:
+				quoted = true
+			continue
+		if escaped:
+			escaped = false
+			if byte == 118: # Godot's non-JSON vertical-tab escape.
+				repairs.append(1 - index) # Negative offset of its backslash.
+				extra += 4
+			continue
+		if byte == 92:
+			escaped = true
+		elif byte == 34:
+			quoted = false
+		elif byte < 32:
+			repairs.append(index)
+			extra += 5
+	if repairs.is_empty():
+		return bytes
+	var result := PackedByteArray()
+	result.resize(bytes.size() + extra)
+	var source := 0
+	var target := 0
+	for repair in repairs:
+		var offset := -repair if repair < 0 else repair
+		while source < offset:
+			result[target] = bytes[source]
+			source += 1
+			target += 1
+		result[target] = 92
+		result[target + 1] = 117
+		result[target + 2] = 48
+		result[target + 3] = 48
+		if repair < 0:
+			result[target + 4] = 48
+			result[target + 5] = 98
+			source += 2
+		else:
+			var byte := bytes[source]
+			result[target + 4] = "0123456789abcdef".unicode_at(byte >> 4)
+			result[target + 5] = "0123456789abcdef".unicode_at(byte & 15)
+			source += 1
+		target += 6
+	while source < bytes.size():
+		result[target] = bytes[source]
+		source += 1
+		target += 1
+	return result
+
+
 func _queue(peer: Dictionary, payload: Dictionary, closing: bool = false, large: bool = false) -> void:
-	var body := JSON.stringify(payload).to_utf8_buffer()
+	if not _peers.has(peer):
+		return
+	var body := _json_wire(payload)
 	if body.size() > (MAX_RESPONSE if large else MAX_FRAME):
 		_close_peer(peer)
 		return
@@ -441,16 +584,63 @@ func _valid_id(value: Variant) -> bool:
 	return true
 
 
+func _integral_control(value: Variant, minimum: int, maximum: int) -> bool:
+	if typeof(value) not in [TYPE_INT, TYPE_FLOAT] or value < minimum or value > maximum:
+		return false
+	return value == int(value)
+
+
 func _fixed_tuple(value: Variant, count: int, operation: String) -> bool:
-	return typeof(value) == TYPE_ARRAY and value.size() == count and typeof(value[0]) in [TYPE_INT, TYPE_FLOAT] and value[0] == 1 \
+	return typeof(value) == TYPE_ARRAY and value.size() == count and _integral_control(value[0], 2, 2) \
 		and typeof(value[1]) == TYPE_STRING and value[1] == operation and _valid_id(value[2]) \
 		and typeof(value[3]) == TYPE_STRING and value[3] == _session \
 		and typeof(value[4]) == TYPE_STRING and value[4] == _project and value[4].to_utf8_buffer().size() <= 1024
 
 
+func _json_depth_ok(bytes: PackedByteArray) -> bool:
+	var depth := 0
+	var quoted := false
+	var escaped := false
+	var finished := false
+	var last := 0
+	for byte in bytes:
+		if quoted:
+			if escaped:
+				escaped = false
+			elif byte == 92:
+				escaped = true
+			elif byte == 34:
+				quoted = false
+			continue
+		if byte == 32 or byte == 9 or byte == 10 or byte == 13:
+			continue
+		if finished:
+			return false
+		if byte == 34:
+			quoted = true
+		elif byte == 91 or byte == 123:
+			if depth == 0 and byte != 91:
+				return false
+			depth += 1
+			if depth > 32:
+				return false
+		elif byte == 93 or byte == 125:
+			if last == 44:
+				return false
+			depth -= 1
+			if depth < 0:
+				return false
+			if depth == 0:
+				finished = true
+		elif depth == 0 or byte == 47:
+			return false
+		last = byte
+	return finished and not quoted
+
+
 func _handle_frame(peer: Dictionary, bytes: PackedByteArray) -> void:
 	var text := bytes.get_string_from_utf8()
-	if text.to_utf8_buffer() != bytes:
+	if text.to_utf8_buffer() != bytes or not _json_depth_ok(bytes):
 		_close_peer(peer)
 		return
 	var parser := JSON.new()
@@ -466,7 +656,12 @@ func _handle_frame(peer: Dictionary, bytes: PackedByteArray) -> void:
 		if server_nonce.size() != 32:
 			_close_peer(peer)
 			return
-		var transcript := transcript_bytes(value[2], _session, _project, VERSION, ENGINE_HASH, CAPABILITIES, value[5], server_nonce.hex_encode())
+		peer.auth_capabilities = _capabilities()
+		peer.auth_native_revision = _native_revision
+		peer.auth_native_build_id = _native_build_id
+		var transcript := transcript_bytes(value[2], _session, _project, VERSION, ENGINE_HASH,
+			peer.auth_capabilities, peer.auth_native_revision, peer.auth_native_build_id,
+			value[5], server_nonce.hex_encode())
 		if transcript.is_empty():
 			_close_peer(peer)
 			return
@@ -489,6 +684,10 @@ func _handle_frame(peer: Dictionary, bytes: PackedByteArray) -> void:
 			or not _valid_hex(value[7], 64):
 			_close_peer(peer)
 			return
+		if peer.auth_capabilities != _capabilities() or peer.auth_native_revision != _native_revision \
+				or peer.auth_native_build_id != _native_build_id:
+			_close_peer(peer)
+			return
 		var expected := role_proof(_secret, "client", peer.transcript)
 		if expected.size() != 32 or not _crypto.constant_time_compare(expected, (value[7] as String).hex_decode()):
 			_close_peer(peer)
@@ -502,6 +701,13 @@ func _handle_frame(peer: Dictionary, bytes: PackedByteArray) -> void:
 		hello.finish_proof = finish.hex_encode()
 		_queue(peer, hello)
 	elif peer.state == "authenticated":
+		if typeof(value) == TYPE_ARRAY and value.size() >= 2 and typeof(value[1]) == TYPE_STRING \
+				and (value[1] as String).begins_with("edit_"):
+			_handle_edit_tuple(peer, value, bytes.size())
+			return
+		if bytes.size() > MAX_FRAME:
+			_close_peer(peer)
+			return
 		if not _fixed_tuple(value, 6, "observe") and not _fixed_tuple(value, 6, "recheck"):
 			_close_peer(peer)
 			return
@@ -536,8 +742,123 @@ func _handle_frame(peer: Dictionary, bytes: PackedByteArray) -> void:
 		_close_peer(peer)
 
 
+func _valid_decimal(value: Variant) -> bool:
+	if typeof(value) != TYPE_STRING or value.is_empty() or value.length() > 20 \
+			or (value.length() > 1 and value[0] == "0"):
+		return false
+	for character in value:
+		if character not in "0123456789":
+			return false
+	return value.length() < 20 or value <= "18446744073709551615"
+
+
+func _valid_replacement(value: Variant) -> bool:
+	if typeof(value) != TYPE_STRING or value.length() > 512 * 1024:
+		return false
+	var source: String = value
+	var bytes := source.to_utf8_buffer()
+	return bytes.size() <= 512 * 1024 and not bytes.has(0) \
+		and not source.contains("\r") and not source.contains(char(0xfeff))
+
+
+func _editor_stamp(started: int) -> Dictionary:
+	return {"clock_id": "editor:" + _session, "started_tick_us": str(started),
+		"finished_tick_us": str(Time.get_ticks_usec()), "received_elapsed_us": 0}
+
+
+func _edit_envelope(peer: Dictionary, kind: String) -> Dictionary:
+	return {"v": 2, "kind": kind, "request_id": peer.request_id,
+		"session_id": _session, "project_root": _project,
+		"script_path": peer.get("edit_path", ""), "collection": _editor_stamp(Time.get_ticks_usec())}
+
+
+func _edit_busy(peer: Dictionary, path: String) -> void:
+	var reply := _edit_envelope(peer, "edit_prepared")
+	reply.script_path = path
+	reply.merge({"status": "busy", "reason": "busy", "intent": null,
+		"native": null, "sample": null, "saved_state": null, "context": null,
+		"expiry_tick_us": null})
+	_queue(peer, reply, true)
+
+
+func _handle_edit_tuple(peer: Dictionary, value: Array, size: int) -> void:
+	var operation: String = value[1]
+	var arity := 19 if operation == "edit_prepare" else 7 if operation in ["edit_verify", "edit_recheck"] else 6
+	if operation not in ["edit_prepare", "edit_apply", "edit_verify", "edit_recheck",
+			"edit_finish", "edit_abort"] or size > (MAX_SELECTED_REQUEST if operation == "edit_prepare" else MAX_FRAME) \
+			or not _fixed_tuple(value, arity, operation) or value[2] != peer.request_id \
+			or typeof(value[5]) != TYPE_STRING or value[5].to_utf8_buffer().size() > 2048:
+		_close_peer(peer)
+		return
+	var path: String = value[5]
+	if operation == "edit_prepare":
+		if peer.has("edit_owner") or peer.has("collector"):
+			_close_peer(peer)
+			return
+		if not _active.is_empty():
+			_edit_busy(peer, path)
+			return
+		if not peer.auth_capabilities.edit_open_gdscript or peer.auth_native_revision != 1 \
+				or peer.auth_native_build_id != _native_build_id \
+				or _edit_owner == null or not is_instance_valid(_edit_owner):
+			_queue(peer, _failure(peer, path, "read_editor", "unsupported_capability"), true)
+			return
+		if not _integral_control(value[6], 1, 9000) \
+				or not _valid_id(value[7]) or value[7] == peer.request_id \
+				or not _valid_hex(value[16], 64) or not _valid_decimal(value[17]) \
+				or not _valid_replacement(value[18]):
+			_close_peer(peer)
+			return
+		for index in range(8, 16):
+			if not _valid_decimal(value[index]):
+				_close_peer(peer)
+				return
+		if not path.ends_with(".gd") or path.contains("::") or not _safe_locator(path):
+			_queue(peer, _failure(peer, path, "read_editor"), true)
+			return
+		if not _claim_edit(_edit_owner, peer):
+			_edit_busy(peer, path)
+			return
+		peer.edit_path = path
+		peer.expiry_tick_us = Time.get_ticks_usec() + int(value[6]) * 1000
+		peer.prepare_tuple = value
+		peer.pending = "edit_prepare"
+		return
+	if _active != peer or not peer.has("edit_owner") or path != peer.edit_path \
+			or (peer.has("pending") and (operation not in ["edit_abort", "edit_finish"] \
+			or peer.pending in ["edit_abort", "edit_finish"])):
+		_close_peer(peer)
+		return
+	if operation == "edit_apply":
+		if peer.get("edit_intent") != "changed" or peer.get("apply_started", false) \
+				or peer.has("verified_purpose"):
+			_close_peer(peer)
+			return
+		peer.apply_started = true
+		peer.apply_stage = "prepared"
+		peer.pending = "edit_apply"
+	elif operation in ["edit_verify", "edit_recheck"]:
+		if typeof(value[6]) != TYPE_STRING or value[6] not in ["preflight", "post_change", "unchanged"] \
+				or (value[6] == "unchanged") != (peer.get("edit_intent") == "unchanged") \
+				or (value[6] == "post_change" and not peer.get("apply_done", false)) \
+				or (value[6] == "preflight" and (peer.get("apply_started", false) \
+				or peer.get("edit_intent") != "changed")):
+			_close_peer(peer)
+			return
+		if operation == "edit_recheck" and peer.get("verified_purpose") != value[6]:
+			_close_peer(peer)
+			return
+		if operation == "edit_verify" and peer.has("verified_purpose"):
+			_close_peer(peer)
+			return
+		peer.purpose = value[6]
+		peer.pending = operation
+	else:
+		peer.pending = operation
+
+
 func _failure(peer: Dictionary, path: String, stage: String, code: String = "out_of_project") -> Dictionary:
-	return {"v": 1, "kind": "failure", "request_id": peer.request_id,
+	return {"v": 2, "kind": "failure", "request_id": peer.request_id,
 		"session_id": _session, "project_root": _project, "script_path": path,
 		"code": code, "stage": stage}
 
@@ -644,11 +965,325 @@ func _collect_pending() -> void:
 		_active = {}
 
 
+# Fixture bridge subclasses may hold a queued stage at this nonblocking gap.
+# Product never yields inside an already-entered native call.
+func _edit_ready(_peer: Dictionary, _stage: String) -> bool:
+	return true
+
+
+func _edit_context() -> Variant:
+	var started := Time.get_ticks_usec()
+	var prefix := "debug/gdscript/warnings/"
+	var enabled: Variant = ProjectSettings.get_setting_with_override(prefix + "enable")
+	var directories: Variant = ProjectSettings.get_setting_with_override(prefix + "directory_rules")
+	var executable := OS.get_executable_path()
+	if typeof(enabled) != TYPE_BOOL or typeof(directories) != TYPE_DICTIONARY \
+			or executable.is_empty() or not executable.begins_with("/") or directories.size() > 32:
+		return null
+	var rules := {}
+	for key in directories:
+		var decision: Variant = directories[key]
+		if typeof(key) != TYPE_STRING or typeof(decision) != TYPE_INT or decision not in [0, 1]:
+			return null
+		rules[key] = decision
+	var levels := {}
+	for property in ProjectSettings.get_property_list():
+		var full_name: String = property.get("name", "")
+		if not full_name.begins_with(prefix):
+			continue
+		var key := full_name.trim_prefix(prefix)
+		if key in ["enable", "directory_rules", "exclude_addons", "renamed_in_godot_4_hint",
+				"property_used_as_function", "constant_used_as_function", "function_used_as_property"] \
+				or key.contains("."):
+			continue
+		var level: Variant = ProjectSettings.get_setting_with_override(full_name)
+		if typeof(level) != TYPE_INT or level < 0 or level > 2 or levels.has(key) or levels.size() >= 64:
+			return null
+		levels[key] = level
+	var classes := []
+	for entry in ProjectSettings.get_global_class_list():
+		if entry.get("language") != "GDScript":
+			continue
+		var registered_class: Variant = entry.get("class")
+		if typeof(registered_class) not in [TYPE_STRING, TYPE_STRING_NAME] or classes.size() >= 256:
+			return null
+		classes.append(String(registered_class))
+	classes.sort()
+	return {"executable_path": executable, "warning_profile": {
+		"enable": enabled, "levels": levels, "directory_rules": rules},
+		"global_classes": classes, "collection": _editor_stamp(started)}
+
+
+func _edit_probe(peer: Dictionary, retain: bool = false) -> Dictionary:
+	var path: String = peer.edit_path
+	var scope := _scope_witness(path)
+	if scope.is_empty():
+		return {"sample": null, "saved_state": null, "context": null}
+	var collector := ObservationScript.new()
+	var sample: Dictionary = collector.collect(_session, _project, path)
+	sample.request_id = peer.request_id
+	var saved: Variant = null
+	if sample.get("kind") == "sample":
+		var identity: Variant = sample.document.get("identity")
+		if identity is Dictionary and identity.get("kind") == "external_gdscript" \
+				and identity.has_all(["script_instance_id", "editor_instance_id", "buffer_instance_id"]):
+			var document := {"resource_instance_id": identity.script_instance_id,
+				"editor_instance_id": identity.editor_instance_id,
+				"buffer_instance_id": identity.buffer_instance_id}
+			var started := Time.get_ticks_usec()
+			var original: String = peer.get("baseline", sample.R.get("text", ""))
+			var desired: String = peer.get("desired", original)
+			var inspection: Dictionary = _edit_owner.call("inspect", path, original, desired, document)
+			var facts: Variant = inspection.get("facts")
+			if inspection.get("status") == "observed" and facts is Dictionary \
+					and facts.has_all(["current_version", "saved_version", "resource_edited",
+					"save_profile", "original_preserved", "desired_preserved"]):
+				saved = {"document": identity, "collection": _editor_stamp(started),
+					"current_version": facts.current_version, "saved_version": facts.saved_version,
+					"resource_edited": facts.resource_edited, "save_profile": facts.save_profile,
+					"original_preserved": facts.original_preserved,
+					"desired_preserved": facts.desired_preserved}
+	var context: Variant = _edit_context()
+	if _scope_witness(path) != scope:
+		collector.clear()
+		return {"sample": null, "saved_state": null, "context": null}
+	if retain and sample.get("kind") == "sample":
+		if peer.has("edit_collector"):
+			peer.edit_collector.clear()
+		peer.edit_collector = collector
+	else:
+		collector.clear()
+	return {"sample": sample if sample.get("kind") == "sample" else null,
+		"saved_state": saved, "context": context}
+
+
+func _edit_preparation_reason(peer: Dictionary, sample: Variant, saved: Variant, context: Variant) -> String:
+	if not (sample is Dictionary):
+		return "unavailable_observation"
+	var open_state: Variant = sample.document.get("open_state")
+	if open_state is Dictionary and open_state.get("value") == "not_open":
+		return "closed_target"
+	if not (open_state is Dictionary) or open_state.get("value") != "open" \
+			or sample.document.get("validity", {}).get("value") != "valid":
+		return "unavailable_observation"
+	var identity: Variant = sample.document.get("identity")
+	if not (identity is Dictionary) or not identity.has_all(
+			["kind", "resource_path", "script_instance_id", "editor_instance_id", "buffer_instance_id"]):
+		return "unavailable_observation"
+	var tuple: Array = peer.prepare_tuple
+	if identity.kind != "external_gdscript" or identity.resource_path != peer.edit_path \
+			or identity.script_instance_id != tuple[12] \
+			or identity.editor_instance_id != tuple[13] or identity.buffer_instance_id != tuple[14]:
+		return "identity_changed"
+	if sample.R.get("availability") != "observed" or sample.B.get("availability") != "observed" \
+			or sample.dirty.get("availability") != "observed":
+		return "unavailable_observation"
+	if sample.dirty.get("state") == "dirty":
+		return "dirty"
+	if sample.dirty.get("state") != "clean":
+		return "unavailable_observation"
+	if sample.R.text != sample.B.text:
+		return "divergence"
+	var original: String = sample.R.text
+	if original.contains("\r") or original.to_utf8_buffer().has(0) or original.contains(char(0xfeff)):
+		return "unsupported_representation"
+	if not (saved is Dictionary) or not (context is Dictionary):
+		return "unavailable_observation"
+	var saved_identity: Variant = saved.get("document")
+	if not (saved_identity is Dictionary):
+		return "unavailable_observation"
+	if saved_identity != identity:
+		return "identity_changed"
+	if saved.resource_edited or saved.current_version != saved.saved_version:
+		return "dirty"
+	var witness: Variant = sample.B.get("witness")
+	if not (witness is Dictionary) or not witness.has_all(["script_instance_id",
+			"editor_instance_id", "buffer_instance_id", "source_version"]):
+		return "unavailable_observation"
+	if witness.script_instance_id != tuple[12] or witness.editor_instance_id != tuple[13] \
+			or witness.buffer_instance_id != tuple[14]:
+		return "identity_changed"
+	if witness.source_version != tuple[15] or saved.current_version != tuple[15] \
+			or original.sha256_text() != tuple[16] or str(original.to_utf8_buffer().size()) != tuple[17]:
+		return "revision_mismatch"
+	var project_info := _metadata(_project)
+	var file_info := _metadata(_project.path_join(peer.edit_path.substr(6)))
+	if project_info.size() != 5 or file_info.size() != 5:
+		return "unavailable_observation"
+	if project_info[3] != tuple[8] or project_info[4] != tuple[9] \
+			or file_info[3] != tuple[10] or file_info[4] != tuple[11]:
+		return "identity_changed"
+	if not saved.original_preserved or not saved.desired_preserved:
+		return "save_would_reformat"
+	return ""
+
+
+func _collect_edit(peer: Dictionary) -> void:
+	var operation: String = peer.pending
+	var stage: String = operation
+	if operation == "edit_apply":
+		stage = "apply" if peer.apply_stage == "prepared" else peer.apply_stage
+	elif operation in ["edit_verify", "edit_recheck"]:
+		stage = operation.trim_prefix("edit_") + ":" + peer.purpose
+	elif operation == "edit_prepare":
+		stage = "prepare"
+	if not peer.output.is_empty() or not _edit_ready(peer, stage):
+		return
+	var operation_started := Time.get_ticks_usec()
+	peer.erase("pending")
+	if operation == "edit_prepare":
+		var tuple: Array = peer.prepare_tuple
+		peer.desired = tuple[18]
+		var inspected := _edit_probe(peer, true)
+		var reply := _edit_envelope(peer, "edit_prepared")
+		reply.merge({"status": "refused", "reason": _edit_preparation_reason(peer,
+			inspected.sample, inspected.saved_state, inspected.context),
+			"intent": null, "native": null, "sample": inspected.sample,
+			"saved_state": inspected.saved_state, "context": inspected.context,
+			"expiry_tick_us": str(peer.expiry_tick_us)})
+		if reply.reason == "":
+			peer.baseline = inspected.sample.R.text
+			peer.edit_intent = "unchanged" if peer.desired == peer.baseline else "changed"
+			peer.verified_purpose = "unchanged" if peer.edit_intent == "unchanged" else "preflight"
+			if peer.edit_intent == "unchanged":
+				reply.status = "prepared"
+				reply.reason = ""
+				reply.intent = "unchanged"
+			else:
+				var binding := {"resource_instance_id": tuple[12], "editor_instance_id": tuple[13],
+					"buffer_instance_id": tuple[14]}
+				var correlation := {"request_id": peer.request_id, "session_id": _session,
+					"document": binding, "expiry_tick_us": str(peer.expiry_tick_us),
+					"project_device": tuple[8], "project_inode": tuple[9],
+					"target_device": tuple[10], "target_inode": tuple[11],
+					"expected_version": tuple[15], "expected_sha256": tuple[16],
+					"expected_length": tuple[17]}
+				var native: Dictionary = _edit_owner.call("begin", peer.edit_path, peer.baseline, peer.desired, correlation)
+				reply.native = native if native.has("facts") and native.has("stage") else null
+				reply.status = "prepared" if native.get("status") == "prepared" else "refused"
+				reply.reason = native.get("reason", "")
+				reply.intent = "changed" if reply.status == "prepared" else null
+		peer.erase("prepare_tuple")
+		reply.collection = _editor_stamp(operation_started)
+		if reply.status != "prepared":
+			_queue(peer, reply, true, true)
+			if _active == peer:
+				_edit_owner.call("cancel_owned")
+				_active = {}
+		else:
+			_queue(peer, reply, false, true)
+		return
+	if operation == "edit_apply":
+		var before := {"sample": null, "saved_state": null}
+		if peer.apply_stage in ["mtime_restored", "edited_cleared"]:
+			before = _edit_probe(peer)
+		if _active != peer:
+			return
+		peer.native_stage_authorized = peer.apply_stage
+		var native: Dictionary = _edit_owner.call("advance_bound", peer.request_id, peer.apply_stage)
+		peer.erase("native_stage_authorized")
+		if _active != peer:
+			return
+		var after := _edit_probe(peer)
+		var stamp := _editor_stamp(operation_started)
+		var event := {"stage": native.get("stage", peer.apply_stage), "native": native,
+			"collection": stamp, "before_sample": before.sample,
+			"after_sample": after.sample, "before_saved_state": before.saved_state,
+			"after_saved_state": after.saved_state}
+		# Progress carries each full source snapshot exactly once.
+		if native.get("status") in ["ready", "complete"]:
+			if native.get("status") == "complete":
+				peer.apply_done = true
+				peer.last_native_status = "complete"
+				peer.final_native = native
+				if not peer.has("pending"):
+					peer.pending = "edit_applied"
+			else:
+				peer.apply_stage = native.get("stage", "")
+				if not peer.has("pending"):
+					peer.pending = "edit_apply"
+			var progress := _edit_envelope(peer, "edit_progress")
+			progress.collection = stamp
+			progress.event = event
+			_queue(peer, progress, false, true)
+			return
+		peer.apply_done = true
+		peer.last_native_status = native.get("status", "partial")
+		var reply := _edit_envelope(peer, "edit_applied")
+		reply.merge({"status": native.get("status", "partial"), "reason": native.get("reason", ""),
+			"native": native, "events": [event]})
+		reply.collection = stamp
+		_queue(peer, reply, false, true)
+		return
+	if operation == "edit_applied":
+		var native: Dictionary = peer.final_native
+		peer.erase("final_native")
+		var reply := _edit_envelope(peer, "edit_applied")
+		reply.merge({"status": native.get("status", "complete"), "reason": native.get("reason", ""),
+			"native": native, "events": []})
+		_queue(peer, reply, false, true)
+		return
+	if operation == "edit_verify":
+		var inspected := _edit_probe(peer, true)
+		peer.verified_purpose = peer.purpose
+		var reply := _edit_envelope(peer, "edit_sample")
+		reply.merge({"purpose": peer.purpose, "sample": inspected.sample,
+			"saved_state": inspected.saved_state, "context": inspected.context})
+		reply.collection = _editor_stamp(operation_started)
+		_queue(peer, reply, false, true)
+		return
+	if operation == "edit_recheck":
+		var recheck: Variant = null
+		if peer.has("edit_collector"):
+			var scope := _scope_witness(peer.edit_path)
+			if not scope.is_empty():
+				recheck = peer.edit_collector.recheck()
+				recheck.request_id = peer.request_id
+				if _scope_witness(peer.edit_path) != scope:
+					recheck = null
+			peer.edit_collector.clear()
+			peer.erase("edit_collector")
+		if recheck == null:
+			recheck = _edit_envelope(peer, "recheck")
+			recheck.merge({"checks": "unavailable", "detected_changes": [],
+				"reason": "unavailable"})
+		peer.erase("verified_purpose")
+		var inspected := _edit_probe(peer)
+		var reply := _edit_envelope(peer, "edit_rechecked")
+		reply.merge({"purpose": peer.purpose, "recheck": recheck,
+			"saved_state": inspected.saved_state, "context": inspected.context})
+		reply.collection = _editor_stamp(operation_started)
+		_queue(peer, reply, false, true)
+		return
+	if operation in ["edit_finish", "edit_abort"]:
+		var native: Variant = null
+		if peer.get("edit_intent") == "changed":
+			native = _edit_owner.call("finish_bound", peer.request_id)
+		var never_entered: bool = not peer.get("apply_started", false) \
+			or (peer.get("apply_stage") == "prepared" and native is Dictionary \
+			and native.get("status") == "refused" and native.get("stage") == "prepared") \
+			or (peer.get("apply_done", false) and peer.get("apply_stage") == "prepared" \
+			and peer.get("last_native_status") == "refused")
+		# The native context is automatically consumed after a terminal stage;
+		# wrong_attempt here is cleanup feedback, not a new application refusal.
+		if peer.get("apply_done", false) and native is Dictionary \
+				and native.get("reason") == "wrong_attempt":
+			native = null
+		var reply := _edit_envelope(peer, "edit_finished" if operation == "edit_finish" else "edit_aborted")
+		reply.merge({"status": "terminal", "reason": "", "terminal_before_boundary": never_entered,
+			"native": native})
+		reply.collection = _editor_stamp(operation_started)
+		if _active == peer:
+			_active = {}
+		_queue(peer, reply, true)
+
+
 func _reply_fields(peer: Dictionary, kind: String) -> Dictionary:
-	return {"v": 1, "kind": kind, "request_id": peer.request_id,
+	return {"v": 2, "kind": kind, "request_id": peer.request_id,
 		"session_id": _session, "project_root": _project,
 		"godot_version": VERSION, "engine_hash": ENGINE_HASH,
-		"capabilities": CAPABILITIES, "client_nonce": peer.client_nonce,
+		"capabilities": peer.auth_capabilities, "native_api_revision": peer.auth_native_revision,
+		"native_build_id": peer.auth_native_build_id, "client_nonce": peer.client_nonce,
 		"server_nonce": peer.server_nonce}
 
 
@@ -661,8 +1296,12 @@ static func _field(data: PackedByteArray) -> PackedByteArray:
 
 static func transcript_bytes(request_id: String, session_id: String, project_root: String,
 		godot_version: String, engine_hash: String, capabilities: Dictionary,
+		native_api_revision: int, native_build_id: String,
 		client_nonce: String, server_nonce: String) -> PackedByteArray:
-	if session_id.length() != 32 or client_nonce.length() != 64 or server_nonce.length() != 64:
+	if session_id.length() != 32 or client_nonce.length() != 64 or server_nonce.length() != 64 \
+			or native_api_revision not in [0, 1] or (native_api_revision == 0 and not native_build_id.is_empty()) \
+			or (native_api_revision == 1 and (native_build_id.length() != 64 \
+			or not native_build_id.is_valid_hex_number() or native_build_id != native_build_id.to_lower())):
 		return PackedByteArray()
 	var out := PackedByteArray()
 	for part in [DOMAIN, request_id]:
@@ -670,10 +1309,13 @@ static func transcript_bytes(request_id: String, session_id: String, project_roo
 	out.append_array(_field(session_id.hex_decode()))
 	for part in [project_root, godot_version, engine_hash]:
 		out.append_array(_field(part.to_utf8_buffer()))
-	for name in ["observe_gdscript", "open_enumeration", "buffer_attribution", "unsaved_paths", "cached_resource_lookup"]:
+	for name in ["observe_gdscript", "open_enumeration", "buffer_attribution", "unsaved_paths",
+			"cached_resource_lookup", "edit_open_gdscript"]:
 		if not capabilities.has(name) or typeof(capabilities[name]) != TYPE_BOOL:
 			return PackedByteArray()
 		out.append_array(_field(PackedByteArray([1 if capabilities[name] else 0])))
+	out.append_array(_field(PackedByteArray([0, 0, 0, native_api_revision])))
+	out.append_array(_field(native_build_id.to_utf8_buffer()))
 	out.append_array(_field(client_nonce.hex_decode()))
 	out.append_array(_field(server_nonce.hex_decode()))
 	return out

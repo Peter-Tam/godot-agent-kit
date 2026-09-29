@@ -1,4 +1,4 @@
-//! Private mutually authenticated version-one editor bridge and observation wire boundary.
+//! Private mutually authenticated version-two editor bridge and observation wire boundary.
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream};
 use std::time::{Duration, Instant};
@@ -25,6 +25,7 @@ pub struct Capabilities {
     pub buffer_attribution: bool,
     pub unsaved_paths: bool,
     pub cached_resource_lookup: bool,
+    pub edit_open_gdscript: bool,
 }
 
 #[derive(Deserialize)]
@@ -43,7 +44,7 @@ pub(crate) struct Descriptor {
 impl Descriptor {
     pub(crate) fn parse(bytes: &[u8], filename: &str) -> Result<Self, RoutingFailure> {
         let descriptor: Self = serde_json::from_slice(bytes).map_err(|_| invalid_frame())?;
-        if descriptor.v != 1
+        if descriptor.v != 2
             || descriptor.session_id.len() != 32
             || !lower_hex(&descriptor.session_id, 32)
             || filename != format!("{}.json", descriptor.session_id)
@@ -79,6 +80,8 @@ struct ProofMessage {
     godot_version: String,
     engine_hash: String,
     capabilities: Capabilities,
+    native_api_revision: u32,
+    native_build_id: String,
     client_nonce: String,
     server_nonce: String,
     #[serde(default, deserialize_with = "present_proof")]
@@ -91,6 +94,8 @@ pub(crate) struct Authenticated {
     // Kept alive until the selected session is dropped or handed to the collector.
     pub socket: TcpStream,
     pub capabilities: Capabilities,
+    pub native_api_revision: u32,
+    pub native_build_id: String,
 }
 
 fn error(outcome: OutcomeKind, code: DiagnosticCode) -> RoutingFailure {
@@ -154,11 +159,13 @@ fn transcript(
     descriptor: &Descriptor,
     request: &str,
     caps: &Capabilities,
+    native_api_revision: u32,
+    native_build_id: &str,
     client: &[u8; 32],
     server: &[u8; 32],
 ) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(512);
-    field(&mut bytes, b"godot-agent-kit/observation-bridge/v1");
+    field(&mut bytes, b"godot-agent-kit/editor-bridge/v2");
     field(&mut bytes, request.as_bytes());
     field(
         &mut bytes,
@@ -173,9 +180,12 @@ fn transcript(
         caps.buffer_attribution,
         caps.unsaved_paths,
         caps.cached_resource_lookup,
+        caps.edit_open_gdscript,
     ] {
         field(&mut bytes, &[u8::from(value)]);
     }
+    field(&mut bytes, &native_api_revision.to_be_bytes());
+    field(&mut bytes, native_build_id.as_bytes());
     field(&mut bytes, client);
     field(&mut bytes, server);
     bytes
@@ -264,7 +274,7 @@ fn check_message(
     nonce: &str,
     kind: &str,
 ) -> Result<(), RoutingFailure> {
-    if message.v != 1
+    if message.v != 2
         || message.kind != kind
         || message.request_id != request
         || message.session_id != descriptor.session_id
@@ -273,6 +283,13 @@ fn check_message(
         || message.engine_hash != descriptor.engine_hash
         || message.client_nonce != nonce
         || !lower_hex(&message.server_nonce, 64)
+        || message.native_api_revision > 1
+        || message.capabilities.edit_open_gdscript != (message.native_api_revision == 1)
+        || if message.native_api_revision == 0 {
+            !message.native_build_id.is_empty()
+        } else {
+            !lower_hex(&message.native_build_id, 64)
+        }
     {
         return Err(auth_failed());
     }
@@ -298,7 +315,7 @@ pub(crate) fn authenticate(
     send(
         &mut socket,
         &(
-            1,
+            2,
             "hello",
             request,
             &descriptor.session_id,
@@ -320,6 +337,8 @@ pub(crate) fn authenticate(
         descriptor,
         request,
         &challenge.capabilities,
+        challenge.native_api_revision,
+        &challenge.native_build_id,
         &nonce,
         &server_nonce,
     );
@@ -336,7 +355,7 @@ pub(crate) fn authenticate(
     send(
         &mut socket,
         &(
-            1,
+            2,
             "authenticate",
             request,
             &descriptor.session_id,
@@ -356,6 +375,8 @@ pub(crate) fn authenticate(
     })?;
     check_message(&finished, descriptor, request, &nonce_hex, "hello")?;
     if finished.capabilities != challenge.capabilities
+        || finished.native_api_revision != challenge.native_api_revision
+        || finished.native_build_id != challenge.native_build_id
         || finished.server_nonce != challenge.server_nonce
         || finished.server_proof.is_some()
         || finished.finish_proof.is_none()
@@ -373,6 +394,8 @@ pub(crate) fn authenticate(
     Ok(Authenticated {
         socket,
         capabilities: finished.capabilities,
+        native_api_revision: finished.native_api_revision,
+        native_build_id: finished.native_build_id,
     })
 }
 
@@ -381,18 +404,27 @@ mod tests {
     use super::*;
     #[test]
     fn agreed_proof_vectors() {
-        let descriptor = Descriptor::parse(br#"{"v":1,"session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","godot_version":"4.7.2.stable.official.ed1daf0bf","engine_hash":"ed1daf0bf001b61586d9930840f2f1394092c079","host":"127.0.0.1","port":53124,"token":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"}"#, "00112233445566778899aabbccddeeff.json").unwrap();
+        let descriptor = Descriptor::parse(br#"{"v":2,"session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","godot_version":"4.7.2.stable.official.ed1daf0bf","engine_hash":"ed1daf0bf001b61586d9930840f2f1394092c079","host":"127.0.0.1","port":53124,"token":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"}"#, "00112233445566778899aabbccddeeff.json").unwrap();
         let caps = Capabilities {
             observe_gdscript: true,
             open_enumeration: true,
             buffer_attribution: true,
             unsaved_paths: true,
             cached_resource_lookup: true,
+            edit_open_gdscript: true,
         };
         let client: [u8; 32] = std::array::from_fn(|i| (i + 32) as u8);
         let server: [u8; 32] = std::array::from_fn(|i| (i + 64) as u8);
-        let bytes = transcript(&descriptor, "example-1", &caps, &client, &server);
-        assert_eq!(bytes.len(), 270);
+        let bytes = transcript(
+            &descriptor,
+            "example-1",
+            &caps,
+            1,
+            &"a".repeat(64),
+            &client,
+            &server,
+        );
+        assert_eq!(bytes.len(), 346);
         let key = hmac::Key::new(
             hmac::HMAC_SHA256,
             &decode_hex::<32>(&descriptor.token).unwrap(),
@@ -400,15 +432,15 @@ mod tests {
         for (role, expected) in [
             (
                 b"server".as_slice(),
-                "31cd95cdc00afe815371791207ddedda98cb79e1d6bf181bd4fb8ac3cc8d2ed1",
+                "48d393b2fd79216dc37a53cfb1d6b3aa7e99861f1942579eaa80ae97a2217244",
             ),
             (
                 b"client",
-                "8516bc474f397be9deae2a70c4ae5577041eb6753cb1dde328278978c2f8b5e8",
+                "03fdd7fe705947484826317fe41575be96fae17e10c9f930b739af8738e4b125",
             ),
             (
                 b"finish",
-                "ff0f3f3507b79628be82e0cd67539765a174d9d0323aff470d62bbecbf12dd32",
+                "3e26153a02dacc8330b07c10e800b74d6e281ecab9020403959dd2d9363ed39d",
             ),
         ] {
             assert_eq!(

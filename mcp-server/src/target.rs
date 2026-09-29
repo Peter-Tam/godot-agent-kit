@@ -13,6 +13,8 @@ use crate::project_fs;
 pub struct SelectedSession {
     target: ResolvedTarget,
     capabilities: Capabilities,
+    native_api_revision: u32,
+    native_build_id: String,
     requested_project_root: crate::observation::ProjectRoot,
     // The authenticated channel and rooted directory stay attached to this unique selection.
     pub(crate) socket: std::net::TcpStream,
@@ -33,6 +35,12 @@ impl SelectedSession {
     }
     pub fn capabilities(&self) -> &Capabilities {
         &self.capabilities
+    }
+    pub(crate) fn native_api_revision(&self) -> u32 {
+        self.native_api_revision
+    }
+    pub(crate) fn native_build_id(&self) -> &str {
+        &self.native_build_id
     }
     pub(crate) fn matches_request(&self, request: &ObservationRequest) -> bool {
         self.target.request_id() == request.request_id()
@@ -254,6 +262,8 @@ pub fn resolve(
     Ok(SelectedSession {
         target,
         capabilities: authenticated.capabilities,
+        native_api_revision: authenticated.native_api_revision,
+        native_build_id: authenticated.native_build_id,
         requested_project_root: request.project_root().clone(),
         socket: authenticated.socket,
         project_directory: project.directory,

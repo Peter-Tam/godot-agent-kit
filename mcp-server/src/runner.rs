@@ -26,6 +26,9 @@ const CONTROL_LIMIT: usize = 4096;
 #[path = "runner/stock_validation.rs"]
 pub mod stock_validation;
 
+#[path = "runner/edit.rs"]
+pub mod edit;
+
 /// The caller creates this before parsing flags or doing any filesystem/selection work.
 #[derive(Clone, Copy)]
 pub struct AttemptClock {
@@ -735,6 +738,8 @@ fn collect(
         Event::Disk(source) => project_fs::DiskRead {
             source,
             metadata: None,
+            mtime: None,
+            access_denied: false,
         },
         Event::DiskMetadata {
             reason,
@@ -744,6 +749,8 @@ fn collect(
             source: SourceObservation::unavailable(Authority::D, reason)
                 .map_err(|_| protocol_failure())?,
             metadata: Some(project_fs::DiskMetadata { file, collection }),
+            mtime: None,
+            access_denied: false,
         },
         _ => unreachable!(),
     };

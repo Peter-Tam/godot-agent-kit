@@ -64,8 +64,6 @@ pub struct SavedStateEvidence {
     pub current_version: DecimalCounter,
     pub saved_version: DecimalCounter,
     pub resource_edited: bool,
-    pub resource_mtime: DecimalCounter,
-    pub document_mtime: DecimalCounter,
     pub save_profile: [u8; 32],
     pub original_preserved: bool,
     pub desired_preserved: bool,
@@ -112,7 +110,13 @@ pub struct PersistenceReceipt {
     pub attached: bool,
     pub descriptor_open: bool,
     pub interference: bool,
+    /// Independently recorded preparation-time descriptor mtime (T0).
+    pub original_mtime: Option<DecimalCounter>,
+    /// Actual descriptor mtime observed after the restoration attempt.
     pub mtime: Option<DecimalCounter>,
+    pub restore_attempted: bool,
+    pub restore_errno: Option<i32>,
+    pub restored: bool,
     pub reason: Option<Reason>,
 }
 impl PersistenceReceipt {
@@ -125,7 +129,11 @@ impl PersistenceReceipt {
             && self.attached
             && self.descriptor_open
             && !self.interference
-            && self.mtime.is_some()
+            && self.original_mtime.is_some()
+            && self.original_mtime == self.mtime
+            && self.restore_attempted
+            && self.restore_errno.is_none()
+            && self.restored
             && self.reason.is_none()
     }
 }
@@ -137,26 +145,15 @@ pub enum FinalizationStatus {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Bookkeeping {
-    pub resource_mtime: bool,
-    pub document_mtime: bool,
     pub resource_edited: bool,
     pub saved_version: bool,
-    pub display: bool,
 }
 impl Bookkeeping {
     pub(super) fn any(self) -> bool {
-        self.resource_mtime
-            || self.document_mtime
-            || self.resource_edited
-            || self.saved_version
-            || self.display
+        self.resource_edited || self.saved_version
     }
     pub(super) fn all(self) -> bool {
-        self.resource_mtime
-            && self.document_mtime
-            && self.resource_edited
-            && self.saved_version
-            && self.display
+        self.resource_edited && self.saved_version
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -173,10 +170,6 @@ pub struct FinalizationResult {
     pub after_current: Option<DecimalCounter>,
     pub before_saved: Option<DecimalCounter>,
     pub after_saved: Option<DecimalCounter>,
-    pub before_resource_mtime: Option<DecimalCounter>,
-    pub after_resource_mtime: Option<DecimalCounter>,
-    pub before_document_mtime: Option<DecimalCounter>,
-    pub after_document_mtime: Option<DecimalCounter>,
     pub before_resource_edited: Option<bool>,
     pub after_resource_edited: Option<bool>,
     pub steps: Bookkeeping,

@@ -127,30 +127,42 @@ bool file_attached(const Session &session, const FileBinding &file) {
             !fstat(file.leaf.value, &held) && S_ISREG(found.st_mode) && same(found, held) &&
             held.st_dev == file.device && held.st_ino == file.inode && secure(file.leaf.value, false);
 }
-bool open_file(const Session &session, const std::string &path, FileBinding &out) {
+const char *open_failure() {
+    switch (errno) {
+        case EACCES: case EPERM: case ELOOP: return "denied_access";
+        case ENOENT: case ENOTDIR: return "namespace_or_descriptor_changed";
+        default: return "source_unavailable";
+    }
+}
+const char *open_file(const Session &session, const std::string &path, FileBinding &out) {
     Fd cursor(dup(session.project_fd));
-    if (cursor.value < 0 || !attached_project(session)) { return false; }
+    if (cursor.value < 0) { return "source_unavailable"; }
+    if (!attached_project(session)) { return "namespace_or_descriptor_changed"; }
     for (size_t start = 6; start < path.size();) {
         const size_t end = path.find('/', start);
         const std::string part = path.substr(start, end == path.npos ? end : end - start);
         if (end == path.npos) {
             out.name = part;
             out.leaf = Fd(openat(cursor.value, part.c_str(), O_RDWR | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC));
+            if (out.leaf.value < 0) { return open_failure(); }
             struct stat st{};
-            if (out.leaf.value < 0 || !secure(out.leaf.value, false) || fstat(out.leaf.value, &st) ||
-                    st.st_size < 0 || st.st_size > static_cast<off_t>(LIMIT) || st.st_uid != geteuid()) { return false; }
+            if (fstat(out.leaf.value, &st)) { return "source_unavailable"; }
+            if (!secure(out.leaf.value, false) || st.st_uid != geteuid()) { return "denied_access"; }
+            if (st.st_size < 0 || st.st_size > static_cast<off_t>(LIMIT)) { return "evidence_limit"; }
             out.device = st.st_dev; out.inode = st.st_ino; out.original_mtime = st.st_mtimespec;
-            return file_attached(session, out);
+            return file_attached(session, out) ? nullptr : "namespace_or_descriptor_changed";
         }
         Fd next(openat(cursor.value, part.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
+        if (next.value < 0) { return open_failure(); }
         struct stat st{};
-        if (next.value < 0 || !secure(next.value, true) || fstat(next.value, &st)) { return false; }
+        if (fstat(next.value, &st)) { return "source_unavailable"; }
+        if (!secure(next.value, true)) { return "denied_access"; }
         out.parents.push_back(Parent{Fd(dup(next.value)), part, st.st_dev, st.st_ino});
-        if (out.parents.back().fd.value < 0) { return false; }
+        if (out.parents.back().fd.value < 0) { return "source_unavailable"; }
         cursor = std::move(next);
         start = end + 1;
     }
-    return false;
+    return "denied_access";
 }
 bool content(int fd, std::string_view expected) {
     struct stat st{};
@@ -215,6 +227,12 @@ bool profile(void *buffer, Profile &out) {
             out.indent < 1 || out.indent > 1024) { return false; }
     out.spaces = truth(spaces);
     return true;
+}
+std::string profile_digest(const Profile &p) {
+    char serialized[32] = {p.trim_space ? '1' : '0', ':', p.trim_newlines ? '1' : '0', ':',
+            p.convert ? '1' : '0', ':', p.spaces ? '1' : '0', ':'};
+    const auto result = std::to_chars(serialized + 8, serialized + sizeof(serialized), p.indent);
+    return result.ec == std::errc{} ? sha256(std::string_view(serialized, result.ptr - serialized)) : std::string{};
 }
 struct Binding {
     Value script, editor, buffer;
@@ -332,25 +350,25 @@ Value reply(const EditAttempt *attempt, const char *status, const char *reason) 
     put_string(facts, "project_inode", std::to_string(attempt->project_inode));
     put_string(facts, "target_device", std::to_string(attempt->file.device));
     put_string(facts, "target_inode", std::to_string(attempt->file.inode));
-    put(facts, "prepared_current", integer(attempt->prepared_current));
-    put(facts, "prepared_saved", integer(attempt->prepared_saved));
+    put_string(facts, "prepared_current", std::to_string(attempt->prepared_current));
+    put_string(facts, "prepared_saved", std::to_string(attempt->prepared_saved));
     if (attempt->stage >= EditAttempt::Buffer) {
-        put(facts, "frozen_current", integer(attempt->frozen_current));
+        put_string(facts, "frozen_current", std::to_string(attempt->frozen_current));
     }
     put(facts, "buffer_changed", boolean(attempt->buffer_changed));
     put(facts, "resource_changed", boolean(attempt->resource_changed));
     put(facts, "write_started", boolean(attempt->write_started));
-    put(facts, "write_calls", integer(attempt->write_calls));
-    put(facts, "written_bytes", integer(static_cast<int64_t>(attempt->written)));
-    put(facts, "write_errno", integer(attempt->write_errno));
+    put_string(facts, "write_calls", std::to_string(attempt->write_calls));
+    put_string(facts, "written_bytes", std::to_string(attempt->written));
+    put_string(facts, "write_errno", std::to_string(attempt->write_errno));
     put(facts, "truncate_done", boolean(attempt->truncated));
-    put(facts, "truncate_errno", integer(attempt->truncate_errno));
+    put_string(facts, "truncate_errno", std::to_string(attempt->truncate_errno));
     put(facts, "fsync_done", boolean(attempt->synced));
-    put(facts, "fsync_errno", integer(attempt->fsync_errno));
+    put_string(facts, "fsync_errno", std::to_string(attempt->fsync_errno));
     put(facts, "pread_done", boolean(attempt->content_readback));
-    put(facts, "pread_errno", integer(attempt->pread_errno));
+    put_string(facts, "pread_errno", std::to_string(attempt->pread_errno));
     put(facts, "futimens_called", boolean(attempt->futimens_called));
-    put(facts, "futimens_errno", integer(attempt->futimens_errno));
+    put_string(facts, "futimens_errno", std::to_string(attempt->futimens_errno));
     put(facts, "mtime_restored", boolean(attempt->restored));
     put(facts, "edited_clear_attempted", boolean(attempt->edited_clear_attempted));
     put(facts, "edited_cleared", boolean(attempt->edited_cleared));
@@ -510,6 +528,44 @@ void edit_cleanup(Session &session) {
     delete session.attempt;
     session.attempt = nullptr;
 }
+Value edit_inspect(Session &session, const Value &path_value, const Value &original_value,
+        const Value &desired_value, const Value &document) {
+    Value out = reply(nullptr, "refused", "inspection_unavailable");
+    if (session.project_fd < 0 || std::this_thread::get_id() != session.main_thread ||
+            session.call_state != Session::CallState::Idle ||
+            path_value.type() != GDEXTENSION_VARIANT_TYPE_STRING ||
+            original_value.type() != GDEXTENSION_VARIANT_TYPE_STRING ||
+            desired_value.type() != GDEXTENSION_VARIANT_TYPE_STRING ||
+            utf8_size(original_value) > static_cast<GDExtensionInt>(LIMIT) ||
+            utf8_size(desired_value) > static_cast<GDExtensionInt>(LIMIT)) { return out; }
+    const std::string path = bytes(path_value, 2048);
+    uint64_t rid = 0, eid = 0, bid = 0;
+    if (!path_ok(path) || !decimal(get(document, "resource_instance_id"), rid) ||
+            !decimal(get(document, "editor_instance_id"), eid) ||
+            !decimal(get(document, "buffer_instance_id"), bid) || !attached_project(session)) { return out; }
+    Binding bound;
+    if (!resolve(path, rid, eid, bid, bound)) { return out; }
+    Profile settings;
+    int64_t current = -1, saved = -1;
+    Name editor_name("EditorInterface");
+    void *interface = api.singleton(editor_name.ptr());
+    Value edited = interface ? call(interface, "EditorInterface", "is_object_edited", GAK_HASH_IS_EDITED,
+            {&bound.script}) : Value{};
+    if (!profile(bound.buffer_ptr, settings) ||
+            !number(call(bound.buffer_ptr, "TextEdit", "get_version", GAK_HASH_CURRENT_VERSION), current) ||
+            !number(call(bound.buffer_ptr, "TextEdit", "get_saved_version", GAK_HASH_SAVED_VERSION), saved) ||
+            current < 0 || saved < 0 || edited.type() != GDEXTENSION_VARIANT_TYPE_BOOL) { return out; }
+    out = reply(nullptr, "observed", "");
+    Value facts = dict();
+    put_string(facts, "current_version", std::to_string(current));
+    put_string(facts, "saved_version", std::to_string(saved));
+    put(facts, "resource_edited", boolean(truth(edited)));
+    put_string(facts, "save_profile", profile_digest(settings));
+    put(facts, "original_preserved", boolean(compatible(settings, bytes(original_value))));
+    put(facts, "desired_preserved", boolean(compatible(settings, bytes(desired_value))));
+    put(out, "facts", facts);
+    return out;
+}
 Value edit_prepare(Session &session, const Value &path_value, const Value &original_value,
         const Value &desired_value, const Value &correlation) {
     if (session.attempt || session.call_state != Session::CallState::Idle) { return reply(nullptr, "busy", "slot_busy"); }
@@ -531,13 +587,28 @@ Value edit_prepare(Session &session, const Value &path_value, const Value &origi
     Value request = get(correlation, "request_id"), sid = get(correlation, "session_id");
     Value document = get(correlation, "document"), expiry = get(correlation, "expiry_tick_us");
     uint64_t rid = 0, eid = 0, bid = 0, expires = 0;
+    uint64_t project_device = 0, project_inode = 0, file_device = 0, file_inode = 0, expected_version = 0;
+    uint64_t expected_length = 0;
     const uint64_t now = ticks();
+    Value expected_hash = get(correlation, "expected_sha256");
     if (request.type() != GDEXTENSION_VARIANT_TYPE_STRING || !valid_request(bytes(request, 64)) ||
             sid.type() != GDEXTENSION_VARIANT_TYPE_STRING || bytes(sid, 32) != session.session_id ||
             !decimal(expiry, expires) || now == UINT64_MAX || expires <= now || expires - now > 9000000 ||
             !decimal(get(document, "resource_instance_id"), rid) ||
             !decimal(get(document, "editor_instance_id"), eid) ||
-            !decimal(get(document, "buffer_instance_id"), bid)) { return reply(nullptr, "refused", "invalid_binding"); }
+            !decimal(get(document, "buffer_instance_id"), bid) ||
+            !decimal(get(correlation, "project_device"), project_device) ||
+            !decimal(get(correlation, "project_inode"), project_inode) ||
+            !decimal(get(correlation, "target_device"), file_device) ||
+            !decimal(get(correlation, "target_inode"), file_inode) ||
+            !decimal(get(correlation, "expected_version"), expected_version) ||
+            !decimal(get(correlation, "expected_length"), expected_length) ||
+            expected_hash.type() != GDEXTENSION_VARIANT_TYPE_STRING ||
+            bytes(expected_hash, 64) != sha256(original) || expected_length != original.size() ||
+            project_device != static_cast<uint64_t>(session.device) ||
+            project_inode != static_cast<uint64_t>(session.inode)) {
+        return reply(nullptr, "refused", "invalid_binding");
+    }
     Binding binding;
     if (!resolve(path, rid, eid, bid, binding)) { return reply(nullptr, "refused", "document_mismatch"); }
     if (!editor_effects_inert(original) || !editor_effects_inert(desired)) {
@@ -554,11 +625,26 @@ Value edit_prepare(Session &session, const Value &path_value, const Value &origi
     void *interface = api.singleton(editor_name.ptr());
     Value edited;
     if (interface) { edited = call(interface, "EditorInterface", "is_object_edited", GAK_HASH_IS_EDITED, {&binding.script}); }
-    if (!interface || edited.type() != GDEXTENSION_VARIANT_TYPE_BOOL || truth(edited) ||
-            !open_file(session, path, attempt->file) || !content(attempt->file.leaf.value, attempt->before) ||
-            !profile(binding.buffer_ptr, attempt->save_profile) || !compatible(attempt->save_profile, attempt->before) ||
-            !compatible(attempt->save_profile, attempt->after) || unsaved(path)) {
-        return reply(nullptr, "refused", "unclean_or_unsupported");
+    if (!interface || edited.type() != GDEXTENSION_VARIANT_TYPE_BOOL) {
+        return reply(nullptr, "refused", "edited_state_unavailable");
+    }
+    if (truth(edited) || unsaved(path)) { return reply(nullptr, "refused", "dirty"); }
+    if (const char *reason = open_file(session, path, attempt->file)) {
+        return reply(nullptr, "refused", reason);
+    }
+    if (static_cast<uint64_t>(attempt->file.device) != file_device ||
+            static_cast<uint64_t>(attempt->file.inode) != file_inode) {
+        return reply(nullptr, "refused", "namespace_or_descriptor_changed");
+    }
+    if (!content(attempt->file.leaf.value, attempt->before)) {
+        return reply(nullptr, "refused", "disk_content_changed");
+    }
+    if (!profile(binding.buffer_ptr, attempt->save_profile)) {
+        return reply(nullptr, "refused", "source_unavailable");
+    }
+    if (!compatible(attempt->save_profile, attempt->before) ||
+            !compatible(attempt->save_profile, attempt->after)) {
+        return reply(nullptr, "refused", "save_would_reformat");
     }
     int64_t version = -1, saved = -1;
     Value b = call(binding.buffer_ptr, "TextEdit", "get_text", GAK_HASH_TEXT);
@@ -567,7 +653,9 @@ Value edit_prepare(Session &session, const Value &path_value, const Value &origi
             bytes(b) != attempt->before || bytes(r) != attempt->before ||
             !number(call(binding.buffer_ptr, "TextEdit", "get_version", GAK_HASH_CURRENT_VERSION), version) ||
             !number(call(binding.buffer_ptr, "TextEdit", "get_saved_version", GAK_HASH_SAVED_VERSION), saved) ||
-            version < 0 || version != saved) { return reply(nullptr, "refused", "dirty_or_changed"); }
+            version < 0 || version != saved || static_cast<uint64_t>(version) != expected_version) {
+        return reply(nullptr, "refused", "dirty_or_changed");
+    }
     attempt->prepared_current = version; attempt->prepared_saved = saved;
     Binding again;
     if (const char *reason = guard(session, *attempt, again, false, false)) {

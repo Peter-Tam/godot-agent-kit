@@ -12,6 +12,8 @@ use crate::target::{RoutingFailure, SelectedSession};
 pub const RESULT_LIMIT: usize = 12 * 1024 * 1024;
 const COLLECTION_LIMIT: usize = 64;
 
+pub mod edit;
+
 /// Inclusive editor interval enclosing every editor fact in this sample.
 /// Retained through private IPC so the supervisor can validate worker evidence.
 pub struct EditorSample {
@@ -104,18 +106,18 @@ fn decode<'a, T: Deserialize<'a>>(bytes: &'a [u8], stage: Stage) -> Result<T, Ro
 }
 
 #[derive(Debug)]
-struct Bounded<T>(Vec<T>);
-impl<'de, T: Deserialize<'de>> Deserialize<'de> for Bounded<T> {
+struct Bounded<T, const LIMIT: usize = COLLECTION_LIMIT>(Vec<T>);
+impl<'de, T: Deserialize<'de>, const LIMIT: usize> Deserialize<'de> for Bounded<T, LIMIT> {
     fn deserialize<D: de::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct Limited<T>(std::marker::PhantomData<T>);
-        impl<'de, T: Deserialize<'de>> Visitor<'de> for Limited<T> {
-            type Value = Bounded<T>;
+        struct Limited<T, const LIMIT: usize>(std::marker::PhantomData<T>);
+        impl<'de, T: Deserialize<'de>, const LIMIT: usize> Visitor<'de> for Limited<T, LIMIT> {
+            type Value = Bounded<T, LIMIT>;
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.write_str("bounded array")
             }
             fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
                 let mut result = Vec::new();
-                while result.len() < COLLECTION_LIMIT {
+                while result.len() < LIMIT {
                     match seq.next_element()? {
                         Some(item) => result.push(item),
                         None => return Ok(Bounded(result)),
@@ -127,7 +129,7 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Bounded<T> {
                 Ok(Bounded(result))
             }
         }
-        d.deserialize_seq(Limited(std::marker::PhantomData))
+        d.deserialize_seq(Limited::<T, LIMIT>(std::marker::PhantomData))
     }
 }
 
@@ -795,7 +797,7 @@ impl SampleIn {
         receipt: u64,
         stage: Stage,
     ) -> Result<EditorSample, RoutingFailure> {
-        if self.v != 1
+        if self.v != 2
             || self.kind != "sample"
             || self.request_id != request.request_id().as_str()
             || self.session_id != target.session_id().as_str()
@@ -1104,7 +1106,7 @@ impl RecheckIn {
         stage: Stage,
         original: &CollectionStamp,
     ) -> Result<Recheck, RoutingFailure> {
-        if self.v != 1
+        if self.v != 2
             || self.kind != "recheck"
             || self.request_id != request.request_id().as_str()
             || self.session_id != target.session_id().as_str()
@@ -1249,7 +1251,7 @@ impl EditorFailureIn {
         advertised_root: &str,
         stage: Stage,
     ) -> Result<RoutingFailure, RoutingFailure> {
-        if self.v != 1
+        if self.v != 2
             || self.kind != "failure"
             || self.request_id != request.request_id().as_str()
             || self.session_id != target.session_id().as_str()
@@ -1312,7 +1314,7 @@ pub fn observe(
     send_editor(
         socket,
         (
-            1,
+            2,
             "observe",
             request.request_id().as_str(),
             target.session_id().as_str(),
@@ -1359,7 +1361,7 @@ pub fn recheck(
     send_editor(
         socket,
         (
-            1,
+            2,
             "recheck",
             request.request_id().as_str(),
             target.session_id().as_str(),
@@ -1964,7 +1966,7 @@ fn encode_ipc<T: Serialize>(dto: T) -> Result<Vec<u8>, RoutingFailure> {
 }
 fn envelope<'a, T>(request_id: &'a RequestId, kind: &'static str, payload: T) -> EventOut<'a, T> {
     EventOut {
-        v: 1,
+        v: 2,
         request_id: request_id.as_str(),
         kind,
         payload,
@@ -2077,7 +2079,7 @@ pub fn encode_event(event: &Event, request_id: &RequestId) -> Result<Vec<u8>, Ro
             ))
         }
         Event::Done => encode_ipc(DoneOut {
-            v: 1,
+            v: 2,
             request_id: request_id.as_str(),
             kind: "done",
         }),
@@ -2325,7 +2327,7 @@ pub fn decode_event(
         | EventIn::Failed { v, request_id, .. }
         | EventIn::Done { v, request_id } => (*v, request_id),
     };
-    if version != 1 || id != request.request_id().as_str() {
+    if version != 2 || id != request.request_id().as_str() {
         return Err(bad(stage));
     }
     if let Some(target) = target {

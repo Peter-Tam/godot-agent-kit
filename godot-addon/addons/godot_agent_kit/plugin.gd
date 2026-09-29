@@ -6,6 +6,8 @@ const ExportGuardScript = preload("res://addons/godot_agent_kit/export_guard.gd"
 const ScriptEditScript = preload("res://addons/godot_agent_kit/script_edit.gd")
 const NATIVE_EXTENSION := "res://addons/godot_agent_kit/native/script_edit.gdextension"
 const NATIVE_LIBRARY := "res://addons/godot_agent_kit/native/libscript_edit.macos.arm64.dylib"
+const NATIVE_MANIFEST := "res://addons/godot_agent_kit/native/build-manifest.json"
+const ENGINE_SHA256 := "c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf"
 
 var _bridge: Node
 var _export_guard: EditorExportPlugin
@@ -43,7 +45,7 @@ func _native_api() -> Dictionary:
 
 
 func _native_edit_api(candidate: Dictionary) -> Dictionary:
-	for operation in ["edit_prepare", "edit_advance", "edit_cancel", "edit_expire"]:
+	for operation in ["edit_inspect", "edit_prepare", "edit_advance", "edit_cancel", "edit_expire"]:
 		if not candidate.has(operation) or not (candidate[operation] is Callable) \
 				or not candidate[operation].is_custom() or not candidate[operation].is_valid():
 			return {}
@@ -77,20 +79,49 @@ func _enter_tree() -> void:
 		if not _native.is_empty() and not _native["configure"].call(_bridge.get("_session")):
 			_native = {}
 		if _edit != null:
-			_edit.configure(_native_edit_api(_native), _bridge)
+			var family := _native_edit_api(_native)
+			_edit.configure(family, _bridge)
+			var build_id := _matched_build_id(family)
+			_bridge.attach_edit(_edit if not build_id.is_empty() else null, 1 if not build_id.is_empty() else 0, build_id)
+
+
+func _matched_build_id(candidate: Dictionary) -> String:
+	if candidate.is_empty() or not FileAccess.file_exists(NATIVE_MANIFEST):
+		return ""
+	var manifest_file := FileAccess.open(NATIVE_MANIFEST, FileAccess.READ)
+	if manifest_file == null or manifest_file.get_length() > 4096:
+		return ""
+	var parser := JSON.new()
+	if parser.parse(manifest_file.get_as_text()) != OK or not (parser.data is Dictionary):
+		return ""
+	var manifest: Dictionary = parser.data
+	var build_id: Variant = candidate["build_id"].call()
+	if manifest.get("fixture_only") != false or manifest.get("generated_from_exact_binary") != true \
+			or manifest.get("engine_version") != BridgeScript.VERSION \
+			or manifest.get("base_commit") != BridgeScript.ENGINE_HASH \
+			or manifest.get("engine_sha256") != ENGINE_SHA256 \
+			or manifest.get("native_build_id") != build_id \
+			or not FileAccess.file_exists(NATIVE_LIBRARY) \
+			or FileAccess.get_sha256(NATIVE_LIBRARY) != manifest.get("native_library_sha256") \
+			or FileAccess.get_sha256(OS.get_executable_path()) != ENGINE_SHA256:
+		return ""
+	return build_id
 
 
 func _exit_tree() -> void:
+	if _bridge != null:
+		_bridge.stop()
 	if _edit != null:
+		var entered: bool = _edit.is_active_stage()
 		remove_child(_edit)
-		_edit.free()
+		if not entered:
+			_edit.free()
 		_edit = null
 	var api := _native if not _native.is_empty() else _native_api()
 	if not api.is_empty():
 		api["close"].call()
 	_native = {}
 	if _bridge != null:
-		_bridge.stop()
 		_bridge.free()
 		_bridge = null
 	if _export_guard != null:

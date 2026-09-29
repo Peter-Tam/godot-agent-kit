@@ -32,10 +32,10 @@ fn stamp(editor: bool) -> CollectionStamp {
     .unwrap()
 }
 
-fn prior_sample(
+fn prior_sample_with_buffer(
     texts: [&str; 3],
     dirty: DirtyState,
-    version: Option<&str>,
+    (version, buffer_id): (Option<&str>, &str),
     request_id: &str,
     missing: Option<Authority>,
     stale: bool,
@@ -60,7 +60,7 @@ fn prior_sample(
         request.script_path().clone(),
         Some(decimal("3")),
         Some(decimal("4")),
-        Some(decimal("5")),
+        Some(decimal(buffer_id)),
         Some(FileIdentity::new(decimal("6"), decimal("7"))),
     )
     .unwrap();
@@ -69,7 +69,7 @@ fn prior_sample(
             request.script_path().clone(),
             (authority != Authority::D).then(|| decimal("3")),
             (authority == Authority::B).then(|| decimal("4")),
-            (authority == Authority::B).then(|| decimal("5")),
+            (authority == Authority::B).then(|| decimal(buffer_id)),
             (authority == Authority::D).then(|| FileIdentity::new(decimal("6"), decimal("7"))),
             if authority == Authority::B {
                 version.map(decimal)
@@ -143,6 +143,26 @@ fn prior_sample(
         vec![],
     )
     .unwrap()
+}
+
+fn prior_sample(
+    texts: [&str; 3],
+    dirty: DirtyState,
+    version: Option<&str>,
+    request_id: &str,
+    missing: Option<Authority>,
+    stale: bool,
+    changes: Vec<DetectedChange>,
+) -> ObservationOutcome {
+    prior_sample_with_buffer(
+        texts,
+        dirty,
+        (version, "5"),
+        request_id,
+        missing,
+        stale,
+        changes,
+    )
 }
 
 fn prior_with(
@@ -283,8 +303,6 @@ fn saved(version: &str) -> godot_agent_kit::script_edit::SavedStateEvidence {
         current_version: decimal(version),
         saved_version: decimal(version),
         resource_edited: false,
-        resource_mtime: decimal("111"),
-        document_mtime: decimal("111"),
         save_profile: [1; 32],
         original_preserved: true,
         desired_preserved: true,
@@ -304,12 +322,18 @@ fn validation(
         document: saved("17").document,
         source_path: ResourcePath::new("res://subject.gd").unwrap(),
         input: SourceDigest::of(input),
-        collection: stamp(true),
+        collection: stamp(false),
         dependencies: vec![],
         context: [2; 32],
         context_current: true,
         dependencies_current: true,
-        diagnostics_complete: true,
+        sources: vec![ValidationSourceFence {
+            path: ResourcePath::new("res://subject.gd").unwrap(),
+            source: SourceDigest::of(input),
+            diagnostics_completed: true,
+            symbols_completed: true,
+        }],
+        cleanup_confirmed: true,
         diagnostics: vec![],
     }
 }
@@ -331,7 +355,11 @@ fn receipt(input: &str) -> godot_agent_kit::script_edit::PersistenceReceipt {
         attached: true,
         descriptor_open: true,
         interference: false,
+        original_mtime: Some(decimal("111")),
         mtime: Some(decimal("111")),
+        restore_attempted: true,
+        restore_errno: None,
+        restored: true,
         reason: None,
     }
 }
@@ -350,18 +378,11 @@ fn finalized() -> godot_agent_kit::script_edit::FinalizationResult {
         after_current: Some(decimal("18")),
         before_saved: Some(decimal("17")),
         after_saved: Some(decimal("18")),
-        before_resource_mtime: Some(decimal("111")),
-        after_resource_mtime: Some(decimal("111")),
-        before_document_mtime: Some(decimal("111")),
-        after_document_mtime: Some(decimal("111")),
         before_resource_edited: Some(true),
         after_resource_edited: Some(false),
         steps: Bookkeeping {
-            resource_mtime: true,
-            document_mtime: true,
             resource_edited: true,
             saved_version: true,
-            display: true,
         },
     }
 }
@@ -373,7 +394,7 @@ fn context() -> godot_agent_kit::script_edit::ContextRecheck {
         request_id: RequestId::new("edit").unwrap(),
         session_id: SessionId::new(SESSION).unwrap(),
         document: saved("17").document,
-        collection: stamp(true),
+        collection: stamp(false),
         context: [2; 32],
         dependencies: vec![],
         current: true,
@@ -396,7 +417,6 @@ fn authorized(desired: &str) -> godot_agent_kit::script_edit::EditAttempt {
     attempt
         .validation(validation(ValidationPurpose::Preflight, desired))
         .unwrap();
-    attempt.authorize().unwrap();
     attempt
         .guard_application(
             prior_with("old", DirtyState::Clean, Some("17"), "edit"),
@@ -404,6 +424,8 @@ fn authorized(desired: &str) -> godot_agent_kit::script_edit::EditAttempt {
             Some(metadata()),
         )
         .unwrap();
+    assert!(attempt.ready_to_apply());
+    attempt.authorize().unwrap();
     attempt
 }
 
@@ -553,23 +575,101 @@ fn independent_verification_distinguishes_unchanged_and_changed_and_invalid_sour
 }
 
 #[test]
+fn failed_t0_restore_after_content_write_retains_known_application_and_error() {
+    use godot_agent_kit::script_edit::*;
+    let mut request = authorized("new");
+    request.enter_application().unwrap();
+    request
+        .buffer_changed(decimal("18"), native_witness())
+        .unwrap();
+    request.resource_synced(native_witness()).unwrap();
+    let mut proof = receipt("new");
+    proof.mtime = None;
+    proof.restored = false;
+    proof.restore_errno = Some(1);
+    proof.reason = Some(Reason::PersistenceFailure);
+    request.persistence(proof).unwrap();
+    assert_eq!(request.enter_finalization(), Err(EditError::OutOfOrder));
+    let mut post = validation(ValidationPurpose::PostChange, "new");
+    post.status = ValidationStatus::Invalid;
+    post.reason = Some(Reason::ParseError);
+    post.diagnostics.push(ValidationDiagnostic {
+        origin: DiagnosticOrigin::Root,
+        path: Some(ResourcePath::new("res://subject.gd").unwrap()),
+        path_reason: None,
+        source: Some(SourceDigest::of("new")),
+        line: Some(1),
+        column: Some(1),
+        message: "actual source parse error".into(),
+    });
+    request.validation(post).unwrap();
+    request
+        .verify(
+            prior_with("new", DirtyState::Clean, Some("18"), "edit"),
+            Some(saved("18")),
+            Some(metadata()),
+            Some(context()),
+        )
+        .unwrap();
+    let result = request.finish(timeline());
+    assert_eq!(result.outcome, EditOutcomeKind::AppliedUnverified);
+    assert_eq!(result.application, Application::Applied);
+    assert_eq!(result.reason, Reason::PersistenceFailure);
+    assert_eq!(result.progress.persistence.state, StepState::Failed);
+    assert_eq!(result.progress.finalization.state, StepState::NotStarted);
+    assert_eq!(result.validation[1].status, ValidationStatus::Invalid);
+    let proof = result.persistence.unwrap();
+    assert_eq!(proof.restore_errno, Some(1));
+    assert!(proof.restore_attempted && !proof.restored);
+}
+
+#[test]
+fn matching_d_r_b_and_clean_saved_state_cannot_erase_wrong_t0_metadata() {
+    use godot_agent_kit::script_edit::*;
+    let mut request = authorized("new");
+    request.enter_application().unwrap();
+    request
+        .buffer_changed(decimal("18"), native_witness())
+        .unwrap();
+    request.resource_synced(native_witness()).unwrap();
+    let mut proof = receipt("new");
+    proof.original_mtime = Some(decimal("112"));
+    proof.mtime = Some(decimal("112"));
+    request.persistence(proof).unwrap();
+    assert_eq!(request.enter_finalization(), Err(EditError::OutOfOrder));
+    request
+        .validation(validation(ValidationPurpose::PostChange, "new"))
+        .unwrap();
+    request
+        .verify(
+            prior_with("new", DirtyState::Clean, Some("18"), "edit"),
+            Some(saved("18")),
+            Some(metadata()),
+            Some(context()),
+        )
+        .unwrap();
+    let result = request.finish(timeline());
+    assert_eq!(result.outcome, EditOutcomeKind::AppliedUnverified);
+    assert_eq!(result.progress.persistence.state, StepState::Failed);
+}
+
+#[test]
 fn mutation_boundary_requires_fresh_original_revision_and_profile() {
     use godot_agent_kit::script_edit::*;
     let mut request = prepared("new");
     request
         .validation(validation(ValidationPurpose::Preflight, "new"))
         .unwrap();
-    request.authorize().unwrap();
-    assert!(request.enter_application().is_err());
+    assert_eq!(request.authorize(), Err(EditError::OutOfOrder));
+    assert!(!request.ready_to_apply());
     assert_eq!(
-        request.finish(timeline()).outcome,
-        EditOutcomeKind::ApplicationUnknown
+        request.finish(timeline()).application,
+        Application::NotApplied
     );
     let mut stale = prepared("new");
     stale
         .validation(validation(ValidationPurpose::Preflight, "new"))
         .unwrap();
-    stale.authorize().unwrap();
     let mut updated = saved("17");
     updated.save_profile = [9; 32];
     stale
@@ -579,10 +679,42 @@ fn mutation_boundary_requires_fresh_original_revision_and_profile() {
             Some(metadata()),
         )
         .unwrap();
-    assert_eq!(
-        stale.finish(timeline()).outcome,
-        EditOutcomeKind::ApplicationUnknown
-    );
+    assert!(!stale.ready_to_apply());
+    assert_eq!(stale.authorize(), Err(EditError::OutOfOrder));
+    let result = stale.finish(timeline());
+    assert_eq!(result.outcome, EditOutcomeKind::Refused);
+    assert_eq!(result.application, Application::NotApplied);
+}
+
+#[test]
+fn reopened_guard_refuses_before_authority_without_erasing_human_work() {
+    use godot_agent_kit::script_edit::*;
+    let mut attempt = prepared("new");
+    attempt
+        .validation(validation(ValidationPurpose::Preflight, "new"))
+        .unwrap();
+    attempt
+        .guard_application(
+            prior_sample_with_buffer(
+                ["human", "human", "human"],
+                DirtyState::Clean,
+                (Some("19"), "55"),
+                "edit",
+                None,
+                false,
+                vec![],
+            ),
+            Some(saved("19")),
+            Some(metadata()),
+        )
+        .unwrap();
+    assert!(!attempt.ready_to_apply());
+    let terminal = attempt.finish(timeline());
+    assert_eq!(terminal.reason, Reason::IdentityChanged);
+    assert_eq!(terminal.application, Application::NotApplied);
+    assert_eq!(terminal.outcome, EditOutcomeKind::Refused);
+    assert_eq!(terminal.history, History::NotParticipated);
+    assert!(terminal.before.is_some());
 }
 
 #[test]
@@ -595,7 +727,7 @@ fn wrong_session_clock_and_source_validation_cannot_authorize() {
     assert_eq!(wrong.finish(timeline()).reason, Reason::ProtocolFailure);
     let mut wrong = prepared("new");
     let mut result = validation(ValidationPurpose::Preflight, "new");
-    result.collection = stamp(false);
+    result.collection = stamp(true);
     assert_eq!(wrong.validation(result), Err(EditError::WrongClock));
     let mut wrong = prepared("new");
     let result = validation(ValidationPurpose::Preflight, "different");
@@ -605,6 +737,37 @@ fn wrong_session_clock_and_source_validation_cannot_authorize() {
         wrong.finish(timeline()).application,
         Application::NotApplied
     );
+}
+
+#[test]
+fn latest_independent_human_post_sample_survives_helper_loss_without_verified_success() {
+    use godot_agent_kit::script_edit::*;
+    let mut attempt = authorized("new");
+    attempt.enter_application().unwrap();
+    attempt
+        .buffer_changed(decimal("18"), native_witness())
+        .unwrap();
+    attempt.resource_synced(native_witness()).unwrap();
+    attempt.persistence(receipt("new")).unwrap();
+    attempt.finalization(finalized()).unwrap();
+    attempt
+        .retain_after(
+            prior_with("human", DirtyState::Dirty, Some("19"), "edit"),
+            Some(saved("19")),
+            Some(metadata()),
+        )
+        .unwrap();
+    attempt.fail(Reason::Deadline, None).unwrap();
+    let outcome = attempt.finish(timeline());
+    assert_eq!(outcome.outcome, EditOutcomeKind::AppliedUnverified);
+    assert_eq!(outcome.application, Application::Applied);
+    assert_ne!(outcome.progress.verification.state, StepState::Completed);
+    let after = outcome.after.unwrap();
+    assert_eq!(after.sources[0].source, Some(SourceDigest::of("human")));
+    assert_eq!(after.sources[1].source, Some(SourceDigest::of("human")));
+    assert_eq!(after.sources[2].source, Some(SourceDigest::of("human")));
+    assert_eq!(after.saved_state.unwrap().current_version, decimal("19"));
+    assert_eq!(after.dirty.state(), Some(DirtyState::Dirty));
 }
 
 #[test]
@@ -619,12 +782,21 @@ fn partial_finalization_and_postchange_dependency_invalidation_retain_known_chan
     attempt.persistence(receipt("new")).unwrap();
     let mut partial = finalized();
     partial.status = FinalizationStatus::PartialOrUnknown;
+    partial.reason = Some(Reason::Deadline);
+    partial.after_saved = None;
     partial.steps.saved_version = false;
     attempt.finalization(partial).unwrap();
-    assert_eq!(
-        attempt.finish(timeline()).outcome,
-        EditOutcomeKind::AppliedUnverified
-    );
+    let outcome = attempt.finish(timeline());
+    assert_eq!(outcome.outcome, EditOutcomeKind::AppliedUnverified);
+    let finalization = outcome.finalization.unwrap();
+    assert_eq!(finalization.status, FinalizationStatus::PartialOrUnknown);
+    assert_eq!(finalization.reason, Some(Reason::Deadline));
+    assert!(finalization.steps.resource_edited);
+    assert!(!finalization.steps.saved_version);
+    assert_eq!(finalization.before_resource_edited, Some(true));
+    assert_eq!(finalization.after_resource_edited, Some(false));
+    assert_eq!(finalization.after_saved, None);
+    assert_eq!(outcome.progress.finalization.state, StepState::Failed);
     let mut attempt = authorized("new");
     attempt.enter_application().unwrap();
     attempt
@@ -782,13 +954,8 @@ fn older_attributed_validation_event_is_rejected_without_erasing_authorization_r
     use godot_agent_kit::script_edit::*;
     let mut attempt = prepared("new");
     let mut validation = validation(ValidationPurpose::Preflight, "new");
-    validation.collection = CollectionStamp::new(
-        ClockId::Editor(SessionId::new(SESSION).unwrap()),
-        decimal("1"),
-        decimal("2"),
-        9,
-    )
-    .unwrap();
+    validation.collection =
+        CollectionStamp::new(ClockId::Caller, decimal("1"), decimal("2"), 9).unwrap();
     assert_eq!(
         attempt.validation(validation),
         Err(EditError::InvalidTiming)
@@ -963,7 +1130,7 @@ fn incomplete_or_misattributed_validation_cannot_certify_parse_success() {
     let mut request = prepared("new");
     let mut invalid = validation(ValidationPurpose::Preflight, "new");
     invalid.status = ValidationStatus::Invalid;
-    invalid.diagnostics_complete = false;
+    invalid.sources[0].symbols_completed = false;
     request.validation(invalid).unwrap();
     assert_eq!(
         request.finish(timeline()).reason,
@@ -978,10 +1145,99 @@ fn incomplete_or_misattributed_validation_cannot_certify_parse_success() {
         source: Some(SourceDigest::of("new")),
         line: Some(1),
         column: Some(1),
-        category: "parser".into(),
         message: "unexpected token".into(),
     });
     assert_eq!(request.validation(result), Err(EditError::InvalidEvidence));
+}
+
+#[test]
+fn every_captured_source_requires_both_fences_and_cleanup_even_for_invalid_results() {
+    use godot_agent_kit::script_edit::*;
+    let dependency_path = ResourcePath::new("res://dependency.gd").unwrap();
+    let dependency_source = SourceDigest::of("class_name Dependency\n");
+    for invalid in [false, true] {
+        for missing in 0..7 {
+            let mut request = prepared("new");
+            let mut result = validation(ValidationPurpose::Preflight, "new");
+            result.dependencies.push(DependencyWitness {
+                path: dependency_path.clone(),
+                identity: FileIdentity::new(decimal("1"), decimal("222")),
+                source: dependency_source,
+            });
+            result.sources.push(ValidationSourceFence {
+                path: dependency_path.clone(),
+                source: dependency_source,
+                diagnostics_completed: true,
+                symbols_completed: true,
+            });
+            if invalid {
+                result.status = ValidationStatus::Invalid;
+                result.reason = Some(Reason::DependencyError);
+                result.diagnostics.push(ValidationDiagnostic {
+                    origin: DiagnosticOrigin::Dependency,
+                    path: Some(dependency_path.clone()),
+                    path_reason: None,
+                    source: Some(dependency_source),
+                    line: Some(1),
+                    column: Some(1),
+                    message: "dependency error".into(),
+                });
+            }
+            match missing {
+                0 => result.sources[0].diagnostics_completed = false,
+                1 => result.sources[0].symbols_completed = false,
+                2 => result.sources[1].diagnostics_completed = false,
+                3 => result.sources[1].symbols_completed = false,
+                4 => {
+                    result.sources.remove(1);
+                }
+                5 => result.cleanup_confirmed = false,
+                6 => {
+                    result.sources.remove(0);
+                }
+                _ => unreachable!(),
+            }
+            request.validation(result).unwrap();
+            let terminal = request.finish(timeline());
+            assert_eq!(
+                terminal.outcome,
+                EditOutcomeKind::Refused,
+                "{invalid} {missing}"
+            );
+            assert_eq!(
+                terminal.reason,
+                Reason::ValidationUnavailable,
+                "{invalid} {missing}"
+            );
+            assert_eq!(terminal.validation[0].status, ValidationStatus::Unavailable);
+            assert!(terminal.progress.validation.state != StepState::Completed);
+        }
+    }
+}
+
+#[test]
+fn wrong_or_duplicate_dependency_fences_cannot_authorize() {
+    use godot_agent_kit::script_edit::*;
+    for duplicate in [false, true] {
+        let mut request = prepared("new");
+        let mut result = validation(ValidationPurpose::Preflight, "new");
+        result.dependencies.push(DependencyWitness {
+            path: ResourcePath::new("res://dependency.gd").unwrap(),
+            identity: FileIdentity::new(decimal("1"), decimal("222")),
+            source: SourceDigest::of("actual"),
+        });
+        result.sources.push(ValidationSourceFence {
+            path: ResourcePath::new("res://dependency.gd").unwrap(),
+            source: SourceDigest::of(if duplicate { "new" } else { "other" }),
+            diagnostics_completed: true,
+            symbols_completed: true,
+        });
+        if duplicate {
+            result.sources[1].path = result.sources[0].path.clone();
+        }
+        assert_eq!(request.validation(result), Err(EditError::InvalidEvidence));
+        assert_eq!(request.finish(timeline()).outcome, EditOutcomeKind::Refused);
+    }
 }
 
 #[test]
@@ -1189,19 +1445,43 @@ fn cancellation_after_buffer_effect_cannot_start_new_mutating_stage() {
 }
 
 #[test]
-fn editor_clock_cannot_run_backwards_even_if_delivery_time_increases() {
+fn validation_uses_caller_clock_and_rejects_backwards_caller_ticks() {
     use godot_agent_kit::script_edit::*;
     let mut request = prepared("new");
     let mut event = validation(ValidationPurpose::Preflight, "new");
-    event.collection = CollectionStamp::new(
-        ClockId::Editor(SessionId::new(SESSION).unwrap()),
-        decimal("0"),
-        decimal("0"),
-        11,
-    )
-    .unwrap();
+    event.collection =
+        CollectionStamp::new(ClockId::Caller, decimal("0"), decimal("0"), 11).unwrap();
     assert_eq!(request.validation(event), Err(EditError::InvalidTiming));
     assert_eq!(request.finish(timeline()).reason, Reason::ProtocolFailure);
+}
+
+#[test]
+fn caller_validation_ticks_are_never_compared_with_editor_ticks() {
+    use godot_agent_kit::script_edit::*;
+    let mut request = attempt("new");
+    let mut inspection = saved("17");
+    inspection.collection = CollectionStamp::new(
+        ClockId::Editor(SessionId::new(SESSION).unwrap()),
+        decimal("999999"),
+        decimal("1000000"),
+        inspection.collection.received_elapsed_us(),
+    )
+    .unwrap();
+    request
+        .prepare(
+            prior_with("old", DirtyState::Clean, Some("17"), "edit"),
+            Some(inspection),
+            Some(metadata()),
+        )
+        .unwrap();
+    request
+        .validation(validation(ValidationPurpose::Preflight, "new"))
+        .unwrap();
+    assert_eq!(request.authorize(), Err(EditError::OutOfOrder));
+    assert_eq!(
+        request.finish(timeline()).application,
+        Application::NotApplied
+    );
 }
 
 #[test]
@@ -1219,7 +1499,6 @@ fn debug_does_not_expose_replacement_or_diagnostic_text() {
         source: Some(SourceDigest::of("new")),
         line: Some(1),
         column: Some(2),
-        category: secret.into(),
         message: secret.into(),
     });
     assert!(!format!("{result:?}").contains(secret));
@@ -1262,13 +1541,8 @@ fn validation_cannot_overlap_the_preparation_collection() {
     use godot_agent_kit::script_edit::*;
     let mut request = prepared("new");
     let mut result = validation(ValidationPurpose::Preflight, "new");
-    result.collection = CollectionStamp::new(
-        ClockId::Editor(SessionId::new(SESSION).unwrap()),
-        decimal("0"),
-        decimal("99999"),
-        99999,
-    )
-    .unwrap();
+    result.collection =
+        CollectionStamp::new(ClockId::Caller, decimal("0"), decimal("99999"), 99999).unwrap();
     assert_eq!(request.validation(result), Err(EditError::InvalidTiming));
     assert_eq!(request.finish(timeline()).outcome, EditOutcomeKind::Refused);
 }
@@ -1402,7 +1676,6 @@ fn validation_limits_retain_bounded_unavailable_evidence() {
                 source: Some(SourceDigest::of("new")),
                 line: None,
                 column: None,
-                category: "parser".into(),
                 message: "x".repeat(message_bytes),
             })
             .collect();
@@ -1538,7 +1811,6 @@ fn validation_limit_failure_cannot_clear_a_denial() {
         source: None,
         line: None,
         column: None,
-        category: "access".into(),
         message: "x".repeat(2049),
     });
     request.validation(result).unwrap();
@@ -1697,8 +1969,15 @@ fn preboundary_discard_retires_authorization_but_cannot_erase_entered_work() {
     released
         .validation(validation(ValidationPurpose::Preflight, "new"))
         .unwrap();
+    released
+        .guard_application(
+            prior_with("old", DirtyState::Clean, Some("17"), "edit"),
+            Some(saved("17")),
+            Some(metadata()),
+        )
+        .unwrap();
     released.authorize().unwrap();
-    // Native rejection can retire dispatch even before fresh guard evidence arrives.
+    // Only an acknowledged native preboundary discard retires released authority.
     released
         .discard_before_boundary(Reason::Cancellation, native_witness())
         .unwrap();
