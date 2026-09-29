@@ -4,7 +4,7 @@
 
 **Historical §11 planning status: State A — concrete patched native integration selected at that stage.** Section 11 records that design; later T001 core and T002 native-validation implementation evidence is recorded in [quickstart §§9–10](quickstart.md#9-t001-core-acceptance-2026-09-27). Native mutation/caller acceptance remains pending. The historical native probe interruption was a tooling-policy limitation, not technical evidence against native integration; it remains an incomplete probe. Section 10's guarded single-editor concurrency boundary is retained. No mutation-support claim follows from this research.
 
-**Current disposition:** T001–T003 are complete; T004/T005 remain unstarted and Feature 002 remains 3/5 complete. T003 implemented the [§18 T1](#18-preserved-mtime-behavioral-finalization-research-2026-09-28) finalizer and [§19.9 R1 / L1](#199-capability-delta-readiness-review-2026-09-29) stock validator; the inherited stock-LSP endpoint limitation remains documented and non-blocking. [Quickstart §11](quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) records acceptance and current stock-only reproduction. T002 remains historically complete; its superseded implementation is archived in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29) and git history, not maintained on HEAD. The sections below retain their original research/development snapshots, not current build instructions or new proof obligations.
+**Current disposition:** **T001–T005 and Feature 002 are complete.** [Quickstart §14](quickstart.md#14-t005-cumulative-acceptance-2026-09-29) records current complete acceptance; [§21](#21-t005-cumulative-evidence-and-support-boundary-2026-09-29) consolidates the verified support boundary. The selected [§18 T1](#18-preserved-mtime-behavioral-finalization-research-2026-09-28) finalizer, [§19.9 R1 / L1](#199-capability-delta-readiness-review-2026-09-29) validator and non-blocking inherited endpoint limitation are unchanged. T002's superseded implementation remains archived in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29), not on HEAD. Older sections retain their historical research/development snapshots, not current lifecycle or new proof obligations.
 
 **Prior decisions (historical, superseded for production finalization only):** §13's ordinary-Save failures, §14's P1 saved-handler mechanics, §15's V2 and §16's H3 admission investigations, and §17's M3/F-blocking no-restore experiment retain their original observations. §18 supplies the distinct runtime repair and selects a production design without saved-handler discovery/call or its related function-discovery/live-reload/debugger routing machinery. Do not reinterpret the earlier failed route as a pass, infer that PR #34's extra history step had a proven cause, or erase the earlier research.
 
@@ -2069,3 +2069,44 @@ unlocked GUI campaigns passed 149 stock primitive/export cases, 194 observation
 regressions and 54 oracle/export cases, as recorded in quickstart §11. T003 is
 complete; T004/T005 and full public-caller/cumulative feature acceptance remain
 pending. No research count or historical verdict was changed.
+
+## 21. T005 cumulative evidence and support boundary (2026-09-29)
+
+T005 completes Feature 002 without changing the §18/§19 product design or adding
+dependencies. [Quickstart §14](quickstart.md#14-t005-cumulative-acceptance-2026-09-29)
+records the exact current builds, reproducible commands and private artifact hashes:
+405 complete edit/native records and 204 complete observation records on official
+Godot 4.7.2 `ed1daf0bf`, macOS 26.6.2 arm64. The approved live-editor profile passed
+A–E, twenty fresh-basis edits with six unsafe interleavings, actual Undo/Save/Redo,
+close/reopen, completed reparse/rescan and runtime value 23 with surviving editor
+state. Enabled/disabled/hook-only export inspection and gameplay execution passed.
+
+Ordinary native Save was observed to replace the target inode even when the
+intended source was already clean. That is normal developer Save behavior, not
+a failure of the product's same-retained-descriptor mutation guarantee. The next
+edit must use a fresh observation. Likewise, dirty human B does not have to equal
+R immediately; cumulative conflict acceptance observes and preserves the real
+state instead of synchronizing it to satisfy a fixture. Reparse uses the public
+synchronous [Script.reload()](https://docs.godotengine.org/en/4.7/classes/class_script.html#class-script-method-reload)
+result, with fresh runtime behavior checked separately; no reload is added to
+the product's exact-source validator or mutation path.
+
+All 113 actual public edit outcomes were reviewed from their fields alone.
+Their maximum elapsed time was 9.565838 seconds; observation's maximum was
+4.650398 seconds. Known applied/unknown results retain fresh-observation and
+human-inspection guidance, not automatic retry or rollback. Native receipt and
+parser responses remain distinct from independent D/R/B/dirty/history witnesses.
+
+The admitted native source/Save profile, representation bounds and local-user
+threat model remain unchanged. This evidence does not extend support to other
+Godot versions/platforms, excluded live-editor effects, arbitrary same-inode
+serialization, OS sandboxing or active-game hot reload. The stock LSP endpoint
+limitation stays documented and non-blocking. Earlier research failures and
+development-run failures remain failures, not additional acceptance passes.
+
+The existing hosted CI paths already cover the affected code. Optional trusted
+GUI automation now builds production and separate fault artifacts and invokes
+both complete suites under its unchanged boundary; no new workflow topology or
+operational requirement was introduced. Local acceptance is not evidence that
+the optional workflow executed. Feature completion remains separate from PR
+delivery and the broader Roadmap Phase 1 capability assessment.

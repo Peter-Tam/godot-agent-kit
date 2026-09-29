@@ -1,6 +1,6 @@
 # Private Editor Bridge — Version 2
 
-**Status:** T004 completed the coordinated v2 caller/worker/addon cutover on the stock §18 T1 / §19 L1 native/helper boundary with [real-editor caller acceptance](../quickstart.md#13-t004-caller-acceptance-2026-09-29). Observation's public schema stays v1, while all private peers use v2. There is no patched-editor requirement, private-mtime fabrication, v1 mutation fallback or editor-clock parser evidence. T005's cumulative feature gates remain pending.
+**Status:** T004 completed the coordinated v2 caller/worker/addon cutover on the stock §18 T1 / §19 L1 boundary. [T005 cumulative acceptance](../quickstart.md#14-t005-cumulative-acceptance-2026-09-29) completes the feature gates without another protocol change. Observation remains public v1; private peers use v2. There is no patched-editor requirement, private-mtime fabrication, v1 mutation fallback or editor-clock parser evidence.
 
 ## 1. Preserve bootstrap and source-free authentication
 

@@ -1,6 +1,6 @@
 # Data Model: Guarded Open-GDScript Editing
 
-**Status:** T001–T004 are complete. [T004 caller acceptance](quickstart.md#13-t004-caller-acceptance-2026-09-29) verifies the migrated core and caller using public saved-state evidence, same-descriptor T0 restoration and supervised stock validation. [T003 acceptance](quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) remains the earlier private-boundary record. T005 and cumulative feature acceptance remain pending. See the [native boundary](contracts/native-integration.md#7-current-private-implementation-boundary).
+**Status:** **T001–T005 and Feature 002 are complete.** [T005 cumulative acceptance](quickstart.md#14-t005-cumulative-acceptance-2026-09-29) verifies the unchanged model through whole-feature caller, native-history, durability and compatibility gates. [T004](quickstart.md#13-t004-caller-acceptance-2026-09-29) introduced public saved-state, same-descriptor T0 and supervised stock-validation evidence; [T003](quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) remains the earlier private-boundary record. See the [native boundary](contracts/native-integration.md#7-current-private-implementation-boundary).
 
 ## 1. Requests, identity and revisions
 

@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `/specs/002-edit-open-gdscript/spec.md`
 
-**Status:** T001–T004 are complete under [§18 T1](research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) and [§19.9 R1 / L1](research.md#199-capability-delta-readiness-review-2026-09-29). [T003 stock acceptance](quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) records the private boundary; [T004 caller acceptance](quickstart.md#13-t004-caller-acceptance-2026-09-29) records the guarded public caller and affected regressions. T002's patched implementation is archived in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29), not retained in HEAD. T005 and cumulative feature A–E remain pending; the stock endpoint limitation is non-blocking. Older design/review records describe their time, not the current lifecycle.
+**Status:** **T001–T005 and Feature 002 are complete.** [T005 cumulative acceptance](quickstart.md#14-t005-cumulative-acceptance-2026-09-29) records current whole-feature evidence under unchanged [§18 T1](research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) and [§19.9 R1 / L1](research.md#199-capability-delta-readiness-review-2026-09-29). [T003](quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) and [T004](quickstart.md#13-t004-caller-acceptance-2026-09-29) retain their earlier acceptance. T002's superseded implementation is archived in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29). The stock endpoint limitation remains non-blocking. Older design/review records describe their time, not the current lifecycle.
 
 ## Summary
 
@@ -39,7 +39,7 @@ The previous [§11 patched-engine decision](research.md#11-concrete-native-desig
 
 **Storage:** The T003 worker uses the existing owner-private source-free session registry and one selected-project script, with request-local descriptors/evidence and an owned per-invocation source-only scratch project for the bounded captured closure. Its no-log, discarded-output, isolated HOME/XDG context is not an OS sandbox. T004 still owns authenticated caller binding and independent product outcome integration; [§19.9](research.md#199-capability-delta-readiness-review-2026-09-29) documents the non-blocking inherited endpoint limit.
 
-**Testing:** T003 passed private stock primitive/helper, visible-Godot history/durability, privacy/export and affected observation regression evidence in [quickstart §11](quickstart.md#11-t003-native-boundary-acceptance-2026-09-29). Public A–E caller and cumulative feature gates remain T004/T005 work; the quickstart records both past results and remaining acceptance.
+**Testing:** [T005 cumulative acceptance](quickstart.md#14-t005-cumulative-acceptance-2026-09-29) passed all caller/native groups, A–E and applicable durability/runtime, privacy/export, full observation regression and the required local baseline checks. Exact candidate identities, artifacts, failed development runs and limitations are recorded separately from earlier task evidence.
 
 **Project Type**: Existing local Rust library/CLI plus editor addon/native integration. No MCP exposure.
 
@@ -304,7 +304,7 @@ No constitutional violation/waiver is requested. §17's direct no-handler tag fa
 
 The original plan-generation pass performed only feature-path/workflow resolution, pinned-source/API review, specification/design coverage and local-link/anchor/Markdown/whitespace/full-diff checks. No Cargo/product suites, engine build, runtime probe, filter retry, A–E acceptance, task generation or analysis command was run by that pass. The installed `setup-plan.sh --json` was executed with the verified Feature 002 directory and retained the existing plan; the installed template was resolved before completing these artifacts. Before/after-plan hook checks found no `.specify/extensions.yml`, so no hook was registered or bypassed. That pass's read-only native/flow contract review findings were corrected without changing the then-current specification.
 
-**Current disposition:** [§19.9 R1](research.md#199-capability-delta-readiness-review-2026-09-29) established L1 validator design with a non-blocking inherited endpoint limitation; T003 subsequently implemented it with §18 T1 in the accepted private stock boundary. T004/T005, public A–E and cumulative gates remain pending with unchanged five-task dependencies. The analyses below retain their historical design-stage statuses; [T003 acceptance](quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) records the later implementation outcome.
+**Current disposition:** T001–T005 and cumulative Feature 002 acceptance are complete under the original five-task dependencies. [Quickstart §14](quickstart.md#14-t005-cumulative-acceptance-2026-09-29) records the current evidence. [§19.9 R1](research.md#199-capability-delta-readiness-review-2026-09-29)'s inherited endpoint limitation remains non-blocking. The analyses below retain their historical design-stage statuses.
 
 ### Stock research artifact review
 
@@ -806,3 +806,60 @@ wrong-T0 readback and retained-fd `EBADF` caller cases preserve known applicatio
 partial receipts and dirty state without a saved tag or success. The earlier
 state-only diagnostics remain distinct from the subsequent passing standard GUI
 campaign. T004 is complete; T005 retains the cumulative feature gates.
+
+### T005 selected acceptance boundary
+
+T005 alone is selected after T004's PR #39 merged. It completes the existing
+US5 acceptance boundary: cumulative ordinary Save/reopen/reparse/rescan/runtime
+durability, at least twenty fresh-basis edits with interleaved unsafe refusals,
+result-only outcome review, full observation regression and actual native/tooling
+export isolation. It does not reopen completed tasks or introduce product APIs.
+
+The existing owned-editor harness, caller helpers, native fixture actions and
+workflow trust boundaries are reused. A focused cumulative acceptance mixin follows
+the existing caller/native/stock mixin convention; result review inspects actual
+caller JSON, never substitutes for independent fixture witnesses. Reusing only the
+earlier single-edit cases would not prove SC-007's cumulative history and persistence
+requirement. The additional maintenance cost is bounded scenario code and explicit
+transition evidence, justified by T005's current acceptance criteria. No new
+dependency, service, production abstraction, CI topology or approval is selected.
+
+Principles I–IV and VI/XII require independent D/R/B, dirty/saved state, actual
+native history and real visible-editor evidence throughout the cumulative sequence.
+V/VIII/X require source-free incidental output, unrelated-target preservation and
+enabled/disabled/hook-only exported-game checks. VII/IX preserve the existing product
+boundaries and tool surface. XI retains the exact official stock executable and
+public-ABI provenance; XIII favors the existing harness and optional trusted GUI
+workflow over new infrastructure. All feature criteria must pass on the delivery
+head before completion; Roadmap Phase 1's separate exit gates remain an explicit
+assessment, not an inference from task completion.
+
+#### T005 implementation-shape and constitutional review
+
+No production module, public API, dependency or mutation state machine changed.
+The cumulative mixin owns durability/sequential scenarios, the privacy mixin owns
+caller sentinel isolation and exports, and the result reviewer checks actual public
+outcome consistency without fixture expectations. Existing caller helpers retain
+request/process ownership; the runner composes groups and records distinct normal
+and fault-fixture build provenance. New fixture actions remain in the owned test
+plugin, never in the product bridge. Their reparse/runtime interactions are explicit
+fixture operations, not new product execution authority.
+
+Focused GUI runs corrected acceptance assumptions rather than relaxing product
+safety: ordinary Godot Save may replace the file inode, so durability checks exact
+source/clean state and records metadata instead of imposing inode retention across
+a developer Save; dirty human B need not immediately equal R, so refusal witnesses
+capture the actual independent state instead of requiring synchronization first.
+The public synchronous `Script.reload()` result proves fixture reparse completion;
+fresh runtime behavior is observed separately. Privacy compares independently
+prepared second-session state and brackets denial after that session's teardown.
+Failure artifacts retain the actual fixture response after credential checks.
+
+The required boundary remains unchanged: same-descriptor identity is mandatory
+during the product attempt; fresh observations bind subsequent attempts after
+ordinary Save. Native history and independent D/R/B/dirty evidence remain the
+acceptance authority. Result review cannot turn a partial/unknown result into
+success, and screenshots cannot replace state evidence. No speculative public
+declaration, lifecycle flag, future hook, unsafe unwrap or framework was introduced.
+The optional GUI workflow uses the existing trust boundary and now invokes both
+complete suites; ordinary CI already covers the changed paths and native build.

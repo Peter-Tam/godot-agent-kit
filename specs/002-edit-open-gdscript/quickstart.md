@@ -1,14 +1,14 @@
 # Quickstart: Verify Guarded Open-GDScript Editing
 
-**Status:** **T001–T004 are complete.** Historical core/oracle acceptance remains in [§9](#9-t001-core-acceptance-2026-09-27) and [§10](#10-t002-native-validation-acceptance-2026-09-28); [§11](#11-t003-native-boundary-acceptance-2026-09-29) records the stock helper/native boundary. [T004 caller acceptance](#13-t004-caller-acceptance-2026-09-29) covers the guarded caller, core-evidence migration and private bridge v2. T005's cumulative acceptance is unstarted. Feature 002 remains in progress.
+**Status:** **T001–T005 and Feature 002 are complete.** [T005 cumulative acceptance](#14-t005-cumulative-acceptance-2026-09-29) records the current complete edit/native and observation runs. Earlier task records below retain their historical scope and completion state at the time. The private bridge remains v2 and public caller/observation schemas remain v1; T005 changes acceptance coverage, not product semantics.
 
 **Current reproduction:** Use the official stock executable and matched standard
 public-ABI extension from the [native guide](../../godot-addon/native/README.md).
-The six caller groups and retained `native-primitives` group below are implemented.
-Sections 1–8 include additional feature-wide T005 requirements; those extra groups
-are not yet CLI options. Historical patched-family/mtime sketches are superseded
-by the current caller, bridge, native and data-model contracts. §10 is an archive
-summary, not an oracle recipe.
+The caller groups, retained `native-primitives`, cumulative `durability`,
+`sequential`, `privacy-export`, and complete `all` mode below are implemented.
+Historical patched-family/mtime sketches are superseded by the current caller,
+bridge, native and data-model contracts. §10 is an archive summary, not an
+oracle recipe.
 
 Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [caller](contracts/edit-api.md), [bridge](contracts/bridge-protocol.md), [native](contracts/native-integration.md) contracts as normative semantics. Do not infer success from process exit, a save acknowledgment or the finalizer's copied fields.
 
@@ -66,11 +66,14 @@ independent saved-state reads. Fault barriers are compiled only into separate
 
 Reuse the observation harness's owned setup, authentication, window capture,
 independent D/R/B/dirty/history witnesses, process cleanup and artifact handling.
-The implemented caller scenarios are `clean-open`, `conflicts`, `routing`,
-`interruption`, `validation` and `history`; each requires `--editor` naming the
-absolute built `edit-gdscript` path. The retained `native-primitives` group uses
-the test-only stock validator. `interruption` and `native-primitives` require the
-separate fixture-only native artifact. There is no `--mutator` or `--scenario all`.
+Caller scenarios are `clean-open`, `conflicts`, `routing`, `interruption`,
+`validation`, `history`, `durability`, `sequential` and `privacy-export`; each
+requires `--editor` naming the absolute built `edit-gdscript` path. The retained
+`native-primitives` group uses `--stock-validator` naming the test-only stock
+validator. `interruption` and `native-primitives` require the separate fixture-only
+native artifact. `all` requires all three inputs and executes every edit/native
+group, including production exports, once; it does not substitute for the
+separate complete observation runner. There is no `--mutator`.
 
 For each caller group, use a new empty mode-0700 artifact directory:
 
@@ -81,7 +84,15 @@ python3 godot-addon/tests/run_script_edit.py \
   --artifacts "$ARTIFACTS"
 ```
 
+For complete feature acceptance, use `--scenario all` and additionally pass
+`--stock-validator "$STOCK_VALIDATION_FIXTURE"`. Run the complete observation
+suite in §6 afterward. Groups own separate projects/evidence subdirectories
+and close their editors before the next group; no GUI groups run concurrently.
+Every caller outcome has a result-only semantic review and an externally
+measured ≤10-second result bound. Independent fixture witnesses remain required.
+
 Real-editor acceptance requires an unlocked visible GUI and owned-window captures.
+
 Getter/state diagnostics while that visual prerequisite is unavailable may expose
 bugs, but do not satisfy the task's GUI acceptance or authorize completion.
 
@@ -615,3 +626,145 @@ unstarted. Feature 002 and Roadmap Phase 1 are not complete. The inherited stock
 LSP endpoint limitation remains non-blocking; no MCP surface, broader platform
 support, runtime hot-reload or OS sandbox is claimed.
 
+
+## 14. T005 cumulative acceptance (2026-09-29)
+
+**T005 and Feature 002 are complete** on `task/T005-cumulative-edit-acceptance`,
+independently of PR review/merge. T004's PR #39 merged before this task began;
+its local and remote source branches were already absent. Only T005 was selected.
+
+The unmodified complete runners executed serially on the owned visible desktop:
+`run_script_edit.py --scenario all` passed **405 records**, then
+`run_observation.py --scenario all` passed **204 records**. These are actual
+invocation/check records, including one bootstrap per suite, not counts of distinct
+stories. No skipped groups, capture bypass, headless substitute for B or partial
+`all` mode was used.
+
+### Coverage and observed outcomes
+
+| Edit/native group | Records |
+| --- | ---: |
+| stock-validation | 58 |
+| native-finalization | 87 |
+| clean-open | 8 |
+| conflicts | 37 |
+| routing | 35 |
+| interruption | 38 |
+| validation | 38 |
+| history | 8 |
+| durability | 9 |
+| sequential | 76 |
+| privacy-export | 10 |
+| bootstrap | 1 |
+
+The group mapping in §3 covers all 26 story scenarios, 22 functional requirements
+and eight success criteria. Current-run evidence includes:
+
+- **A/B:** real changed/unchanged caller outcomes; independent D/R/B, dirty/saved
+  and source-attributed validation; dirty/stale/identity/denial/busy refusals;
+  non-selected target and unrelated human-work preservation.
+- **C:** actual native Undo → ordinary Save → Redo → Save, preserved earlier
+  history, and no added entry for refused/unchanged requests. Partial and unknown
+  outcomes retain actual stage/application knowledge without retry or rollback.
+- **D and durability:** ordinary Save, close/reopen into a new CodeEdit,
+  synchronous public `Script.reload()` completion, completed filesystem-change
+  rescan, and a fresh fixture runtime reporting `NATIVE_RUNTIME_VALUE=23`.
+  The original live editor retained clean intended D/R/B afterward.
+- **E:** **20 distinct successful fresh-basis edits**, values 300–319, each
+  followed by ordinary Save; **three stale and three dirty refusals** interleaved.
+  Human value 29 survived each dirty refusal and an explicit human Save.
+  Final native Undo/Save/Redo/Save restored 318/319, then close/reopen retained 319.
+- **Result-only review:** all **113 public edit outcomes**, including stalled
+  stdin, were inspected without fixture expectations for target, stage, actual
+  application certainty, D/R/B availability/hashes, dirty state, history and next
+  action. Partial/unknown actions require fresh observation and inspection of
+  human work; no result advertised replay or rollback.
+- **Timing:** every controlled public edit passed the ≤10-second bound;
+  maximum **9.565838 seconds**, including the stalled-stdin case. The complete
+  observation run's maximum measured result was **4.650398 seconds**.
+- **Compatibility/privacy:** all observation groups, including twenty-read
+  non-interference, passed unchanged. Authorized/ambiguous/denied/interrupted
+  caller sentinels, unrelated-project state and incidental redaction passed.
+  Enabled, disabled and hook-only exports were inspected as actual PCK/bundle
+  contents and executed: no active tooling/native registration, listener,
+  credentials or missing native dependency survived.
+
+Owned-window visual review included the final reopened clean `subject.gd`
+showing `return 319`, the post-runtime clean target showing `return 23`, and
+preserved `other.gd(*)` human work. The intentionally invalid unrelated fixture
+buffer and its parse indication are synthetic preservation evidence, not a target
+parse failure. Images accompany independent state/history witnesses.
+
+### Exact candidate and artifacts
+
+Official `4.7.2.stable.official.ed1daf0bf`, engine commit
+`ed1daf0bf001b61586d9930840f2f1394092c079`, executable SHA-256
+`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`;
+macOS **26.6.2**, build **25G83**, **arm64**; Rust **1.98.1**,
+Python **3.10.9**, Apple clang **21.0.0** (`clang-2100.3.34.2`), SDK **27.0**.
+Export-template SHA-256:
+`88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`.
+
+Evidence root:
+`/var/folders/2r/m9lt6gb17wgbzcw9zzf6mp_80000gn/T/godot-agent-kit-T005-nd7ltchy/`.
+
+| Summary | Records | SHA-256 |
+| --- | ---: | --- |
+| `edit-all/summary.json` | 405 | `125817ffa50e6c078ab83e73e592d77b8d417db801c80b04fbb2c49476d93050` |
+| `observation-all/summary.json` | 204 | `129b38f965b049682711429e36ae9402b4d86f5a52ef32e7715ff479211be80a` |
+
+Production native build ID:
+`c36dd094486bbf26dfac0e6025c3d8cb12785e85e4940eef20ee31f73af74b1f`;
+library SHA-256:
+`656b53708ddb24bfc6678f7bcf06c821c35175fe572d5c6dd124caf60ac117b3`.
+Fixture-only build ID:
+`73ec38cb4c5dc56bd9df73da5069b15e42683b8679d9d5dee8725f8a7d792262`;
+library SHA-256:
+`b70f944566e050a815f58887524c7ff4704bb3e24307c8d514016aadc9353526`.
+The complete summary records each build separately, including generated ABI/API,
+manifest and acceptance-source hashes.
+
+Exercised caller SHA-256:
+`ea3564faf640997f2bd0c278c67ff383f71cee7053bb3efb4b363f1cafbc342b`;
+observer:
+`9a5df2c93d470d86b5e30a9c82f24e57e531bf0fe6bf2b6db734ee4fc181437a`;
+stock-validator test consumer:
+`815a3593be1cd48926312e8096c362ef6bca4d44cd52845b7dd31f1a232995ed`.
+
+The §2 Rust commands passed formatting, Clippy, **193 tests** including doctests,
+rustdoc and all required binaries/example builds. Both native artifacts built.
+Five native-build tests, **22 workflow tests**, and Actionlint passed. Existing
+ordinary `ci.yml` already covers these paths; the optional GUI workflow now builds
+both native artifacts and runs both complete suites. This records local execution,
+not an assertion that the optional hosted/self-hosted workflow ran.
+
+### Development failures, limits and phase assessment
+
+Earlier focused runs remain failed evidence, not relabeled acceptance: the initial
+Save assertion incorrectly required inode retention across ordinary Godot Save;
+the reparse fixture called a nonexistent `GDScript.is_valid`; a dirty-human setup
+incorrectly waited for R/B convergence; and privacy comparisons spanned second-editor
+startup/teardown instead of the individual request. These fixture issues were
+corrected before the complete run. One early prior-history Save action failed
+without a retained response; its cause was not established. Failed-action response
+retention was then added, and the final complete run passed the same prior-history
+path. Passing focused runs are supplemental, not counted again in the 405 records.
+
+No production mutation semantics, API, dependency or threat model changed.
+The [implementation-shape/constitutional review](plan.md#t005-implementation-shape-and-constitutional-review)
+records responsibility and complexity decisions. Owned processes/projects were
+cleaned up by the runners; explicit private evidence is retained.
+
+Support is confined to the exact candidate and admitted native source/Save profiles:
+one already-open standalone GDScript, LF UTF-8 within declared bounds, no tool
+script/script inheritance/load-preload/global-class/exported-declaration effects.
+Unsupported context or representation refuses; no neighboring-version/platform,
+MCP, arbitrary same-inode exclusion, crash atomicity, OS sandbox or live-game
+hot-reload guarantee follows. The inherited stock LSP endpoint limitation in
+§19.9 remains non-blocking.
+
+Roadmap Phase 1's A–E and applicable durability evidence is now satisfied for this
+approved open-script slice. Its broader capability areas still include script
+discovery/open and independent lifecycle controls not delivered by this feature;
+Phase 1 remains in progress rather than equating feature completion with all
+roadmap capability coverage. No next task or feature is selected.

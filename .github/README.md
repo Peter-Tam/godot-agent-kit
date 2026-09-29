@@ -1,22 +1,20 @@
 # CI and optional live-editor automation
 
 These workflows are shared execution infrastructure. [ci.yml](workflows/ci.yml)
-runs the required ordinary hosted native/workflow checks.
-[live-editor.yml](workflows/live-editor.yml) is **optional future automation**
-for reproducing the same real-editor acceptance in CI, not a T008 or Feature 001
+runs required ordinary hosted Rust/caller, native stock-build and workflow
+checks. [live-editor.yml](workflows/live-editor.yml) is **optional** automation
+for the real-editor suites, not a separate Feature 001 or Feature 002
 completion prerequisite.
 
 **Real-editor acceptance is mandatory; dedicated GUI CI is optional.** A
-maintainer-operated real Mac with the pinned Godot candidate, the complete
-passing `--scenario all` suite and honestly recorded environment/evidence
-satisfies the GUI requirement. Lack of a self-hosted runner does not block
-T008 when that substantive evidence and ordinary hosted CI pass. See
-[Feature 001 acceptance](../specs/001-observe-gdscript-state/quickstart.md#29-rebased-t008-real-editor-acceptance-and-completion-2026-09-27).
-
-The optional workflow currently runs observation acceptance. Guarded-edit caller
-and native groups use the separate
-[Feature 002 runner](../specs/002-edit-open-gdscript/quickstart.md#3-owned-real-editor-runner);
-an observation run does not establish mutation A–E or caller completion.
+maintainer-operated real Mac with the pinned stock Godot candidate, the
+complete script-edit and observation `--scenario all` runs, and honestly
+recorded evidence can satisfy the GUI requirements alongside ordinary CI. An
+observation run alone does not prove guarded mutation A–E, runtime durability,
+or caller completion. See the [Feature 002 acceptance
+runner](../specs/002-edit-open-gdscript/quickstart.md#3-owned-real-editor-runner)
+and the [Feature 001 acceptance
+record](../specs/001-observe-gdscript-state/quickstart.md#29-rebased-t008-real-editor-acceptance-and-completion-2026-09-27).
 
 The remaining sections describe conditions **only for choosing the optional
 self-hosted workflow**. It is sourced from `main` even when the tested
@@ -87,11 +85,14 @@ after every hosted check succeeds. The GUI job checks out that full immutable
 SHA with a pinned checkout action and `persist-credentials: false`, verifies
 `git rev-parse HEAD` equals the gate's revision before executing repository
 code, then verifies the provisioned candidate and runs the native baseline
-before the real-editor driver with mandatory `--scenario all`. There is no
-partial scenario selector. Evidence is named
-`observation-all-${{ github.run_id }}-${{ github.run_attempt }}` so reruns have
-distinct artifacts; uploads still run with `if: always()` and retain evidence
-for 14 days.
+before building separate production and fixture-only native artifacts. It runs
+complete script-edit acceptance first, then complete observation acceptance;
+both require `--scenario all`, with no partial scenario selector. Two
+synthetic-evidence artifacts, `script-edit-all-${{ github.run_id }}-${{ github.run_attempt }}`
+and `observation-all-${{ github.run_id }}-${{ github.run_attempt }}`, distinguish
+reruns. The script-edit evidence includes separate native build manifests
+identifying the normal and fixture-only binaries. Uploads run with
+`if: always()` and retain available evidence for 14 days.
 
 The PR checks are observations at the hosted gate, not a lock on a PR.
 Moving a branch after validation cannot change the immutable checkout; testing
@@ -117,10 +118,10 @@ APIs supply the exact-head eligibility inputs. No review API is used.
 ## Trusted GUI execution contract
 
 The optional complete-suite job has a **180-minute** timeout. The checks below
-describe its existing preflight, not Feature 001 acceptance prerequisites.
-In particular, executable/template hashes remain useful recorded provenance;
-matching these historical hashes is not a T008 completion gate. This correction
-does not change the optional workflow's implementation:
+describe the workflow's provisioned-candidate preflight, not Feature 001
+acceptance prerequisites or an additional Feature 002 platform requirement.
+The hashes identify this pinned candidate rather than claiming other
+environments are supported:
 
 - macOS **26.6.2**, **arm64**.
 - Godot **4.7.2.stable.official.ed1daf0bf**; the executable resolved by
@@ -146,11 +147,18 @@ cargo fmt --all -- --check
 cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
 cargo doc --no-deps --locked
-cargo build --locked --lib --bin observe-gdscript
+cargo build --locked --lib --bin observe-gdscript --bin edit-gdscript \
+  --example stock_validation_fixture
 ```
 
-This native baseline is additional to ordinary hosted CI, not replaced by it.
-It validates the tested immutable revision on the exact GUI candidate.
+The GUI job also builds the official-stock production GDExtension and a separate
+`--fixture-faults` artifact outside the product addon via
+`godot-addon/native/build.py`, both against that same checked executable. The
+normal artifact remains installed for fixture projects and export checks;
+fixture-only hooks remain in their distinct test directory. This native
+baseline is additional to ordinary hosted CI, not replaced by it.
+No new provider, runner, environment or dependency is required for a
+maintainer-operated acceptance run.
 
 ## Operate and verify
 
@@ -163,10 +171,23 @@ SHA=<full-lowercase-40-hex-reviewed-commit>
 gh workflow run live-editor.yml --repo Peter-Tam/godot-agent-kit --ref main -f reviewed_sha="$SHA"
 ```
 
-For an optional CI run, inspect the gate output, tested SHA and actual synthetic
-evidence. A denied gate or missing runner means that optional run did not
-execute; a nonzero `--scenario all` result is not passing real-editor evidence.
-None replaces or invalidates valid maintainer-operated acceptance.
+The GUI job runs `run_script_edit.py --scenario all` with the absolute stock
+Godot, `observe-gdscript`, `edit-gdscript`, test-only
+`stock_validation_fixture` and separate fixture-native directory; only after
+that process succeeds does it run `run_observation.py --scenario all` against
+the same Godot and observer. Each runner receives its own initially empty,
+private artifact directory. The editor must be unlocked and visible for real
+owned-window images; neither a headless run nor the shell-stage simulations
+below substitute for GUI acceptance. For a maintainer-operated invocation,
+use the [Feature 002 runner instructions](../specs/002-edit-open-gdscript/quickstart.md#3-owned-real-editor-runner)
+with both all-scenario suites and independent review of their results.
+
+For an optional CI run, inspect the gate output, tested SHA and the two
+separate synthetic-evidence artifacts, including each native build manifest
+and both suites' summaries. A denied gate or missing runner means that
+optional run did not execute; a nonzero result from either `--scenario all`
+invocation is not passing evidence. This optional route does not replace or
+invalidate valid maintainer-operated acceptance.
 
 For local/hosted workflow fixture and configuration validation (Python 3,
 PyYAML **6.0.3**, and Actionlint installed; CI pins its Actionlint Go module):
@@ -197,10 +218,7 @@ build/API check, not GUI or export acceptance; see the
 
 Workflow configuration and its regression simulations do not prove live-editor
 behavior. Complete maintainer-operated real-editor evidence plus ordinary
-hosted CI can complete Feature 001 without a protected GUI-CI run. Constitutional
-VI/X and compatibility requirements preserve actual observed editor evidence,
-truthful outcomes and exact tested-environment claims; they do not require a
-particular CI provider. If this optional self-hosted workflow is used,
-Constitution V's least-privilege boundary still requires trusted dispatch,
-read-only scoped credentials and isolated execution. Product protocol/editor
-boundaries remain unchanged; no mutation or Phase 1 completion is implied.
+hosted CI can satisfy the feature acceptance without a protected GUI-CI run.
+Constitutional least privilege, compatibility, truthful outcomes and exact
+tested-environment claims still apply. This workflow change does not claim
+that the optional job ran or that Feature 002 or Roadmap Phase 1 completed.

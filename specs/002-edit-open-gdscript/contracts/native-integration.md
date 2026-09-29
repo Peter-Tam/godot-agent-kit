@@ -1,10 +1,10 @@
 # Native Script Editing Integration Contract
 
-**Status (2026-09-29):** T001–T004 are complete under [§18 T1](../research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) and [§19.9 R1 / L1](../research.md#199-capability-delta-readiness-review-2026-09-29). [T003 acceptance](../quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) records the private stock boundary; [T004 caller acceptance](../quickstart.md#13-t004-caller-acceptance-2026-09-29) records the guarded caller and bridge-v2 integration. T005's cumulative gates remain pending. T002's patched validator is historical evidence in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29), not a fallback. The inherited stock endpoint limitation remains non-blocking.
+**Status (2026-09-29):** **T001–T005 and Feature 002 are complete.** [T005 cumulative acceptance](../quickstart.md#14-t005-cumulative-acceptance-2026-09-29) verifies the unchanged stock §18 T1 / §19 L1 native/helper boundary. [T003](../quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) and [T004](../quickstart.md#13-t004-caller-acceptance-2026-09-29) retain earlier private/caller evidence. T002's superseded validator is historical evidence in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29), not a fallback. The inherited stock endpoint limitation remains non-blocking; no wider-platform support is claimed.
 
 ## 1. Ownership and minimum exposure
 
-**Stock native boundary and guarded caller integration:** Official stock Godot plus addon and standard public-ABI C++17 GDExtension implement one guarded CodeEdit complex edit, explicit bound `Script.set_source_code`, descriptor-bound content persistence, same-fd T0 restoration, then public Resource edited=false and direct CodeEdit tag/STOP. No saved-handler Callable, ResourceSaver, full Save, engine patch or private Godot timestamp setter is used. T004 passed its required caller safety/history acceptance; T005 retains cumulative feature A–E.
+**Stock native boundary and guarded caller integration:** Official stock Godot plus addon and standard public-ABI C++17 GDExtension implement one guarded CodeEdit complex edit, explicit bound `Script.set_source_code`, descriptor-bound content persistence, same-fd T0 restoration, then public Resource edited=false and direct CodeEdit tag/STOP. No saved-handler Callable, ResourceSaver, full Save, engine patch or private Godot timestamp setter is used. T004 passed caller safety/history acceptance; T005 passed cumulative feature A–E and durability.
 
 | Responsibility | Owner / selected mechanism / proof obligation |
 |---|---|
@@ -254,10 +254,10 @@ fences, valid/invalid/unavailable outcomes, stopped/failed-child cleanup,
 discarded-output/no-log privacy and independent user LSP behavior. The
 then-observed additional-client/disk-dependency probes support scoped owner
 attribution, not global endpoint exclusivity. T004's authenticated caller gate
-has passed; T005 still owns cumulative A–E/durability evidence. Earlier T002
-patched results cannot discharge those later obligations.
+has passed, followed by T005's cumulative A–E/durability evidence. Earlier T002
+patched results remain separate historical observations.
 
-**Accepted stock integration:** [Quickstart §11](../quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) records T003's private boundary. [Quickstart §13](../quickstart.md#13-t004-caller-acceptance-2026-09-29) records T004's migrated typed core/caller/bridge, public saved-state and stock parser evidence, all six caller groups, native primitives and observation regressions. T005's cumulative feature gates remain pending. No patched editor, custom saver, extra task or wider-platform support follows.
+**Accepted stock integration:** [Quickstart §14](../quickstart.md#14-t005-cumulative-acceptance-2026-09-29) records complete edit/native and observation runs, twenty fresh-basis edits, six unsafe interleavings, native history, ordinary Save/reopen/reparse/rescan/runtime, result review and actual exports. The admitted live-editor effect/representation profile and inherited endpoint limitation are unchanged. No patched editor, custom saver, extra task or wider-platform support follows.
 
 ## 6. Pinned implementation basis
 

@@ -1,6 +1,6 @@
 # Edit Open GDScript — Caller Contract v1
 
-**Status:** T004 completed this CLI/JSON adapter and coordinated private bridge-v2 cutover against the stock §18 T1 native boundary and §19 L1 helper. [Caller acceptance](../quickstart.md#13-t004-caller-acceptance-2026-09-29) records the real-editor evidence separately from [T003's private acceptance](../quickstart.md#11-t003-native-boundary-acceptance-2026-09-29). The core uses public saved state, retained-descriptor T0 evidence and caller-clock stock validation, not private Resource/document mtimes or patched-parser evidence. T005's cumulative feature gates remain pending.
+**Status:** **Feature 002 is complete.** T004 implemented this CLI/JSON adapter and private bridge-v2 cutover against stock §18 T1 / §19 L1. [T005 cumulative acceptance](../quickstart.md#14-t005-cumulative-acceptance-2026-09-29) verifies the unchanged contract across all caller/native groups, twenty sequential edits, durability/runtime and privacy/export. The core uses public saved state, retained-descriptor T0 and caller-clock stock validation, not private Resource/document mtimes or patched-parser evidence. Support is limited to the exact recorded Godot 4.7.2/macOS arm64 candidate and admitted script/Save profiles.
 
 ## 1. One operation and invocation
 

@@ -22,6 +22,7 @@ import run_observation as observation
 from stock_acceptance import StockAcceptanceMixin
 from native_finalization_acceptance import NativeFinalizationMixin
 from caller_edit_acceptance import CallerEditAcceptanceMixin
+from cumulative_edit_acceptance import CumulativeEditAcceptanceMixin
 
 FIXTURE = Path(__file__).parent / "fixtures" / "script_edit"
 MARKERS = (b"NATIVE_DIRECT", b"NATIVE_TRANSITIVE", b"NATIVE_SIBLING_VALUE",
@@ -83,7 +84,8 @@ def dependency_witness(project, relative):
         os.close(fd)
 
 
-class NativeHarness(CallerEditAcceptanceMixin, NativeFinalizationMixin, StockAcceptanceMixin, observation.Harness):
+class NativeHarness(CumulativeEditAcceptanceMixin, CallerEditAcceptanceMixin,
+                    NativeFinalizationMixin, StockAcceptanceMixin, observation.Harness):
     stock_sha = staticmethod(sha)
     stock_dependency = staticmethod(dependency_witness)
 
@@ -95,13 +97,27 @@ class NativeHarness(CallerEditAcceptanceMixin, NativeFinalizationMixin, StockAcc
                                     b"STATIC_INITIALIZER_EXECUTED",
                                     b"OUTSIDE_STOCK_SECRET"))
         self.stock_sessions = {}
-        self.summary["coverage_scope"] = ("t003_stock_helper_native_finalization"
-                                          if args.scenario == "native-primitives"
-                                          else "t004_selected_caller_story_group")
+        self.summary["coverage_scope"] = (
+            "t005_complete_edit_and_native_groups" if args.scenario == "all" else
+            "t003_stock_helper_native_finalization" if args.scenario == "native-primitives" else
+            "t005_selected_caller_story_group" if args.scenario in
+            ("durability", "sequential", "privacy-export") else
+            "t004_selected_caller_story_group")
         self.summary["source_observation"] = True
         self.summary["fixture_driver_sha256"] = observation.digest(FIXTURE / "fixture_driver.gd")
         self.summary["caller_acceptance_sha256"] = observation.digest(
             Path(__file__).parent / "caller_edit_acceptance.py")
+        self.summary["cumulative_acceptance_sha256"] = observation.digest(
+            Path(__file__).parent / "cumulative_edit_acceptance.py")
+        self.summary["caller_privacy_acceptance_sha256"] = observation.digest(
+            Path(__file__).parent / "caller_privacy_acceptance.py")
+        self.summary["edit_result_review_sha256"] = observation.digest(
+            Path(__file__).parent / "edit_result_review.py")
+        self.summary["edit_caller_sha256"] = (
+            observation.digest(args.editor) if args.editor and args.editor.is_file() else None)
+        self.summary["stock_validator_sha256"] = (
+            observation.digest(args.stock_validator) if args.stock_validator and
+            args.stock_validator.is_file() else None)
         self.summary["native_fixture_files"] = {str(p.relative_to(FIXTURE)): observation.digest(p)
                                                for p in sorted(FIXTURE.rglob("*")) if p.is_file()}
 
@@ -138,6 +154,10 @@ class NativeHarness(CallerEditAcceptanceMixin, NativeFinalizationMixin, StockAcc
             return None
 
         result = observation.wait_for(response, "native_fixture_action_" + action, timeout=35)
+        if result.get("ok") is not True:
+            observation.require(all(secret not in json.dumps(result).encode() for secret in self.secrets),
+                                "failed_fixture_action_credential_redaction")
+            observation.json_file(self.artifacts / ("failed-" + action + ".json"), result)
         observation.require(result.get("ok") is True, "native_fixture_action_failed_" + action)
         return {key: value for key, value in result.items() if key not in ("id", "action", "ok")}
 
@@ -157,15 +177,28 @@ class NativeHarness(CallerEditAcceptanceMixin, NativeFinalizationMixin, StockAcc
             provenance.get("fixture_only") is fixture_only and
             HEX64.fullmatch(str(provenance.get("native_build_id", ""))),
             "native_binary_generated_abi_and_pinned_engine_provenance")
-        self.summary["native_manifest_sha256"] = observation.digest(manifest)
-        self.summary["native_build_manifest_sha256"] = observation.digest(build_manifest)
-        self.summary["gdextension_abi_sha256"] = provenance.get("abi_sha256")
-        self.summary["gdextension_api_sha256"] = provenance.get("api_sha256")
-        self.summary["native_toolchain"] = {"compiler": provenance.get("compiler"),
-                                            "sdk": provenance.get("sdk")}
-        self.summary["native_library_sha256"] = observation.digest(binaries[0])
-        self.summary["native_library_relative_path"] = str(binaries[0].relative_to(project))
+        if not fixture_only:
+            # Keep compatibility fields tied to the production build even when
+            # a later fixture-only fault run installs a different binary.
+            self.summary["native_manifest_sha256"] = observation.digest(manifest)
+            self.summary["native_build_manifest_sha256"] = observation.digest(build_manifest)
+            self.summary["gdextension_abi_sha256"] = provenance.get("abi_sha256")
+            self.summary["gdextension_api_sha256"] = provenance.get("api_sha256")
+            self.summary["native_toolchain"] = {"compiler": provenance.get("compiler"),
+                                                "sdk": provenance.get("sdk")}
+            self.summary["native_library_sha256"] = observation.digest(binaries[0])
+            self.summary["native_library_relative_path"] = str(binaries[0].relative_to(project))
         self.expected_native_build_id = provenance["native_build_id"]
+        self.summary.setdefault("native_artifacts", {})[
+            "fixture" if fixture_only else "production"] = {
+                "manifest_sha256": observation.digest(manifest),
+                "build_manifest_sha256": observation.digest(build_manifest),
+                "library_sha256": observation.digest(binaries[0]),
+                "native_build_id": provenance["native_build_id"],
+                "abi_sha256": provenance.get("abi_sha256"),
+                "api_sha256": provenance.get("api_sha256"),
+                "toolchain": {"compiler": provenance.get("compiler"), "sdk": provenance.get("sdk")},
+                "library_relative_path": str(binaries[0].relative_to(project))}
 
 
     def snapshot(self, editor, project):
@@ -212,7 +245,8 @@ def main():
     parser.add_argument("--observer", required=True, type=Path)
     parser.add_argument("--scenario", required=True,
                         choices=("clean-open", "conflicts", "routing", "interruption",
-                                 "validation", "history", "native-primitives"))
+                                 "validation", "history", "native-primitives", "durability",
+                                 "sequential", "privacy-export", "all"))
     parser.add_argument("--editor", type=Path, help="built edit-gdscript stdin caller")
     parser.add_argument("--stock-validator", type=Path,
                         help="built test-only Rust validator example (native-primitives)")
@@ -241,13 +275,13 @@ def main():
                         "pinned_official_4_7_2_engine_version_required")
     args.candidate_version = version.stdout.decode().strip()
     args.candidate_engine_hash = observation.ENGINE_HASH
-    if args.scenario == "native-primitives":
+    if args.scenario in ("native-primitives", "all"):
         observation.require(args.stock_validator is not None and
                             args.stock_validator.is_absolute() and
                             args.stock_validator.is_file() and
                             os.access(args.stock_validator, os.X_OK),
                             "built_stock_validator_fixture_required")
-    if args.scenario in ("native-primitives", "interruption"):
+    if args.scenario in ("native-primitives", "interruption", "all"):
         observation.require(args.native_fault_addon is not None and
                             args.native_fault_addon.is_absolute() and
                             (args.native_fault_addon / "build-manifest.json").is_file() and
@@ -265,17 +299,30 @@ def main():
         status = 0
         try:
             harness.initialize()
-            if args.scenario == "native-primitives":
+            if args.scenario in ("native-primitives", "all"):
                 harness.group("stock-validation", harness.stock_validation)
                 harness.group("native-finalization", harness.native_finalization)
-                harness.group("native-export", harness.native_export)
-            elif args.scenario == "validation":
+                if args.scenario == "native-primitives":
+                    harness.group("native-export", harness.native_export)
+            if args.scenario in ("clean-open", "all"):
+                harness.group("clean-open", harness.clean_open_edit)
+            if args.scenario in ("conflicts", "all"):
+                harness.group("conflicts", harness.conflict_edit)
+            if args.scenario in ("routing", "all"):
+                harness.group("routing", harness.routing_edit)
+            if args.scenario in ("interruption", "all"):
+                harness.group("interruption", harness.interruption_edit)
+            if args.scenario in ("validation", "all"):
                 harness.group("validation", lambda: (harness.validation_edit(),
                                                      harness.post_change_validation_edit()))
-            else:
-                method = "conflict_edit" if args.scenario == "conflicts" else (
-                    args.scenario.replace("-", "_") + "_edit")
-                harness.group(args.scenario, getattr(harness, method))
+            if args.scenario in ("history", "all"):
+                harness.group("history", harness.history_edit)
+            if args.scenario in ("durability", "all"):
+                harness.group("durability", harness.durability_edit)
+            if args.scenario in ("sequential", "all"):
+                harness.group("sequential", harness.sequential_edit)
+            if args.scenario in ("privacy-export", "all"):
+                harness.group("privacy-export", harness.privacy_export_edit)
             harness.summary["status"] = "passed"
         except (observation.Failure, OSError, ValueError, KeyError, TypeError,
                 EOFError, subprocess.SubprocessError) as error:

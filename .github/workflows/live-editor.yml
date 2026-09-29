@@ -158,16 +158,42 @@ jobs:
           cargo clippy --all-targets --locked -- -D warnings
           cargo test --locked
           cargo doc --no-deps --locked
-          cargo build --locked --lib --bin observe-gdscript
-      - name: Exercise the real editor with independent witnesses
+          cargo build --locked --lib --bin observe-gdscript --bin edit-gdscript \
+            --example stock_validation_fixture
+      - name: Build separate production and fault-fixture native artifacts
+        run: |
+          python3 godot-addon/native/build.py --godot "$(command -v godot)"
+          python3 godot-addon/native/build.py --godot "$(command -v godot)" \
+            --fixture-faults --output-addon "$RUNNER_TEMP/script-edit-fault-native"
+      - name: Exercise complete script editing and then observation in the real editor
         run: |
           umask 077
-          mkdir "$RUNNER_TEMP/observation-evidence"
+          mkdir -m 700 "$RUNNER_TEMP/script-edit-evidence" \
+            "$RUNNER_TEMP/script-edit-evidence/results" "$RUNNER_TEMP/observation-evidence"
+          cp godot-addon/addons/godot_agent_kit/native/build-manifest.json \
+            "$RUNNER_TEMP/script-edit-evidence/production-build-manifest.json"
+          cp "$RUNNER_TEMP/script-edit-fault-native/build-manifest.json" \
+            "$RUNNER_TEMP/script-edit-evidence/fixture-build-manifest.json"
+          python3 godot-addon/tests/run_script_edit.py \
+            --godot "$(command -v godot)" \
+            --observer "$GITHUB_WORKSPACE/mcp-server/target/debug/observe-gdscript" \
+            --editor "$GITHUB_WORKSPACE/mcp-server/target/debug/edit-gdscript" \
+            --stock-validator "$GITHUB_WORKSPACE/mcp-server/target/debug/examples/stock_validation_fixture" \
+            --native-fault-addon "$RUNNER_TEMP/script-edit-fault-native" \
+            --scenario all --artifacts "$RUNNER_TEMP/script-edit-evidence/results"
           python3 godot-addon/tests/run_observation.py \
             --godot "$(command -v godot)" \
             --observer "$GITHUB_WORKSPACE/mcp-server/target/debug/observe-gdscript" \
             --scenario all --artifacts "$RUNNER_TEMP/observation-evidence"
-      - name: Retain explicit synthetic evidence only
+      - name: Retain explicit synthetic script-edit evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: script-edit-all-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/script-edit-evidence/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Retain explicit synthetic observation evidence only
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
