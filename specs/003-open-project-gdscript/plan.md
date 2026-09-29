@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/003-open-project-gdscript/spec.md`.
 
-**Status:** Phase 0 research and Phase 1 design complete; pending normal review, task derivation, granularity review and analysis before implementation. No task is selected or implemented. The initial B1 callback-isolation hold was withdrawn under the inherited threat model; see [scope correction](research.md#6-scope-correction-and-callback-limitation). Research is not new product acceptance or a support claim.
+**Status:** Phase 0 research and Phase 1 design complete. The [task list](tasks.md) is now generated and its [granularity review](tasks.md#granularity-review) passed; `/speckit.analyze` and normal artifact approval remain before implementation. No task is selected or implemented. The initial B1 callback-isolation hold was withdrawn under the inherited threat model; see [scope correction](research.md#6-scope-correction-and-callback-limitation). Research is not new product acceptance or a support claim.
 
 ## Summary
 
