@@ -1,6 +1,6 @@
 # Native Script Editing Integration Contract
 
-**Status (2026-09-29):** [§18 T1](../research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) remains unchanged: handler-free same-retained-fd T0 mtime restoration on official stock Godot 4.7.2/macOS arm64. [§19.9 R1](../research.md#199-capability-delta-readiness-review-2026-09-29) corrects PR #36’s architectural L2 privacy hold to **L1 validator design established**, with a non-blocking inherited stock endpoint limitation. Select the one-shot matching official-stock LSP helper for the studied source-only profile; no new authority for an in-scope actor was established. T003 is **implementation-ready but unstarted**; T001/T002 remain complete and T004/T005 pending. T002 remains a semantic oracle/effect-site inventory/differential reference, not a production engine dependency. Five tasks, acceptance gates and dependencies are unchanged; see the [current analysis](../plan.md#capability-delta-readiness-correction-review).
+**Status (2026-09-29):** T001–T003 are complete under unchanged [§18 T1](../research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) and selected [§19.9 R1 / L1](../research.md#199-capability-delta-readiness-review-2026-09-29). See [T003 real-editor acceptance](../quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) and the [implemented private surface](#7-current-private-implementation-boundary). T004/T005 remain pending. T002 is an oracle/reference, not a production engine dependency. The inherited endpoint limitation is non-blocking; no public edit capability or broader platform support is claimed.
 
 ## 1. Ownership and minimum exposure
 
@@ -229,7 +229,7 @@ The old broad `reload(false)` or `--headless --check-only --script` approach is 
 
 Successful ordinary non-tool `_validate_script` can copy B into R and call `update_exports`; `apply_code` and export propagation can assign source/export state and pending dragged-export properties. Preserve the general obligation to contain actual ordinary editor effects and verify resulting source/identity independently; do not globally disable validation, typing or other human work. T002's historical engine guard does not exist on stock. T1 does **not** call a saved handler, so §16's additional incoming Callable topology, `get_functions` names tail, saved-handler immediate live reload, consumed handler callback-generation/reverse-consumer admission and shared deferred debugger routing/completion are **historical, not selected production machinery**. That cutover does not certify ordinary editor work is pure, nor turn natural editor validation into explicit completed exact-source validation.
 
-**Product selection** remains held by the one FR-020 new helper source-read endpoint privacy gap, **not** by owner `unavailable/client-isolation unproved`. For the studied source-only profile, complete attributable owner root/per-URI source, staged-disk dependencies and context/fences can support `valid` or `invalid` despite another connection; unsafe/incomplete admission or fences still yield owner `unavailable`. A conservative scanner cannot certify semantics alone. Ordinary editor effect safety and truthful outcomes remain mandatory. Historical patched hooks and saved-handler machinery are not fallbacks; T003 is unstarted and no helper is selected.
+The selected helper's inherited endpoint limitation is non-blocking under §19.9. That does not waive ordinary-editor effect safety. The implemented native admission checks both baseline and desired source before history entry and refuses tool sources, script/global-class inheritance, preload/load, class registration and exported declarations. A controlled cold-tool inheritance fixture demonstrated why: ordinary queued editor export work can initialize a dependency that the isolated source-only parser does not execute. The helper and live-editor profiles therefore have distinct effect boundaries; no engine patch or saved-handler machinery is a fallback.
 
 ### Placement in the edit flow
 
@@ -255,3 +255,47 @@ All engine references use `ed1daf0bf001b61586d9930840f2f1394092c079`:
 - [Native editor application/validation](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/script/script_text_editor.cpp): R assignment/export update is in the successful non-tool validation branch, not the failed-validation branch; guard the actual call paths.
 - **Historical T002 validator sources:** [patched-engine source-specific validator](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/gdscript_editor.cpp), [analyzer effect sites](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/gdscript_analyzer.cpp) and [dependency cache/shallow loading](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/gdscript_cache.cpp). These do not create stock patched bindings.
 - **Selected stock LSP validator source basis:** [LSP initialize and workspace scan](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/language_server/gdscript_language_protocol.cpp#L269-L272), [all-workspace script parsing](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/language_server/gdscript_workspace.cpp#L191-L229), [parser/analyzer, diagnostics and symbols](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/language_server/gdscript_extend_parser.cpp#L967-L980), [peer state/routing and managed parsing](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/language_server/gdscript_language_protocol.cpp#L299-L325), [dependency parser disk-source producer](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/gdscript_cache.cpp#L217-L242), [document-link path probes](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/language_server/gdscript_extend_parser.cpp#L119-L147), [reverse owner loading](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/language_server/scene_cache.cpp#L39-L89) and the endpoint admission/URI mapping/Resource-read source anchors above. Owner-result source attribution and endpoint access privacy are different obligations.
+
+## 7. Current private implementation boundary
+
+T003 adds `runner::stock_validation` and private admission/protocol/ownership
+modules in the existing Rust package. Its current executable consumer is
+`examples/stock_validation_fixture.rs`, not a product edit CLI. Trusted integration
+supplies request/session/project/purpose, proposed source or actual-D capture,
+effective selected-editor warning policy and bounded global-class names.
+Public ProjectSettings values can be StringName values; the fixture converts
+actual class names to strings rather than silently dropping that context.
+Disk configuration is an identity/change witness, not authority to replace
+effective editor overrides. T004 must bind and recheck this context through the
+authenticated caller/bridge; historical typed-core evidence remains unmigrated.
+
+Helper child-spawn/reap facts are nullable after worker loss; they do not default
+to a false claim that no child existed. Scratch cleanup has separate confirmation.
+The supervisor reserves cleanup time inside its operation budget and uses the
+existing detached reaper with a bounded acknowledgment, not unbounded waits or
+filesystem deletion on its result-delivery thread.
+
+The standard native metadata exposes private
+`edit_prepare(path, expected_source, desired_source, correlation)`,
+`edit_advance(request_id, expected_stage)`, `edit_cancel(request_id)` and
+`edit_expire()`. Correlation contains request/session, exact document instance IDs
+and an editor-clock expiry no more than nine seconds ahead. Native descriptors,
+held objects and receipts never become reusable caller handles.
+
+Stages are `prepared`, `buffer_applied`, `resource_applied`, `content_persisted`,
+`mtime_restored`, `edited_cleared` and `saved_tagged`. Local
+`prepared|ready|complete|refused|busy|partial` responses report primitive state and
+actual effects, **not** the core's terminal EditOutcome. `complete` requires
+independent caller-side validation and observation before product success.
+The private addon executes the six effect stages without yielding and holds the
+existing bridge collection slot until entered native work returns, including
+reentrant cancellation/shutdown. Between removal and insertion, a fresh
+association/source/current/saved check protects synchronous newer human text.
+Cleanup may retain a partial native history entry; it does not roll back.
+
+Fixture-only builds expose fault injection only in a separately identified
+library. The normal artifact has no fault callable. The native guide documents
+builds, exact-source/Save/effect limits and primitive-runner invocation.
+Required GUI/history/durability/privacy/export and affected observation/oracle
+acceptance passed for T003; see the recorded evidence above. No public wire
+schema or edit capability is introduced by this private surface.

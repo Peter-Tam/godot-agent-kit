@@ -10,5 +10,6 @@ pub mod script_edit;
 
 pub mod bridge;
 pub mod project_fs;
+mod project_fs_validation;
 pub mod runner;
 pub mod target;

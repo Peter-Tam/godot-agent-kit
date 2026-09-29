@@ -178,15 +178,16 @@ candidate metadata to prove refusal and execution ordering, not real-editor
 acceptance. Both main-push and main-targeting PR path filters include
 `godot-addon/**`, alongside Rust and workflow paths.
 
-The hosted `editor-native` job checks out the exact Godot base, checks/applies
-the native API patch, builds a macOS arm64 Compatibility editor with `tests=yes`,
-then generates its public ABI and builds the matched C++17 extension. SCons is
-pinned to 4.10.1 in an isolated build environment; checkout actions retain full
-SHA pins and no credentials. This is build/API compatibility evidence, not
-visible-buffer, effect-sentinel, or production-export acceptance. See the
-[native build instructions](../godot-addon/native/README.md) and the selected
-task's real-editor evidence. No additional self-hosted workflow or approval gate
-is introduced.
+The hosted `editor-native` job builds the pinned patched oracle and its matched
+public-ABI extension, then builds the official-stock extension. SCons remains
+pinned to 4.10.1; checkout actions retain full-SHA pins and no credentials.
+The stock archive comes from the
+[exact upstream release](https://api.github.com/repos/godotengine/godot-builds/releases/tags/4.7.2-stable):
+SHA-256 `c58a24e31d720be9d62f60cb5627c4e695fb72f21b0cfe1bc9ccaa9a3b3ba63e`
+is checked before extraction, followed by the existing pinned executable hash
+before execution. No new workflow, runner trust boundary or approval gate is
+introduced. These are build/API checks, not GUI or export acceptance; see the
+[native guide](../godot-addon/native/README.md).
 
 Workflow configuration and its regression simulations do not prove live-editor
 behavior. Complete maintainer-operated real-editor evidence plus ordinary

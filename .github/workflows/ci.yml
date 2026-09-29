@@ -110,3 +110,15 @@ jobs:
         run: |
           python3 godot-addon/native/build.py \
             --godot "$GITHUB_WORKSPACE/engine-source/bin/godot.macos.editor.arm64"
+      - name: Acquire the pinned official stock editor
+        run: |
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_macos.universal.zip \
+            --output "$RUNNER_TEMP/stock-editor.zip"
+          test "$(shasum -a 256 "$RUNNER_TEMP/stock-editor.zip" | cut -d ' ' -f1)" = c58a24e31d720be9d62f60cb5627c4e695fb72f21b0cfe1bc9ccaa9a3b3ba63e
+          ditto -x -k "$RUNNER_TEMP/stock-editor.zip" "$RUNNER_TEMP/stock-editor"
+          test "$(shasum -a 256 "$RUNNER_TEMP/stock-editor/Godot.app/Contents/MacOS/Godot" | cut -d ' ' -f1)" = c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf
+      - name: Build the official-stock public-ABI extension
+        run: |
+          python3 godot-addon/native/build.py \
+            --godot "$RUNNER_TEMP/stock-editor/Godot.app/Contents/MacOS/Godot"

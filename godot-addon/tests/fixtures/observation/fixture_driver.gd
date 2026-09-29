@@ -57,6 +57,10 @@ func _process(_delta: float) -> void:
 	if parser.parse(text) != OK or typeof(parser.data) != TYPE_DICTIONARY:
 		return
 	var request: Dictionary = parser.data
+	_dispatch_request(request)
+
+
+func _dispatch_request(request: Dictionary) -> void:
 	if request.size() != 2 or typeof(request.get("id")) != TYPE_STRING or typeof(request.get("action")) != TYPE_STRING:
 		return
 	var id: String = request.id

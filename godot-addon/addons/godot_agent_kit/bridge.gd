@@ -268,13 +268,33 @@ func _remove_owned_temp(path: String) -> void:
 		DirAccess.remove_absolute(path)
 
 
+# The private native integration shares this slot with observation; no edit
+# opcode or source-bearing admission is exposed by bridge v1.
+func _claim_edit(owner: Node) -> bool:
+	if not is_instance_valid(owner) or _server == null or _session.is_empty() or not _active.is_empty():
+		return false
+	_active = {"edit_owner": owner}
+	return true
+
+
+func _release_edit(owner: Node) -> void:
+	if _active.get("edit_owner") == owner:
+		_active = {}
+
+
 func stop() -> void:
 	set_process(false)
+	var edit_owner: Variant = _active.get("edit_owner")
+	if is_instance_valid(edit_owner):
+		edit_owner.cancel_owned()
 	for peer in _peers:
 		peer.socket.disconnect_from_host()
 		if peer.has("collector"):
 			peer.collector.clear()
-	_active.clear()
+	# Reentrant shutdown may interrupt an already-entered native call. Its owner
+	# releases this marker only after the call and its history cleanup return.
+	if not _active.has("edit_owner"):
+		_active.clear()
 	_peers.clear()
 	_peer_cursor = 0
 	if _server != null:
@@ -303,7 +323,7 @@ func _process(_delta: float) -> void:
 		return
 	# Work on all connections is shared under one frame-wide time/byte budget.
 	var frame_start := Time.get_ticks_usec()
-	if not _active.is_empty() and Time.get_ticks_usec() - int(_active.observation_since) >= PEER_EXPIRY_USEC:
+	if _active.has("observation_since") and Time.get_ticks_usec() - int(_active.observation_since) >= PEER_EXPIRY_USEC:
 		_close_peer(_active)
 	var budget := FRAME_BUDGET_BYTES
 	var schedule := _peers.duplicate()

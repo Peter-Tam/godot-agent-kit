@@ -2035,3 +2035,37 @@ are unchanged. The current analysis is recorded in the
 
 [s19-lsp-defaults]: https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/settings/editor_settings.cpp#L1145-L1152
 [s19-server-start]: https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/language_server/gdscript_language_server.cpp#L46-L113
+
+## 20. T003 implementation evidence boundary (2026-09-29)
+
+T003's private helper/native boundary is complete.
+[Quickstart §11](quickstart.md#11-t003-native-boundary-acceptance-2026-09-29)
+records implementation acceptance separately from the earlier research below.
+Sections 18–19 and their historical invocation counts are unchanged.
+
+Current implementation checks retain official 4.7.2/macOS arm64 and the same
+binary pin. No new crate, service, engine patch or supported-platform claim is
+introduced. A separate standard-ABI build mode preserves the patched T002 oracle
+without making it a stock dependency.
+
+New focused nonvisual runtime observations include actual effective `.editor`
+warning overrides and global-class context. Public global-class entries use
+StringName values; dropping those entries as non-String would falsely omit
+context. Three owned-helper additional-client cases preserved owner attribution:
+invalid peer/valid owner, valid peer/invalid owner, and an invalid managed
+dependency overlay while owner validation followed captured staged disk.
+Those peers used only owned staged URIs; no cross-user or outside-helper read
+experiment was introduced.
+
+A controlled ordinary live-editor continuation initialized a cold tool base,
+while the guarded native preparation refused it before history/source changes.
+The isolated source-only helper and live editor therefore retain distinct
+admission profiles. Synchronous CodeEdit callback changes, reentrant cancellation
+and shutdown require source/version rechecks and slot retention until native
+work returns; these are not saved-handler discovery or global callback control.
+
+The focused observations above were not themselves full acceptance. The later
+unlocked GUI campaigns passed 149 stock primitive/export cases, 194 observation
+regressions and 54 oracle/export cases, as recorded in quickstart §11. T003 is
+complete; T004/T005 and full public-caller/cumulative feature acceptance remain
+pending. No research count or historical verdict was changed.

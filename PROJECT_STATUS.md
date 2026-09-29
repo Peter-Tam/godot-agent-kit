@@ -5,19 +5,22 @@
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
 - **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** Design ready for T003 under unchanged [§18 T1](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) preserved-mtime finalization and [§19.9 R1 / L1 validator design](specs/002-edit-open-gdscript/research.md#199-capability-delta-readiness-review-2026-09-29). The PR #36 architectural L2 endpoint-privacy hold is corrected to a non-blocking inherited stock-LSP limitation: no new access authority for an in-scope actor was established. Feature 002 implementation/acceptance remains incomplete; research is not product mutation, validator or A–E acceptance.
-- **Tasks:** 2 / 5 complete
+- **Feature state:** Implementation in progress under unchanged [§18 T1](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) and [§19.9 R1 / L1](specs/002-edit-open-gdscript/research.md#199-capability-delta-readiness-review-2026-09-29). The stock endpoint limitation remains non-blocking. Feature 002 and its mutation acceptance are incomplete.
+- **Tasks:** 3 / 5 complete
 - **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
-- **Current task:** T003 is **implementation-ready but unstarted**. It owns the selected bounded one-shot official-stock source-only validator alongside the unchanged §18 T1 native finalizer; helper module placement remains an implementation choice. T004 owns typed caller/bridge/core evidence migration and integration; T005 cumulative acceptance. Five tasks, dependencies and normal one-task/PR sequencing are unchanged. This design-correction PR starts no implementation.
-- **Mutation A–E and edit durability:** Pending; no product mutation support or wider-platform claim follows the completed research.
+- **Current task:** T003 — **Complete**. [Acceptance evidence](specs/002-edit-open-gdscript/quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) records 149 stock primitive/export cases, 194 observation regressions and 54 oracle/export cases. Delivery is on `task/T003-stock-validation-native-edit`; PR review/merge is separate from completion. T004 caller/bridge/core migration and T005 cumulative acceptance have not started; dependent implementation waits for T003's PR to merge.
+- **Mutation A–E and edit durability:** Private T003 primitive/history/durability acceptance passed; public-caller and cumulative feature gates remain pending. No public mutation capability or wider-platform claim.
 
 ## Roadmap status
 
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001 complete; Feature 002 T001/T002 complete, T002 retained as semantic oracle/effect-site inventory/differential reference. §18 T1 is unchanged; [§19.9 R1](specs/002-edit-open-gdscript/research.md#199-capability-delta-readiness-review-2026-09-29) selects the L1 stock source-only validator with a non-blocking inherited endpoint limitation. T003 ready but unstarted; T004/T005, A–E and durability pending. No broader platform support. |
+| 1 — Live-editor script coherence | In progress | Feature 001 and Feature 002 T001–T003 complete. The §18 T1 / §19 L1 private boundary passed real-editor, history, durability, privacy/export and affected regression acceptance. T004/T005, full caller A–E and cumulative durability remain pending. No broader platform support. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
+
+The research sections below retain the pre-implementation design/evidence history.
+The current task state and current verification are recorded above.
 
 ## Selected §18 finalization — research/design only
 

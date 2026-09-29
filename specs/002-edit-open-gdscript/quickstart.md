@@ -1,6 +1,6 @@
 # Quickstart: Verify Guarded Open-GDScript Editing
 
-**Status:** T001's protocol-independent core and T002's read-only patched-editor native validation primitive are implemented and verified; see [§9](#9-t001-core-acceptance-2026-09-27) and [§10](#10-t002-native-validation-acceptance-2026-09-28). [§18 stock GUI research](research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) selects conceptual T1 handler-free same-retained-fd T0 mtime restoration/readback followed by guarded public edited=false and CodeEdit saved-version tagging on the demonstrated macOS arm64 build. No saved-handler discovery, admission or callback-generation tracking is needed for this route. A qualifying explicit exact-source `valid|invalid|unavailable` validator with required effect safety remains separately unresolved. Feature 002 remains in progress: T003 is unstarted, T004/T005 are pending, and the writer/finalizer, edit caller, full-feature runner and mutation A–E/durability acceptance are not implemented or passed. The native build and `run_script_edit.py --scenario native-validation` remain available for T002's reference only.
+**Status:** T001–T003 are complete. Historical core/oracle acceptance remains in [§9](#9-t001-core-acceptance-2026-09-27) and [§10](#10-t002-native-validation-acceptance-2026-09-28); [§11](#11-t003-native-boundary-acceptance-2026-09-29) records the stock helper/native boundary's real-editor acceptance. T004/T005, public caller/bridge/core migration, full-feature A–E and cumulative acceptance remain pending. Feature 002 is still in progress.
 
 **Historical recipe boundary:** The patched native API family revision 1, private Resource/document numeric mtime synchronization, older no-callback/tag-last instructions, P1 saved-handler route and mechanism-specific prerequisites, native A cases and caller/bridge recipes below are **historical**, not a production path or final stock wire/API shape. Use the current [stock native §3 contract](contracts/native-integration.md#3-primitive-a-guarded-target-document-saved-transition) and §18's T1 decision for current semantic design, not the old patch recipe or P1 handler. The executed T001/T002 evidence in §9/§10 is unchanged; all independent safety requirements, behavioral scenarios and A–E/durability gates below remain required.
 
@@ -411,3 +411,134 @@ project-wide compilation, global execution sandbox or atomic same-inode snapshot
 is claimed. The full editing family, edit-generated callback guard, bound writes,
 finalization, caller/bridge cutover and mutation A–E/Save/reopen/runtime durability
 remain pending. Preserving existing Undo/Redo is not proof of agent-edit Undo/Redo.
+
+## 11. T003 native-boundary acceptance (2026-09-29)
+
+**Task state: Complete.** Only T003 was selected, on
+`task/T003-stock-validation-native-edit` from updated `main`. Completion is based
+on the implemented boundary, implementation-shape review and executed acceptance,
+not PR merge state. T004/T005 and the public edit caller remain unimplemented.
+
+### Implemented boundary
+
+- Rust `runner::stock_validation` owns the same-executable supervised helper.
+  Private admission, protocol and ownership modules separate bounded confined
+  capture/context, per-source completion fences and process lifecycle. The
+  existing worker reaper is shared; no new crate/service is introduced.
+- The helper stages only admitted exact `.gd` sources. Dot-relative/transitive
+  references resolve at their referring source; source aliases and staging
+  collisions refuse. Effective selected-editor warning overrides and bounded
+  global-class names are explicit context, not inferred from stripped disk
+  configuration. Every source requires diagnostics before its symbol response.
+- The standard-ABI native attempt applies CodeEdit → Script R → same-fd D
+  persistence → same-fd T0 restoration/readback → public edited=false → saved tag,
+  then stops. It retains stage facts on partial failure and shares the existing
+  observation slot, including synchronous cancel/shutdown callbacks.
+- Live-editor effect admission is narrower than helper admission: tool sources,
+  script/global-class inheritance, preload/load references, class registration
+  and exported declarations refuse before source/history work. Parser inertness
+  does not certify queued editor export effects.
+- Worker loss leaves unknown spawn/reap facts nullable. Duplicate configured
+  stdio descriptors are dropped after spawn so EOF is observable; bounded
+  cleanup acknowledgment uses the existing reaper within the operation budget.
+  Validity cannot be reported without confirmed scratch cleanup.
+
+### Executed checks
+
+Environment: macOS **26.6.2 (25G83), arm64**, official Godot
+`4.7.2.stable.official.ed1daf0bf`, executable SHA-256
+`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`;
+Rust **1.98.1**, Apple clang **21.0.0**, SDK **27.0**.
+
+| Executed validation | Result |
+| --- | --- |
+| Rust formatting, all-target Clippy `-D warnings`, locked serial test suite, documentation build | Passed; 176 tests, plus the doctest target (0 doctests) |
+| Stock, isolated fixture-fault and matched patched-oracle ABI builds | Passed; three ABI refusal tests also passed |
+| Workflow regression tests, Actionlint, Python compilation and runner help | Passed; 20 workflow tests |
+| Official-stock `run_script_edit.py --scenario native-primitives` | **149 cases passed**: bootstrap + 58 helper + 87 native finalization + 3 export |
+| Official-stock `run_observation.py --scenario all`, stock artifact installed | **194 cases passed**, all 13 groups |
+| Matched patched-oracle `run_script_edit.py --scenario native-validation` | **54 cases passed**: bootstrap + 50 validation + 3 export |
+
+These are executed local results, not a claim that hosted CI ran. The normal stock
+artifact was restored after the oracle run. Reproduction commands and required
+fixture inputs are in the [native guide](../../godot-addon/native/README.md).
+
+The helper cases include Unicode/empty/error sources, relative/transitive and
+unused-preload dependencies, same-size dependency changes, warning/directory
+overrides, global-class context, all-source attribution, limits and prelaunch
+refusals. Three additional-client cases preserve the owner's verdict despite
+opposite root/dependency overlays on another connection. Actual worker loss and
+stopped-child deadlines terminate the owned engine and remove private scratch,
+without changing the selected editor or unrelated dirty work.
+
+Native GUI cases independently observe D/R/B, current/saved versions, dirty state,
+object association and exact T0 restoration. They cover clean/non-selected edits,
+empty and 512 KiB Unicode source, invalid-script repair, short writes, real
+read-only/EBADF failures, injected I/O failures, mismatched restoration, changed
+human text/versions, close/reopen identity changes, leaf/parent replacement,
+reentrant cancellation/shutdown, native Undo → Save → Redo → Save and earlier
+history. Explicit completed filesystem rescan, fresh editor reparse and fresh
+runtime launch preserve the persisted revision. A later human Save actually
+persists new text without false outside-change reconciliation.
+
+After independently verified native application, changing the selected effective
+warning policy produces a real invalid post-change result; a stopped separate
+post-change helper produces unavailable. Both preserve the already-applied
+source/history and unrelated human work. No rollback or final caller outcome is
+invented; T004 owns integration with the common outcome reducer.
+
+Enabled, disabled and hook-only exports exclude native/tooling artifacts and
+dangling dependencies; their launched applications expose no tooling listener or
+native registration. Source-free incidental output and requested bounded
+diagnostics pass the existing redaction checks.
+
+### Evidence and review
+
+Local evidence root:
+`/var/folders/2r/m9lt6gb17wgbzcw9zzf6mp_80000gn/T/godot-agent-kit-edit-vwzsf4w7/`.
+These paths are local evidence, not portable downloads.
+
+| Final summary | SHA-256 |
+| --- | --- |
+| `gui-cutover-stock/summary.json` | `dbdd35ea2263d2c1878a78ede88557f97c7693724f2450f3606e320bfe797900` |
+| `gui-cutover-observation/summary.json` | `fe437e4966174bf6ef5dfe60e93dbb2c6bb0783d06312de0d7e0e7e9dc4ec3bc` |
+| `gui-cutover-oracle/summary.json` | `8a90fd92b4f0148f9f86a41137581a553fbb4530bfe3e41cb5d3ea2e55bf24cd` |
+
+The stock native build ID is
+`6837dd50b3c91a2de7e2e4a26df074703177de4e501826797ab9ad13f02cac9c`;
+tested library SHA-256 is
+`81fa84219ca8a34401f4131b23033f3e63c1af784c5ac5afa03a6efba3fddbeb`.
+The oracle build ID is
+`4823e8980898792e6ceb0be88ab187d879c5847a6acb4b88135011838e410c23`,
+against T002's unchanged engine SHA-256
+`45a64b260c8347b4496bf7d0caabcbf2ff2e49530d051bf0434e8866990ba338`.
+Summaries retain exact source, driver, ABI, manifest and artifact hashes.
+
+Earlier locked-desktop, focused-smoke and incomplete GUI runs remain recorded as
+failed or scoped evidence; they were not relabeled as acceptance. The unlocked
+run corrected fixture assumptions: request dispatch consumes one parsed message;
+rescan is explicitly requested and observed; fresh setup opens both witness
+documents; expiry tests forward the actual boundary value; refusal compares
+unrelated work across the native call rather than across a preceding human tab
+reorder. Existing groups close completed case editors. All post-B/R I/O failures
+must retain partial application, even before disk persistence.
+The final capability cutover removed the unsupported stock-native validator
+stub and unused fixture-build flag alias. Common lifecycle/build discovery is
+separate from oracle validation and stock mutation operations. All three GUI
+campaigns above were rerun against that final cutover and its rebuilt artifacts.
+
+The [implementation-shape/constitutional review](plan.md#t003-implementation-shape-and-constitutional-review)
+records module responsibility, narrow visibility, ordinary editor-effect limits
+and the concrete cleanup/slot hazards addressed. No new dependency, engine
+patch, security service or approval gate was introduced. Owned fixture editors,
+projects and pre-fix leaked helper scratch were removed; evidence and required
+build outputs remain outside tracked source.
+
+### Remaining feature boundary
+
+T003 completes the private helper/native increment, not Feature 002 or Roadmap
+Phase 1. T004 must migrate the historical typed-core evidence and implement the
+authenticated caller/bridge path. T005 owns cumulative feature acceptance.
+There is no public edit command, bridge-v2 cutover, MCP tool, wider-platform
+support, active-runtime hot-reload claim or OS sandbox. The approved inherited
+stock-LSP endpoint limitation remains non-blocking and unchanged.

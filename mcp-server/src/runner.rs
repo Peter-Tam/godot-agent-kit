@@ -6,7 +6,7 @@
 use std::io::{self, Read, Write};
 use std::os::fd::{AsFd, OwnedFd};
 use std::os::unix::net::UnixStream;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, LazyLock};
@@ -22,6 +22,9 @@ pub const INTERNAL_WORKER_FLAG: &str = "--internal-observation-worker";
 const COLLECTION_BUDGET: Duration = Duration::from_millis(4500);
 const POLL_INTERVAL: Duration = Duration::from_millis(1);
 const CONTROL_LIMIT: usize = 4096;
+
+#[path = "runner/stock_validation.rs"]
+pub mod stock_validation;
 
 /// The caller creates this before parsing flags or doing any filesystem/selection work.
 #[derive(Clone, Copy)]
@@ -383,45 +386,66 @@ fn bind_disk_identity(
 }
 
 struct OwnedWorker(Option<Child>);
+
+// Reaping (and stock worker's private-dir destruction after an interrupted
+// worker) must never run in a request delivery thread.
+fn reap_detached(mut child: Child, cleanup: Option<PathBuf>) -> Option<mpsc::Receiver<bool>> {
+    if cleanup.is_none() && matches!(child.try_wait(), Ok(Some(_))) {
+        return None;
+    }
+    let _ = child.kill();
+    struct ReapJob {
+        child: Child,
+        cleanup: Option<(PathBuf, mpsc::Sender<bool>)>,
+    }
+    static REAPER: LazyLock<Option<mpsc::Sender<ReapJob>>> = LazyLock::new(|| {
+        let (send, receive) = mpsc::channel::<ReapJob>();
+        thread::Builder::new()
+            .name("worker-reaper".into())
+            .spawn(move || {
+                let mut children: Vec<ReapJob> = Vec::new();
+                loop {
+                    match receive.recv_timeout(Duration::from_millis(10)) {
+                        Ok(job) => children.push(job),
+                        Err(mpsc::RecvTimeoutError::Disconnected) if children.is_empty() => break,
+                        Err(_) => {}
+                    }
+                    children.retain_mut(|job| {
+                        if !matches!(job.child.try_wait(), Ok(Some(_))) {
+                            return true;
+                        }
+                        if let Some((path, notify)) = job.cleanup.take() {
+                            let removed = match std::fs::remove_dir_all(path) {
+                                Ok(()) => true,
+                                Err(error) => error.kind() == io::ErrorKind::NotFound,
+                            };
+                            let _ = notify.send(removed);
+                        }
+                        false
+                    });
+                }
+            })
+            .ok()
+            .map(|_| send)
+    });
+    let (cleanup, receipt) = match cleanup {
+        Some(path) => {
+            let (notify, receipt) = mpsc::channel();
+            (Some((path, notify)), Some(receipt))
+        }
+        None => (None, None),
+    };
+    if let Some(reaper) = REAPER.as_ref() {
+        let _ = reaper.send(ReapJob { child, cleanup });
+    }
+    // A killed child is adopted on caller exit if the host cannot start the reaper.
+    receipt
+}
 impl Drop for OwnedWorker {
     fn drop(&mut self) {
-        let Some(mut child) = self.0.take() else {
-            return;
-        };
-        if matches!(child.try_wait(), Ok(Some(_))) {
-            return;
+        if let Some(child) = self.0.take() {
+            let _ = reap_detached(child, None);
         }
-        let _ = child.kill();
-        if matches!(child.try_wait(), Ok(Some(_))) {
-            return;
-        }
-        // One shared nonblocking reaper, never one indefinitely joined I/O thread per
-        // observation. Collection/delivery do not wait for a kernel-blocked child.
-        static REAPER: LazyLock<Option<mpsc::Sender<Child>>> = LazyLock::new(|| {
-            let (send, receive) = mpsc::channel::<Child>();
-            thread::Builder::new()
-                .name("observation-worker-reaper".into())
-                .spawn(move || {
-                    let mut children: Vec<Child> = Vec::new();
-                    loop {
-                        match receive.recv_timeout(Duration::from_millis(10)) {
-                            Ok(child) => children.push(child),
-                            Err(mpsc::RecvTimeoutError::Disconnected) if children.is_empty() => {
-                                break
-                            }
-                            Err(_) => {}
-                        }
-                        children.retain_mut(|child| !matches!(child.try_wait(), Ok(Some(_))));
-                    }
-                })
-                .ok()
-                .map(|_| send)
-        });
-        if let Some(reaper) = REAPER.as_ref() {
-            let _ = reaper.send(child);
-        }
-        // If the host cannot create the reaper, the already-killed child is adopted by
-        // the OS on caller exit. No fallible cleanup may delay the terminal result.
     }
 }
 

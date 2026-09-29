@@ -19,9 +19,11 @@
 
 namespace gak {
 namespace {
+#if !GAK_STOCK
 constexpr size_t MAX_SOURCE = 512 * 1024;
 constexpr size_t MAX_DEPENDENCIES = 32;
 constexpr size_t MAX_DEPENDENCY_BYTES = 4 * 1024 * 1024;
+#endif
 
 struct Fd {
     int fd = -1;
@@ -90,6 +92,7 @@ bool utf8_text(std::string_view source) {
     return true;
 }
 
+
 // The canonical path is derived only from ProjectSettings, never from a validation request.
 // Open every component with no-follow semantics and check identity at the end.
 int open_absolute(const std::string &path, dev_t &device, ino_t &inode) {
@@ -119,6 +122,7 @@ int open_absolute(const std::string &path, dev_t &device, ino_t &inode) {
     return result;
 }
 
+#if !GAK_STOCK
 bool valid_resource(const std::string &path, bool &remap) {
     remap = path.size() > 9 && path.compare(path.size() - 9, 9, ".gd.remap") == 0;
     if (path.size() < 9 || path.size() > (remap ? 2054 : 2048) || path.compare(0, 6, "res://") != 0 ||
@@ -248,6 +252,7 @@ Snapshot read_at(int project_fd, const std::string &path) {
         pos = end + 1;
     }
 }
+#endif
 
 bool valid_session_id(const std::string &id) {
     if (id.size() != 32) { return false; }
@@ -256,6 +261,10 @@ bool valid_session_id(const std::string &id) {
 }
 
 } // namespace
+bool valid_utf8(std::string_view source) { return utf8_text(source); }
+bool same_time(timespec left, timespec right) {
+    return left.tv_sec == right.tv_sec && left.tv_nsec == right.tv_nsec;
+}
 
 std::string sha256(std::string_view source) {
     unsigned char hash[CC_SHA256_DIGEST_LENGTH];
@@ -310,6 +319,7 @@ bool engine_binary_matches() {
 }
 
 
+#if !GAK_STOCK
 struct ReadContext {
     ReadContext(Session &selected, std::string path) : session(selected), root_path(std::move(path)) {}
     Session &session;
@@ -562,12 +572,14 @@ bool association(const Value &document, const std::string &source_path) {
     return matches == 1;
 }
 } // namespace
+#endif
 
 void close(Session &session) {
     if (session.call_state != Session::CallState::Idle) {
         session.call_state = Session::CallState::Closing;
         return;
     }
+    edit_cleanup(session);
     if (session.project_fd >= 0) { ::close(session.project_fd); }
     session.project_fd = -1;
     session.project_path.clear();
@@ -575,7 +587,7 @@ void close(Session &session) {
 }
 
 bool configure(Session &session, const std::string &session_id) {
-    if (session.call_state != Session::CallState::Idle || !valid_session_id(session_id)) { return false; }
+    if (session.attempt || session.call_state != Session::CallState::Idle || !valid_session_id(session_id)) { return false; }
     close(session);
     Name settings("ProjectSettings");
     void *project_settings = api.singleton(settings.ptr());
@@ -601,6 +613,7 @@ bool configure(Session &session, const std::string &session_id) {
     return true;
 }
 
+#if !GAK_STOCK
 Value validation(Session &session, std::initializer_list<const Value *> args) {
     if (args.size() != 3) { return refusal("invalid_arguments", nullptr, {}, {}, 0); }
     if (std::this_thread::get_id() != session.main_thread) { return refusal("wrong_thread", nullptr, {}, {}, 0); }
@@ -713,4 +726,5 @@ Value validation(Session &session, std::initializer_list<const Value *> args) {
     }
     return engine;
 }
+#endif
 } // namespace gak

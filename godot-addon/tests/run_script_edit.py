@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Owned GUI acceptance of the read-only, exact-source native GDScript validator.
+"""Owned stock-helper/native-finalization acceptance and patched T002 oracle.
 
-No edit caller, writer, finalizer, bridge edit operation, or synthetic parser is used.
+The stock groups use independent live-editor and descriptor witnesses; neither
+group requires a public edit caller (the authenticated caller is T004).
 """
 from __future__ import annotations
 
@@ -19,6 +20,8 @@ import subprocess
 import tempfile
 
 import run_observation as observation
+from stock_acceptance import StockAcceptanceMixin
+from native_finalization_acceptance import NativeFinalizationMixin
 
 FIXTURE = Path(__file__).parent / "fixtures" / "script_edit"
 ROOT = "res://scripts/subject.gd"
@@ -30,6 +33,7 @@ MARKERS = (b"NATIVE_DIRECT", b"NATIVE_TRANSITIVE", b"NATIVE_LOADER", b"NATIVE_SI
            b"NATIVE_DEPENDENCY_VALUE", b"NATIVE_VALID_ROOT", b"NATIVE_INVALID_ROOT",
            b"NATIVE_CONTEXT_ID", b"not an int", b"x" * 64, "é".encode() * 64)
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
+STOCK_SHA256 = "c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf"
 SAFE_CATEGORY = re.compile(r"[A-Za-z][A-Za-z0-9_]*\Z")
 
 
@@ -84,25 +88,47 @@ def dependency_witness(project, relative):
         os.close(fd)
 
 
-class NativeHarness(observation.Harness):
+class NativeHarness(NativeFinalizationMixin, StockAcceptanceMixin, observation.Harness):
+    stock_sha = staticmethod(sha)
+    stock_dependency = staticmethod(dependency_witness)
+
     def __init__(self, args, work):
         super().__init__(args, work)
         self.source_markers.update(MARKERS)
-        self.summary["coverage_scope"] = "t002_native_validation_only"
+        self.source_markers.update((b"STOCK_PRIVATE_PARSER_SOURCE",
+                                    b"STOCK_PRIVATE_WARNING_SOURCE",
+                                    b"STATIC_INITIALIZER_EXECUTED",
+                                    b"OUTSIDE_STOCK_SECRET"))
+        self.stock_sessions = {}
+        self.summary["coverage_scope"] = ("t003_stock_helper_native_finalization" if
+                                           args.scenario == "native-primitives" else
+                                           "t002_patched_validation_oracle")
         self.summary["source_observation"] = True
         self.summary["fixture_driver_sha256"] = observation.digest(FIXTURE / "fixture_driver.gd")
         self.summary["native_fixture_files"] = {str(p.relative_to(FIXTURE)): observation.digest(p)
                                                for p in sorted(FIXTURE.rglob("*")) if p.is_file()}
 
-    def fixture(self, name, *, controlled=False):
+    def fixture(self, name, *, controlled=False, oracle=True):
         project = super().fixture(name, controlled=controlled)
         if not name.startswith("export-"):
-            shutil.copytree(FIXTURE / "scripts", project / "scripts", dirs_exist_ok=True,
-                            ignore=shutil.ignore_patterns("tool_initializer.gd"))
-            cold = project / "scripts" / "native" / "cold"
-            cold.mkdir()
-            (cold / ".gdignore").touch()
-            shutil.copy2(FIXTURE / "scripts" / "native" / "tool_initializer.gd", cold)
+            if oracle:
+                shutil.copytree(FIXTURE / "scripts", project / "scripts", dirs_exist_ok=True,
+                                ignore=shutil.ignore_patterns("tool_initializer.gd", "consumer.gd"))
+                cold = project / "scripts" / "native" / "cold"
+                cold.mkdir()
+                (cold / ".gdignore").touch()
+                shutil.copy2(FIXTURE / "scripts" / "native" / "tool_initializer.gd", cold)
+            else:
+                native = project / "scripts" / "native"
+                (native / "deep").mkdir(parents=True)
+                for relative in ("level_one.gd", "sibling.gd", "deep/level_two.gd"):
+                    origin = FIXTURE / "scripts" / "native" / relative
+                    shutil.copy2(origin, native / relative)
+                cold = native / "cold"
+                cold.mkdir()
+                (cold / ".gdignore").touch()
+                shutil.copy2(FIXTURE / "scripts/native/tool_initializer.gd",
+                             cold / "tool_initializer.gd")
         helper = project / "addons" / "fixture_driver"
         shutil.copy2(FIXTURE / "fixture_driver.gd", helper / "native_fixture_driver.gd")
         shutil.copy2(FIXTURE / "native_effect_loader.gd", helper / "native_effect_loader.gd")
@@ -808,9 +834,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--godot", required=True, type=Path)
     parser.add_argument("--observer", required=True, type=Path)
-    parser.add_argument("--scenario", required=True, choices=("native-validation",))
+    parser.add_argument("--scenario", required=True,
+                        choices=("native-validation", "native-primitives", "all"))
+    parser.add_argument("--stock-validator", type=Path,
+                        help="built test-only Rust validator example (native-primitives)")
+    parser.add_argument("--native-fault-addon", type=Path,
+                        help="isolated fixture build output native/ directory (native-primitives)")
     parser.add_argument("--artifacts", required=True, type=Path)
     args = parser.parse_args()
+    observation.require(args.scenario != "all",
+                        "all_requires_T004_public_caller_and_T005_cumulative_acceptance")
     os.umask(0o077)
     for path in (args.godot, args.observer):
         observation.require(path.is_absolute() and path.is_file() and os.access(path, os.X_OK),
@@ -826,12 +859,35 @@ def main():
         "pinned_4_7_2_engine_version_required")
     args.candidate_version = version.stdout.decode().strip()
     args.candidate_engine_hash = observation.ENGINE_HASH
+    if args.scenario == "native-primitives":
+        observation.require(observation.digest(args.godot) == STOCK_SHA256,
+                            "exact_official_stock_binary_hash")
+        observation.require(args.stock_validator is not None and
+                            args.stock_validator.is_absolute() and
+                            args.stock_validator.is_file() and
+                            os.access(args.stock_validator, os.X_OK),
+                            "built_stock_validator_fixture_required")
+        observation.require(args.native_fault_addon is not None and
+                            args.native_fault_addon.is_absolute() and
+                            (args.native_fault_addon / "build-manifest.json").is_file() and
+                            (args.native_fault_addon /
+                             "libscript_edit.macos.arm64.dylib").is_file(),
+                            "separate_native_fixture_fault_artifact_required")
+        fault_receipt = json.loads((args.native_fault_addon / "build-manifest.json").read_text())
+        observation.require(fault_receipt.get("fixture_only") is True and
+                            fault_receipt.get("mode") == "stock" and
+                            fault_receipt.get("engine_sha256") == STOCK_SHA256,
+                            "fixture_fault_artifact_never_product_library")
     with tempfile.TemporaryDirectory(prefix=".godot-agent-kit-native-validation-", dir=Path.home()) as temp:
         harness = NativeHarness(args, Path(temp))
         status = 0
         try:
             harness.initialize()
-            harness.group("native-validation", harness.native_validation)
+            if args.scenario == "native-validation":
+                harness.group("native-validation", harness.native_validation)
+            else:
+                harness.group("stock-validation", harness.stock_validation)
+                harness.group("native-finalization", harness.native_finalization)
             harness.group("native-export", harness.native_export)
             harness.summary["status"] = "passed"
         except (observation.Failure, OSError, ValueError, KeyError, TypeError,

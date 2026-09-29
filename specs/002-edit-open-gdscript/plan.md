@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `/specs/002-edit-open-gdscript/spec.md`
 
-**Status**: [§18 T1](research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) remains the selected handler-free same-retained-fd T0 mtime finalization on official stock Godot 4.7.2/macOS arm64. [§19.9 R1](research.md#199-capability-delta-readiness-review-2026-09-29) corrects PR #36’s architectural L2 privacy hold to **L1 validator design established**, with a non-blocking inherited endpoint limitation: no in-scope capability increase beyond normal stock Godot use was established. Select the one-shot official-stock LSP validator for the studied source-only profile. T003 is **implementation-ready but unstarted**; T001/T002 remain complete, T004–T005 pending, five tasks/dependencies unchanged. T002 remains a historical semantic oracle/effect-site inventory/differential reference, not a production dependency. See the [current analysis](#capability-delta-readiness-correction-review); no product implementation or A–E acceptance follows.
+**Status:** T001–T003 are complete under the approved [§18 T1](research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) and [§19.9 R1 / L1](research.md#199-capability-delta-readiness-review-2026-09-29) design. [T003 acceptance](quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) records the private boundary's passing real-editor, history, durability, privacy/export and affected regression gates. T004/T005 remain pending. The stock endpoint limitation remains non-blocking. Earlier design-only/unstarted statements below describe historical planning/research snapshots, not the current lifecycle.
 
 ## Summary
 
@@ -624,3 +624,64 @@ contract §§2–3, T001/T002 acceptance, five-task dependency graph, coverage m
 retained §19.8 observations and historical PR #36 analysis. No Cargo/product
 suite, Godot runtime/network/client/privacy probe or declined experiment ran.
 T003 implementation did not start; publication is this design-correction PR only.
+
+### T003 implementation-shape and constitutional review
+
+The implementation retains the approved core → existing supervision → addon/native
+boundary. T004's public caller/core/bridge evidence migration is not implemented.
+Rust admission/capture, LSP fences and process ownership use private responsibility
+modules; the reusable reaper has responsibility-based naming and narrow visibility.
+The public fixture-facing helper types have a current executable test consumer.
+The final capability review removed the stock-native `validate` compatibility
+stub and unused fixture-build flag alias. The loader now checks only common
+lifecycle/build callables; oracle validation and stock editing are registered
+only in their owning build modes. No unsupported parser capability is exposed.
+Native `script_document.cpp` owns one guarded attempt, its descriptors and partial
+receipt; its size prompted review, but splitting the same stage/guard invariants
+into another framework would not clarify ownership. Receipt booleans describe
+independent partial effects; the addon lifecycle itself is a state enum.
+
+Concrete review defects were repaired: source aliases/relative paths and effective
+context, malformed or reversed parser fences, missing-reference attribution,
+owned-group teardown after worker loss, callback interference before insertion,
+reentrant slot release, exact representation and native expiry. The actual
+synchronous shutdown regression failed before the slot fix and passed afterward.
+
+The real worker-loss test also showed that leaving `Command`'s configured socket
+descriptors alive hid EOF, and an exiting one-shot caller could terminate its
+detached cleanup thread before private source removal. Closing the duplicates
+and receiving a bounded cleanup acknowledgment from the existing reaper correct
+those concrete failures without filesystem work on the delivery thread, a new
+cleanup service or a journal. Normal worker-confirmed cleanup is not repeated.
+Unknown child lifecycle facts remain nullable; missing cleanup confirmation
+cannot be reported as a completed valid validation.
+
+**Principle XIII — ordinary editor effects:** isolated source-only validation
+cannot certify the live editor's later export update. A controlled cold tool
+inheritance case actually ran its initializer through ordinary editor continuation.
+The simpler unguarded CodeEdit path therefore fails the existing no-forbidden-
+effects requirement. A narrow native source admission check now refuses tool,
+script/global inheritance, load/preload, class registration and export contexts
+before history entry. Its cost is explicit capability limitation, a bounded local
+recognizer and real regression cases; it avoids an engine patch, global validation
+disable, generic effect framework or saved-handler callback machinery.
+
+The unlocked GUI run corrected fixture assumptions without changing mutation
+semantics: rescan durability now explicitly requests a public filesystem scan
+and observes its completion; fresh-editor setup explicitly opens both witness
+documents; the excessive-expiry case supplies its actual boundary value.
+Close/reopen refusal compares unrelated work immediately before and after the
+native call, rather than treating the human's preceding tab reorder as a native
+effect. All I/O failures after B/R application must report partial application.
+Existing harness groups now close completed case editors instead of retaining
+every earlier editor through the whole group; no new runner or process layer
+was added. Bounded requested helper receipts remain available on failed asserts.
+
+Principles I–IV/V/X retain independent D/R/B, human-work/namespace/version guards,
+native history and truthful partial results. Applicable VI/VIII/XII gates for
+T003 passed in the [recorded real-editor acceptance](quickstart.md#11-t003-native-boundary-acceptance-2026-09-29):
+149 stock primitive/export cases, 194 observation regressions and 54 oracle/export
+cases. Warning-policy invalidation and a post-change helper deadline preserve
+known native application; an initially invalid script is repaired and survives
+Save/reopen/runtime use. T003 is complete. T004/T005 and the full feature's
+caller/cumulative A–E gates remain pending; no broader support is claimed.
