@@ -300,43 +300,16 @@ T001. Those feature gates remain mandatory and pending, not inapplicable or pass
 
 ## 10. T002 native validation acceptance (2026-09-28)
 
-**Historical acceptance — complete at the time, superseded by T003.** T002
-implemented a confined non-mutating GDScript parser/analyzer validator in a
-patched Godot 4.7.2 editor with a matched public-ABI GDExtension. The engine
-patch, oracle implementation/build, `native-validation` runner path and
-patched-editor CI have since been removed from HEAD; this is **not a current
-reproduction recipe**. The implementation and full contemporaneous evidence
-remain in [merged PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29)
-and repository history. Do not build or run the historical oracle for the
-stock T003/T004/T005 path.
+T002 completed the then-approved patched-engine native validation task. T003
+later superseded that implementation, which has been removed from HEAD.
 
-The executed T002 candidate was macOS **26.6.2 arm64**, custom Godot
-`4.7.2.stable.custom_build.ed1daf0bf` on base
-`ed1daf0bf001b61586d9930840f2f1394092c079`, Rust **1.98.1**,
-Apple clang **21.0.0**, SDK **27.0**, SCons **4.10.1**, with the
-tests-enabled patched editor SHA-256
-`45a64b260c8347b4496bf7d0caabcbf2ff2e49530d051bf0434e8866990ba338`.
-The patch SHA-256 was
-`1b1508c4c79dcb77af86685aef828e97b0d5857be6e4285ff2b7b72ecfe75f2a`;
-native build ID was
-`5c76fe0f323be3189970f16351d88adcd27cc5cd4beba477b1bc84094b34c362`.
-These identify *past* evidence, not runnable artifacts in the current tree.
+Recorded acceptance passed **54 native GUI/lifecycle/export cases**, relevant
+observation regressions and the then-required build/regression checks.
+[PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29) and git history retain
+the old implementation and full contemporaneous evidence.
 
-**Observed at T002 acceptance:** 54 native GUI/lifecycle/export cases passed
-(bootstrap, 50 validation/lifecycle, three real exports); 194 official-stock
-observation cases passed with the native artifact installed; the separate
-missing-native D/R/B smoke passed. Rust formatting, Clippy, rustdoc and
-155 tests passed, as did three native ABI refusal and 20 workflow regressions.
-The matched local editor/extension build passed; hosted CI was a build check,
-not hosted GUI acceptance. Native checks covered source/dependency and
-diagnostic attribution, confined/effect refusal, cache and context changes,
-wrong session/thread, reentrancy, lifecycle and input/diagnostic bounds.
-Independent source/dirty/history witnesses and enabled/disabled/hook-only
-exports established non-mutation and tooling isolation, **not** edit support.
-
-The accepted candidate did not implement an edit caller, guarded persistence,
-finalization, agent Undo/Redo, mutation A–E or feature durability. Those limits
-remain historically accurate; T003's later stock acceptance is in §11.
+**T002 remains complete**, but is not a current build/runtime dependency or a
+reproduction path maintained on HEAD.
 
 ## 11. T003 native-boundary acceptance (2026-09-29)
 
@@ -379,17 +352,14 @@ Rust **1.98.1**, Apple clang **21.0.0**, SDK **27.0**.
 | Executed validation | Result |
 | --- | --- |
 | Rust formatting, all-target Clippy `-D warnings`, locked serial test suite, documentation build | Passed; 176 tests, plus the doctest target (0 doctests) |
-| Stock and isolated fixture-fault ABI builds; historical patched-oracle build (archived in PR #29) | Previously passed; three ABI refusal tests also passed |
+| Stock and isolated fixture-fault ABI builds | Passed against the exact official binary/public ABI |
 | Workflow regression tests, Actionlint, Python compilation and runner help | Passed; 20 workflow tests |
 | Official-stock `run_script_edit.py --scenario native-primitives` | **149 cases passed**: bootstrap + 58 helper + 87 native finalization + 3 export |
 | Official-stock `run_observation.py --scenario all`, stock artifact installed | **194 cases passed**, all 13 groups |
-| **Historical only:** matched patched-oracle `native-validation` campaign (removed from HEAD) | **54 cases passed then**: bootstrap + 50 validation + 3 export; not a current gate |
 
 These are previously executed local results, not a claim that hosted CI ran.
-The normal stock artifact was restored after the historical oracle run.
 Current stock reproduction and required fixture inputs are in the
-[native guide](../../godot-addon/native/README.md); the patched recipe is
-archived in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29).
+[native guide](../../godot-addon/native/README.md).
 
 The helper cases include Unicode/empty/error sources, relative/transitive and
 unused-preload dependencies, same-size dependency changes, warning/directory
@@ -422,26 +392,8 @@ diagnostics pass the existing redaction checks.
 
 ### Evidence and review
 
-Local evidence root:
-`/var/folders/2r/m9lt6gb17wgbzcw9zzf6mp_80000gn/T/godot-agent-kit-edit-vwzsf4w7/`.
-These paths are local evidence, not portable downloads.
-
-| Final summary | SHA-256 |
-| --- | --- |
-| `gui-cutover-stock/summary.json` | `dbdd35ea2263d2c1878a78ede88557f97c7693724f2450f3606e320bfe797900` |
-| `gui-cutover-observation/summary.json` | `fe437e4966174bf6ef5dfe60e93dbb2c6bb0783d06312de0d7e0e7e9dc4ec3bc` |
-| `gui-cutover-oracle/summary.json` (**historical, not current gate**) | `8a90fd92b4f0148f9f86a41137581a553fbb4530bfe3e41cb5d3ea2e55bf24cd` |
-
-The stock native build ID is
-`6837dd50b3c91a2de7e2e4a26df074703177de4e501826797ab9ad13f02cac9c`;
-tested library SHA-256 is
-`81fa84219ca8a34401f4131b23033f3e63c1af784c5ac5afa03a6efba3fddbeb`.
-The historical oracle build ID was
-`4823e8980898792e6ceb0be88ab187d879c5847a6acb4b88135011838e410c23`
-against T002's then-unchanged patched engine SHA-256
-`45a64b260c8347b4496bf7d0caabcbf2ff2e49530d051bf0434e8866990ba338`.
-These are archived measurements, not HEAD build inputs. The summaries retained
-exact source, driver, ABI, manifest and artifact hashes.
+Current stock acceptance summaries, native build/library identities and local
+evidence paths are recorded under [Stock-only HEAD verification](#stock-only-head-verification).
 
 Earlier locked-desktop, focused-smoke and incomplete GUI runs remain recorded as
 failed or scoped evidence; they were not relabeled as acceptance. The unlocked
@@ -451,10 +403,6 @@ documents; expiry tests forward the actual boundary value; refusal compares
 unrelated work across the native call rather than across a preceding human tab
 reorder. Existing groups close completed case editors. All post-B/R I/O failures
 must retain partial application, even before disk persistence.
-That earlier campaign's capability cutover removed an unsupported stock-native
-validator stub and unused fixture-build flag alias. All three historical GUI
-campaigns above ran against that earlier cutover; the subsequent stock-only
-cleanup does not rerun or depend on the oracle.
 
 The [implementation-shape/constitutional review](plan.md#t003-implementation-shape-and-constitutional-review)
 records module responsibility, narrow visibility, ordinary editor-effect limits
@@ -465,14 +413,11 @@ build outputs remain outside tracked source.
 
 ### Stock-only HEAD verification
 
-The same T003 PR removed the superseded T002 implementation rather than keep a
-second runnable architecture. Current reproduction uses only the pinned official
-Godot executable, its generated public ABI, the standard native extension and
-Rust one-shot LSP validator. `session.cpp` retains project/session/confinement
-support; private metadata is `godot_agent_kit_native`. The engine patch, patched
-validator/bindings, oracle build mode, runner group and exclusive fixtures are
-gone. Normal CI downloads and verifies the official archive/executable and builds
-that extension; it does not check out or compile Godot or install SCons.
+Current reproduction uses only the pinned official Godot executable, its generated
+public ABI, the standard native extension and Rust one-shot LSP validator.
+`session.cpp` retains project/session/confinement support; private metadata is
+`godot_agent_kit_native`. Normal CI downloads and verifies the official
+archive/executable and builds the extension without building Godot.
 
 Post-cleanup local verification on that official executable:
 
@@ -486,13 +431,10 @@ Post-cleanup local verification on that official executable:
 | Complete stock observation regression | **194 passed**, all 13 groups |
 | Final focused export rerun | Bootstrap + **3 actual export variants passed**, with fixture-file exclusion retained |
 
-The final review restored the existing `fixture_driver` bundle exclusion while
-removing only the obsolete `libreentry` check. The focused fresh-process rerun
-exercised that final assertion; no production code changed after the aggregate
-run. An earlier in-process export attempt loaded a stale pre-cutover Python
-module and failed before export; its `final-export/summary.json` remains failed,
-not counted as acceptance. Current-source execution is recorded separately.
-Neither the patched editor nor its historical 54-case suite was rebuilt or run.
+The focused fresh-process export rerun verified the existing `fixture_driver`
+bundle exclusion; no production code changed after the aggregate run. An earlier
+in-process attempt loaded a stale Python module and failed before export; its
+`final-export/summary.json` remains failed, not counted as acceptance.
 
 Local evidence root:
 `/var/folders/2r/m9lt6gb17wgbzcw9zzf6mp_80000gn/T/godot-agent-kit-stock-cutover-dq71esjm/`.
@@ -509,7 +451,7 @@ library SHA-256:
 `6919285c071347863a72c0ed6da3a45afddd784c02579416bc44636eb16b4b3b`.
 Fixture-only build ID:
 `4bcb6299b1524d9eef1634cc5ddc91529680c9a3330f5b29c34a1be40154f3eb`.
-These are the stock-only cleanup candidates, not the earlier identities above.
+These identities belong to the accepted current stock-only implementation.
 Evidence is local, not a claim of hosted CI or portable artifact availability.
 Owned fixture processes/projects were cleaned up. Historical research/status
 snapshots and T004/T005 task sections were preserved; completion stays 3/5.

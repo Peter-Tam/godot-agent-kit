@@ -312,6 +312,5 @@ identified library. The normal artifact has no fault callable. The
 [stock native guide](../../../godot-addon/native/README.md) documents build,
 exact-source/Save/effect limits and the sole current script-edit runner scenario
 `native-primitives`. Required stock GUI/history/durability/privacy/export and
-affected observation acceptance passed for T003; the 54 oracle cases in the
-earlier T003 report are historical and are not a current gate. No public wire
-schema or edit capability is introduced by this private surface.
+affected observation acceptance passed for T003. No public wire schema or edit
+capability is introduced by this private surface.
