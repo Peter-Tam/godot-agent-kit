@@ -129,7 +129,7 @@ func _unsaved(script_editor: ScriptEditor, paths: Array[String]) -> Dictionary:
 func _invalid_target(started: int) -> Dictionary:
 	var stamp := _stamp(started, Time.get_ticks_usec())
 	_original = {"open": false, "closed": false}
-	return {"v": 1, "kind": "sample", "request_id": "", "session_id": _session,
+	return {"v": 2, "kind": "sample", "request_id": "", "session_id": _session,
 		"project_root": _project, "script_path": _path, "collection": stamp,
 		"document": {"identity": null, "validity": _fact("invalid", stamp),
 			"open_state": _unknown_fact("open_state_unknown")},
@@ -248,11 +248,11 @@ func collect(session: String, project: String, path: String) -> Dictionary:
 		# Resolving a missing built-in identity would require loading/parsing its
 		# container. Refuse that operation rather than manufacture observability.
 		_original.clear()
-		return {"v": 1, "kind": "failure", "request_id": "", "session_id": _session,
+		return {"v": 2, "kind": "failure", "request_id": "", "session_id": _session,
 			"project_root": _project, "script_path": _path,
 			"code": "unsupported_observation", "stage": "read_editor"}
 	var finished := Time.get_ticks_usec()
-	var result := {"v": 1, "kind": "sample", "request_id": "", "session_id": _session,
+	var result := {"v": 2, "kind": "sample", "request_id": "", "session_id": _session,
 		"project_root": _project, "script_path": _path, "collection": _stamp(started, finished),
 		"document": {"identity": identity, "validity": valid_fact, "open_state": open_fact},
 		"R": resource, "B": buffer, "dirty": dirty, "diagnostics": []}
@@ -336,7 +336,7 @@ func recheck() -> Dictionary:
 		performed = false
 	var finished := Time.get_ticks_usec()
 	_original.clear()
-	var result := {"v": 1, "kind": "recheck", "request_id": "", "session_id": _session,
+	var result := {"v": 2, "kind": "recheck", "request_id": "", "session_id": _session,
 		"project_root": _project, "script_path": _path, "collection": _stamp(started, finished),
 		"checks": "performed" if performed else "unavailable", "detected_changes": changes}
 	if not performed:

@@ -156,12 +156,10 @@ impl EditAttempt {
                 .iter()
                 .all(|s| s.staleness().is_some_and(|v| v.evidence().is_none()))
             && exact
-            && saved.as_ref().zip(disk.as_ref()).is_some_and(|(s, d)| {
+            && saved.as_ref().zip(disk.as_ref()).is_some_and(|(s, _)| {
                 Some(&s.current_version) == b_version
                     && !s.resource_edited
                     && s.saved_version == s.current_version
-                    && s.resource_mtime == d.mtime
-                    && s.document_mtime == d.mtime
                     && s.original_preserved
                     && s.desired_preserved
             });
@@ -283,17 +281,10 @@ impl EditAttempt {
             .is_some_and(|s| !s.original_preserved || !s.desired_preserved)
         {
             Some(Reason::SaveWouldReformat)
-        } else if evidence
-            .saved_state
-            .as_ref()
-            .zip(evidence.disk_metadata.as_ref())
-            .is_some_and(|(s, d)| {
-                s.current_version != *self.request.expected.current_version()
-                    || s.saved_version != s.current_version
-                    || s.resource_mtime != d.mtime
-                    || s.document_mtime != d.mtime
-            })
-        {
+        } else if evidence.saved_state.as_ref().is_some_and(|s| {
+            s.current_version != *self.request.expected.current_version()
+                || s.saved_version != s.current_version
+        }) {
             Some(Reason::RevisionMismatch)
         } else if !eligible {
             observed_reason.or(Some(Reason::UnavailableObservation))
@@ -308,9 +299,8 @@ impl EditAttempt {
         }
         Ok(())
     }
-    /// Rechecks the unchanged original source, version, save profile and target immediately
-    /// before the first effectful native command. Failure after authorization remains unknown
-    /// until the native owner irreversibly discards the command before the boundary.
+    /// Rechecks the unchanged original source, version, save profile and target before
+    /// application authority is released. Failure leaves application not applied.
     ///
     /// # Errors
     /// Rejects misbound/clock-invalid evidence; this is a sticky protocol failure.
@@ -320,8 +310,21 @@ impl EditAttempt {
         saved: Option<SavedStateEvidence>,
         disk: Option<DiskMetadata>,
     ) -> Result<(), EditError> {
-        self.require(self.gate == MutationGate::Authorized)?;
+        self.require(
+            self.gate == MutationGate::Preparing
+                && self.stage == Stage::Preflight
+                && self.intent_changed == Some(true)
+                && self.validation.iter().any(|v| {
+                    v.purpose == ValidationPurpose::Preflight && v.status == ValidationStatus::Valid
+                }),
+        )?;
         if self.terminal_observation(&observed)? {
+            return Ok(());
+        }
+        if observed.snapshot().and_then(|s| s.document().identity())
+            != Some(self.request.expected.document())
+        {
+            self.record_failure(Reason::IdentityChanged);
             return Ok(());
         }
         let observed_reason = observation_reason(observed.outcome());
@@ -357,6 +360,38 @@ impl EditAttempt {
         }
         Ok(())
     }
+    /// Retain an independent survivor sample when later helper or verification work
+    /// is lost. This records facts only and cannot complete verification.
+    ///
+    /// # Errors
+    /// Rejects calls before application or after retained/final evidence, and
+    /// misbound or clock-invalid observations, without clearing prior failures.
+    pub fn retain_after(
+        &mut self,
+        observed: ObservationOutcome,
+        saved: Option<SavedStateEvidence>,
+        disk: Option<DiskMetadata>,
+    ) -> Result<(), EditError> {
+        self.require(
+            self.gate == MutationGate::Entered && self.before.is_some() && self.after.is_none(),
+        )?;
+        if self.terminal_observation(&observed)? {
+            return Ok(());
+        }
+        if observed.snapshot().and_then(|s| s.document().identity())
+            != Some(self.request.expected.document())
+        {
+            self.record_failure(Reason::IdentityChanged);
+            return Ok(());
+        }
+        let observed_reason = observation_reason(observed.outcome());
+        let (evidence, _, _) = self.convert(observed, saved, disk, true)?;
+        if let Some(reason) = observed_reason {
+            self.record_failure(reason);
+        }
+        self.after = Some(evidence);
+        Ok(())
+    }
     /// Independent final D/R/B and saved inspection. Incomplete evidence is retained as a
     /// nullable/qualified result but cannot satisfy success.
     pub fn verify(
@@ -387,7 +422,7 @@ impl EditAttempt {
                 &c.session_id,
                 &c.document,
                 &c.collection,
-                true,
+                false,
             )?;
             if c.dependencies.len() > 32 {
                 return Err(self.reject(EditError::InvalidEvidence));
@@ -410,7 +445,7 @@ impl EditAttempt {
             && self.failure.is_none()
             && self.validation.last().is_some_and(|v| {
                 v.status == ValidationStatus::Valid
-                    && v.diagnostics_complete
+                    && crate::script_edit::validation::complete_fences(v)
                     && v.purpose
                         == if changed {
                             ValidationPurpose::PostChange
@@ -437,18 +472,12 @@ impl EditAttempt {
                     a.save_profile == b.save_profile
                         && a.saved_version == a.current_version
                         && Some(&a.current_version) == version
-                        && a.resource_mtime == d.mtime
-                        && a.document_mtime == d.mtime
-                        && (!changed || a.current_version != b.current_version)
-                        && (changed
-                            || a.current_version == b.current_version
-                                && self
-                                    .before
-                                    .as_ref()
-                                    .and_then(|e| e.disk_metadata.as_ref())
-                                    .is_some_and(|old| {
-                                        d.identity == old.identity && d.mtime == old.mtime
-                                    }))
+                        && (a.current_version != b.current_version) == changed
+                        && self
+                            .before
+                            .as_ref()
+                            .and_then(|e| e.disk_metadata.as_ref())
+                            .is_some_and(|old| d.identity == old.identity && d.mtime == old.mtime)
                 })
             && (if changed {
                 self.progress.buffer_application.state == StepState::Completed

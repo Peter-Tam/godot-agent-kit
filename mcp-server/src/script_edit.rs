@@ -38,7 +38,7 @@ pub use request::{
 };
 pub use validation::{
     ContextRecheck, DependencyWitness, DiagnosticOrigin, ValidationDiagnostic, ValidationPurpose,
-    ValidationResult, ValidationStatus,
+    ValidationResult, ValidationSourceFence, ValidationStatus,
 };
 
 use std::fmt;

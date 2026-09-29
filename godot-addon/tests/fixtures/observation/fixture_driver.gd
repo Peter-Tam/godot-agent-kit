@@ -318,9 +318,10 @@ func _dispatch_request(request: Dictionary) -> void:
 		"duplicate_script":
 			_duplicate_script = GDScript.new()
 			_duplicate_script.source_code = "extends RefCounted\n# DISTINCT_UNIQUE_OBJECT\n"
-			# Open a distinct native tab first: the editor deduplicates paths
-			# at opening. Then give the two actual resources a nonunique path.
-			_duplicate_script.set_path_cache("res://scripts/other.gd")
+			# The initial path must be unoccupied even when the other dirty
+			# document is open; edit_script otherwise deduplicates that tab.
+			_duplicate_script.set_path_cache(
+				"res://scripts/duplicate_%s.gd" % str(_duplicate_script.get_instance_id()))
 			EditorInterface.edit_script(_duplicate_script)
 			_duplicate_script.set_path_cache("res://scripts/subject.gd")
 			response.merge(_witness())
@@ -332,7 +333,7 @@ func _dispatch_request(request: Dictionary) -> void:
 			response.ok = response.plugin_enabled == enabled
 		"proof_vectors":
 			response.merge(_proof_vectors())
-			response.ok = response.transcript_bytes == 270 and response.server_matches and response.client_matches and response.finish_matches
+			response.ok = response.transcript_bytes == 346 and response.server_matches and response.client_matches and response.finish_matches
 		"quit":
 			pass
 		_:
@@ -370,7 +371,7 @@ func _respond(response: Dictionary) -> bool:
 	var file := FileAccess.open(temporary, FileAccess.WRITE)
 	if file == null:
 		return false
-	var written := file.store_string(JSON.stringify(response))
+	var written := file.store_buffer(Bridge._json_wire(response))
 	file.flush()
 	file.close()
 	if not written or FileAccess.set_unix_permissions(temporary, 384) != OK:
@@ -548,13 +549,15 @@ func _proof_vectors() -> Dictionary:
 	# transcript, nonce, token, or proof bytes in the control response.
 	var token := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f".hex_decode()
 	var caps := {"observe_gdscript": true, "open_enumeration": true,
-		"buffer_attribution": true, "unsaved_paths": true, "cached_resource_lookup": true}
+		"buffer_attribution": true, "unsaved_paths": true, "cached_resource_lookup": true,
+		"edit_open_gdscript": true}
 	var transcript := Bridge.transcript_bytes("example-1", "00112233445566778899aabbccddeeff",
 		"/fixture/project", "4.7.2.stable.official.ed1daf0bf",
 		"ed1daf0bf001b61586d9930840f2f1394092c079", caps,
+		1, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
 		"404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f")
 	return {"transcript_bytes": transcript.size(),
-		"server_matches": Bridge.role_proof(token, "server", transcript).hex_encode() == "31cd95cdc00afe815371791207ddedda98cb79e1d6bf181bd4fb8ac3cc8d2ed1",
-		"client_matches": Bridge.role_proof(token, "client", transcript).hex_encode() == "8516bc474f397be9deae2a70c4ae5577041eb6753cb1dde328278978c2f8b5e8",
-		"finish_matches": Bridge.role_proof(token, "finish", transcript).hex_encode() == "ff0f3f3507b79628be82e0cd67539765a174d9d0323aff470d62bbecbf12dd32"}
+		"server_matches": Bridge.role_proof(token, "server", transcript).hex_encode() == "48d393b2fd79216dc37a53cfb1d6b3aa7e99861f1942579eaa80ae97a2217244",
+		"client_matches": Bridge.role_proof(token, "client", transcript).hex_encode() == "03fdd7fe705947484826317fe41575be96fae17e10c9f930b739af8738e4b125",
+		"finish_matches": Bridge.role_proof(token, "finish", transcript).hex_encode() == "3e26153a02dacc8330b07c10e800b74d6e281ecab9020403959dd2d9363ed39d"}

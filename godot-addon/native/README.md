@@ -8,8 +8,9 @@ T002's patched validator was accepted at the time but is superseded and removed
 from HEAD; its implementation and evidence remain in
 [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29) and
 [historical acceptance](../../specs/002-edit-open-gdscript/quickstart.md#10-t002-native-validation-acceptance-2026-09-28).
-There is no public edit command, bridge edit opcode or mutation advertisement:
-T004 owns that caller integration.
+T004 adds the guarded `edit-gdscript` caller and bridge-v2 edit exchange.
+Its [real-editor caller acceptance](../../specs/002-edit-open-gdscript/quickstart.md#13-t004-caller-acceptance-2026-09-29)
+is complete; T005's cumulative full-feature gates remain pending.
 
 ## Build and private integration
 
@@ -39,12 +40,14 @@ The loader checks the running engine version/full commit and executable SHA-256.
 `configure(session_id)` binds the actual project and existing 32-lowercase-hex
 bridge or owned-fixture session; `close()` and editor shutdown release state.
 Unmatched or missing binaries fail closed without changing observation.
-Bridge v1 still exposes observation only; the matched stock artifact configures
-its private integration within that session.
+Bridge v2 authenticates the installed native build and advertises editing only
+when its complete required family is available. Public observation stays v1.
 
 The editor-local `godot_agent_kit_native` metadata exposes `configure`, `close`,
-`api_revision`, `build_id`, `edit_prepare`, `edit_advance`, `edit_cancel` and
-`edit_expire`. Revision `1` is local metadata, not a public edit capability.
+`api_revision`, `build_id`, read-only `edit_inspect`, `edit_prepare`,
+`edit_advance`, `edit_cancel` and `edit_expire`. Revision `1` and the matched
+build ID are bound into bridge-v2 authentication; unavailable tooling cannot
+advertise editing.
 Stock exact-source validation runs in Rust's one-shot worker, not a native
 validation fallback. `session.cpp` owns session/project/confinement support;
 the native attempt is in `script_document.cpp` and registration in
@@ -57,6 +60,25 @@ remains observation-only. The existing export hook/preset exclusions prevent
 enabled, disabled and hook-only exports from including tooling/native artifacts
 or a dangling runtime extension dependency.
 
+## Guarded caller integration
+
+Build `observe-gdscript` and `edit-gdscript` from `mcp-server/` with locked
+resolution. Re-enable the updated addon to create a new v2 session, obtain a
+fresh observation, and submit the complete basis plus replacement source through
+stdin using the [caller contract](../../specs/002-edit-open-gdscript/contracts/edit-api.md).
+The caller owns validation supervision and a 9.5-second operation budget with
+0.5 seconds reserved for result delivery. It never retries, force-writes, opens
+the target script or treats a native acknowledgment as verified success.
+
+The caller runner groups are `clean-open`, `conflicts`, `routing`,
+`interruption`, `validation` and `history`. Each requires the absolute
+`--editor` path to the built `edit-gdscript`; `interruption` also requires the
+separate `--native-fault-addon` artifact. Use a new empty mode-0700
+`--artifacts` directory per group and an unlocked visible GUI session.
+State diagnostics without owned-window captures do not pass these acceptance
+gates. T005's cumulative full-feature evidence remains separate.
+
+
 ## Official-stock boundary and verification
 
 From the repository root, after setting the absolute executable and output paths:
@@ -64,7 +86,7 @@ From the repository root, after setting the absolute executable and output paths
 ```sh
 python3 godot-addon/native/build.py --godot "$STOCK_GODOT"
 cargo +1.98.1 build --manifest-path mcp-server/Cargo.toml --locked \
-  --example stock_validation_fixture --bin observe-gdscript
+  --lib --example stock_validation_fixture --bin observe-gdscript --bin edit-gdscript
 python3 godot-addon/native/build.py --godot "$STOCK_GODOT" \
   --fixture-faults --output-addon "$PRIVATE_FAULT_NATIVE"
 python3 godot-addon/tests/run_script_edit.py \
@@ -104,8 +126,8 @@ bound effective warning/global-class context before launch. The worker stages
 only admitted sources, checks the exact official binary and its loopback listener,
 requires each URI's diagnostics before its shaped symbol response, discards all
 raw child output and owns teardown. Effective editor context must be freshly
-acquired and rechecked by the trusted integration; the fixture uses public
-ProjectSettings getters. T004 owns the authenticated caller/bridge binding.
+acquired and rechecked by the trusted integration through authenticated
+bridge-v2 ProjectSettings observations, not inferred from disk configuration.
 Unsupported context and incomplete evidence remain unavailable, not invalid or
 valid by omission. The stock endpoint's documented inherited limitation remains;
 private staging is context isolation, not an OS sandbox.

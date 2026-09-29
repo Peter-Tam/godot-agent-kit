@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `/specs/002-edit-open-gdscript/spec.md`
 
-**Status:** T001–T003 are complete under [§18 T1](research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) and [§19.9 R1 / L1](research.md#199-capability-delta-readiness-review-2026-09-29). [T003 stock acceptance](quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) records the private helper/native boundary's real-editor, history, durability, privacy/export and regression gates. T002's patched implementation is archived in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29), not retained in HEAD. T004/T005 and public mutation A–E remain pending; the stock endpoint limitation is non-blocking. Historical design-only statements in older reviews below describe their time, not the current lifecycle.
+**Status:** T001–T004 are complete under [§18 T1](research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) and [§19.9 R1 / L1](research.md#199-capability-delta-readiness-review-2026-09-29). [T003 stock acceptance](quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) records the private boundary; [T004 caller acceptance](quickstart.md#13-t004-caller-acceptance-2026-09-29) records the guarded public caller and affected regressions. T002's patched implementation is archived in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29), not retained in HEAD. T005 and cumulative feature A–E remain pending; the stock endpoint limitation is non-blocking. Older design/review records describe their time, not the current lifecycle.
 
 ## Summary
 
@@ -692,3 +692,117 @@ cases. Warning-policy invalidation and a post-change helper deadline preserve
 known native application; an initially invalid script is repaired and survives
 Save/reopen/runtime use. T003 is complete. T004/T005 and the full feature's
 caller/cumulative A–E gates remain pending; no broader support is claimed.
+
+### T004 selected implementation boundary
+
+T004 alone is selected after T003's PR #38 merged. The integration reuses the
+existing reducer, same-binary supervisor, authenticated bridge, collection/edit
+slot, stock validator and native attempt; it introduces no dependency or service.
+The private bridge makes a coordinated v2 cutover while public observation remains
+v1. Caller supervision records possible application before releasing one worker
+authorization and keeps blocking input, selection and both helper invocations
+inside the existing edit deadline.
+
+The historical core evidence migrates to public Resource edited state, actual
+CodeEdit current/saved versions, independent disk metadata and the native
+same-descriptor T0 restoration receipt. Validation records use the worker's
+caller-clock interval, each captured source's diagnostics/symbol fences and
+confirmed cleanup; they do not invent private mtimes or patched-parser fields.
+The addon owns live editor/native facts, Rust acquisition owns independent disk
+and helper evidence, and the protocol-independent reducer owns terminal policy.
+
+Constitutional I–IV require fresh target/revision/dirty guards, native history and
+independent intended D/R/B verification. V/VII/X retain authenticated source-free
+selection, confinement, redaction and explicit partial/unknown outcomes.
+VI/VIII/XII require the task's actual GUI/history/durability, observation and
+export regression evidence before completion. XIII's existing authorization and
+v2 justifications apply: read-only worker termination cannot establish non-application
+after mutation dispatch, and strict v1 tuples cannot silently grow. No additional
+approval, recovery, queue, replay or isolation mechanism is introduced. T005's
+cumulative whole-feature acceptance remains separate and pending.
+
+#### T004 review corrections
+
+The implementation review identified a concrete ownership failure: calling the
+stock validator supervisor from the killable edit worker could leave its separate
+child process group and source-bearing scratch without a live cleanup owner after
+edit-worker loss. The simpler alternative of killing only the edit-worker PID is
+insufficient because the stock worker deliberately owns a separate process group.
+The existing surviving edit supervisor therefore owns each stock validation call;
+its worker sends a bounded, typed context/purpose request and waits for the result.
+The supervisor supplies its checked target/intent and existing cancellation/deadline
+to the existing stock validator. Two private IPC messages and their ordering checks
+are the additional maintenance cost, justified by the current cleanup/cancellation
+contract; no process service, recovery store or new child-lifecycle framework is added.
+
+Other review corrections retain one outstanding sample/recheck cycle and consume it
+before collecting another, inspect the actual immutable proposal, preserve factless
+native refusals without invented receipts, and send each progress snapshot once.
+Replaying every source snapshot in the terminal apply message could exceed the
+existing response bound for otherwise admitted input. The terminal message instead
+carries only its actual partial event when one exists, plus native receipt facts.
+Public edit serialization follows the existing borrowed evidence convention rather
+than constructing a second JSON tree. These changes remain within T004's original
+safety, boundedness and implementation-shape obligations.
+
+Real caller diagnostics exposed two additional evidence-boundary defects.
+Separately parsing facts in one frame had assigned distinct receipt timestamps,
+making valid collection containment fail. The receiver now samples one timestamp
+per frame, and producer intervals cover their actual getter/native acquisition.
+An editor-only R/B sample was also compared against a composite identity requiring
+D's inode. The native-state DTO now carries only its observed editor identity and
+one set of source/version/saved facts; disk identity remains independently checked
+by the receipt and Rust D reader. This removes duplicate fields rather than
+inventing or copying a disk witness into editor evidence.
+
+A real mode-000 target exposed a privacy classification defect: native file
+admission failure was folded into `unclean_or_unsupported`, and the caller retained
+the prior source summary under `dirty_conflict`. Native file admission now returns
+specific denial, namespace, observation or evidence-limit reasons without changing
+its confinement predicates. Denial reaches the existing source-suppression policy.
+The caller routing regression requires `denied_access` and absent source-derived
+evidence. This is a correction to the existing privacy contract, not a new control
+or an expanded threat model.
+
+The final read-only reviews found missing lifetime binding before preparation,
+late publication of known selection, conflated refusal/availability reasons, lost
+post-application and partial-finalization evidence, and premature `may_apply`
+classification on a failed fresh guard. Corrections retain unique discovery,
+compare the actual selected lifetime before source, publish matching selection,
+and use the existing confined acquisition before editor-state refusal. Its private
+permission-denial fact is edit-only: observation v1 keeps per-surface
+`DiskUnreadable` and independent R/B, as its existing contract requires.
+The core sequence is now fresh guard → eligibility → authorization → one release;
+no fictitious native discard witness or authorization bypass is added. Latest
+survivor observations and confirmed edited-flag clearance survive later loss but
+cannot establish final verification.
+
+The exact pinned engine also emits nonstandard JSON for admitted source controls.
+The existing bridge serialization boundary repairs only malformed escape bytes,
+preserving literal backslashes; ordinary frames use native searches and keep the
+original byte buffer. Fixture responses reuse this encoding, while independent
+disk reads still prove exact source. This necessary wire correction adds no source
+restriction, dependency, service, protocol fallback or wider framing allowance.
+
+Implementation-shape review found coherent ownership despite large boundary files:
+the CLI owns bounded input/result delivery; worker owns acquisition; supervisor
+owns process/authorization lifetime and native-progress reduction; codecs own wire
+facts; the core owns outcome policy. Godot bridge owns authentication, routing and
+the shared slot; script_edit owns synchronous native lifetime; script_document
+owns the single guarded descriptor/object attempt and independent inspection.
+Private DTOs and effective module visibility stay scoped to current consumers.
+Duplicated state fields were removed; stage facts remain independent observations,
+not speculative lifecycle variants. A size-only split or new framework would not
+reduce the next task's caller-level acceptance work. No unrelated refactor or new
+approval/security mechanism is introduced. The required real-editor acceptance
+has now passed as recorded in [quickstart §13](quickstart.md#13-t004-caller-acceptance-2026-09-29).
+
+Caller fault injection exposed a terminal receipt-retention bug: after content
+persisted, a failed metadata attempt remained buffered for a later restoration
+event that could never arrive. Subsequent read-only verification could then finish
+without publishing the known partial persistence. The supervisor now consumes the
+terminal metadata receipt immediately. Actual write failure, `futimens` failure,
+wrong-T0 readback and retained-fd `EBADF` caller cases preserve known application,
+partial receipts and dirty state without a saved tag or success. The earlier
+state-only diagnostics remain distinct from the subsequent passing standard GUI
+campaign. T004 is complete; T005 retains the cumulative feature gates.

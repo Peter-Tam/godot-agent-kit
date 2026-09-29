@@ -4,6 +4,16 @@ extends "res://addons/godot_agent_kit/bridge.gd"
 const FixtureCollector = preload("res://addons/fixture_driver/fixture_collector.gd")
 
 
+# Fixture-only gate: the product keeps processing other peers while a selected
+# attempt owns the slot at a named gap. No native call or source is forged.
+func _edit_ready(peer: Dictionary, stage: String) -> bool:
+	var drivers := get_tree().get_nodes_in_group("observation_fixture_driver")
+	if drivers.size() == 1 and drivers[0].has_method("edit_barrier") \
+			and not drivers[0].edit_barrier(stage, peer.get("request_id", "")):
+		return false
+	return super._edit_ready(peer, stage)
+
+
 func _collect_pending() -> void:
 	var drivers := get_tree().get_nodes_in_group("observation_fixture_driver")
 	if drivers.size() != 1 or _active.is_empty() or not _active.has("pending"):

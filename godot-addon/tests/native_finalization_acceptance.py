@@ -122,8 +122,8 @@ class NativeFinalizationMixin:
                                     "actual_t0_restored_before_tag_" + name)
         facts = result.get("facts", {})
         observation.require(facts.get("write_started") is True and
-                            facts.get("written_bytes") == len(desired.encode("utf-8")) and
-                            facts.get("write_calls", 0) >= (1 if desired else 0) and
+                            int(facts["written_bytes"]) == len(desired.encode("utf-8")) and
+                            int(facts["write_calls"]) >= (1 if desired else 0) and
                             facts.get("truncate_done") is True and
                             facts.get("fsync_done") is True and
                             facts.get("pread_done") is True and
@@ -139,7 +139,7 @@ class NativeFinalizationMixin:
                             as_ns(facts["before_restore"]) != t0,
                             "independent_exact_original_t0_and_same_attempt_metadata_readback")
         if fault == "short_write":
-            observation.require(facts["write_calls"] >= 2,
+            observation.require(int(facts["write_calls"]) >= 2,
                                 "real_two_pwrite_calls_after_short_write")
         after, disks_after = self.assert_native_isolation(name, editor, project,
                                                            before["other"], disks_before["other"])
@@ -348,19 +348,19 @@ class NativeFinalizationMixin:
                                   "mtime_restored", "edited_cleared")),
                                 "known_partial_never_reclassified_not_applied_" + name)
         else:
-            observation.require(facts.get("written_bytes", 0) == 0,
+            observation.require(int(facts.get("written_bytes", "0")) == 0,
                                 "prewrite_refusal_did_not_persist_" + name)
         if fault == "close_fd_before_restore":
             observation.require(facts.get("futimens_called") is True and
-                                facts.get("futimens_errno") == errno.EBADF,
+                                int(facts["futimens_errno"]) == errno.EBADF,
                                 "real_futimens_ebadf_distinct_from_injected_error")
         elif fault == "fail_futimens":
             observation.require(facts.get("futimens_called") is True and
-                                facts.get("futimens_errno") == errno.EIO,
+                                int(facts["futimens_errno"]) == errno.EIO,
                                 "injected_metadata_error_distinct_from_actual_ebadf")
         elif fault == "mismatch_mtime":
             observation.require(facts.get("futimens_called") is True and
-                                facts.get("futimens_errno") == 0 and
+                                int(facts["futimens_errno"]) == 0 and
                                 facts.get("after_restore") != facts.get("t0") and
                                 facts.get("mtime_restored") is False,
                                 "successful_real_futimens_return_cannot_hide_wrong_t0_readback")
@@ -377,8 +377,9 @@ class NativeFinalizationMixin:
                                 "no_redirected_write_or_retimestamp_" + name)
         else:
             current = disks_after["subject"]["text"]
-            if facts.get("written_bytes", 0):
-                observation.require(current.startswith(DESIRED[:facts["written_bytes"]]),
+            written = int(facts.get("written_bytes", "0"))
+            if written:
+                observation.require(current.startswith(DESIRED[:written]),
                                     "actual_partial_write_prefix_" + name)
             elif at in ("content_persisted", "mtime_restored", "edited_cleared"):
                 observation.require(current == DESIRED,
@@ -432,7 +433,7 @@ class NativeFinalizationMixin:
                 ("native_embedded_bom_refused_before_history", DESIRED + "# \ufeff\n",
                  False, "unsupported_source"),
                 ("native_newline_only_trim_refused_before_history", "\n",
-                 True, "unclean_or_unsupported")):
+                 True, "save_would_reformat")):
             editor, project, session, _, _ = self.edit_fixture(name)
             if trim:
                 observation.require(self.native_action(
@@ -601,7 +602,7 @@ class NativeFinalizationMixin:
             request_id, result, _, _ = self.edit_prepare(editor, project, session)
             after, after_disk = self.snapshot(editor, project)
             observation.require(result.get("status") == "refused" and
-                                result.get("reason") == "unclean_or_unsupported" and
+                                result.get("reason") == "denied_access" and
                                 after_disk == protected_disk and after == protected,
                                 "real_odwr_read_only_permission_refusal_no_history_or_write")
             self.case(name, reason=result["reason"],
@@ -680,11 +681,11 @@ class NativeFinalizationMixin:
                             "private_addon_owner_claimed_existing_bridge_slot")
         stream, peer_id = self.authenticated_peer(descriptor)
         try:
-            stream.sendall(observation.packet([1, "observe", peer_id,
+            stream.sendall(observation.packet([2, "observe", peer_id,
                                                 descriptor["session_id"],
                                                 descriptor["project_root"], ROOT]))
             refusal, raw = observation.receive(stream)
-            observation.require(refusal == {"v": 1, "kind": "failure",
+            observation.require(refusal == {"v": 2, "kind": "failure",
                                             "request_id": peer_id,
                                             "session_id": descriptor["session_id"],
                                             "project_root": descriptor["project_root"],
@@ -718,7 +719,7 @@ class NativeFinalizationMixin:
         self.action(editor, "hold_observe")
         stream, peer_id = self.authenticated_peer(descriptor)
         try:
-            stream.sendall(observation.packet([1, "observe", peer_id,
+            stream.sendall(observation.packet([2, "observe", peer_id,
                                                 descriptor["session_id"],
                                                 descriptor["project_root"], ROOT]))
             observation.wait_for(lambda: (editor["control"] / "event.json").is_file(),

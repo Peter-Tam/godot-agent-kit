@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Owned stock-helper and native-finalization acceptance.
+"""Real edit-gdscript GUI caller acceptance and retained native primitives.
 
-The stock groups use independent live-editor and descriptor witnesses; neither
-group requires a public edit caller (the authenticated caller is T004).
+Each selected edit group uses the bounded public stdin CLI and independent
+editor, disk, history and owned-window witnesses.
 """
 from __future__ import annotations
 
@@ -21,10 +21,13 @@ import tempfile
 import run_observation as observation
 from stock_acceptance import StockAcceptanceMixin
 from native_finalization_acceptance import NativeFinalizationMixin
+from caller_edit_acceptance import CallerEditAcceptanceMixin
 
 FIXTURE = Path(__file__).parent / "fixtures" / "script_edit"
 MARKERS = (b"NATIVE_DIRECT", b"NATIVE_TRANSITIVE", b"NATIVE_SIBLING_VALUE",
-           b"NATIVE_DEPENDENCY_VALUE", b"not an int")
+           b"NATIVE_DEPENDENCY_VALUE", b"not an int", b"func value() -> int:",
+           b"ACTUAL_PROPOSAL_PARSE_FAILURE", b"HUMAN_NEWER_TEXT",
+           b"HUMAN_POST_CHANGE_INVALID", b"unsupported_fixture_rules_shape")
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 STOCK_SHA256 = "c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf"
 
@@ -80,7 +83,7 @@ def dependency_witness(project, relative):
         os.close(fd)
 
 
-class NativeHarness(NativeFinalizationMixin, StockAcceptanceMixin, observation.Harness):
+class NativeHarness(CallerEditAcceptanceMixin, NativeFinalizationMixin, StockAcceptanceMixin, observation.Harness):
     stock_sha = staticmethod(sha)
     stock_dependency = staticmethod(dependency_witness)
 
@@ -92,9 +95,13 @@ class NativeHarness(NativeFinalizationMixin, StockAcceptanceMixin, observation.H
                                     b"STATIC_INITIALIZER_EXECUTED",
                                     b"OUTSIDE_STOCK_SECRET"))
         self.stock_sessions = {}
-        self.summary["coverage_scope"] = "t003_stock_helper_native_finalization"
+        self.summary["coverage_scope"] = ("t003_stock_helper_native_finalization"
+                                          if args.scenario == "native-primitives"
+                                          else "t004_selected_caller_story_group")
         self.summary["source_observation"] = True
         self.summary["fixture_driver_sha256"] = observation.digest(FIXTURE / "fixture_driver.gd")
+        self.summary["caller_acceptance_sha256"] = observation.digest(
+            Path(__file__).parent / "caller_edit_acceptance.py")
         self.summary["native_fixture_files"] = {str(p.relative_to(FIXTURE)): observation.digest(p)
                                                for p in sorted(FIXTURE.rglob("*")) if p.is_file()}
 
@@ -203,17 +210,24 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--godot", required=True, type=Path)
     parser.add_argument("--observer", required=True, type=Path)
-    parser.add_argument("--scenario", required=True, choices=("native-primitives",))
+    parser.add_argument("--scenario", required=True,
+                        choices=("clean-open", "conflicts", "routing", "interruption",
+                                 "validation", "history", "native-primitives"))
+    parser.add_argument("--editor", type=Path, help="built edit-gdscript stdin caller")
     parser.add_argument("--stock-validator", type=Path,
                         help="built test-only Rust validator example (native-primitives)")
     parser.add_argument("--native-fault-addon", type=Path,
-                        help="isolated fixture build output native/ directory (native-primitives)")
+                        help="separate fixture-only native build for interruption and native-primitives")
     parser.add_argument("--artifacts", required=True, type=Path)
     args = parser.parse_args()
     os.umask(0o077)
     for path in (args.godot, args.observer):
         observation.require(path.is_absolute() and path.is_file() and os.access(path, os.X_OK),
                             "absolute_executable_required")
+    if args.scenario != "native-primitives":
+        observation.require(args.editor is not None and args.editor.is_absolute() and
+                            args.editor.is_file() and os.access(args.editor, os.X_OK),
+                            "absolute_edit_caller_executable_required")
     observation.require(args.artifacts.is_absolute() and args.artifacts.is_dir() and
                         not args.artifacts.is_symlink(), "absolute_existing_artifact_directory")
     metadata = args.artifacts.stat()
@@ -227,31 +241,41 @@ def main():
                         "pinned_official_4_7_2_engine_version_required")
     args.candidate_version = version.stdout.decode().strip()
     args.candidate_engine_hash = observation.ENGINE_HASH
-    observation.require(args.stock_validator is not None and
-                        args.stock_validator.is_absolute() and
-                        args.stock_validator.is_file() and
-                        os.access(args.stock_validator, os.X_OK),
-                        "built_stock_validator_fixture_required")
-    observation.require(args.native_fault_addon is not None and
-                        args.native_fault_addon.is_absolute() and
-                        (args.native_fault_addon / "build-manifest.json").is_file() and
-                        (args.native_fault_addon /
-                         "libscript_edit.macos.arm64.dylib").is_file(),
-                        "separate_native_fixture_fault_artifact_required")
-    fault_receipt = json.loads((args.native_fault_addon / "build-manifest.json").read_text())
-    observation.require(fault_receipt.get("fixture_only") is True and
-                        fault_receipt.get("engine_sha256") == STOCK_SHA256 and
-                        fault_receipt.get("native_library_sha256") == observation.digest(
-                            args.native_fault_addon / "libscript_edit.macos.arm64.dylib"),
-                        "fixture_fault_artifact_never_product_library")
-    with tempfile.TemporaryDirectory(prefix=".godot-agent-kit-native-primitives-", dir=Path.home()) as temp:
+    if args.scenario == "native-primitives":
+        observation.require(args.stock_validator is not None and
+                            args.stock_validator.is_absolute() and
+                            args.stock_validator.is_file() and
+                            os.access(args.stock_validator, os.X_OK),
+                            "built_stock_validator_fixture_required")
+    if args.scenario in ("native-primitives", "interruption"):
+        observation.require(args.native_fault_addon is not None and
+                            args.native_fault_addon.is_absolute() and
+                            (args.native_fault_addon / "build-manifest.json").is_file() and
+                            (args.native_fault_addon /
+                             "libscript_edit.macos.arm64.dylib").is_file(),
+                            "separate_native_fixture_fault_artifact_required")
+        fault_receipt = json.loads((args.native_fault_addon / "build-manifest.json").read_text())
+        observation.require(fault_receipt.get("fixture_only") is True and
+                            fault_receipt.get("engine_sha256") == STOCK_SHA256 and
+                            fault_receipt.get("native_library_sha256") == observation.digest(
+                                args.native_fault_addon / "libscript_edit.macos.arm64.dylib"),
+                            "fixture_fault_artifact_never_product_library")
+    with tempfile.TemporaryDirectory(prefix=".godot-agent-kit-edit-acceptance-", dir=Path.home()) as temp:
         harness = NativeHarness(args, Path(temp))
         status = 0
         try:
             harness.initialize()
-            harness.group("stock-validation", harness.stock_validation)
-            harness.group("native-finalization", harness.native_finalization)
-            harness.group("native-export", harness.native_export)
+            if args.scenario == "native-primitives":
+                harness.group("stock-validation", harness.stock_validation)
+                harness.group("native-finalization", harness.native_finalization)
+                harness.group("native-export", harness.native_export)
+            elif args.scenario == "validation":
+                harness.group("validation", lambda: (harness.validation_edit(),
+                                                     harness.post_change_validation_edit()))
+            else:
+                method = "conflict_edit" if args.scenario == "conflicts" else (
+                    args.scenario.replace("-", "_") + "_edit")
+                harness.group(args.scenario, getattr(harness, method))
             harness.summary["status"] = "passed"
         except (observation.Failure, OSError, ValueError, KeyError, TypeError,
                 EOFError, subprocess.SubprocessError) as error:

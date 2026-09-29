@@ -16,3 +16,7 @@ ring = { version = "=0.17.14", default-features = false, features = ["std"] }
 [[bin]]
 name = "observe-gdscript"
 path = "src/bin/observe-gdscript.rs"
+
+[[bin]]
+name = "edit-gdscript"
+path = "src/bin/edit-gdscript.rs"

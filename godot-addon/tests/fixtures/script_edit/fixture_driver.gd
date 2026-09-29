@@ -15,6 +15,43 @@ var _native_remove_bridge: Node
 var _native_remove_buffer: CodeEdit
 var _native_remove_witness := {}
 
+var _edit_hold_stage := ""
+var _edit_hold_announced := false
+
+
+func edit_barrier(stage: String, _request_id: String) -> bool:
+	if stage != _edit_hold_stage:
+		return true
+	if not _edit_hold_announced:
+		_edit_hold_announced = _publish_event("edit:" + stage)
+	return false
+
+
+func _native_stat(path: String) -> PackedStringArray:
+	var output: Array = []
+	if OS.execute("/usr/bin/stat", ["-f", "%d:%i", "--", path], output) != 0 or output.size() != 1:
+		return PackedStringArray()
+	var fields := str(output[0]).strip_edges().split(":")
+	if fields.size() != 2 or not fields[0].is_valid_int() or not fields[1].is_valid_int():
+		return PackedStringArray()
+	return fields
+
+
+func _native_correlation(source: String, doc: Dictionary) -> Dictionary:
+	# Direct native-primitives run without an authenticated addon bridge. Query
+	# only this fixture's fixed root/subject metadata, not a forged native receipt.
+	var root := ProjectSettings.globalize_path("res://").trim_suffix("/")
+	var target := ProjectSettings.globalize_path("res://scripts/subject.gd")
+	var project_stat := _native_stat(root)
+	var target_stat := _native_stat(target)
+	if project_stat.size() != 2 or target_stat.size() != 2:
+		return {}
+	return {"project_device": project_stat[0], "project_inode": project_stat[1],
+		"target_device": target_stat[0], "target_inode": target_stat[1],
+		"expected_version": str(doc.version), "expected_sha256": source.sha256_text(),
+		"expected_length": str(source.to_utf8_buffer().size())}
+
+
 
 func _native_removed(_from_line: int, _to_line: int) -> void:
 	if _native_remove_mode.is_empty():
@@ -74,14 +111,56 @@ func _process(_delta: float) -> void:
 	var action: String = request.action
 	var response := {"id": id, "action": action, "ok": true}
 	var api: Dictionary = Engine.get_meta(NATIVE_META, {})
-	if action == "native_info":
+	if action == "native_edit_hold":
+		_edit_hold_stage = request.get("stage", "")
+		_edit_hold_announced = false
+		response.ok = _edit_hold_stage in ["prepare", "apply", "buffer_applied",
+			"resource_applied", "content_persisted", "mtime_restored", "edited_cleared",
+			"verify:preflight", "verify:post_change", "verify:unchanged",
+			"recheck:post_change", "recheck:unchanged"]
+	elif action == "native_edit_release":
+		response.stage = _edit_hold_stage
+		_edit_hold_stage = ""
+		_edit_hold_announced = false
+	elif action == "native_info":
 		response.api_installed = api.has_all(["api_revision", "build_id", "configure", "close"])
-		response.edit_installed = api.has_all(["edit_prepare", "edit_advance", "edit_cancel"])
+		response.edit_installed = api.has_all(["edit_inspect", "edit_prepare",
+			"edit_advance", "edit_cancel", "edit_expire"])
 		if response.api_installed:
 			response.api_revision = api.api_revision.call()
 			response.build_id = api.build_id.call()
 		response.tool_cached = ResourceLoader.has_cached("res://scripts/native/cold/tool_initializer.gd")
 		response.filesystem_events = _native_filesystem_events
+	elif action == "native_edit_fixture_activate":
+		# Fixture build is not advertised by product policy. Verify its own
+		# native API, manifest and installed binary before enabling this editor.
+		var bridge: Node = get_tree().get_first_node_in_group("godot_agent_kit_session_bridge")
+		var owner: Node = bridge.get_parent().get_node_or_null("GodotAgentKitScriptEdit") \
+			if bridge != null else null
+		var prefix := "res://addons/godot_agent_kit/native/"
+		var manifest: Variant = JSON.parse_string(FileAccess.get_file_as_string(prefix + "build-manifest.json"))
+		var dylib := prefix + "libscript_edit.macos.arm64.dylib"
+		response.ok = bridge != null and owner != null and typeof(manifest) == TYPE_DICTIONARY \
+			and manifest.get("fixture_only") == true and FileAccess.file_exists(dylib) \
+			and manifest.get("native_library_sha256") == FileAccess.get_sha256(dylib) \
+			and api.has_all(["api_revision", "build_id", "edit_inspect", "edit_prepare",
+				"edit_advance", "edit_cancel", "edit_expire"]) \
+			and api.api_revision.call() == 1 and manifest.get("native_build_id") == api.build_id.call()
+		if response.ok:
+			bridge.attach_edit(owner, 1, api.build_id.call())
+	elif action == "native_edit_probe_entered":
+		var bridge: Node = get_tree().get_first_node_in_group("godot_agent_kit_session_bridge")
+		var doc := _document("res://scripts/subject.gd")
+		response.ok = bridge != null and doc.get("associated", false)
+		if response.ok:
+			_native_remove_mode = "slot"
+			_native_remove_bridge = bridge
+			_native_remove_witness = {}
+			_native_remove_buffer = EditorInterface.get_script_editor().get_open_script_editors()[
+				doc.index].get_base_editor() as CodeEdit
+			_native_remove_buffer.lines_edited_from.connect(_native_removed, CONNECT_ONE_SHOT)
+	elif action == "native_edit_probe_result":
+		response.callback = _native_remove_witness
 	elif action == "native_idle":
 		# History preparation queues ordinary editor validation. Observe its
 		# actual Resource convergence before measuring B's non-interference.
@@ -126,6 +205,10 @@ func _process(_delta: float) -> void:
 		ProjectSettings.set_setting("debug/gdscript/warnings/enable", true)
 		ProjectSettings.set_setting(key, 2)
 		response.level = ProjectSettings.get_setting_with_override(key)
+	elif action == "native_edit_unsupported_warning_context":
+		var key := "debug/gdscript/warnings/directory_rules"
+		ProjectSettings.set_setting(key, "unsupported_fixture_rules_shape")
+		response.type = typeof(ProjectSettings.get_setting_with_override(key))
 	elif not api.has_all(["api_revision", "build_id", "configure", "close"]):
 		response.ok = false
 	elif action == "native_close":
@@ -182,13 +265,15 @@ func _process(_delta: float) -> void:
 			var doc := _document("res://scripts/subject.gd")
 			response.ok = doc.get("associated", false)
 			if response.ok:
-				response.result = edit_owner.begin("res://scripts/subject.gd",
-					request.get("expected", doc.R), request.get("desired", ""),
-					{"request_id": request.get("request_id", ""),
+				var expected: String = request.get("expected", doc.R)
+				var binding := {"request_id": request.get("request_id", ""),
 					"session_id": request.get("session_id", ""),
 					"document": {"resource_instance_id": doc.script_id,
 						"editor_instance_id": doc.editor_id, "buffer_instance_id": doc.buffer_id},
-					"expiry_tick_us": str(Time.get_ticks_usec() + 9000000)})
+					"expiry_tick_us": str(Time.get_ticks_usec() + 9000000)}
+				binding.merge(_native_correlation(expected, doc))
+				response.result = edit_owner.begin("res://scripts/subject.gd",
+					expected, request.get("desired", ""), binding)
 	elif action == "native_edit_prepare":
 		var doc := _document("res://scripts/subject.gd")
 		if not doc.get("associated", false) or not api.has("edit_prepare"):
@@ -198,13 +283,15 @@ func _process(_delta: float) -> void:
 				"editor_instance_id": doc.editor_id, "buffer_instance_id": doc.buffer_id}
 			if request.get("wrong_document", false):
 				binding.buffer_instance_id = "0"
-			response.result = api.edit_prepare.call(
-				request.get("source_path", "res://scripts/subject.gd"),
-				request.get("expected", doc.R), request.get("desired", ""),
-				{"request_id": request.get("request_id", ""),
+			var expected: String = request.get("expected", doc.R)
+			var correlation := {"request_id": request.get("request_id", ""),
 				"session_id": request.get("session_id", ""),
 				"document": binding,
-				"expiry_tick_us": str(Time.get_ticks_usec() + int(request.get("expiry_budget_us", 9000000)))})
+				"expiry_tick_us": str(Time.get_ticks_usec() + int(request.get("expiry_budget_us", 9000000)))}
+			correlation.merge(_native_correlation(expected, doc))
+			response.result = api.edit_prepare.call(
+				request.get("source_path", "res://scripts/subject.gd"),
+				expected, request.get("desired", ""), correlation)
 	elif action == "native_edit_advance":
 		response.ok = api.has("edit_advance")
 		if response.ok:
@@ -265,6 +352,8 @@ func _process(_delta: float) -> void:
 					buffer.end_complex_operation()
 				"dirty":
 					buffer.text = "extends RefCounted\n# HUMAN_NEWER_TEXT\n"
+				"invalid":
+					buffer.text = "extends RefCounted\nvar = # HUMAN_POST_CHANGE_INVALID\n"
 				"later_value":
 					buffer.text = "extends RefCounted\nfunc value() -> int:\n\treturn 29\n"
 				"cold_inheritance":
@@ -281,6 +370,9 @@ func _process(_delta: float) -> void:
 					buffer.undo()
 				"redo":
 					buffer.redo()
+				"close":
+					response.ok = EditorInterface.get_script_editor().close_file(
+						"res://scripts/subject.gd") == OK
 				"close_reopen":
 					response.ok = EditorInterface.get_script_editor().close_file(
 						"res://scripts/subject.gd") == OK

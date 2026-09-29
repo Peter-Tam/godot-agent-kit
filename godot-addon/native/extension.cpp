@@ -32,7 +32,7 @@ bool engine_revision() {
             api.bind(base.ptr(), buffer.ptr(), GAK_HASH_BASE_EDITOR);
 }
 
-enum class Action { Configure, Close, Revision, BuildId, Prepare, Advance, Cancel, Expire,
+enum class Action { Configure, Close, Revision, BuildId, Inspect, Prepare, Advance, Cancel, Expire,
 #if GAK_FIXTURE
     FixtureFault,
 #endif
@@ -64,6 +64,15 @@ void native_callback(void *userdata, const GDExtensionConstVariantPtr *arguments
             ok = configure(session, bytes(id));
         }
         copy_into(destination, boolean(ok));
+        return;
+    }
+    if (action == Action::Inspect) {
+        Value result;
+        if (count == 4 && std::this_thread::get_id() == session.main_thread) {
+            Value path(arguments[0]), original(arguments[1]), desired(arguments[2]), document(arguments[3]);
+            result = edit_inspect(session, path, original, desired, document);
+        }
+        copy_into(destination, result);
         return;
     }
     if (action == Action::Prepare) {
@@ -106,7 +115,7 @@ void native_callback(void *userdata, const GDExtensionConstVariantPtr *arguments
 
 Action configure_action = Action::Configure, close_action = Action::Close;
 Action revision_action = Action::Revision, build_action = Action::BuildId;
-Action prepare_action = Action::Prepare, advance_action = Action::Advance, cancel_action = Action::Cancel;
+Action inspect_action = Action::Inspect, prepare_action = Action::Prepare, advance_action = Action::Advance, cancel_action = Action::Cancel;
 Action expire_action = Action::Expire;
 #if GAK_FIXTURE
 Action fault_action = Action::FixtureFault;
@@ -142,6 +151,7 @@ void editor_initialize(void *, GDExtensionInitializationLevel level) {
     put(metadata, "close", callable(close_action));
     put(metadata, "api_revision", callable(revision_action));
     put(metadata, "build_id", callable(build_action));
+    put(metadata, "edit_inspect", callable(inspect_action));
     put(metadata, "edit_prepare", callable(prepare_action));
     put(metadata, "edit_advance", callable(advance_action));
     put(metadata, "edit_cancel", callable(cancel_action));

@@ -201,6 +201,8 @@ struct Session {
 bool configure(Session &session, const std::string &session_id);
 void close(Session &session);
 void edit_cleanup(Session &session);
+Value edit_inspect(Session &session, const Value &path, const Value &original,
+        const Value &desired, const Value &document);
 Value edit_prepare(Session &session, const Value &path, const Value &expected,
         const Value &desired, const Value &correlation);
 Value edit_advance(Session &session, const Value &request, const Value &stage);

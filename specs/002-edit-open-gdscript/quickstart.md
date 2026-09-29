@@ -1,13 +1,14 @@
 # Quickstart: Verify Guarded Open-GDScript Editing
 
-**Status:** T001–T003 are complete. Historical core/oracle acceptance remains in [§9](#9-t001-core-acceptance-2026-09-27) and [§10](#10-t002-native-validation-acceptance-2026-09-28); [§11](#11-t003-native-boundary-acceptance-2026-09-29) records the stock helper/native boundary's real-editor acceptance. T004/T005, public caller/bridge/core migration, full-feature A–E and cumulative acceptance remain pending. Feature 002 is still in progress.
+**Status:** **T001–T004 are complete.** Historical core/oracle acceptance remains in [§9](#9-t001-core-acceptance-2026-09-27) and [§10](#10-t002-native-validation-acceptance-2026-09-28); [§11](#11-t003-native-boundary-acceptance-2026-09-29) records the stock helper/native boundary. [T004 caller acceptance](#13-t004-caller-acceptance-2026-09-29) covers the guarded caller, core-evidence migration and private bridge v2. T005's cumulative acceptance is unstarted. Feature 002 remains in progress.
 
-**Current reproduction:** Use the official stock executable, the standard
-public-ABI extension and the Rust one-shot validator as in the
-[stock native guide](../../godot-addon/native/README.md#official-stock-boundary-and-verification).
-Sections 1–8 retain feature-wide T004/T005 acceptance requirements; historical
-patched-family/mtime/caller sketches within them are not instructions for
-current T003 reproduction. §10 is an archive summary, not an oracle recipe.
+**Current reproduction:** Use the official stock executable and matched standard
+public-ABI extension from the [native guide](../../godot-addon/native/README.md).
+The six caller groups and retained `native-primitives` group below are implemented.
+Sections 1–8 include additional feature-wide T005 requirements; those extra groups
+are not yet CLI options. Historical patched-family/mtime sketches are superseded
+by the current caller, bridge, native and data-model contracts. §10 is an archive
+summary, not an oracle recipe.
 
 Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [caller](contracts/edit-api.md), [bridge](contracts/bridge-protocol.md), [native](contracts/native-integration.md) contracts as normative semantics. Do not infer success from process exit, a save acknowledgment or the finalizer's copied fields.
 
@@ -52,7 +53,7 @@ cargo +1.98.1 fmt --all -- --check
 cargo +1.98.1 clippy --all-targets --locked -- -D warnings
 cargo +1.98.1 test --locked
 cargo +1.98.1 doc --no-deps --locked
-cargo +1.98.1 build --locked --lib --bin observe-gdscript --example stock_validation_fixture
+cargo +1.98.1 build --locked --lib --bin observe-gdscript --bin edit-gdscript --example stock_validation_fixture
 ```
 
 `cargo test --locked` includes doctests. No root workspace or blanket `--all-features` is introduced. Tests must cover consumer-visible invariants and transitions: prior-observation basis eligibility, dirty-equal/stale/same-text-version distinction, independent postconditions, stage/application precedence, pre/post-authorization worker loss, immutable late results, strict v2 authentication/limits/identity, denied-source suppression and actual confined I/O outcomes. Do not add source-text/wiring-copy/mock-echo tests.
@@ -63,13 +64,26 @@ independent saved-state reads. Fault barriers are compiled only into separate
 
 ## 3. Owned real-editor runner
 
-Reuse existing observation harness setup, authentication, owned-window
-capture, independent D/R/B/dirty/history witnesses, process cleanup and
-artifact handling. **Current T003 reproduction is only `native-primitives`**
-with the exact stock fixture inputs in the [native guide](../../godot-addon/native/README.md#official-stock-boundary-and-verification).
-The public caller and whole-feature runner groups below are T004/T005
-acceptance requirements, **not implemented scenarios or CLI options today**.
-There is no `--mutator` or `--scenario all` in the current script-edit runner.
+Reuse the observation harness's owned setup, authentication, window capture,
+independent D/R/B/dirty/history witnesses, process cleanup and artifact handling.
+The implemented caller scenarios are `clean-open`, `conflicts`, `routing`,
+`interruption`, `validation` and `history`; each requires `--editor` naming the
+absolute built `edit-gdscript` path. The retained `native-primitives` group uses
+the test-only stock validator. `interruption` and `native-primitives` require the
+separate fixture-only native artifact. There is no `--mutator` or `--scenario all`.
+
+For each caller group, use a new empty mode-0700 artifact directory:
+
+```sh
+python3 godot-addon/tests/run_script_edit.py \
+  --godot "$EDIT_GODOT" --observer "$OBSERVER" --editor "$EDIT_CALLER" \
+  --scenario "$SCENARIO" --native-fault-addon "$PRIVATE_FAULT_NATIVE" \
+  --artifacts "$ARTIFACTS"
+```
+
+Real-editor acceptance requires an unlocked visible GUI and owned-window captures.
+Getter/state diagnostics while that visual prerequisite is unavailable may expose
+bugs, but do not satisfy the task's GUI acceptance or authorize completion.
 
 A request uses a newly returned complete clean agreeing observation as `basis`; the runner sends the input JSON directly to `edit-gdscript` stdin. Do not put source/credentials in argv or use a temp-source filename as a product escape hatch. Use a new request ID each attempt and preserve original request/session/document attribution in artifacts. Native Save/Undo/Redo/open/reparse/rescan/runtime actions are explicit **fixture/developer** interactions, not new product commands.
 
@@ -451,16 +465,153 @@ library SHA-256:
 `6919285c071347863a72c0ed6da3a45afddd784c02579416bc44636eb16b4b3b`.
 Fixture-only build ID:
 `4bcb6299b1524d9eef1634cc5ddc91529680c9a3330f5b29c34a1be40154f3eb`.
-These identities belong to the accepted current stock-only implementation.
+These identities belong to the accepted T003 stock-only delivery head.
 Evidence is local, not a claim of hosted CI or portable artifact availability.
 Owned fixture processes/projects were cleaned up. Historical research/status
-snapshots and T004/T005 task sections were preserved; completion stays 3/5.
+snapshots and T004/T005 task sections were preserved; completion at that head was 3/5.
 
 ### Remaining feature boundary
 
-T003 completes the private helper/native increment, not Feature 002 or Roadmap
-Phase 1. T004 must migrate the historical typed-core evidence and implement the
-authenticated caller/bridge path. T005 owns cumulative feature acceptance.
-There is no public edit command, bridge-v2 cutover, MCP tool, wider-platform
-support, active-runtime hot-reload claim or OS sandbox. The approved inherited
-stock-LSP endpoint limitation remains non-blocking and unchanged.
+T003 completed the private helper/native increment, not Feature 002 or Roadmap
+Phase 1. At its accepted head, T004's evidence migration, public caller and
+bridge-v2 cutover were not implemented. The current T004 implementation and
+remaining acceptance are described at the top of this guide; T005 still owns
+cumulative feature acceptance. No MCP tool, wider-platform support, active-runtime
+hot-reload or OS sandbox is claimed. The inherited stock-LSP endpoint limitation
+remains non-blocking and unchanged.
+
+## 12. T004 working-tree verification — not GUI acceptance
+
+This section preserves the pre-acceptance working-tree diagnostics. The Rust
+baseline passed formatting, Clippy with warnings denied, **193 tests across nine
+suites**, and rustdoc. Both callers, the library and the stock-validation example
+were built with locked dependencies.
+
+Owned real-Godot **state-only** diagnostics passed all six caller groups, the
+complete **204-record / 13-group** observation campaign, native finalization and
+native export checks. They exercised actual CLI outcomes, independent D/R/B
+getters, native history, persistence faults, selected context, confinement and
+redaction; they are not mocks or headless substitutes.
+
+**Historical limitation, resolved by §13:** During these diagnostic runs,
+CoreGraphics reported `CGSSessionScreenIsLocked=1`, and owned visible-window
+capture was unavailable. Temporary diagnostic runners omitted captures and
+explicitly recorded `visual_acceptance: false`, `support_claim: false`, and
+`state_checks_passed_not_visual_acceptance`. These records remain state-only
+evidence; the later GUI run does not retroactively relabel them.
+
+Local evidence root:
+`/var/folders/2r/m9lt6gb17wgbzcw9zzf6mp_80000gn/T/godot-agent-kit-T004-xnj8rqqe/`.
+Each row counts recorded checks, including that invocation's bootstrap record;
+these are not counts of distinct user stories. The summaries retain their actual
+engine, host, driver and fixture provenance.
+
+| Summary under the evidence root | Records | SHA-256 |
+| --- | --- | --- |
+| `state-batch-5/clean-open/state-diagnostic.json` | 9 | `6be7c241c57c24432de79404cbdfccb1e0e68cd3377b97f2666f785050e31263` |
+| `state-batch-6/conflicts/state-diagnostic.json` | 38 | `eac9fc396db915b6c11060fb9ead598157a982c374a08709ffff367bb0f48b70` |
+| `state-batch-6/routing/state-diagnostic.json` | 36 | `7c480712de93957a19c5fbf155fb741a3b1336a2422e93baec9bf09b1ebd5f6a` |
+| `state-final/interruption/state-diagnostic.json` | 39 | `f9100a6de211f1faf7d53e261645a242f6fa8a992f74fb590fd9cfbf02086dff` |
+| `validation-state-isolated/state-diagnostic.json` | 39 | `e52b99a032262e3b16835fd33750cc0ddc8a3e8d5ed89cd7aaeb1e5a572ba654` |
+| `state-batch-9/history/state-diagnostic.json` | 9 | `34d5a04bb28068a1e9e42d134187d34f3001d4932c2ca3ad00ed598fef609364` |
+| `state-final/observation/state-diagnostic.json` | 204 | `7d8622bfa8c7aed606a07f7bd7ebf913364f4bffd5601540a8bf18dc78f3e32e` |
+| `state-batch-12/native-finalization/state-diagnostic.json` | 88 | `4f9d512e59f3f190c4201c1ddccbcd4f477d655a3c58544eb0982dcaf4030281` |
+| `state-batch-12/native-export/state-diagnostic.json` | 4 | `283cb0bb77b8f3b2cdc12755dd6b52eb34d3fed64a928c3782fec0c2b9a5b5fa` |
+
+The stock-helper group also passed 58 checks in
+`state-batch-9/native-primitives/state-diagnostic.json`; that enclosing campaign
+remains failed because the following native fixture still sent v1 frames. The
+later native rows above cover the corrected fixture, not a relabeled old result.
+Other earlier failed campaigns remain failed. One earlier validation campaign
+lost its returned result at a combined assertion; it is not classified as a
+proven deadline defect. The focused repair and isolated full validation reruns
+passed. The fixture now preserves credential-checked outcomes before expectation
+assertions and closes completed validation editors instead of accumulating them.
+
+The standard GUI campaign below subsequently closed the visible-editor gate.
+Only T004 is complete; T005 and the full-feature/wider-platform gates remain
+separate.
+
+## 13. T004 caller acceptance (2026-09-29)
+
+**T004 is complete** on `task/T004-guarded-caller-edit`, independently of PR
+review or merge. The standard, unmodified runners passed all seven script-edit
+groups and the complete observation suite serially on the unlocked owned desktop:
+**170 caller records**, **149 native-primitive records**, and **204 observation
+records**. Counts include each invocation's bootstrap record, not distinct user
+stories. No capture bypass or diagnostic subclass was used.
+
+The exact candidate was official `4.7.2.stable.official.ed1daf0bf`,
+engine commit `ed1daf0bf001b61586d9930840f2f1394092c079`, executable SHA-256
+`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`,
+on **macOS 26.6.2 arm64**. Rust was 1.98.1; native provenance records
+Apple clang 21.0.0 (`clang-2100.3.34.2`) and SDK 27.0.
+
+### Executed behavior and visual evidence
+
+- `clean-open`: actual public changed/unchanged outcomes, non-current-tab
+  targeting, unrelated dirty work, later human Save/reopen and fresh-basis repeat.
+- `conflicts` and `routing`: dirty/stale/equal-text/new-version and replaced
+  identity refusal, missing evidence, denial precedence/source suppression,
+  ended or ambiguous sessions, and busy overlap without queued/late mutation.
+- `interruption`: bounded pre/post-authorization cancellation, timeout and
+  disconnection; no late apply after proven refusal; retained application,
+  survivor state and partial content/T0/finalization evidence.
+- `validation`: actual root/analyzer/dependency errors, unavailable context,
+  changed warnings, unsupported effects, invalid-source repair, exact Unicode
+  and escaped-control transport at the source boundary.
+- `history`: real caller apply → native Undo → ordinary Save → Redo → Save,
+  preserved earlier human history, and no added entry for refused/unchanged edits.
+- `native-primitives` and observation: independent native guards and fault
+  receipts, Save/reopen/reparse/rescan/runtime durability, unchanged observation
+  behavior, privacy checks, and actual exports excluding tooling/native binaries.
+
+Owned-window captures were produced by the standard screenshot path. Visual
+inspection included the caller's clean `subject.gd` showing `return 23` while
+`other.gd(*)` remained dirty, the dirty synthetic buffer marker, and the fresh
+reparsed editor showing the later human `return 29`. Synthetic parse errors in
+the deliberately invalid fixture scripts remain attributable fixture evidence,
+not an unreported target failure. D/R/B, dirty/version/history and timing
+assertions accompany the captures; images alone are not the transaction oracle.
+
+### Exact local artifacts
+
+Evidence root:
+`/var/folders/2r/m9lt6gb17wgbzcw9zzf6mp_80000gn/T/godot-agent-kit-T004-xnj8rqqe/gui-acceptance/`.
+
+| Summary | Records | SHA-256 |
+| --- | --- | --- |
+| `clean-open/summary.json` | 9 | `9751936e3feb4be8aecf55c60f89fa443dab7131d46cca83a1f6334c0b67e27f` |
+| `conflicts/summary.json` | 38 | `31e1d731cad2649690ce1bb782da57a76b0128125e03f384f7ef5c45a7e4b736` |
+| `routing/summary.json` | 36 | `d88bc07f362a8f142f4a6844222b1e988fe354ed90ac6b5c3e6def682605eb1c` |
+| `interruption/summary.json` | 39 | `3015b6f24a898b6cbb0d37deefc30b99d4a2970dfbb0d6b09db7ddcd3d64cbbf` |
+| `validation/summary.json` | 39 | `d94fcd32014ac6410109e96d35cf238eacc58706af2178b61adb3613d576cb3b` |
+| `history/summary.json` | 9 | `6a60b7a3626b09c5e1269e96c4421824d75d83a1bfb047e41b48cb24cd4f5a4d` |
+| `native-primitives/summary.json` | 149 | `2e14f208b6286104f08f0ecdfa2e9295541a0816af0c32193789ce547072a8a6` |
+| `observation/summary.json` | 204 | `8401c9bdf669b7d3af6d31506519ee61b157ecf515c4c13bef600c174113d8b1` |
+
+Normal native build ID:
+`c36dd094486bbf26dfac0e6025c3d8cb12785e85e4940eef20ee31f73af74b1f`;
+library SHA-256:
+`656b53708ddb24bfc6678f7bcf06c821c35175fe572d5c6dd124caf60ac117b3`.
+Fixture-only native build ID:
+`73ec38cb4c5dc56bd9df73da5069b15e42683b8679d9d5dee8725f8a7d792262`;
+library SHA-256:
+`3298557f8cfa83e4cbe3c205eea7a1fa8504dedede819789916edb5a0e4e08a7`.
+The exercised `edit-gdscript` SHA-256 is
+`b53aa5985e7e0a77f8170b18a0a01d5f26b6e1387e997184ff614742eb567dad`;
+`observe-gdscript` is
+`c768b20f6dbc111aa4dc922de777b88982b8f7f476f174c6d657e77f432d0511`.
+
+The Rust baseline in §2 passed **193 tests**, formatting, Clippy and rustdoc.
+The native-build suite passed **5 tests**, workflow suites passed **20 tests**,
+and Actionlint passed for both existing workflows. Owned processes/projects were
+cleaned up. Only documentation, completion markers and two responsibility-based
+comment corrections followed the GUI run; no behavioral implementation changed.
+
+This is local acceptance, not a claim that hosted CI or optional GUI CI ran.
+T005's cumulative durability, ≥20-edit stress and whole-feature evidence remain
+unstarted. Feature 002 and Roadmap Phase 1 are not complete. The inherited stock
+LSP endpoint limitation remains non-blocking; no MCP surface, broader platform
+support, runtime hot-reload or OS sandbox is claimed.
+

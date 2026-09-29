@@ -1,10 +1,10 @@
 # Edit Open GDScript — Caller Contract v1
 
-**Status:** T001's core was accepted against its historical numeric saved-evidence layout. The CLI/JSON adapter below remains T004 work. T003 completed its private §18 T1 native boundary and §19 L1 stock helper with [real-editor acceptance](../quickstart.md#11-t003-native-boundary-acceptance-2026-09-29). No public edit command or bridge-v2 cutover exists. T004 must migrate old Resource/document mtime and patched-parser evidence across core, adapter and contracts before consuming stock facts; no forged private values, cross-process editor-clock parity or unsafe compatibility shim is permitted. Independent authorization, safety and outcome semantics below remain normative.
+**Status:** T004 completed this CLI/JSON adapter and coordinated private bridge-v2 cutover against the stock §18 T1 native boundary and §19 L1 helper. [Caller acceptance](../quickstart.md#13-t004-caller-acceptance-2026-09-29) records the real-editor evidence separately from [T003's private acceptance](../quickstart.md#11-t003-native-boundary-acceptance-2026-09-29). The core uses public saved state, retained-descriptor T0 evidence and caller-clock stock validation, not private Resource/document mtimes or patched-parser evidence. T005's cumulative feature gates remain pending.
 
 ## 1. One operation and invocation
 
-The planned `edit-gdscript` binary performs one full-source replacement of one existing, already-open, standalone GDScript:
+The `edit-gdscript` binary performs one full-source replacement of one existing, already-open, standalone GDScript:
 
 ```sh
 edit-gdscript --registry "$REGISTRY" --project "$PROJECT" \
@@ -35,6 +35,12 @@ If desired bytes equal current independently agreeing source, take the unchanged
 ## 3. Structured result and process behavior
 
 Emit exactly one JSON EditOutcome plus newline on stdout. Fields and enum semantics are in [EditOutcome](../data-model.md#attemptprogress-and-editoutcome). Logs on stderr contain only correlated safe stage/reason metadata, not source, payloads, credentials, endpoints, authentication proofs or unrelated project paths. Target/dependency diagnostics belong only in the requested bounded result. Surface records carry actual source hashes/lengths and availability; full before/after source is not repeated in the edit result.
+
+Once the complete input shape and its checked request ID have been decoded,
+semantic refusals retain that correlation. Rejection before decoding—such as
+invalid CLI selectors, malformed shape or an input deadline—uses a fresh valid
+request ID instead of extracting an unvalidated field. Only checked selectors
+appear in `requested_target`; invalid selectors leave it null.
 
 | Exit | Meaning |
 |---|---|
@@ -81,7 +87,7 @@ These are behavior cases for implementation tests and live fixtures, not impleme
 
 Observation's public JSON/library behavior stays v1 and read-only, including clean/dirty/divergent/limited outcomes. Edit is a new caller operation/schema v1, not an optional observation flag. New outcome enums or changed required fields/precedence require deliberate edit-schema versioning.
 
-The private editor bridge still requires a v2 all-callsite cutover because v1 strictly limits operation tuples/capabilities. The existing detailed v2/family-revision-1 layouts and patched-editor prerequisites are **historical recipes, not finalized T1 wire fields or a production capability rule**; T004 owns the coherent numeric saved-evidence migration across Rust caller/worker, addon, native integration and contracts, without retaining v1 mutation or unsafe compatibility shims. Restart/re-enable the addon after an implemented cutover to create a fresh descriptor/session, then obtain a new observation basis. Current stock observation remains read-only; no running T1 edit capability or mutation exchange is implied by this design selection. Required implementation work still includes corresponding boundary tests and user docs; planning changes no running protocol.
+T004 cuts every private caller/worker/addon/fixture peer over to bridge v2, with authenticated edit capability and native build identity. V1 private peers are rejected rather than negotiated into mutation; observation's public schema remains unchanged. Restart/re-enable the updated addon to obtain a fresh descriptor/session, then collect a new observation basis. The typed saved-state and validation layouts migrate together to actual stock evidence; no private-mtime aliases, patched-editor requirement or cross-process editor-clock parity remains. The caller's real-editor acceptance and T005's cumulative feature evidence remain separate completion gates.
 
 ## 7. Implemented Rust core
 
@@ -101,16 +107,23 @@ Consumer sequence:
 2. Create `EditAttempt`, `select` a freshly authenticated target, then `prepare`
    with a fresh `ObservationOutcome`, independent `SavedStateEvidence` and caller-clock
    `DiskMetadata`. A missing inspection stays unavailable with an explicit reason.
-3. Changed intent requires `validation(Preflight)`, supervisor `authorize()` before
-   dispatch, and fresh `guard_application(...)`. Record `enter_application()` before
-   source/history entry. `buffer_changed`, `resource_synced` and permanent
-   `discard_before_boundary` require a request/session/document-bound `NativeWitness`.
+3. Changed intent requires `validation(Preflight)`, then fresh
+   `guard_application(...)` and a true `ready_to_apply()`. Only then call
+   `authorize()` immediately before releasing the one-shot worker control.
+   A failed guard has not dispatched and remains not-applied. Record
+   `enter_application()` before source/history entry. `buffer_changed`,
+   `resource_synced` and permanent `discard_before_boundary` require a
+   request/session/document-bound `NativeWitness`.
    The `enter_resource_sync`, `enter_persistence` and `enter_finalization` methods
    check eligibility for starting their respective stages; `*_unknown` records lost replies.
 4. Supply actual `PersistenceReceipt`, `FinalizationResult` and `validation(PostChange)`
    facts, then independent `verify(...)` source/dirty/saved/disk observations and
    `ContextRecheck`. Finalization's `before_*` fields describe entry to A, **after**
    source application and persistence, not a copy of the original revision.
+   If later helper/verification work is lost, `retain_after(...)` can preserve an
+   independently observed survivor snapshot. It does not complete verification
+   or substitute for the final successful sample. Partial finalization retains
+   confirmed bookkeeping and before/after facts even when a later tag is unknown.
 5. Unchanged intent uses only `validation(Unchanged)` and `verify(...)` after preparation.
    It never authorizes application, writes, tags saved state or participates in history.
 6. `fail(...)` retains terminal causes; `finish(interval)` consumes the attempt and

@@ -1,5 +1,12 @@
 # Private Editor Observation Bridge — Version 1
 
+**Migration:** This document records Feature 001's accepted private v1 boundary.
+The current caller/addon implementation uses
+[private bridge v2](../../002-edit-open-gdscript/contracts/bridge-protocol.md)
+for the coordinated edit integration. Public observation remains schema v1 and
+read-only. Update private peers together and restart the addon for a fresh session;
+there is no v1 mutation negotiation or compatibility shim.
+
 **Status:** T002 implements source-free bootstrap, authentication, routing, lifecycle and export isolation. T003 implements the Rust executor boundary (§8); T004 installs real observe/recheck collection (§9); T005 extends request-local attribution and invalidation (§10); T006 verifies source-bearing session/loss behavior (§11); T007 adds closed/built-in and partial-surface evidence (§12). This is private local integration, not MCP, a remote API, or a separate safety model. The [caller contract](observation-api.md) and [data model](../data-model.md) own user-visible semantics.
 
 This is the initial version-1 implementation. It has no raw-token hello or legacy authentication path. No arbitrary code, object deserialization, process command, source write, Save, open/select, reload, rescan, or runtime operation is representable on the bridge.

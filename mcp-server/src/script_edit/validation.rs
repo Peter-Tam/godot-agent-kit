@@ -32,7 +32,6 @@ pub struct ValidationDiagnostic {
     pub source: Option<SourceDigest>,
     pub line: Option<u32>,
     pub column: Option<u32>,
-    pub category: String,
     pub message: String,
 }
 impl fmt::Debug for ValidationDiagnostic {
@@ -43,7 +42,6 @@ impl fmt::Debug for ValidationDiagnostic {
             .field("source", &self.source)
             .field("line", &self.line)
             .field("column", &self.column)
-            .field("category", &"[redacted]")
             .field("message", &"[redacted]")
             .finish()
     }
@@ -53,6 +51,14 @@ pub struct DependencyWitness {
     pub path: ResourcePath,
     pub identity: FileIdentity,
     pub source: SourceDigest,
+}
+/// Both stock LSP fences for one owner-attributed captured source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidationSourceFence {
+    pub path: ResourcePath,
+    pub source: SourceDigest,
+    pub diagnostics_completed: bool,
+    pub symbols_completed: bool,
 }
 /// Validation is attributed to exact source, invocation, dependency and context witnesses.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,7 +76,8 @@ pub struct ValidationResult {
     pub context: [u8; 32],
     pub context_current: bool,
     pub dependencies_current: bool,
-    pub diagnostics_complete: bool,
+    pub sources: Vec<ValidationSourceFence>,
+    pub cleanup_confirmed: bool,
     pub diagnostics: Vec<ValidationDiagnostic>,
 }
 /// Fresh read-only project mapping and dependency witnesses, obtained after validation.
@@ -88,7 +95,9 @@ pub struct ContextRecheck {
 /// Retain bounded, attributable diagnostics without upgrading unavailable evidence.
 pub(super) fn bound_evidence(result: &mut ValidationResult) {
     let mut dependency_bytes = 0usize;
-    let mut over_limit = result.dependencies.len() > 32 || result.diagnostics.len() > 64;
+    let mut over_limit = result.dependencies.len() > 32
+        || result.sources.len() > 33
+        || result.diagnostics.len() > 64;
     result.dependencies.truncate(32);
     result.dependencies.retain(|dependency| {
         let fits = dependency.source.utf8_bytes <= SOURCE_LIMIT_BYTES
@@ -99,9 +108,10 @@ pub(super) fn bound_evidence(result: &mut ValidationResult) {
         over_limit |= !fits;
         fits
     });
+    result.sources.truncate(33);
     result.diagnostics.truncate(64);
     result.diagnostics.retain(|diagnostic| {
-        let fits = diagnostic.message.len() <= 2048 && diagnostic.category.len() <= 128;
+        let fits = diagnostic.message.len() <= 2048;
         over_limit |= !fits;
         fits
     });
@@ -113,7 +123,14 @@ pub(super) fn bound_evidence(result: &mut ValidationResult) {
                 .filter(|r| r.suppresses_source())
                 .unwrap_or(Reason::EvidenceLimit),
         );
-        result.diagnostics_complete = false;
+        result.cleanup_confirmed = false;
+        result.sources.retain(|fence| {
+            fence.path == result.source_path
+                || result
+                    .dependencies
+                    .iter()
+                    .any(|d| d.path == fence.path && d.source == fence.source)
+        });
         // A discarded dependency cannot authorize retaining its source-attributed error.
         result.diagnostics.retain(|d| {
             d.origin == DiagnosticOrigin::Root
@@ -125,6 +142,15 @@ pub(super) fn bound_evidence(result: &mut ValidationResult) {
         });
     }
 }
+/// Complete owner fences must cover the root and every admitted dependency exactly once.
+pub(super) fn complete_fences(result: &ValidationResult) -> bool {
+    result.cleanup_confirmed
+        && result.sources.len() == result.dependencies.len() + 1
+        && result
+            .sources
+            .iter()
+            .all(|fence| fence.diagnostics_completed && fence.symbols_completed)
+}
 
 pub(super) fn check_attribution(
     result: &ValidationResult,
@@ -134,14 +160,22 @@ pub(super) fn check_attribution(
     if result.source_path != *source_path
         || result.input != *intended
         || result.dependencies.iter().enumerate().any(|(i, d)| {
-            d.path.kind() != Some(ScriptKind::ExternalGdscript)
+            d.path == *source_path
+                || d.path.kind() != Some(ScriptKind::ExternalGdscript)
                 || result.dependencies[..i]
                     .iter()
                     .any(|old| old.path == d.path)
         })
+        || result.sources.iter().enumerate().any(|(i, fence)| {
+            result.sources[..i].iter().any(|old| old.path == fence.path)
+                || (fence.path == *source_path && fence.source != *intended)
+                || (fence.path != *source_path
+                    && !result.dependencies.iter().any(|dependency| {
+                        dependency.path == fence.path && dependency.source == fence.source
+                    }))
+        })
         || result.diagnostics.iter().any(|d| {
             d.message.len() > 2048
-                || d.category.len() > 128
                 || d.path.as_ref().is_some_and(|p| p.as_str().len() > 2048)
                 || d.path.is_none() != d.path_reason.is_some()
                 || d.origin == DiagnosticOrigin::Root
