@@ -10,9 +10,11 @@ import time
 
 import run_observation as observation
 from native_finalization_acceptance import DESIRED, ROOT
+from caller_privacy_acceptance import CallerPrivacyAcceptanceMixin
+from edit_result_review import review_edit_result
 
 
-class CallerEditAcceptanceMixin:
+class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
     def caller_fixture(self, name, *, prior=False, faults=False, baseline=None):
         project = self.fixture("caller-" + name, controlled=True)
         if baseline is not None:
@@ -121,18 +123,21 @@ class CallerEditAcceptanceMixin:
                             (reason is None or result.get("reason") == reason) and
                             (application is None or result.get("application") == application),
                             "edit_public_outcome_" + name)
+        result_review = review_edit_result(result)
         self.case(name, source_surfaces="actual_caller_and_independent_native_disk_witness",
                   outcome=result["outcome"], reason=result.get("reason"),
                   application=result.get("application"), history=result.get("history"),
-                  elapsed_seconds=elapsed, evidence=name + ".json")
+                  elapsed_seconds=elapsed, evidence=name + ".json", result_review=result_review)
         return result
 
     def edit(self, project, basis, desired, name, expected, code, *, session=None,
              reason=None, application=None, script=ROOT, payload=None, correlated=True):
         payload = payload or self.edit_payload(basis, desired)
+        started = time.monotonic()
         process = self.edit_process(project, payload, session=session, script=script)
         return self.complete_edit(process, payload, name, expected, code,
-                                  reason=reason, application=application, correlated=correlated)
+                                  reason=reason, application=application, correlated=correlated,
+                                  started=started)
 
     def state(self, editor, project):
         before, disks = self.snapshot(editor, project)
@@ -755,8 +760,8 @@ class CallerEditAcceptanceMixin:
             self.case("caller_deadline_stage_" + stage.replace(":", "-"),
                       source_surfaces="real_stage_barrier_deadline_and_independent_after_state")
         project, editor, descriptor, before, disks = self.caller_fixture("stdin-no-eof")
-        process = self.edit_process(project, None, session=descriptor["session_id"])
         started = time.monotonic()
+        process = self.edit_process(project, None, session=descriptor["session_id"])
         process.stdin.write(b'{"schema_version":1,"request_id":"incomplete-before-authorization",')
         process.stdin.flush()
         try:
@@ -766,14 +771,20 @@ class CallerEditAcceptanceMixin:
             if process.poll() is None:
                 process.kill()
                 process.communicate(timeout=2)
-        observation.require(time.monotonic() - started <= 10.4 and process.returncode == 4 and
-                            stdout.endswith(b"\n") and
-                            json.loads(stdout)["application"] == "not_applied",
+        elapsed = time.monotonic() - started
+        result = json.loads(stdout)
+        observation.require(elapsed <= 10.0 and process.returncode == 4 and
+                            stdout.endswith(b"\n") and stdout.count(b"\n") == 1 and
+                            result["application"] == "not_applied" and
+                            all(secret not in stdout for secret in self.secrets),
                             "stdin_no_eof_supervised_before_authorization")
+        result_review = review_edit_result(result)
+        observation.json_file(self.artifacts / "caller-stdin-no-eof.json", result)
         self.safe_log("caller-stdin-no-eof.stderr", stderr)
         self.unchanged_state(editor, project, before, disks, "stdin_no_eof")
         self.case("caller_stalled_stdin_no_authorize_no_late_apply",
-                  source_surfaces="actual_supervised_input_deadline_and_disk_history")
+                  source_surfaces="actual_supervised_input_deadline_and_disk_history",
+                  elapsed_seconds=elapsed, evidence="caller-stdin-no-eof.json", result_review=result_review)
         project, editor, descriptor, before, disks = self.caller_fixture("disconnect")
         basis = self.edit_basis(project, descriptor, "basis-disconnect")
         process, payload, started = self.held_edit(project, editor, basis, DESIRED,

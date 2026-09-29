@@ -381,9 +381,20 @@ func _process(_delta: float) -> void:
 				_:
 					response.ok = false
 			response.document = _document("res://scripts/subject.gd")
-	elif action == "native_edit_save":
+	elif action == "native_edit_reparse":
 		var doc := _document("res://scripts/subject.gd")
-		response.ok = doc.get("associated", false) and doc.dirty
+		response.ok = doc.get("associated", false)
+		if response.ok:
+			var script := EditorInterface.get_script_editor().get_open_scripts()[doc.index] as GDScript
+			response.script_id = doc.script_id
+			response.parse_error = script.reload()
+			response.parse_completed = response.parse_error == OK
+			response.document = _document("res://scripts/subject.gd")
+			response.ok = response.parse_completed and response.document.script_id == doc.script_id
+	elif action in ["native_edit_save", "native_edit_save_clean"]:
+		var doc := _document("res://scripts/subject.gd")
+		var clean_save := action == "native_edit_save_clean"
+		response.ok = doc.get("associated", false) and doc.dirty != clean_save
 		if response.ok:
 			var buffer := EditorInterface.get_script_editor().get_open_script_editors()[doc.index].get_base_editor() as CodeEdit
 			var script := EditorInterface.get_script_editor().get_open_scripts()[doc.index] as GDScript
@@ -401,6 +412,10 @@ func _process(_delta: float) -> void:
 			var release := press.duplicate() as InputEventKey
 			release.pressed = false
 			Input.parse_input_event(release)
+			if clean_save:
+				# A clean target already has A's bytes on disk. Deliver the
+				# ordinary editor shortcut without claiming a changed write.
+				await get_tree().process_frame
 			var deadline := Time.get_ticks_usec() + 4000000
 			while Time.get_ticks_usec() < deadline:
 				if FileAccess.get_file_as_string("res://scripts/subject.gd") == doc.B \
@@ -411,7 +426,7 @@ func _process(_delta: float) -> void:
 			response.before_disk_changed = before_disk != saved.B
 			response.disk_matches = FileAccess.get_file_as_string("res://scripts/subject.gd") == saved.B
 			response.document = saved
-			response.ok = response.focused and response.before_disk_changed \
+			response.ok = response.focused and response.before_disk_changed != clean_save \
 				and response.disk_matches and not saved.dirty \
 				and saved.version == saved.saved_version
 	elif action == "native_edit_scan":

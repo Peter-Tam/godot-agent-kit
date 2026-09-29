@@ -10,7 +10,9 @@ from HEAD; its implementation and evidence remain in
 [historical acceptance](../../specs/002-edit-open-gdscript/quickstart.md#10-t002-native-validation-acceptance-2026-09-28).
 T004 adds the guarded `edit-gdscript` caller and bridge-v2 edit exchange.
 Its [real-editor caller acceptance](../../specs/002-edit-open-gdscript/quickstart.md#13-t004-caller-acceptance-2026-09-29)
-is complete; T005's cumulative full-feature gates remain pending.
+is complete; [T005 cumulative acceptance](../../specs/002-edit-open-gdscript/quickstart.md#14-t005-cumulative-acceptance-2026-09-29)
+completes Feature 002 on the exact recorded stock/macOS arm64 candidate. No other
+Godot version or platform is claimed.
 
 ## Build and private integration
 
@@ -71,12 +73,14 @@ The caller owns validation supervision and a 9.5-second operation budget with
 the target script or treats a native acknowledgment as verified success.
 
 The caller runner groups are `clean-open`, `conflicts`, `routing`,
-`interruption`, `validation` and `history`. Each requires the absolute
-`--editor` path to the built `edit-gdscript`; `interruption` also requires the
-separate `--native-fault-addon` artifact. Use a new empty mode-0700
-`--artifacts` directory per group and an unlocked visible GUI session.
-State diagnostics without owned-window captures do not pass these acceptance
-gates. T005's cumulative full-feature evidence remains separate.
+`interruption`, `validation`, `history`, `durability`, `sequential` and
+`privacy-export`. Each requires the absolute `--editor` path to the built
+`edit-gdscript`; `interruption` also requires the separate `--native-fault-addon`
+artifact. `--scenario all` runs the complete edit/native/export suite and requires
+`--editor`, `--stock-validator` and `--native-fault-addon`. Run the full observation
+suite separately afterward. Use a new empty mode-0700 `--artifacts` directory
+per invocation and an unlocked visible GUI session. State diagnostics without
+owned-window captures do not pass these acceptance gates.
 
 
 ## Official-stock boundary and verification

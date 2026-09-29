@@ -5,19 +5,19 @@
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
 - **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** Implementation in progress under unchanged [§18 T1](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) and [§19.9 R1 / L1](specs/002-edit-open-gdscript/research.md#199-capability-delta-readiness-review-2026-09-29). The stock endpoint limitation remains non-blocking. Feature 002 and its mutation acceptance are incomplete.
-- **Tasks:** 4 / 5 complete
+- **Feature state:** **Complete**, under unchanged [§18 T1](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) and [§19.9 R1 / L1](specs/002-edit-open-gdscript/research.md#199-capability-delta-readiness-review-2026-09-29). [Cumulative acceptance](specs/002-edit-open-gdscript/quickstart.md#14-t005-cumulative-acceptance-2026-09-29) satisfies Feature 002's gates on the exact supported stock candidate; the inherited endpoint limitation remains non-blocking.
+- **Tasks:** 5 / 5 complete
 - **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
-- **Current task:** T004 — **Complete** on `task/T004-guarded-caller-edit`: guarded caller integration and inseparable US1–US4 safety/history acceptance. Completion is independent of PR review/merge. T005 remains unstarted and must not begin before T004's PR merges unless a stacked workflow is explicitly authorized.
-- **T004 verification:** [Real-editor caller acceptance](specs/002-edit-open-gdscript/quickstart.md#13-t004-caller-acceptance-2026-09-29) passed 170 caller records, 149 native-primitive records and 204 observation records with owned-window captures. Rust formatting, Clippy, 193 tests and rustdoc; 5 native-build tests, 20 workflow tests and Actionlint passed. The locked-desktop limitation in the earlier state-only diagnostics is resolved.
-- **Mutation A–E and edit durability:** T004's caller safety/history and representative durability gates pass on the exact stock candidate. T005 still owns cumulative ≥20-edit stress and whole-feature durability/compatibility evidence. Feature 002 and Phase 1 remain incomplete; no wider-platform support is claimed.
+- **Current task:** T005 — **Complete** on `task/T005-cumulative-edit-acceptance`: cumulative script-edit durability and verified compatibility. Completion is independent of PR review/merge. T004's PR #39 merged before this task; its local/remote source branches were already absent. No next task is selected.
+- **T005 verification:** Complete real-editor edit/native suite **405 records**, observation suite **204 records**, twenty fresh-basis edits and six unsafe interleavings, native history, Save/reopen/reparse/rescan/runtime and all three export variants. All 113 caller results received result-only review; maximum edit **9.566 s**, observation **4.650 s**. Rust formatting, Clippy, **193 tests**, rustdoc and builds; **5 native-build tests**, **22 workflow tests** and Actionlint passed. Owned-window images were inspected.
+- **Phase 1 assessment:** A–E and applicable durability proof pass for the approved open-script slice. Phase 1 remains in progress: broader roadmap capability areas such as script discovery/open and independent lifecycle controls are not delivered by this feature. No wider-platform support, new feature or later-phase implementation is selected.
 
 ## Roadmap status
 
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001 and Feature 002 T001–T004 complete. The guarded caller passed real-editor safety/history, representative durability, native, privacy/export and observation regressions. T005's cumulative feature gates remain pending. No broader platform support. |
+| 1 — Live-editor script coherence | In progress | Features 001 and 002 complete. A–E, cumulative stress, ordinary durability/runtime, privacy/export and observation gates pass on the exact stock candidate. Broader roadmap discovery/open/lifecycle capability areas remain outside these features; feature completion is not a blanket phase-completion claim. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 The research sections below retain the pre-implementation design/evidence history.
