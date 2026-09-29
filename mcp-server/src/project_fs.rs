@@ -153,6 +153,16 @@ fn check_ancestors(path: &Path) -> Result<(), RoutingFailure> {
     Ok(())
 }
 
+pub(crate) fn validation_ancestors(path: &Path) -> bool {
+    check_ancestors(path).is_ok()
+}
+pub(crate) fn validation_acl_safe(fd: &impl std::os::fd::AsRawFd) -> bool {
+    acl::denies_only(fd)
+}
+pub(crate) fn validation_owner(uid: u32) -> bool {
+    uid == effective_uid()
+}
+
 /// Creates or verifies a dedicated owner-private registry; never repairs unsafe metadata.
 /// # Errors
 /// Refuses missing, non-directory, non-owner-private, ACL-granted or unverifiable

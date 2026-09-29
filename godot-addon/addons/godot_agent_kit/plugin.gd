@@ -3,12 +3,14 @@ extends EditorPlugin
 
 const BridgeScript = preload("res://addons/godot_agent_kit/bridge.gd")
 const ExportGuardScript = preload("res://addons/godot_agent_kit/export_guard.gd")
+const ScriptEditScript = preload("res://addons/godot_agent_kit/script_edit.gd")
 const NATIVE_EXTENSION := "res://addons/godot_agent_kit/native/script_edit.gdextension"
 const NATIVE_LIBRARY := "res://addons/godot_agent_kit/native/libscript_edit.macos.arm64.dylib"
 
 var _bridge: Node
 var _export_guard: EditorExportPlugin
 var _native: Dictionary = {}
+var _edit: Node
 
 
 func _load_native() -> void:
@@ -22,12 +24,12 @@ func _load_native() -> void:
 
 
 func _native_api() -> Dictionary:
-	if not Engine.has_meta("godot_agent_kit_native_validation"):
+	if not Engine.has_meta("godot_agent_kit_native"):
 		return {}
-	var candidate: Variant = Engine.get_meta("godot_agent_kit_native_validation")
+	var candidate: Variant = Engine.get_meta("godot_agent_kit_native")
 	if not (candidate is Dictionary):
 		return {}
-	for operation in ["configure", "close", "validate", "api_revision", "build_id"]:
+	for operation in ["configure", "close", "api_revision", "build_id"]:
 		if not candidate.has(operation) or not (candidate[operation] is Callable) \
 				or not candidate[operation].is_custom() or not candidate[operation].is_valid():
 			return {}
@@ -40,10 +42,24 @@ func _native_api() -> Dictionary:
 	return candidate
 
 
+func _native_edit_api(candidate: Dictionary) -> Dictionary:
+	for operation in ["edit_prepare", "edit_advance", "edit_cancel", "edit_expire"]:
+		if not candidate.has(operation) or not (candidate[operation] is Callable) \
+				or not candidate[operation].is_custom() or not candidate[operation].is_valid():
+			return {}
+	return candidate
+
+
 func _enter_tree() -> void:
 	_export_guard = ExportGuardScript.new()
 	add_export_plugin(_export_guard)
 	_load_native()
+	var edit_api := _native_edit_api(_native_api())
+	if not edit_api.is_empty():
+		_edit = ScriptEditScript.new()
+		_edit.name = "GodotAgentKitScriptEdit"
+		add_child(_edit)
+		_edit.configure(edit_api, null)
 	if not OS.has_environment("GODOT_AGENT_KIT_REGISTRY"):
 		return
 	var registry := OS.get_environment("GODOT_AGENT_KIT_REGISTRY")
@@ -60,9 +76,15 @@ func _enter_tree() -> void:
 		_native = _native_api()
 		if not _native.is_empty() and not _native["configure"].call(_bridge.get("_session")):
 			_native = {}
+		if _edit != null:
+			_edit.configure(_native_edit_api(_native), _bridge)
 
 
 func _exit_tree() -> void:
+	if _edit != null:
+		remove_child(_edit)
+		_edit.free()
+		_edit = null
 	var api := _native if not _native.is_empty() else _native_api()
 	if not api.is_empty():
 		api["close"].call()

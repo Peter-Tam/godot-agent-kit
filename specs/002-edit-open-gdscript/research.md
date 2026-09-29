@@ -4,7 +4,7 @@
 
 **Historical §11 planning status: State A — concrete patched native integration selected at that stage.** Section 11 records that design; later T001 core and T002 native-validation implementation evidence is recorded in [quickstart §§9–10](quickstart.md#9-t001-core-acceptance-2026-09-27). Native mutation/caller acceptance remains pending. The historical native probe interruption was a tooling-policy limitation, not technical evidence against native integration; it remains an incomplete probe. Section 10's guarded single-editor concurrency boundary is retained. No mutation-support claim follows from this research.
 
-**Current research decisions (2026-09-29): R1 — L1 validator design established**, with a non-blocking inherited stock-LSP endpoint limitation ([§19.9](#199-capability-delta-readiness-review-2026-09-29)). The one-shot matching official-stock helper is selected for the studied supported source-only profile; owner source/version, diagnostics/symbols and staged-disk dependency attribution remain established. The PR #36 architectural L2 privacy hold lacked a demonstrated in-scope capability delta beyond normal stock Godot use. [§18 T1](#18-preserved-mtime-behavioral-finalization-research-2026-09-28) preserved-mtime finalization is unchanged/closed. T003 is **implementation-ready but unstarted**; T001/T002 remain complete, with T002 a historical semantic oracle/effect-site inventory/differential reference, not a production dependency. Five tasks and dependencies are unchanged. No product code/API/schema, A–E acceptance or spec change follows from this design correction; implementation and acceptance remain pending.
+**Current disposition:** T001–T003 are complete; T004/T005 remain unstarted and Feature 002 remains 3/5 complete. T003 implemented the [§18 T1](#18-preserved-mtime-behavioral-finalization-research-2026-09-28) finalizer and [§19.9 R1 / L1](#199-capability-delta-readiness-review-2026-09-29) stock validator; the inherited stock-LSP endpoint limitation remains documented and non-blocking. [Quickstart §11](quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) records acceptance and current stock-only reproduction. T002 remains historically complete; its superseded implementation is archived in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29) and git history, not maintained on HEAD. The sections below retain their original research/development snapshots, not current build instructions or new proof obligations.
 
 **Prior decisions (historical, superseded for production finalization only):** §13's ordinary-Save failures, §14's P1 saved-handler mechanics, §15's V2 and §16's H3 admission investigations, and §17's M3/F-blocking no-restore experiment retain their original observations. §18 supplies the distinct runtime repair and selects a production design without saved-handler discovery/call or its related function-discovery/live-reload/debugger routing machinery. Do not reinterpret the earlier failed route as a pass, infer that PR #34's extra history step had a proven cause, or erase the earlier research.
 
@@ -2035,3 +2035,37 @@ are unchanged. The current analysis is recorded in the
 
 [s19-lsp-defaults]: https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/settings/editor_settings.cpp#L1145-L1152
 [s19-server-start]: https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/language_server/gdscript_language_server.cpp#L46-L113
+
+## 20. T003 implementation evidence boundary (2026-09-29)
+
+T003's private helper/native boundary is complete.
+[Quickstart §11](quickstart.md#11-t003-native-boundary-acceptance-2026-09-29)
+records implementation acceptance separately from the earlier research below.
+Sections 18–19 and their historical invocation counts are unchanged.
+
+Current implementation checks retain official 4.7.2/macOS arm64 and the same
+binary pin. No new crate, service, engine patch or supported-platform claim is
+introduced. A separate standard-ABI build mode preserves the patched T002 oracle
+without making it a stock dependency.
+
+New focused nonvisual runtime observations include actual effective `.editor`
+warning overrides and global-class context. Public global-class entries use
+StringName values; dropping those entries as non-String would falsely omit
+context. Three owned-helper additional-client cases preserved owner attribution:
+invalid peer/valid owner, valid peer/invalid owner, and an invalid managed
+dependency overlay while owner validation followed captured staged disk.
+Those peers used only owned staged URIs; no cross-user or outside-helper read
+experiment was introduced.
+
+A controlled ordinary live-editor continuation initialized a cold tool base,
+while the guarded native preparation refused it before history/source changes.
+The isolated source-only helper and live editor therefore retain distinct
+admission profiles. Synchronous CodeEdit callback changes, reentrant cancellation
+and shutdown require source/version rechecks and slot retention until native
+work returns; these are not saved-handler discovery or global callback control.
+
+The focused observations above were not themselves full acceptance. The later
+unlocked GUI campaigns passed 149 stock primitive/export cases, 194 observation
+regressions and 54 oracle/export cases, as recorded in quickstart §11. T003 is
+complete; T004/T005 and full public-caller/cumulative feature acceptance remain
+pending. No research count or historical verdict was changed.

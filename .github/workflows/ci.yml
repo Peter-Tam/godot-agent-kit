@@ -75,7 +75,7 @@ jobs:
           cargo build --locked --bin observe-gdscript
 
   editor-native:
-    name: Editor native build
+    name: Stock native build
     runs-on: macos-15
     timeout-minutes: 90
     steps:
@@ -85,28 +85,15 @@ jobs:
           persist-credentials: false
       - name: Check native ABI refusal boundaries
         run: python3 -m unittest discover -s godot-addon/tests -p test_native_build.py -v
-      - name: Check out pinned engine
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-        with:
-          repository: godotengine/godot
-          ref: ed1daf0bf001b61586d9930840f2f1394092c079
-          path: engine-source
-          persist-credentials: false
-      - name: Prepare pinned engine build
+      - name: Acquire the pinned official stock editor
         run: |
-          test "$(uname -m)" = arm64
-          test "$(git -C engine-source rev-parse HEAD)" = ed1daf0bf001b61586d9930840f2f1394092c079
-          python3 -m venv "$RUNNER_TEMP/native-build"
-          "$RUNNER_TEMP/native-build/bin/python" -m pip install --disable-pip-version-check SCons==4.10.1
-          git -C engine-source apply --check "$GITHUB_WORKSPACE/godot-addon/native/engine-api.patch"
-          git -C engine-source apply "$GITHUB_WORKSPACE/godot-addon/native/engine-api.patch"
-      - name: Build patched editor
-        working-directory: engine-source
-        run: |
-          "$RUNNER_TEMP/native-build/bin/python" -m SCons -j3 \
-            platform=macos target=editor arch=arm64 dev_build=no debug_symbols=no \
-            optimize=none vulkan=no metal=no accesskit=no angle=no tests=yes
-      - name: Build matched public-ABI extension
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_macos.universal.zip \
+            --output "$RUNNER_TEMP/stock-editor.zip"
+          test "$(shasum -a 256 "$RUNNER_TEMP/stock-editor.zip" | cut -d ' ' -f1)" = c58a24e31d720be9d62f60cb5627c4e695fb72f21b0cfe1bc9ccaa9a3b3ba63e
+          ditto -x -k "$RUNNER_TEMP/stock-editor.zip" "$RUNNER_TEMP/stock-editor"
+          test "$(shasum -a 256 "$RUNNER_TEMP/stock-editor/Godot.app/Contents/MacOS/Godot" | cut -d ' ' -f1)" = c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf
+      - name: Build the official-stock public-ABI extension
         run: |
           python3 godot-addon/native/build.py \
-            --godot "$GITHUB_WORKSPACE/engine-source/bin/godot.macos.editor.arm64"
+            --godot "$RUNNER_TEMP/stock-editor/Godot.app/Contents/MacOS/Godot"

@@ -1,6 +1,5 @@
 #include "native.hpp"
 
-#include <array>
 #include <cstring>
 #include <thread>
 
@@ -25,18 +24,19 @@ bool supported_engine() {
 }
 
 bool engine_revision() {
-    Name cls("GDScript"), method("gdscript_validation_api_revision"), edited("get_edited_resource"), base("ScriptEditorBase"), validate("validate_gdscript_source");
-    if (!api.bind(cls.ptr(), method.ptr(), GAK_HASH_GDSCRIPT_REVISION) ||
-            !api.bind(cls.ptr(), validate.ptr(), GAK_HASH_GDSCRIPT_VALIDATE) ||
-            !api.bind(base.ptr(), edited.ptr(), GAK_HASH_SCRIPT_EDITOR_EDITED)) { return false; }
-    Value value = call(nullptr, "GDScript", "gdscript_validation_api_revision", GAK_HASH_GDSCRIPT_REVISION);
-    int64_t revision = 0;
-    if (value.type() != GDEXTENSION_VARIANT_TYPE_INT) { return false; }
-    api.to[GDEXTENSION_VARIANT_TYPE_INT](&revision, value.ptr());
-    return revision == 1;
+    Name editor("EditorInterface"), script("Script"), text("TextEdit"), base("ScriptEditorBase");
+    Name setter("set_object_edited"), source("set_source_code"), saved("tag_saved_version"), buffer("get_base_editor");
+    return api.bind(editor.ptr(), setter.ptr(), GAK_HASH_SET_EDITED) &&
+            api.bind(script.ptr(), source.ptr(), GAK_HASH_SCRIPT_SET_SOURCE) &&
+            api.bind(text.ptr(), saved.ptr(), GAK_HASH_TAG_SAVED) &&
+            api.bind(base.ptr(), buffer.ptr(), GAK_HASH_BASE_EDITOR);
 }
 
-enum class Action { Configure, Close, Validate, Revision, BuildId };
+enum class Action { Configure, Close, Revision, BuildId, Prepare, Advance, Cancel, Expire,
+#if GAK_FIXTURE
+    FixtureFault,
+#endif
+};
 
 void native_callback(void *userdata, const GDExtensionConstVariantPtr *arguments, GDExtensionInt count,
         GDExtensionVariantPtr destination, GDExtensionCallError *error) {
@@ -66,20 +66,51 @@ void native_callback(void *userdata, const GDExtensionConstVariantPtr *arguments
         copy_into(destination, boolean(ok));
         return;
     }
-    if (action == Action::Validate) {
-        if (count != 3) {
-            Value result = validation(session, {});
-            copy_into(destination, result);
-            return;
+    if (action == Action::Prepare) {
+        Value result;
+        if (count == 4 && std::this_thread::get_id() == session.main_thread) {
+            Value path(arguments[0]), expected(arguments[1]), desired(arguments[2]), correlation(arguments[3]);
+            result = edit_prepare(session, path, expected, desired, correlation);
         }
-        Value source(arguments[0]), path(arguments[1]), correlation(arguments[2]);
-        Value result = validation(session, {&source, &path, &correlation});
+        copy_into(destination, result);
+        return;
+    }
+    if (action == Action::Advance || action == Action::Cancel) {
+        Value result;
+        if (std::this_thread::get_id() == session.main_thread &&
+                count == (action == Action::Advance ? 2 : 1)) {
+            Value request(arguments[0]);
+            if (action == Action::Advance) {
+                Value stage(arguments[1]);
+                result = edit_advance(session, request, stage);
+            } else { result = edit_cancel(session, request); }
+        }
+        copy_into(destination, result);
+        return;
+    }
+    if (action == Action::Expire) {
+        if (count == 0 && std::this_thread::get_id() == session.main_thread) { edit_expire(session); }
+        return;
+    }
+#if GAK_FIXTURE
+    if (action == Action::FixtureFault) {
+        Value result;
+        if (count == 2 && std::this_thread::get_id() == session.main_thread) {
+            Value request(arguments[0]), fault(arguments[1]);
+            result = edit_fixture_fault(session, request, fault);
+        }
         copy_into(destination, result);
     }
+#endif
 }
 
-Action configure_action = Action::Configure, close_action = Action::Close, validate_action = Action::Validate;
+Action configure_action = Action::Configure, close_action = Action::Close;
 Action revision_action = Action::Revision, build_action = Action::BuildId;
+Action prepare_action = Action::Prepare, advance_action = Action::Advance, cancel_action = Action::Cancel;
+Action expire_action = Action::Expire;
+#if GAK_FIXTURE
+Action fault_action = Action::FixtureFault;
+#endif
 
 Value callable(Action &action) {
     Storage<GAK_SIZE_CALLABLE> storage;
@@ -103,15 +134,21 @@ void editor_initialize(void *, GDExtensionInitializationLevel level) {
     session.main_thread = std::this_thread::get_id();
     void *engine = engine_singleton();
     if (!engine) { return; }
-    Value key = name("godot_agent_kit_native_validation");
+    Value key = name("godot_agent_kit_native");
     Value found = call(engine, "Object", "has_meta", 2619796661ULL, {&key});
     if (found.type() != GDEXTENSION_VARIANT_TYPE_BOOL || truth(found)) { return; }
     Value metadata = dict();
     put(metadata, "configure", callable(configure_action));
     put(metadata, "close", callable(close_action));
-    put(metadata, "validate", callable(validate_action));
     put(metadata, "api_revision", callable(revision_action));
     put(metadata, "build_id", callable(build_action));
+    put(metadata, "edit_prepare", callable(prepare_action));
+    put(metadata, "edit_advance", callable(advance_action));
+    put(metadata, "edit_cancel", callable(cancel_action));
+    put(metadata, "edit_expire", callable(expire_action));
+#if GAK_FIXTURE
+    put(metadata, "edit_fixture_fault", callable(fault_action));
+#endif
     Value done = call(engine, "Object", "set_meta", 3776071444ULL, {&key, &metadata});
     (void)done;
     registered = true;
@@ -123,7 +160,7 @@ void editor_deinitialize(void *, GDExtensionInitializationLevel level) {
     if (registered) {
         void *engine = engine_singleton();
         if (engine) {
-            Value key = name("godot_agent_kit_native_validation");
+            Value key = name("godot_agent_kit_native");
             Value removed = call(engine, "Object", "remove_meta", 3304788590ULL, {&key});
             (void)removed;
         }
@@ -163,7 +200,8 @@ extern "C" __attribute__((visibility("default"))) GDExtensionBool script_edit_li
             !load(api.bound_call, proc, "object_method_bind_call") ||
             !load(api.class_tag, proc, "classdb_get_class_tag") ||
             !load(api.cast_to, proc, "object_cast_to") ||
-            !load(api.instance_id, proc, "object_get_instance_id")) { return 0; }
+            !load(api.instance_id, proc, "object_get_instance_id") ||
+            !load(api.from_id, proc, "object_get_instance_from_id")) { return 0; }
     for (const auto kind : {GDEXTENSION_VARIANT_TYPE_BOOL, GDEXTENSION_VARIANT_TYPE_INT,
             GDEXTENSION_VARIANT_TYPE_STRING, GDEXTENSION_VARIANT_TYPE_STRING_NAME,
             GDEXTENSION_VARIANT_TYPE_OBJECT, GDEXTENSION_VARIANT_TYPE_CALLABLE,

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <sys/stat.h>
 #include <sys/types.h>
 #include "gdextension_interface.h"
 #include "native_abi_sizes.h"
@@ -41,6 +42,7 @@ struct Api {
     GDExtensionInterfaceClassdbGetMethodBind bind{};
     GDExtensionInterfaceObjectMethodBindCall bound_call{};
     GDExtensionInterfaceObjectGetInstanceId instance_id{};
+    GDExtensionInterfaceObjectGetInstanceFromId from_id{};
     GDExtensionInterfaceClassdbGetClassTag class_tag{};
     GDExtensionInterfaceObjectCastTo cast_to{};
 };
@@ -135,7 +137,6 @@ inline Value collection(GDExtensionVariantType kind) {
     return v;
 }
 inline Value dict() { return collection(GDEXTENSION_VARIANT_TYPE_DICTIONARY); }
-inline Value array() { return collection(GDEXTENSION_VARIANT_TYPE_ARRAY); }
 inline void put(Value &dict, const char *key, const Value &value) {
     Value k = string(key);
     auto *dst = api.dictionary_index(api.internal[GDEXTENSION_VARIANT_TYPE_DICTIONARY](dict.ptr()), k.ptr());
@@ -182,6 +183,9 @@ inline Value invoke(Value &self, const char *method, std::initializer_list<const
 inline void copy_into(void *destination, const Value &v) { api.destroy(destination); api.new_copy(destination, v.ptr()); }
 
 std::string sha256(std::string_view bytes);
+struct EditAttempt;
+bool valid_utf8(std::string_view source);
+bool same_time(timespec left, timespec right);
 bool engine_binary_matches();
 struct Session {
     int project_fd = -1;
@@ -191,9 +195,18 @@ struct Session {
     std::string session_id;
     std::thread::id main_thread;
     enum class CallState { Idle, Running, Closing };
+    EditAttempt *attempt = nullptr;
     CallState call_state = CallState::Idle;
 };
-Value validation(Session &session, std::initializer_list<const Value *> args);
 bool configure(Session &session, const std::string &session_id);
 void close(Session &session);
+void edit_cleanup(Session &session);
+Value edit_prepare(Session &session, const Value &path, const Value &expected,
+        const Value &desired, const Value &correlation);
+Value edit_advance(Session &session, const Value &request, const Value &stage);
+Value edit_cancel(Session &session, const Value &request);
+bool edit_expire(Session &session);
+#if GAK_FIXTURE
+Value edit_fixture_fault(Session &session, const Value &request, const Value &fault);
+#endif
 } // namespace gak
