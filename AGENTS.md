@@ -41,6 +41,14 @@ prevents and requiring demonstrated additional protection to justify its ongoing
 weakening editor coherence, preservation of human work, transaction verification, confinement,
 truthful diagnostics, or other constitutional safety invariants.
 
+An implementation-readiness blocker MUST cite (1) exact existing requirement provenance,
+(2) a concrete in-scope product failure or capability increase, (3) an actor/environment
+inside the supported threat model, and (4) demonstrated or source-established reachable
+evidence. If any element is absent, classify the issue as a non-blocking limitation,
+hardening opportunity, future work, or tooling/environment limitation. The burden of proof
+is on promotion to blocker. A stronger hypothetical isolation property MUST NOT silently
+become a product requirement merely because it simplifies proof.
+
 ## One Spec Kit task, one PR
 
 Every completed individual Spec Kit implementation task in the active approved
