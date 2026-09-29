@@ -16,7 +16,7 @@ CONSUMER = Path(__file__).parent / "fixtures/script_edit/scripts/native/consumer
 
 class NativeFinalizationMixin:
     def edit_fixture(self, name, *, prior=False, faults=False, baseline_source=None):
-        project = self.fixture("finalization-" + name, oracle=False)
+        project = self.fixture("finalization-" + name)
         if baseline_source is not None:
             (project / "scripts/subject.gd").write_text(baseline_source)
         if faults:
@@ -24,7 +24,7 @@ class NativeFinalizationMixin:
                                 "separate_fault_instrumented_artifact_required")
             destination = project / "addons/godot_agent_kit/native"
             shutil.copytree(self.args.native_fault_addon, destination, dirs_exist_ok=True)
-        self.installed_native(project)
+        self.installed_native(project, fixture_only=faults)
         editor = self.start_editor(project, configured=False)
         info = self.native_action(editor, "native_info")
         observation.require(info.get("edit_installed") is True and
@@ -534,7 +534,7 @@ class NativeFinalizationMixin:
     def native_private_reentrant_finish(self):
         for mode in ("cancel", "stop", "nested_finish"):
             name = "native_private_sync_" + mode + "_holds_bridge_slot"
-            project = self.fixture(name, oracle=False, controlled=True)
+            project = self.fixture(name, controlled=True)
             self.installed_native(project)
             editor = self.start_editor(project, configured=True)
             descriptor = observation.wait_for(
@@ -661,7 +661,7 @@ class NativeFinalizationMixin:
 
     def native_bridge_slot(self):
         name = "native_shared_bridge_collection_slot"
-        project = self.fixture(name, oracle=False, controlled=True)
+        project = self.fixture(name, controlled=True)
         self.installed_native(project)
         editor = self.start_editor(project, configured=True)
         descriptor = observation.wait_for(lambda: self.descriptors(project),

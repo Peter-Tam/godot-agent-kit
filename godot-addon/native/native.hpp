@@ -137,7 +137,6 @@ inline Value collection(GDExtensionVariantType kind) {
     return v;
 }
 inline Value dict() { return collection(GDEXTENSION_VARIANT_TYPE_DICTIONARY); }
-inline Value array() { return collection(GDEXTENSION_VARIANT_TYPE_ARRAY); }
 inline void put(Value &dict, const char *key, const Value &value) {
     Value k = string(key);
     auto *dst = api.dictionary_index(api.internal[GDEXTENSION_VARIANT_TYPE_DICTIONARY](dict.ptr()), k.ptr());
@@ -199,9 +198,6 @@ struct Session {
     EditAttempt *attempt = nullptr;
     CallState call_state = CallState::Idle;
 };
-#if !GAK_STOCK
-Value validation(Session &session, std::initializer_list<const Value *> args);
-#endif
 bool configure(Session &session, const std::string &session_id);
 void close(Session &session);
 void edit_cleanup(Session &session);

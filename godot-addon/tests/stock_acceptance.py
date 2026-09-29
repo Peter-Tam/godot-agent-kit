@@ -381,7 +381,7 @@ class StockAcceptanceMixin:
 
     def stock_warning_case(self, name, *, enable, level, directory_rules=None, status,
                            base_enable=None, base_level=None):
-        project = self.fixture("stock-warning-" + name, oracle=False)
+        project = self.fixture("stock-warning-" + name)
         settings = (f"\n[debug]\ngdscript/warnings/enable="
                     f"{'true' if (enable if base_enable is None else base_enable) else 'false'}\n"
                     f"gdscript/warnings/integer_division={level if base_level is None else base_level}\n")
@@ -423,7 +423,7 @@ class StockAcceptanceMixin:
         return root["context_sha256"]
 
     def stock_global_context_case(self):
-        project = self.fixture("stock-global-context", oracle=False)
+        project = self.fixture("stock-global-context")
         (project / "scripts/ExistingGlobal.gd").write_text(
             "class_name ExistingGlobal\nextends RefCounted\n")
         (project / "scripts/existing_global.gd").write_text(
@@ -448,7 +448,7 @@ class StockAcceptanceMixin:
 
     def stock_validation(self):
         self.compile_window_probe()
-        project = self.fixture("stock-helper", oracle=False)
+        project = self.fixture("stock-helper")
         self.installed_native(project)
         editor = self.start_editor(project, configured=False)
         self.action(editor, "prepare_subject")

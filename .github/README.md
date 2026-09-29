@@ -178,16 +178,17 @@ candidate metadata to prove refusal and execution ordering, not real-editor
 acceptance. Both main-push and main-targeting PR path filters include
 `godot-addon/**`, alongside Rust and workflow paths.
 
-The hosted `editor-native` job builds the pinned patched oracle and its matched
-public-ABI extension, then builds the official-stock extension. SCons remains
-pinned to 4.10.1; checkout actions retain full-SHA pins and no credentials.
-The stock archive comes from the
-[exact upstream release](https://api.github.com/repos/godotengine/godot-builds/releases/tags/4.7.2-stable):
-SHA-256 `c58a24e31d720be9d62f60cb5627c4e695fb72f21b0cfe1bc9ccaa9a3b3ba63e`
-is checked before extraction, followed by the existing pinned executable hash
-before execution. No new workflow, runner trust boundary or approval gate is
-introduced. These are build/API checks, not GUI or export acceptance; see the
-[native guide](../godot-addon/native/README.md).
+The hosted `editor-native` job is the **Stock native build**: it runs native
+ABI refusal regressions, verifies the exact official stock archive SHA-256
+`c58a24e31d720be9d62f60cb5627c4e695fb72f21b0cfe1bc9ccaa9a3b3ba63e`
+before extraction, verifies the executable SHA-256
+`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`,
+and builds the matching public-ABI extension. The archive comes from the
+[official upstream release](https://api.github.com/repos/godotengine/godot-builds/releases/tags/4.7.2-stable).
+There is no source checkout, SCons, engine patch or oracle build in hosted CI.
+Checkout actions retain full-SHA pins and no credentials. This is a
+build/API check, not GUI or export acceptance; see the
+[stock native guide](../godot-addon/native/README.md).
 
 Workflow configuration and its regression simulations do not prove live-editor
 behavior. Complete maintainer-operated real-editor evidence plus ordinary

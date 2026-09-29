@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the stock editor finalizer or the separately retained patched validation oracle."""
+"""Build the native editor integration against the pinned official Godot binary."""
 
 import argparse
 import hashlib
@@ -46,13 +46,13 @@ def single_precision_sizes(api):
     return {entry["name"]: entry["size"] for entry in raw_sizes}
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--godot", required=True, type=Path, help="absolute matching stock or patched-oracle editor executable")
+    parser.add_argument("--godot", required=True, type=Path, help="absolute pinned official editor executable")
     parser.add_argument("--fixture-faults", action="store_true", dest="fixture",
                         help="enable fault hooks only in a separate disposable fixture build")
     parser.add_argument("--output-addon", type=Path, help="output native directory for fixture-only builds")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     addon = args.output_addon.resolve() if args.output_addon else ADDON
     if args.fixture and (args.output_addon is None or addon == ADDON):
         parser.error("--fixture-faults requires --output-addon outside the product addon")
@@ -64,21 +64,11 @@ def main():
     if platform.system() != "Darwin" or platform.machine() != "arm64":
         parser.error("the current native reader supports only macOS arm64")
     engine_sha = digest(engine)
-    stock = engine_sha == STOCK_SHA256
-    source = next((p for p in engine.parents if (p / "main/main.cpp").exists() and (p / ".git").exists()), None)
-    if not stock:
-        if source is None or run(["git", "-C", str(source), "rev-parse", "HEAD"]).stdout.strip() != BASE:
-            parser.error("unrecognized binary: neither the pinned official stock build nor a pinned patched checkout")
-        patch = HERE / "engine-api.patch"
-        if not patch.is_file():
-            parser.error("missing reviewed native engine-api.patch")
-        try:
-            run(["git", "-C", str(source), "apply", "--reverse", "--check", str(patch)])
-        except subprocess.CalledProcessError as exc:
-            parser.error("engine checkout does not match the native patch: " + exc.stderr.strip())
+    if engine_sha != STOCK_SHA256:
+        parser.error("unrecognized binary: expected the pinned official stock build")
     version = run([str(engine), "--version"]).stdout.strip()
-    if not version.startswith("4.7.2.stable.") or BASE[:9] not in version:
-        parser.error("engine binary does not report pinned 4.7.2 base")
+    if version != "4.7.2.stable.official." + BASE[:9]:
+        parser.error("engine binary does not report pinned 4.7.2.stable.official build")
     BUILD.mkdir(parents=True, exist_ok=True)
     run([str(engine), "--headless", "--dump-gdextension-interface", "--dump-gdextension-interface-json", "--dump-extension-api"], cwd=BUILD)
     header, abi_json, api_json = (BUILD / n for n in ("gdextension_interface.h", "gdextension_interface.json", "extension_api.json"))
@@ -86,14 +76,11 @@ def main():
     sizes = single_precision_sizes(api)
     if (api["header"]["version_major"] != 4 or api["header"]["version_minor"] != 7
             or api["header"]["version_patch"] != 2 or api["header"]["version_status"] != "stable"
-            or not api["header"]["version_build"]
-            or f'.{api["header"]["version_build"]}.' not in version):
-        parser.error("generated API version/build does not match the pinned binary")
+            or api["header"]["version_build"] != "official"):
+        parser.error("generated API version/build does not match the pinned official binary")
     required = {"Variant", "String", "StringName", "Dictionary", "Array", "Callable"}
     if not required <= sizes.keys():
         parser.error("generated ABI is missing native value sizes")
-    if stock and (api["header"]["version_build"] != "official" or not version.startswith("4.7.2.stable.official.")):
-        parser.error("official binary version/build does not match the pinned stock artifact")
     methods = {
         "SCRIPT_EDITOR": method(api, "EditorInterface", "get_script_editor"),
         "OPEN_SCRIPTS": method(api, "ScriptEditor", "get_open_scripts"),
@@ -120,23 +107,15 @@ def main():
         "INDENT_SPACES": method(api, "CodeEdit", "is_indent_using_spaces"),
         "INDENT_SIZE": method(api, "CodeEdit", "get_indent_size"),
     }
-    if not stock:
-        methods.update({
-            "GDSCRIPT_REVISION": method(api, "GDScript", "gdscript_validation_api_revision"),
-            "GDSCRIPT_VALIDATE": method(api, "GDScript", "validate_gdscript_source"),
-            "SCRIPT_EDITOR_EDITED": method(api, "ScriptEditorBase", "get_edited_resource"),
-        })
-    inputs = {p.name: digest(p) for p in (header, abi_json, api_json, HERE / "extension.cpp", HERE / "validation.cpp", HERE / "script_document.cpp", HERE / "native.hpp", HERE / "build.py")}
-    if not stock:
-        inputs["engine-api.patch"] = digest(HERE / "engine-api.patch")
+    inputs = {p.name: digest(p) for p in (header, abi_json, api_json, HERE / "extension.cpp", HERE / "session.cpp", HERE / "script_document.cpp", HERE / "native.hpp", HERE / "build.py")}
     compiler = os.environ.get("CXX", "clang++")
     compiler_version = run([compiler, "--version"]).stdout.splitlines()[0]
     sdk_version = run(["xcrun", "--show-sdk-version"]).stdout.strip()
     flags = ["-std=c++17", "-O2", "-fPIC", "-fvisibility=hidden", "-dynamiclib", "-Wall", "-Wextra", "-Werror", "-I", str(BUILD), "-I", str(HERE)]
-    flags += [f"-DGAK_STOCK={int(stock)}", f"-DGAK_FIXTURE={int(args.fixture)}"]
+    flags += [f"-DGAK_FIXTURE={int(args.fixture)}"]
     build_id = hashlib.sha256(json.dumps({
         "engine_sha256": engine_sha, "inputs": inputs, "configuration": "float_64/macos-arm64",
-        "mode": "stock" if stock else "oracle", "fixture": args.fixture,
+        "fixture": args.fixture,
         "compiler": compiler_version, "sdk": sdk_version, "flags": flags,
     }, sort_keys=True).encode()).hexdigest()
     macros = ["// Generated by build.py from the exact --godot binary; never hand-edit.", "#pragma once"]
@@ -149,11 +128,11 @@ def main():
     (BUILD / "native_abi_sizes.h").write_text("\n".join(macros) + "\n")
     output = addon / "libscript_edit.macos.arm64.dylib"
     addon.mkdir(parents=True, exist_ok=True)
-    run([compiler, *flags, str(HERE / "extension.cpp"), str(HERE / "validation.cpp"),
+    run([compiler, *flags, str(HERE / "extension.cpp"), str(HERE / "session.cpp"),
          str(HERE / "script_document.cpp"), "-o", str(output)])
     manifest = {
         "base_commit": BASE, "engine_version": version, "engine_binary": str(engine), "engine_sha256": engine_sha,
-        "mode": "stock" if stock else "oracle", "fixture_only": args.fixture,
+        "fixture_only": args.fixture,
         "abi_sha256": digest(abi_json), "api_sha256": digest(api_json), "header_sha256": digest(header),
         "native_build_id": build_id, "native_library_sha256": digest(output),
         "source_sha256": {key: value for key, value in inputs.items() if key.endswith((".cpp", ".hpp", ".py"))},
@@ -161,8 +140,6 @@ def main():
         "sdk": sdk_version, "build_flags": flags,
         "platform": "macos-arm64", "generated_from_exact_binary": True,
     }
-    if not stock:
-        manifest["patch_sha256"] = inputs["engine-api.patch"]
     (addon / "build-manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     print(json.dumps({"native_build_id": build_id, "manifest": str(addon / "build-manifest.json")}, sort_keys=True))
 

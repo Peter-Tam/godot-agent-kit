@@ -24,9 +24,9 @@ func _load_native() -> void:
 
 
 func _native_api() -> Dictionary:
-	if not Engine.has_meta("godot_agent_kit_native_validation"):
+	if not Engine.has_meta("godot_agent_kit_native"):
 		return {}
-	var candidate: Variant = Engine.get_meta("godot_agent_kit_native_validation")
+	var candidate: Variant = Engine.get_meta("godot_agent_kit_native")
 	if not (candidate is Dictionary):
 		return {}
 	for operation in ["configure", "close", "api_revision", "build_id"]:
