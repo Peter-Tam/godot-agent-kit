@@ -5,10 +5,10 @@
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
 - **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** [§18 T1](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) still selects same-retained-fd preserved-mtime, handler-free finalization. [§19 final L2](specs/002-edit-open-gdscript/research.md#19-one-shot-stock-lsp-validation-research-2026-09-28) withdraws the intermediate blanket additional-client/all-input/effect-exclusion hold: source-attributed owner parser results, diagnostics, symbols and disk-based dependencies held in the examined profile. Its **one remaining hold** is the existing FR-020 normal-local-user privacy boundary for the *new* helper-authority source-read endpoint, not owner correctness or a second connection itself. The earlier installed L1 analysis and blanket L2 assessment are intermediate; final installed analysis of narrowed L2 is complete with one HIGH FR-020 endpoint-privacy hold. This is completed technical research, not completed Feature 002, product mutation/validator or A–E acceptance.
+- **Feature state:** Design ready for T003 under unchanged [§18 T1](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) preserved-mtime finalization and [§19.9 R1 / L1 validator design](specs/002-edit-open-gdscript/research.md#199-capability-delta-readiness-review-2026-09-29). The PR #36 architectural L2 endpoint-privacy hold is corrected to a non-blocking inherited stock-LSP limitation: no new access authority for an in-scope actor was established. Feature 002 implementation/acceptance remains incomplete; research is not product mutation, validator or A–E acceptance.
 - **Tasks:** 2 / 5 complete
 - **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
-- **Current task:** T003 is **unstarted and not implementation-ready** as a whole while the one FR-020 helper-endpoint privacy gap remains unresolved. Once a supported normal-local-user access boundary qualifies, T003 still owns a bounded exact-source stock helper alongside the unchanged §18 T1 native finalizer; no helper implementation, module placement or PR is selected now. T004 owns typed caller/bridge/core evidence migration and integration; T005 cumulative acceptance. Five tasks, the dependency graph, normal one-task/PR sequencing and generic forbidden-effect/human-work invariants remain unchanged.
+- **Current task:** T003 is **implementation-ready but unstarted**. It owns the selected bounded one-shot official-stock source-only validator alongside the unchanged §18 T1 native finalizer; helper module placement remains an implementation choice. T004 owns typed caller/bridge/core evidence migration and integration; T005 cumulative acceptance. Five tasks, dependencies and normal one-task/PR sequencing are unchanged. This design-correction PR starts no implementation.
 - **Mutation A–E and edit durability:** Pending; no product mutation support or wider-platform claim follows the completed research.
 
 ## Roadmap status
@@ -16,7 +16,7 @@
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Feature 001 complete; Feature 002 T001 core and T002 patched read-only validation complete (T002 is an oracle/reference, not product stock validation). [§18 T1](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) remains selected. [§19 final L2](specs/002-edit-open-gdscript/research.md#19-one-shot-stock-lsp-validation-research-2026-09-28) establishes scoped owner attribution but leaves one FR-020 normal-local-user helper source-read endpoint privacy boundary unqualified, so T003 is unstarted/not implementation-ready. Prior L1 and blanket L2 assessments are intermediate; final installed narrowed-L2 analysis is complete with one HIGH FR-020 endpoint-privacy hold; T004/T005, A–E and durability remain pending. §14–§17 alternative routes remain historical; other platforms unresolved. |
+| 1 — Live-editor script coherence | In progress | Feature 001 complete; Feature 002 T001/T002 complete, T002 retained as semantic oracle/effect-site inventory/differential reference. §18 T1 is unchanged; [§19.9 R1](specs/002-edit-open-gdscript/research.md#199-capability-delta-readiness-review-2026-09-29) selects the L1 stock source-only validator with a non-blocking inherited endpoint limitation. T003 ready but unstarted; T004/T005, A–E and durability pending. No broader platform support. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 ## Selected §18 finalization — research/design only
@@ -58,12 +58,12 @@ This is **research/design only** on official Godot 4.7.2
 and macOS 26.6.2 arm64; other platforms are unresolved. No production T003
 native attempt/API, callback, wire schema or Feature mutation acceptance
 was implemented or exercised.
-[§19 final L2](specs/002-edit-open-gdscript/research.md#19-one-shot-stock-lsp-validation-research-2026-09-28)
-does not select the bounded exact-source stock validator for implementation:
-the new helper source-read endpoint lacks a qualified normal-local-user FR-020
-privacy boundary, although examined owner parser results remain attributable.
-If resolved, production capture/admission and helper implementation remain T003 work. The T002
-patched validator is reference/hazard inventory, not this stock solution.
+[§19.9 R1](specs/002-edit-open-gdscript/research.md#199-capability-delta-readiness-review-2026-09-29)
+selects the bounded one-shot exact-source stock validator design, with a
+non-blocking inherited endpoint limitation. Production capture/admission and
+helper implementation remain T003 work; T003 is ready but unstarted. T002 is a
+historical semantic oracle/effect-site inventory/differential reference, not a
+production engine dependency.
 Existing outcomes, guards, normal Save/history/reparse/rescan/fresh-launch
 and privacy/export gates are unchanged. Private Resource/cache timestamp
 parity, full handler replay and active-game hot reload are not implied.
@@ -74,16 +74,14 @@ are retained as historical research, **not current production prerequisites**.
 Raw local §18 artifacts are evidence provenance, not a public durable
 reproduction or T003 acceptance run.
 
-## §19 stock LSP validation — narrowed L2 privacy hold, not product selection
+## §19 stock LSP validation — L1 design established, inherited endpoint limitation
 
-[§19 final L2](specs/002-edit-open-gdscript/research.md#19-one-shot-stock-lsp-validation-research-2026-09-28)
-supersedes the unpublished tentative L1 design selection **and withdraws**
-the intermediate blanket additional-client/all-input/effect-exclusion hold.
-One fresh matching official Godot `--headless --editor` LSP child per immutable
-captured source closure and validation pass remains a researched candidate,
-not an approved T003 implementation route until its new helper-authority
-source-read endpoint is kept within FR-020's normal-local-user privacy boundary.
-Another connection alone does not invalidate an owner's result.
+[§19.9 R1](specs/002-edit-open-gdscript/research.md#199-capability-delta-readiness-review-2026-09-29)
+corrects PR #36’s one architectural L2 FR-020 privacy hold to **L1 validator
+design established**. One fresh matching official Godot `--headless --editor`
+LSP child per immutable captured source closure and validation pass is selected
+for the studied source-only profile. Retained owner semantics are unchanged;
+another connection alone does not invalidate an owner result.
 
 The research exercised **69 distinct helper invocations**: **65** official-stock
 source/closure study invocations (44 + 10 + 11), **one** separate discard-I/O
@@ -125,53 +123,49 @@ valid, false invalid or false completed owner result was observed. This
 establishes **scoped owner semantic attribution**, not global exclusion of
 independent clients, arbitrary inputs or every Godot method.
 
-The separate gap is FR-020 privacy for the **new helper-authority source-read
-endpoint**: reviewed stock LSP paths admit another connection and can open an
-unmanaged absolute `.gd` under helper authority and return source-derived
-symbols without a caller identity check. Invocation 67 directly exercised
-that capability only with the same synthetic harness UID and owned fixtures;
-no different-local-user reachability/disclosure, cross-UID exploitation,
-selected-editor D/R/B mutation or new GUI witness was measured. The earlier
-65 study cases retain their separately scoped selected-target nonmutation
-evidence. Listener-PID verification/private staging alone do not qualify a
-normal-local-user access boundary for the new endpoint. Hostile same-UID
-software is outside the inherited threat model, and independent trusted
-clients are not disqualifying. No public stock boundary sufficient for this
-specific source-read path was selected/proved; this does **not** establish
-that every public composition is impossible or that owner results are
-unavailable simply because a second connection exists. A further proposed
-experiment was declined; no retry/reformulation or Godot failure is inferred.
-Further cross-UID runtime evidence is unavailable in this pass as a tooling/
-environment limit, not a demonstrated negative result.
+The [capability-delta review](specs/002-edit-open-gdscript/research.md#199-capability-delta-readiness-review-2026-09-29)
+compares normal stock editor and one-shot helper host, implementation, OS
+filesystem authority, client model, lifetime and project context. Stock editor
+already starts the same GDScript LSP, defaulting to `127.0.0.1:6005`, and exposes
+the same caller-named `.gd` read path. The helper runs with the same local-user
+authority; a new PID/temporary port does not itself grant a new capability.
+FR-020 provenance exists, but no actor was demonstrated to gain data/access it
+lacked under supported stock/local-user use. The demonstrated clients were
+same-UID; hostile same-UID software is excluded. No specification text requires
+hostile shared-host or general stock-LSP cross-UID isolation. Different-user
+access was not exercised, not established as a violation. Existing kit
+bridge/authentication/project confinement remains mandatory.
 
-Once a normal-local-user boundary for that endpoint qualifies, T003's
-existing supervised Rust worker can own bounded no-follow exact capture/hash
-checks, conservative prelaunch admission, owned source-only clone/context
-staging, matching child/endpoint checks, per-URI diagnostics/parser-symbol
-fences, bounded diagnostics, deadline and owned-child terminate/kill/reap.
-Literal confined standalone `.gd` closures, effective warnings/directory
-rules and uncertain-context refusal remain candidate scope, not an admitted
-production scanner. Startup scanning before didOpen still requires prelaunch
-source/effect admission for the studied source-only profile. No broad project
-copy, patched engine, generic LSP layer, new crate, persistent process or
-new security mechanism is selected. The unresolved obligation is qualifying
-normal-local-user confinement for **this new helper endpoint**, not imposing
-all-input ownership or specifying another experiment.
+**Endpoint limitation:** The validator uses stock Godot’s short-lived loopback
+LSP listener. Stock LSP is not authenticated per OS user in the reviewed request
+path and can process helper-readable GDScript paths. Hostile same-UID software
+is outside the project threat model, and no cross-user disclosure or other
+in-scope capability increase was demonstrated. This is an inherited
+local-endpoint limitation, not an agent-facing arbitrary-filesystem capability.
+The declined experiment remains a tooling/environment limitation, not a
+technical blocker. No new probe or retry was run.
 
-T003 remains one helper-plus-unchanged-§18-native task, **unstarted and not
-implementation-ready**; helper module placement is conditional, not a
-`mcp-server/src/gdscript_validation.rs` requirement. T004 retains migration
-of historical T001 numeric-mtime and T002 patched-validator evidence/contracts
-and typed caller/bridge integration; T005 retains cumulative gates. No final
-production wire schema/API is set by this research. The prior [installed §19
-analysis review](specs/002-edit-open-gdscript/plan.md#one-shot-stock-lsp-validation-design-review)
-covered 30/30 buildable requirements (22 FRs, eight SCs), 26/26 scenarios
-and 8/8 edge cases with task ownership and corrected I1 logging. That was an
-**intermediate L1 assessment**, not a current narrowed-L2 implementation-readiness
-pass. Final installed analysis of the narrowed L2 artifacts is complete with one HIGH FR-020 endpoint-privacy hold.
-Five tasks with only T001/T002 checked, the unchanged dependency graph and
-normal one-task/PR sequence remain in force; there is no product edit,
-Feature 002 completion, Phase 1 completion or wider-platform support.
+T003’s existing supervised Rust worker owns bounded no-follow exact capture,
+prelaunch admission, source-only closure/context staging, matching child and
+loopback endpoint checks, per-URI diagnostics/parser-symbol fences, bounded
+results, deadline and owned-child terminate/kill/reap. The developer’s normal
+editor LSP remains independent and untouched; helper correctness must not
+depend on whether it is enabled or disabled. Private HOME/XDG and a disposable
+project isolate context, not OS filesystem authority. No broad project copy,
+engine patch, generic LSP layer, new crate/service, proxy, firewall or
+authentication framework is selected.
+
+T003 remains one helper-plus-unchanged-§18-native task, **implementation-ready
+but unstarted**. The studied source-only profile and unsupported-context/effect
+refusals, all-source fences and actual evidence limitations remain unchanged.
+T004 retains historical evidence migration and typed caller/bridge/core
+integration; T005 cumulative acceptance. No final production wire/API is set.
+The [current analysis](specs/002-edit-open-gdscript/plan.md#capability-delta-readiness-correction-review)
+assesses this readiness correction; PR #36’s analysis remains historical.
+Five tasks with only T001/T002 checked and the unchanged dependency graph
+remain in force. Actual privacy/export, mutation A–E, durability and full-edit
+timing remain implementation/acceptance work. No product edit, feature/phase
+completion or wider-platform support is claimed.
 
 This research/design update changes only `research.md`, `plan.md`,
 `contracts/native-integration.md`, `tasks.md` and `PROJECT_STATUS.md`;
@@ -188,9 +182,9 @@ independently verified D/R/B convergence, native Undo/Redo, and durability.
 The [implementation plan](specs/002-edit-open-gdscript/plan.md) and
 [native contract](specs/002-edit-open-gdscript/contracts/native-integration.md)
 retain [§18 T1's preserved-mtime handler-free design](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28).
-[§19 final L2](specs/002-edit-open-gdscript/research.md#19-one-shot-stock-lsp-validation-research-2026-09-28)
-does not select a stock-LSP helper for T003 implementation until the new
-source-read endpoint's FR-020 normal-local-user privacy boundary qualifies. The native sequence
+[§19.9 R1](specs/002-edit-open-gdscript/research.md#199-capability-delta-readiness-review-2026-09-29)
+selects the one-shot stock-LSP source-only validator with a non-blocking inherited
+endpoint limitation. The native sequence
 retains exact target and source/version guards, same-fd T0 restoration/readback before
 edited=false/CodeEdit tag, and no saved-handler call or broad Save.
 [§14 P1](specs/002-edit-open-gdscript/research.md#14-stock-post-persistence-saved-transition-research-2026-09-28),
@@ -278,8 +272,8 @@ review](specs/002-edit-open-gdscript/plan.md#one-shot-stock-lsp-validation-desig
 assessed the intermediate I1-corrected L1 design as implementation-ready;
 the subsequent blanket L2 additional-client hold was also intermediate and
 withdrawn after invocations 67–69 established scoped owner attribution.
-Final installed analysis of the narrowed FR-020 endpoint-privacy L2 is complete with one HIGH FR-020 endpoint-privacy hold,
-and T003 is unstarted/not implementation-ready.
+The [current capability-delta analysis](specs/002-edit-open-gdscript/plan.md#capability-delta-readiness-correction-review)
+supersedes the PR #36 architectural L2 interpretation: T003 is ready but unstarted.
 The [prior `/speckit.analyze`
 §13 result](specs/002-edit-open-gdscript/plan.md#stock-research-artifact-review)
 identified an unresolved saved-state mechanism **then** and is historical
@@ -354,20 +348,14 @@ installed, a missing-native D/R/B smoke, 155 Rust tests, three ABI regressions,
 Prior native history and dirty D/R/B state remain unchanged; enabled, disabled
 and hook-only exported games exclude tooling and execute without native dependencies.
 
-**Feature 002 remains incomplete.** T003 remains one conditional stock
-helper-plus-unchanged-§18-native task; no stock helper is selected for
-implementation until the single FR-020 normal-local-user source-read endpoint
-privacy gap is resolved. T004 owns caller/bridge/core evidence migration and
-integration; T005 owns cumulative mutation acceptance. The patched T002
-revision does not advertise editing. T003 is **unstarted and not
-implementation-ready** as a whole. The earlier [installed §19 design
-review](specs/002-edit-open-gdscript/plan.md#one-shot-stock-lsp-validation-design-review)
-is an intermediate I1-corrected L1 assessment, and the subsequent blanket L2
-assessment is withdrawn; final installed narrowed-L2 analysis is complete with one HIGH FR-020 endpoint-privacy hold.
-Normal task selection, review, merge and one-task/PR sequencing remain
-required. This one HIGH FR-020 privacy hold does not weaken generic
-forbidden-effect and human-work safety or select patched A, held P1 handler
-or the failed §17 route.
+**Feature 002 remains incomplete.** T003 is **implementation-ready but
+unstarted**: one selected stock source-only helper plus unchanged §18 native
+finalization. The [current capability-delta review](specs/002-edit-open-gdscript/plan.md#capability-delta-readiness-correction-review)
+corrects the PR #36 L2 hold to L1 with a non-blocking inherited endpoint
+limitation. T004 owns caller/bridge/core evidence migration and integration;
+T005 cumulative acceptance. T002 remains complete and does not advertise
+editing. Normal task selection, review, merge and one-task/PR sequencing remain
+required; no implementation or generic effect/human-work safety gate is waived.
 [§15](specs/002-edit-open-gdscript/research.md#15-stock-validation-and-effect-confinement-research-2026-09-28)
 records measured stock limits: `reload(false)` skips export refresh but still
 parses, analyzes, compiles and can initialize; the broad editor-mode
@@ -376,9 +364,9 @@ scripting, executed tool and non-tool static initializers, and exited 0 for
 observed invalid inputs. Public ClassDB/global-class/autoload metadata is
 available but not a full semantic or callback proof. At the time of §15,
 restricted helper and public-ABI adaptation were unselected, unexhausted
-options; §19 final L2 leaves bounded stock LSP validation **unselected**
-pending the new helper source-read endpoint's normal-local-user privacy
-boundary, not §15's broad check-only helper or a generic `@tool`-only refusal policy.
+options; §19.9 now selects bounded one-shot stock LSP validation with the
+inherited endpoint limitation, not §15's broad check-only helper or a generic
+`@tool`-only refusal policy.
 [§16 H3](specs/002-edit-open-gdscript/research.md#16-stock-saved-handler-admission-research-2026-09-28)
 historically found no useful safe profile for the tested stock saved-handler/
 public-observer composition: same-path diagnostics followed **current disk
@@ -401,16 +389,12 @@ preceded T1; neither historical route describes the current disposition.
 [§18 T1](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28)
 selects same-retained-fd T0 restoration with readback **before** guarded
 public edited=false and CodeEdit tag, without handler topology/callback
-machinery. [§19 final L2](specs/002-edit-open-gdscript/research.md#19-one-shot-stock-lsp-validation-research-2026-09-28)
-establishes owner diagnostic/symbol and disk-dependency attribution in the
-examined source-only profile with per-URI exact-source fences; it does not
-select a bounded helper until the new source-read endpoint's normal-local-user
-FR-020 boundary qualifies. T003 is unstarted/not implementation-ready; the
-previous [installed L1 analysis review](specs/002-edit-open-gdscript/plan.md#one-shot-stock-lsp-validation-design-review)
-and blanket L2 assessment are intermediate, and final installed narrowed-L2
-analysis is complete with one HIGH FR-020 endpoint-privacy hold. General
-forbidden-effect safety and all behavior, history, human-work and durability
-gates remain mandatory.
+machinery. [§19.9 R1](specs/002-edit-open-gdscript/research.md#199-capability-delta-readiness-review-2026-09-29)
+selects L1 bounded source-only validation, retaining owner diagnostic/symbol
+and staged-disk dependency attribution with every-source completion fences.
+No in-scope access delta beyond stock Godot was established; the endpoint
+limitation is non-blocking. T003 is ready but unstarted. Generic forbidden-effect
+safety and all behavior, history, human-work and durability gates remain mandatory.
 Neither research completion nor patched T002 validation makes a stock helper
 product or confers mutation support.
 No private numeric timestamp/cache parity or full handler replay is required
