@@ -4,24 +4,25 @@
 
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
-- **Feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md)
-- **Feature state:** **Complete**, under unchanged [§18 T1](specs/002-edit-open-gdscript/research.md#18-preserved-mtime-behavioral-finalization-research-2026-09-28) and [§19.9 R1 / L1](specs/002-edit-open-gdscript/research.md#199-capability-delta-readiness-review-2026-09-29). [Cumulative acceptance](specs/002-edit-open-gdscript/quickstart.md#14-t005-cumulative-acceptance-2026-09-29) satisfies Feature 002's gates on the exact supported stock candidate; the inherited endpoint limitation remains non-blocking.
-- **Tasks:** 5 / 5 complete
-- **Previous feature:** [001 — Observe Live GDScript Editor State Safely](specs/001-observe-gdscript-state/spec.md) — Complete; 8 / 8 tasks implemented and merged
-- **Current task:** T005 — **Complete** on `task/T005-cumulative-edit-acceptance`: cumulative script-edit durability and verified compatibility. Completion is independent of PR review/merge. T004's PR #39 merged before this task; its local/remote source branches were already absent. No next task is selected.
-- **T005 verification:** Complete real-editor edit/native suite **405 records**, observation suite **204 records**, twenty fresh-basis edits and six unsafe interleavings, native history, Save/reopen/reparse/rescan/runtime and all three export variants. All 113 caller results received result-only review; maximum edit **9.566 s**, observation **4.650 s**. Rust formatting, Clippy, **193 tests**, rustdoc and builds; **5 native-build tests**, **22 workflow tests** and Actionlint passed. Owned-window images were inspected.
-- **Phase 1 assessment:** A–E and applicable durability proof pass for the approved open-script slice. Phase 1 remains in progress: broader roadmap capability areas such as script discovery/open and independent lifecycle controls are not delivered by this feature. No wider-platform support, new feature or later-phase implementation is selected.
+- **Feature:** [003 — Safely Open a Known Project GDScript](specs/003-open-project-gdscript/spec.md)
+- **Feature state:** Planning — **research/design and task derivation complete; granularity review passed**. The [plan](specs/003-open-project-gdscript/plan.md) selects guarded source-bound native opening; the [three-task decomposition](specs/003-open-project-gdscript/tasks.md#granularity-review) bundles its native/current-validation cutover, complete caller with inseparable safety, and cumulative acceptance. `/speckit.analyze` and normal artifact approval remain before implementation. No implementation or new opening support is claimed.
+- **Tasks:** [0 / 3 complete](specs/003-open-project-gdscript/tasks.md); all pending. No implementation task selected.
+- **Previous feature:** [002 — Safely Edit Open GDScript](specs/002-edit-open-gdscript/spec.md) — **Complete**, 5 / 5 tasks complete. [Cumulative acceptance](specs/002-edit-open-gdscript/quickstart.md#14-t005-cumulative-acceptance-2026-09-29) satisfies its gates on the exact supported stock candidate under unchanged §18 T1 and §19.9 R1 / L1; the inherited endpoint limitation remains non-blocking. Feature 001 remains complete.
+- **Current task:** None. `/speckit.tasks` generated T001–T003 and completed the required granularity/coverage review. T001 is the first dependency-ready increment after the remaining analysis/approval prerequisites; it is not started. One named task and one PR at a time; no stacked workflow is authorized.
+- **Completed Feature 002 verification:** Real-editor edit/native suite **405 records**, observation suite **204 records**, twenty fresh-basis edits and six unsafe interleavings, native history, Save/reopen/reparse/rescan/runtime and all three export variants. All 113 caller results received result-only review; maximum edit **9.566 s**, observation **4.650 s**. Rust formatting, Clippy, **193 tests**, rustdoc and builds; **5 native-build tests**, **22 workflow tests** and Actionlint passed. Owned-window images were inspected.
+- **Phase 1 assessment:** A–E and applicable durability proof remain satisfied for the completed open-script editing slice. Feature 003's known-script opening is planned but not implemented; script discovery and independent close/Save/history controls remain deferred. Its research recorded 50 fixture requests, 20 native opening invocations and six clean owned-editor exits. Two focused existing observe/edit caller pairs showed property-assignment refusal versus successful explicit-method composition with independently matching D/R/B. The locked desktop prevented visible-window acceptance; no wider support follows.
 
 ## Roadmap status
 
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Features 001 and 002 complete. A–E, cumulative stress, ordinary durability/runtime, privacy/export and observation gates pass on the exact stock candidate. Broader roadmap discovery/open/lifecycle capability areas remain outside these features; feature completion is not a blanket phase-completion claim. |
+| 1 — Live-editor script coherence | In progress | Features 001 and 002 complete, with A–E, durability/runtime, privacy/export and observation evidence on the exact stock candidate. Feature 003 has a completed design and reviewed three-task decomposition; analysis, implementation and its own real-editor acceptance remain pending. Discovery and independent lifecycle controls remain pending. Feature completion is not a blanket phase-completion claim. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
-The research sections below retain the pre-implementation design/evidence history.
-The current task state and current verification are recorded above.
+The sections below retain historical Feature 001/002 design and evidence.
+Current lifecycle state appears above; statements of then-pending work below do not
+supersede the completed task and acceptance records.
 
 ## Selected §18 finalization — research/design only
 
@@ -177,7 +178,7 @@ This research/design update changes only `research.md`, `plan.md`,
 `quickstart.md` remain the unchanged downstream baseline. There is no
 specification, production code, API, schema or module implementation change.
 
-## Active feature
+## Feature 002 research/design history
 
 Feature 002's [specification](specs/002-edit-open-gdscript/spec.md) and
 [requirements-quality checklist](specs/002-edit-open-gdscript/checklists/requirements.md)
