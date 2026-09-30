@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-29
 
-**Status**: Draft — specification quality reviewed; implementation is not authorized.
+**Status**: Implementation — T001's private native boundary and compatible cutover are complete; the public caller and cumulative acceptance remain pending T002/T003 work. The feature is not complete.
 
 **Input**: Generated feature description supplied to `/speckit.specify`:
 

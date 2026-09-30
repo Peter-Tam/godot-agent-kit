@@ -298,7 +298,7 @@ fn bound(
     receipt: u64,
     stage: Stage,
 ) -> Result<CollectionStamp, RoutingFailure> {
-    if v != 2
+    if v != 3
         || kind != expected
         || id != request.request_id().as_str()
         || sid != selected.target().session_id().as_str()
@@ -666,7 +666,7 @@ pub fn prepare(
     use Argument::{Number, Text};
     let source_bytes = basis.source().utf8_bytes.to_string();
     let tuple = [
-        Number(2),
+        Number(3),
         Text("edit_prepare"),
         Text(request.request_id().as_str()),
         Text(target.session_id().as_str()),
@@ -782,7 +782,7 @@ fn control(
     let stage = Stage::ReadEditor;
     let target = selected.target();
     let prefix = (
-        2,
+        3,
         opcode,
         request.request_id().as_str(),
         target.session_id().as_str(),
@@ -815,7 +815,7 @@ where
     }
     let target = selected.target();
     let bytes = serde_json::to_vec(&(
-        2,
+        3,
         "edit_apply",
         request.request_id().as_str(),
         target.session_id().as_str(),

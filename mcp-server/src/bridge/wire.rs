@@ -797,7 +797,7 @@ impl SampleIn {
         receipt: u64,
         stage: Stage,
     ) -> Result<EditorSample, RoutingFailure> {
-        if self.v != 2
+        if self.v != 3
             || self.kind != "sample"
             || self.request_id != request.request_id().as_str()
             || self.session_id != target.session_id().as_str()
@@ -1106,7 +1106,7 @@ impl RecheckIn {
         stage: Stage,
         original: &CollectionStamp,
     ) -> Result<Recheck, RoutingFailure> {
-        if self.v != 2
+        if self.v != 3
             || self.kind != "recheck"
             || self.request_id != request.request_id().as_str()
             || self.session_id != target.session_id().as_str()
@@ -1251,7 +1251,7 @@ impl EditorFailureIn {
         advertised_root: &str,
         stage: Stage,
     ) -> Result<RoutingFailure, RoutingFailure> {
-        if self.v != 2
+        if self.v != 3
             || self.kind != "failure"
             || self.request_id != request.request_id().as_str()
             || self.session_id != target.session_id().as_str()
@@ -1314,7 +1314,7 @@ pub fn observe(
     send_editor(
         socket,
         (
-            2,
+            3,
             "observe",
             request.request_id().as_str(),
             target.session_id().as_str(),
@@ -1361,7 +1361,7 @@ pub fn recheck(
     send_editor(
         socket,
         (
-            2,
+            3,
             "recheck",
             request.request_id().as_str(),
             target.session_id().as_str(),
@@ -1966,7 +1966,7 @@ fn encode_ipc<T: Serialize>(dto: T) -> Result<Vec<u8>, RoutingFailure> {
 }
 fn envelope<'a, T>(request_id: &'a RequestId, kind: &'static str, payload: T) -> EventOut<'a, T> {
     EventOut {
-        v: 2,
+        v: 3,
         request_id: request_id.as_str(),
         kind,
         payload,
@@ -2079,7 +2079,7 @@ pub fn encode_event(event: &Event, request_id: &RequestId) -> Result<Vec<u8>, Ro
             ))
         }
         Event::Done => encode_ipc(DoneOut {
-            v: 2,
+            v: 3,
             request_id: request_id.as_str(),
             kind: "done",
         }),
@@ -2327,7 +2327,7 @@ pub fn decode_event(
         | EventIn::Failed { v, request_id, .. }
         | EventIn::Done { v, request_id } => (*v, request_id),
     };
-    if version != 2 || id != request.request_id().as_str() {
+    if version != 3 || id != request.request_id().as_str() {
         return Err(bad(stage));
     }
     if let Some(target) = target {

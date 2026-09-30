@@ -1,6 +1,6 @@
 # Quickstart: Verify Guarded Open-GDScript Editing
 
-**Status:** **T001–T005 and Feature 002 are complete.** [T005 cumulative acceptance](#14-t005-cumulative-acceptance-2026-09-29) records the current complete edit/native and observation runs. Earlier task records below retain their historical scope and completion state at the time. The private bridge remains v2 and public caller/observation schemas remain v1; T005 changes acceptance coverage, not product semantics.
+**Status:** **T001–T005 and Feature 002 are complete.** [T005 cumulative acceptance](#14-t005-cumulative-acceptance-2026-09-29) records the completed edit/native and observation runs on their then-current private-v2 integration. Earlier task records retain their historical scope and completion state. Public caller/observation schemas remain v1; the current private-v3 migration below does not reinterpret this evidence as opening acceptance.
 
 **Current reproduction:** Use the official stock executable and matched standard
 public-ABI extension from the [native guide](../../godot-addon/native/README.md).
@@ -9,6 +9,14 @@ The caller groups, retained `native-primitives`, cumulative `durability`,
 Historical patched-family/mtime sketches are superseded by the current caller,
 bridge, native and data-model contracts. §10 is an archive summary, not an
 oracle recipe.
+
+**Private-v3 migration:** Feature 003 T001 moves current callers, addon and
+fixtures to [bridge v3](../003-open-project-gdscript/contracts/bridge-protocol.md)
+and the shared revision-2 `editor_integration` bundle. Rebuild/install together
+and restart the editor; no old peer/library fallback or portable old-session
+edit basis exists. The guarded editing contract is unchanged. New integration
+acceptance is tracked in the [opening quickstart](../003-open-project-gdscript/quickstart.md);
+product opening remains unadvertised until T002.
 
 Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [caller](contracts/edit-api.md), [bridge](contracts/bridge-protocol.md), [native](contracts/native-integration.md) contracts as normative semantics. Do not infer success from process exit, a save acknowledgment or the finalizer's copied fields.
 
@@ -56,7 +64,7 @@ cargo +1.98.1 doc --no-deps --locked
 cargo +1.98.1 build --locked --lib --bin observe-gdscript --bin edit-gdscript --example stock_validation_fixture
 ```
 
-`cargo test --locked` includes doctests. No root workspace or blanket `--all-features` is introduced. Tests must cover consumer-visible invariants and transitions: prior-observation basis eligibility, dirty-equal/stale/same-text-version distinction, independent postconditions, stage/application precedence, pre/post-authorization worker loss, immutable late results, strict v2 authentication/limits/identity, denied-source suppression and actual confined I/O outcomes. Do not add source-text/wiring-copy/mock-echo tests.
+`cargo test --locked` includes doctests. No root workspace or blanket `--all-features` is introduced. Tests must cover consumer-visible invariants and transitions: prior-observation basis eligibility, dirty-equal/stale/same-text-version distinction, independent postconditions, stage/application precedence, pre/post-authorization worker loss, immutable late results, strict v3 authentication/limits/identity, denied-source suppression and actual confined I/O outcomes. Do not add source-text/wiring-copy/mock-echo tests.
 
 The T003 native acceptance used real descriptors, Script/CodeEdit objects and
 independent saved-state reads. Fault barriers are compiled only into separate

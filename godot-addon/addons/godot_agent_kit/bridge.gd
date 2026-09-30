@@ -3,7 +3,7 @@ extends Node
 
 const VERSION := "4.7.2.stable.official.ed1daf0bf"
 const ENGINE_HASH := "ed1daf0bf001b61586d9930840f2f1394092c079"
-const DOMAIN := "godot-agent-kit/editor-bridge/v2"
+const DOMAIN := "godot-agent-kit/editor-bridge/v3"
 const ObservationScript = preload("res://addons/godot_agent_kit/observation.gd")
 const MAX_FRAME := 4096
 const MAX_SELECTED_REQUEST := 4 * 1024 * 1024
@@ -22,6 +22,7 @@ const CAPABILITIES := {
 	"unsaved_paths": true,
 	"cached_resource_lookup": true,
 	"edit_open_gdscript": false,
+	"open_gdscript": false,
 }
 var _crypto := Crypto.new()
 var _filesystem := DirAccess.open("/")
@@ -220,7 +221,7 @@ func _publish(port: int) -> bool:
 		or _filesystem.is_link(temp_path) or DirAccess.dir_exists_absolute(temp_path) or FileAccess.file_exists(temp_path):
 		return false
 	var descriptor := {
-		"v": 2, "session_id": _session, "project_root": _project,
+		"v": 3, "session_id": _session, "project_root": _project,
 		"godot_version": VERSION, "engine_hash": ENGINE_HASH,
 		"host": "127.0.0.1", "port": port, "token": _secret.hex_encode(),
 	}
@@ -274,46 +275,56 @@ func _remove_owned_temp(path: String) -> void:
 
 # The private native owner and the authenticated peer use the same slot.
 # Only the owner that claimed it can release it.
-func _claim_edit(owner: Node, peer: Dictionary = {}) -> bool:
+func _claim_operation(owner: Node, peer: Dictionary = {}) -> bool:
 	if not is_instance_valid(owner) or _server == null or _session.is_empty() or not _active.is_empty():
 		return false
-	_active = peer if not peer.is_empty() else {"edit_owner": owner}
-	_active.edit_owner = owner
+	_active = peer if not peer.is_empty() else {"operation_owner": owner}
+	_active.operation_owner = owner
 	return true
 
 
-func _release_edit(owner: Node) -> void:
-	if _active.get("edit_owner") == owner:
+func _release_operation(owner: Node) -> void:
+	if _active.get("operation_owner") == owner:
 		_active = {}
+		if not is_inside_tree() and _server == null:
+			call_deferred("free")
 
 
 func attach_edit(owner: Node, revision: int, build_id: String) -> void:
 	var valid: bool = is_instance_valid(owner) and owner.get("_bridge") == self \
-		and revision == 1 and _valid_hex(build_id, 64)
+		and revision == 2 and _valid_hex(build_id, 64)
 	if valid:
 		var installed: Variant = Engine.get_meta("godot_agent_kit_native", {})
 		var family: Variant = owner.get("_native")
-		valid = installed is Dictionary and family is Dictionary \
-			and family.has_all(["api_revision", "build_id", "edit_inspect", "edit_prepare",
-				"edit_advance", "edit_cancel", "edit_expire"]) \
-			and family["api_revision"].call() == 1 and family["build_id"].call() == build_id \
-			and installed.get("build_id") == family["build_id"]
+		valid = installed is Dictionary and family is Dictionary
+		if valid:
+			for operation in ["configure", "close", "api_revision", "build_id", "edit_inspect",
+					"edit_prepare", "edit_advance", "edit_cancel", "edit_expire", "open_inspect",
+					"open_prepare", "open_advance", "open_verify", "open_recheck", "open_finish",
+					"open_abort", "open_expire"]:
+				if not family.has(operation) or not (family[operation] is Callable) \
+						or not family[operation].is_custom() or not family[operation].is_valid() \
+						or installed.get(operation) != family[operation]:
+					valid = false
+					break
+		if valid:
+			valid = family["api_revision"].call() == 2 and family["build_id"].call() == build_id
 	_edit_owner = owner if valid else null
-	_native_revision = 1 if valid else 0
+	_native_revision = 2 if valid else 0
 	_native_build_id = build_id if valid else ""
 
 
 func _capabilities() -> Dictionary:
 	var capabilities := CAPABILITIES.duplicate()
-	capabilities.edit_open_gdscript = is_instance_valid(_edit_owner) and _native_revision == 1
+	capabilities.edit_open_gdscript = is_instance_valid(_edit_owner) and _native_revision == 2
 	return capabilities
 
 
 func stop() -> void:
 	set_process(false)
-	var edit_owner: Variant = _active.get("edit_owner")
-	if is_instance_valid(edit_owner):
-		edit_owner.call("cancel_owned")
+	var operation_owner: Variant = _active.get("operation_owner")
+	if is_instance_valid(operation_owner):
+		operation_owner.call("cancel_owned")
 	for peer in _peers:
 		peer.socket.disconnect_from_host()
 		if peer.has("collector"):
@@ -322,7 +333,7 @@ func stop() -> void:
 			peer.edit_collector.clear()
 	# Reentrant shutdown may interrupt an already-entered native call. Its owner
 	# releases this marker only after the call and its history cleanup return.
-	if not _active.has("edit_owner") or not is_instance_valid(edit_owner) or not edit_owner.call("is_active_stage"):
+	if not _active.has("operation_owner") or not is_instance_valid(operation_owner) or not operation_owner.call("is_active_stage"):
 		_active.clear()
 	_peers.clear()
 	_peer_cursor = 0
@@ -357,9 +368,12 @@ func _process(_delta: float) -> void:
 	var frame_start := Time.get_ticks_usec()
 	if _active.has("observation_since") and Time.get_ticks_usec() - int(_active.observation_since) >= PEER_EXPIRY_USEC:
 		_close_peer(_active)
-	if _active.has("edit_owner") and _active.has("expiry_tick_us") \
+	if _active.has("operation_owner") and _active.has("expiry_tick_us") \
 			and Time.get_ticks_usec() >= int(_active.expiry_tick_us):
-		_close_peer(_active)
+		if _active.has("socket"):
+			_close_peer(_active)
+		elif is_instance_valid(_active.operation_owner):
+			_active.operation_owner.call("cancel_owned")
 	var budget := FRAME_BUDGET_BYTES
 	var schedule := _peers.duplicate()
 	if not schedule.is_empty():
@@ -418,7 +432,7 @@ func _process(_delta: float) -> void:
 				var prefix: String = peer.input.slice(4).get_string_from_utf8()
 				for whitespace in [" ", "\t", "\r", "\n"]:
 					prefix = prefix.replace(whitespace, "")
-				if not prefix.begins_with('[2,"edit_prepare",'):
+				if not prefix.begins_with('[3,"edit_prepare",'):
 					_close_peer(peer)
 					break
 				peer.large_prefix = true
@@ -454,7 +468,7 @@ func _process(_delta: float) -> void:
 			_handle_frame(peer, message.slice(4))
 			break
 	if not _active.is_empty() and _active.has("pending"):
-		if _active.has("edit_owner"):
+		if _active.has("operation_owner"):
 			_collect_edit(_active)
 		else:
 			_collect_pending()
@@ -462,8 +476,8 @@ func _process(_delta: float) -> void:
 
 func _close_peer(peer: Dictionary) -> void:
 	if _active == peer:
-		if peer.has("edit_owner"):
-			var owner: Node = peer.edit_owner
+		if peer.has("operation_owner"):
+			var owner: Node = peer.operation_owner
 			if is_instance_valid(owner):
 				owner.call("cancel_owned")
 			if _active == peer and (not is_instance_valid(owner) or not owner.call("is_active_stage")):
@@ -591,7 +605,7 @@ func _integral_control(value: Variant, minimum: int, maximum: int) -> bool:
 
 
 func _fixed_tuple(value: Variant, count: int, operation: String) -> bool:
-	return typeof(value) == TYPE_ARRAY and value.size() == count and _integral_control(value[0], 2, 2) \
+	return typeof(value) == TYPE_ARRAY and value.size() == count and _integral_control(value[0], 3, 3) \
 		and typeof(value[1]) == TYPE_STRING and value[1] == operation and _valid_id(value[2]) \
 		and typeof(value[3]) == TYPE_STRING and value[3] == _session \
 		and typeof(value[4]) == TYPE_STRING and value[4] == _project and value[4].to_utf8_buffer().size() <= 1024
@@ -767,7 +781,7 @@ func _editor_stamp(started: int) -> Dictionary:
 
 
 func _edit_envelope(peer: Dictionary, kind: String) -> Dictionary:
-	return {"v": 2, "kind": kind, "request_id": peer.request_id,
+	return {"v": 3, "kind": kind, "request_id": peer.request_id,
 		"session_id": _session, "project_root": _project,
 		"script_path": peer.get("edit_path", ""), "collection": _editor_stamp(Time.get_ticks_usec())}
 
@@ -792,13 +806,13 @@ func _handle_edit_tuple(peer: Dictionary, value: Array, size: int) -> void:
 		return
 	var path: String = value[5]
 	if operation == "edit_prepare":
-		if peer.has("edit_owner") or peer.has("collector"):
+		if peer.has("operation_owner") or peer.has("collector"):
 			_close_peer(peer)
 			return
 		if not _active.is_empty():
 			_edit_busy(peer, path)
 			return
-		if not peer.auth_capabilities.edit_open_gdscript or peer.auth_native_revision != 1 \
+		if not peer.auth_capabilities.edit_open_gdscript or peer.auth_native_revision != 2 \
 				or peer.auth_native_build_id != _native_build_id \
 				or _edit_owner == null or not is_instance_valid(_edit_owner):
 			_queue(peer, _failure(peer, path, "read_editor", "unsupported_capability"), true)
@@ -816,7 +830,7 @@ func _handle_edit_tuple(peer: Dictionary, value: Array, size: int) -> void:
 		if not path.ends_with(".gd") or path.contains("::") or not _safe_locator(path):
 			_queue(peer, _failure(peer, path, "read_editor"), true)
 			return
-		if not _claim_edit(_edit_owner, peer):
+		if not _claim_operation(_edit_owner, peer):
 			_edit_busy(peer, path)
 			return
 		peer.edit_path = path
@@ -824,7 +838,7 @@ func _handle_edit_tuple(peer: Dictionary, value: Array, size: int) -> void:
 		peer.prepare_tuple = value
 		peer.pending = "edit_prepare"
 		return
-	if _active != peer or not peer.has("edit_owner") or path != peer.edit_path \
+	if _active != peer or not peer.has("operation_owner") or path != peer.edit_path \
 			or (peer.has("pending") and (operation not in ["edit_abort", "edit_finish"] \
 			or peer.pending in ["edit_abort", "edit_finish"])):
 		_close_peer(peer)
@@ -858,7 +872,7 @@ func _handle_edit_tuple(peer: Dictionary, value: Array, size: int) -> void:
 
 
 func _failure(peer: Dictionary, path: String, stage: String, code: String = "out_of_project") -> Dictionary:
-	return {"v": 2, "kind": "failure", "request_id": peer.request_id,
+	return {"v": 3, "kind": "failure", "request_id": peer.request_id,
 		"session_id": _session, "project_root": _project, "script_path": path,
 		"code": code, "stage": stage}
 
@@ -1279,7 +1293,7 @@ func _collect_edit(peer: Dictionary) -> void:
 
 
 func _reply_fields(peer: Dictionary, kind: String) -> Dictionary:
-	return {"v": 2, "kind": kind, "request_id": peer.request_id,
+	return {"v": 3, "kind": kind, "request_id": peer.request_id,
 		"session_id": _session, "project_root": _project,
 		"godot_version": VERSION, "engine_hash": ENGINE_HASH,
 		"capabilities": peer.auth_capabilities, "native_api_revision": peer.auth_native_revision,
@@ -1299,10 +1313,15 @@ static func transcript_bytes(request_id: String, session_id: String, project_roo
 		native_api_revision: int, native_build_id: String,
 		client_nonce: String, server_nonce: String) -> PackedByteArray:
 	if session_id.length() != 32 or client_nonce.length() != 64 or server_nonce.length() != 64 \
-			or native_api_revision not in [0, 1] or (native_api_revision == 0 and not native_build_id.is_empty()) \
-			or (native_api_revision == 1 and (native_build_id.length() != 64 \
+			or native_api_revision not in [0, 2] or (native_api_revision == 0 and not native_build_id.is_empty()) \
+			or (native_api_revision == 2 and (native_build_id.length() != 64 \
 			or not native_build_id.is_valid_hex_number() or native_build_id != native_build_id.to_lower())):
 		return PackedByteArray()
+	if capabilities.size() != 7:
+		return PackedByteArray()
+	for encoded in [session_id, client_nonce, server_nonce]:
+		if not encoded.is_valid_hex_number() or encoded != encoded.to_lower():
+			return PackedByteArray()
 	var out := PackedByteArray()
 	for part in [DOMAIN, request_id]:
 		out.append_array(_field(part.to_utf8_buffer()))
@@ -1310,10 +1329,12 @@ static func transcript_bytes(request_id: String, session_id: String, project_roo
 	for part in [project_root, godot_version, engine_hash]:
 		out.append_array(_field(part.to_utf8_buffer()))
 	for name in ["observe_gdscript", "open_enumeration", "buffer_attribution", "unsaved_paths",
-			"cached_resource_lookup", "edit_open_gdscript"]:
+			"cached_resource_lookup", "edit_open_gdscript", "open_gdscript"]:
 		if not capabilities.has(name) or typeof(capabilities[name]) != TYPE_BOOL:
 			return PackedByteArray()
 		out.append_array(_field(PackedByteArray([1 if capabilities[name] else 0])))
+	if native_api_revision == 0 and (capabilities.edit_open_gdscript or capabilities.open_gdscript):
+		return PackedByteArray()
 	out.append_array(_field(PackedByteArray([0, 0, 0, native_api_revision])))
 	out.append_array(_field(native_build_id.to_utf8_buffer()))
 	out.append_array(_field(client_nonce.hex_decode()))

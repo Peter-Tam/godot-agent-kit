@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/003-open-project-gdscript/spec.md`.
 
-**Status:** Phase 0 research and Phase 1 design complete. The [task list](tasks.md) is now generated and its [granularity review](tasks.md#granularity-review) passed; `/speckit.analyze` and normal artifact approval remain before implementation. No task is selected or implemented. The initial B1 callback-isolation hold was withdrawn under the inherited threat model; see [scope correction](research.md#6-scope-correction-and-callback-limitation). Research is not new product acceptance or a support claim.
+**Status:** Phase 0 research and Phase 1 design complete. Granularity and consistency analysis passed; the maintainer selected T001 only. Its [private native/cutover acceptance](quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30) and implementation-shape review passed, so T001 is complete. T002 and T003 remain pending and product opening remains unadvertised. The initial B1 callback-isolation hold remains withdrawn under the inherited threat model; see [scope correction](research.md#6-scope-correction-and-callback-limitation). Historical research is not substituted for implementation acceptance.
 
 ## Summary
 
@@ -63,6 +63,8 @@ The source-bound cold branch avoids ordinary root ResourceLoader dispatch and un
 | Compatibility and workflow | Private v3/native revision 2 coordinated cutover, unchanged public observe/edit v1, one new public opening v1. No aliases/fallback. Future tasks remain one task/PR, bundled tests/docs, granularity review before analysis; no implementation task generated here. |
 
 Any implementation finding that violates these requirements must be fixed or held with exact requirement, in-scope actor/failure and reachable evidence. The selected design is not permission to label every new request unsupported and claim completion.
+
+**T001 execution planning (2026-09-30):** Implement the selected native/current-source boundary and coordinated private-v3/native-revision-2 migration as one task. Native file/document guards, thin addon ownership, existing Rust validator admission and current compatibility/fixture consumers have disjoint authoring owners and one integration owner. Integrate before validation; run visible-editor campaigns serially. The existing constitutional mapping and complexity decisions apply unchanged: no second operation scheduler, validation service, dependency, approval or workflow is added. Keep the authenticated product opening capability false until T002 supplies its complete caller. Acceptance must independently prove source/history preservation and effect-aware termination; review module cohesion and visibility before completion.
 
 ## Native Opening Composition
 

@@ -109,8 +109,8 @@ pub struct WarningSettings {
     pub provenance: WarningProvenance,
 }
 
-/// `source=None` independently captures actual D. Proposed text is accepted only
-/// for preflight; no entry point reads caller-chosen dependency or external paths.
+/// `source=None` independently captures actual D for edit verification. Preflight
+/// alone accepts a proposal; opening instead consumes a checked private context.
 pub struct ValidationRequest {
     pub request_id: RequestId,
     pub session_id: SessionId,
@@ -118,6 +118,7 @@ pub struct ValidationRequest {
     pub root_path: ResourcePath,
     pub source: Option<String>,
     pub purpose: Purpose,
+    pub open_context: Option<OpeningContext>,
     pub warnings: WarningSettings,
     pub global_classes: Vec<String>,
     pub official_binary: PathBuf,
@@ -129,6 +130,7 @@ pub enum Purpose {
     Preflight,
     PostChange,
     Unchanged,
+    OpenContext,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,6 +164,9 @@ pub struct ValidationResult {
     pub sources: Vec<SourceEvidence>,
     pub diagnostics: Vec<ErrorDiagnostic>,
     pub context_sha256: Option<String>,
+    /// Private opening attribution, issued only after valid completion and cleanup.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opening_binding: Option<OpeningValidationBinding>,
     /// Unknown when a worker was lost before returning its lifecycle evidence.
     pub child_spawned: Option<bool>,
     pub child_pid: Option<u32>,
@@ -187,6 +192,7 @@ impl ValidationResult {
             sources: Vec::new(),
             diagnostics: Vec::new(),
             context_sha256: None,
+            opening_binding: None,
             child_spawned: Some(false),
             child_pid: None,
             child_reaped: Some(false),
@@ -203,6 +209,7 @@ impl ValidationResult {
     fn unavailable(&mut self, reason: &'static str) {
         self.status = "unavailable".into();
         self.reason = Some(reason.into());
+        self.opening_binding = None;
     }
     fn stamp(&mut self, clock: &AttemptClock) {
         let interval = clock.interval();
@@ -221,6 +228,7 @@ struct WireRequest {
     root_path: String,
     source: Option<String>,
     purpose: Purpose,
+    open_context: Option<OpeningContext>,
     warnings: WarningSettings,
     global_classes: Vec<String>,
     official_binary: String,
@@ -236,6 +244,7 @@ fn wire_request(request: ValidationRequest, clock: &AttemptClock) -> WireRequest
         root_path: request.root_path.as_str().into(),
         source: request.source,
         purpose: request.purpose,
+        open_context: request.open_context,
         global_classes: request.global_classes,
         warnings: request.warnings,
         official_binary: request.official_binary.to_string_lossy().into(),
@@ -253,11 +262,16 @@ fn deadline(deadline: Instant) -> Result<(), &'static str> {
 }
 #[path = "stock_validation/admission.rs"]
 mod admission;
+#[path = "stock_validation/opening_context.rs"]
+mod opening_context;
+#[path = "stock_validation/opening_literals.rs"]
+mod opening_literals;
 #[path = "stock_validation/ownership.rs"]
 mod ownership;
 #[path = "stock_validation/protocol.rs"]
 mod protocol;
 use admission::*;
+pub use opening_context::{OpeningContext, OpeningValidationBinding};
 use ownership::*;
 use protocol::*;
 
@@ -385,6 +399,7 @@ fn collect(request: &WireRequest) -> ValidationResult {
         result.unavailable(reason);
     }
     result.stamp(&clock);
+    opening_context::complete(request, &mut result);
     result
 }
 fn send_frame(stream: &mut UnixStream, bytes: &[u8]) -> io::Result<()> {
@@ -624,6 +639,7 @@ pub fn validate(
     }
     // Only the supervisor's clock defines the acceptance interval.
     result.stamp(&clock);
+    opening_context::check_receipt(&wire, &mut result);
     result
 }
 
@@ -664,7 +680,7 @@ mod tests {
             .collect()
     }
 
-    fn project() -> (PrivateClone, WireRequest) {
+    pub(super) fn project() -> (PrivateClone, WireRequest) {
         let private = private_clone().unwrap();
         let project = private.0.join("selected");
         mkdir(&project).unwrap();
@@ -683,6 +699,7 @@ mod tests {
             root_path: "res://scripts/main.gd".into(),
             source: None,
             purpose: Purpose::Unchanged,
+            open_context: None,
             warnings: WarningSettings {
                 enable: true,
                 levels: stock_warning_levels(),
@@ -700,7 +717,7 @@ mod tests {
         };
         (private, request)
     }
-    fn admission(request: &WireRequest) -> Result<Closure, &'static str> {
+    pub(super) fn admission(request: &WireRequest) -> Result<Closure, &'static str> {
         capture_closure(
             request,
             &mut ValidationResult::new(request),

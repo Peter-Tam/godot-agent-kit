@@ -12,6 +12,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <variant>
 
 namespace gak {
 
@@ -111,6 +112,13 @@ inline std::string bytes(const Value &v, size_t limit = 512 * 1024) {
     }
     return result;
 }
+inline bool checked_bytes(const Value &v, std::string &out, size_t limit = 512 * 1024) {
+    const auto count = utf8_size(v);
+    if (count < 0 || static_cast<uint64_t>(count) > limit) { return false; }
+    out.resize(static_cast<size_t>(count));
+    return count == 0 || api.string_utf8(api.internal[GDEXTENSION_VARIANT_TYPE_STRING](
+            const_cast<void *>(v.ptr())), out.data(), count) == count;
+}
 inline uint64_t id(const Value &v) {
     if (v.type() != GDEXTENSION_VARIANT_TYPE_OBJECT) { return 0; }
     void *ptr = nullptr;
@@ -152,38 +160,51 @@ inline Value get(const Value &dict, const char *key) {
     return src ? Value(src) : Value();
 }
 inline void put_string(Value &dict, const char *key, std::string_view value) { put(dict, key, string(value)); }
-inline Value call(void *instance, const char *cls, const char *method, uint64_t hash,
-        std::initializer_list<const Value *> args = {}) {
+inline bool checked_call(Value &result, void *instance, const char *cls, const char *method,
+        uint64_t hash, std::initializer_list<const Value *> args = {}) {
     Name class_name(cls), method_name(method);
-    auto bind = api.bind(class_name.ptr(), method_name.ptr(), hash);
-    if (!bind || args.size() > 4) { return Value(); }
+    auto binding = api.bind(class_name.ptr(), method_name.ptr(), hash);
+    if (!binding || !instance || args.size() > 4) { return false; }
     std::array<GDExtensionConstVariantPtr, 4> raw{};
     size_t i = 0;
     for (auto *v : args) { raw[i++] = v->ptr(); }
-    Value result;
     api.destroy(result.ptr());
     GDExtensionCallError error{};
-    api.bound_call(bind, instance, raw.data(), static_cast<GDExtensionInt>(args.size()), result.ptr(), &error);
-    if (error.error != GDEXTENSION_CALL_OK) { api.destroy(result.ptr()); api.new_nil(result.ptr()); }
+    api.bound_call(binding, instance, raw.data(), static_cast<GDExtensionInt>(args.size()), result.ptr(), &error);
+    if (error.error == GDEXTENSION_CALL_OK) { return true; }
+    api.destroy(result.ptr()); api.new_nil(result.ptr());
+    return false;
+}
+inline Value call(void *instance, const char *cls, const char *method, uint64_t hash,
+        std::initializer_list<const Value *> args = {}) {
+    Value result;
+    checked_call(result, instance, cls, method, hash, args);
     return result;
 }
-inline Value invoke(Value &self, const char *method, std::initializer_list<const Value *> args = {}) {
+inline bool checked_invoke(Value &result, Value &self, const char *method,
+        std::initializer_list<const Value *> args = {}) {
     Name key(method);
-    if (args.size() > 4) { return Value(); }
+    if (args.size() > 4) { return false; }
     std::array<GDExtensionConstVariantPtr, 4> raw{};
     size_t i = 0;
     for (auto *v : args) { raw[i++] = v->ptr(); }
-    Value result;
     api.destroy(result.ptr());
     GDExtensionCallError error{};
     api.variant_call(self.ptr(), key.ptr(), raw.data(), static_cast<GDExtensionInt>(args.size()), result.ptr(), &error);
-    if (error.error != GDEXTENSION_CALL_OK) { api.destroy(result.ptr()); api.new_nil(result.ptr()); }
+    if (error.error == GDEXTENSION_CALL_OK) { return true; }
+    api.destroy(result.ptr()); api.new_nil(result.ptr());
+    return false;
+}
+inline Value invoke(Value &self, const char *method, std::initializer_list<const Value *> args = {}) {
+    Value result;
+    checked_invoke(result, self, method, args);
     return result;
 }
 inline void copy_into(void *destination, const Value &v) { api.destroy(destination); api.new_copy(destination, v.ptr()); }
 
 std::string sha256(std::string_view bytes);
 struct EditAttempt;
+struct OpenAttempt;
 bool valid_utf8(std::string_view source);
 bool same_time(timespec left, timespec right);
 bool engine_binary_matches();
@@ -195,12 +216,34 @@ struct Session {
     std::string session_id;
     std::thread::id main_thread;
     enum class CallState { Idle, Running, Closing };
-    EditAttempt *attempt = nullptr;
+    std::variant<std::monostate, EditAttempt *, OpenAttempt *> owner;
     CallState call_state = CallState::Idle;
 };
+inline EditAttempt *edit_attempt(Session &session) {
+    auto *held = std::get_if<EditAttempt *>(&session.owner);
+    return held ? *held : nullptr;
+}
+inline OpenAttempt *open_attempt(Session &session) {
+    auto *held = std::get_if<OpenAttempt *>(&session.owner);
+    return held ? *held : nullptr;
+}
+inline bool occupied(const Session &session) {
+    return !std::holds_alternative<std::monostate>(session.owner);
+}
 bool configure(Session &session, const std::string &session_id);
 void close(Session &session);
 void edit_cleanup(Session &session);
+void open_cleanup(Session &session);
+void open_closing(Session &session);
+Value open_inspect(Session &session, const Value &path, const Value &correlation);
+Value open_prepare(Session &session, const Value &request, const Value &source, const Value &capture);
+Value open_advance(Session &session, const Value &request, const Value &stage,
+        const Value &source_hash, const Value &context_hash);
+Value open_verify(Session &session, const Value &request, const Value &purpose);
+Value open_recheck(Session &session, const Value &request, const Value &purpose);
+Value open_finish(Session &session, const Value &request);
+Value open_abort(Session &session, const Value &request);
+bool open_expire(Session &session);
 Value edit_inspect(Session &session, const Value &path, const Value &original,
         const Value &desired, const Value &document);
 Value edit_prepare(Session &session, const Value &path, const Value &expected,
@@ -210,5 +253,7 @@ Value edit_cancel(Session &session, const Value &request);
 bool edit_expire(Session &session);
 #if GAK_FIXTURE
 Value edit_fixture_fault(Session &session, const Value &request, const Value &fault);
+Value open_fixture_fault(Session &session, const Value &request, const Value &fault);
+Value open_fixture_state(Session &session, const Value &request);
 #endif
 } // namespace gak

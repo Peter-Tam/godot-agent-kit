@@ -38,7 +38,7 @@ func _release_attempt() -> void:
 	_expiry = 0
 	_state = Lifecycle.IDLE
 	if is_instance_valid(_bridge):
-		_bridge.call("_release_edit", self)
+		_bridge.call("_release_operation", self)
 	if not is_inside_tree():
 		_native = {}
 		_bridge = null
@@ -48,10 +48,10 @@ func _release_attempt() -> void:
 func begin(path: String, expected: String, desired: String, correlation: Dictionary) -> Dictionary:
 	if _native.is_empty() or not is_instance_valid(_bridge) or _state != Lifecycle.IDLE:
 		return {"status": "busy", "reason": "slot_busy"}
-	# The selected v2 peer claims on admission. Its exact immutable tuple must
+	# The selected v3 peer claims on admission. Its exact immutable tuple must
 	# still own this preparation; a private fixture may claim only an empty slot.
 	var active: Dictionary = _bridge.get("_active")
-	var admitted: bool = active.get("edit_owner") == self and active.get("request_id") == correlation.get("request_id") \
+	var admitted: bool = active.get("operation_owner") == self and active.get("request_id") == correlation.get("request_id") \
 		and active.get("edit_path") == path and active.has("prepare_tuple")
 	if admitted:
 		var tuple: Array = active.prepare_tuple
@@ -63,7 +63,7 @@ func begin(path: String, expected: String, desired: String, correlation: Diction
 				or document.get("buffer_instance_id") != tuple[14] \
 				or correlation.get("expected_version") != tuple[15]:
 			return {"status": "refused", "reason": "wrong_attempt"}
-	elif _bridge.call("_claim_edit", self) != true:
+	elif _bridge.call("_claim_operation", self) != true:
 		return {"status": "busy", "reason": "slot_busy"}
 	_product_attempt = admitted
 	_state = Lifecycle.PREPARING
@@ -95,7 +95,7 @@ func begin(path: String, expected: String, desired: String, correlation: Diction
 # the slot for read-only survivor collection and explicit terminal cleanup.
 func advance_bound(request_id: String, stage: String) -> Dictionary:
 	var active: Dictionary = _bridge.get("_active") if is_instance_valid(_bridge) else {}
-	if not _product_attempt or active.get("edit_owner") != self \
+	if not _product_attempt or active.get("operation_owner") != self \
 			or active.get("request_id") != request_id or not active.get("apply_started", false) \
 			or active.get("native_stage_authorized") != stage:
 		return {"status": "refused", "reason": "wrong_attempt_or_stage"}

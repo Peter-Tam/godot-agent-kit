@@ -19,6 +19,13 @@ var _edit_hold_stage := ""
 var _edit_hold_announced := false
 
 
+func _native_callable_family(api: Dictionary, methods: Array) -> bool:
+	for method in methods:
+		if not api.has(method) or typeof(api[method]) != TYPE_CALLABLE or not api[method].is_valid():
+			return false
+	return true
+
+
 func edit_barrier(stage: String, _request_id: String) -> bool:
 	if stage != _edit_hold_stage:
 		return true
@@ -101,6 +108,10 @@ func _process(_delta: float) -> void:
 	if parser.parse(text) != OK or typeof(parser.data) != TYPE_DICTIONARY:
 		return
 	var request: Dictionary = parser.data
+	_dispatch_native_request(request)
+
+
+func _dispatch_native_request(request: Dictionary) -> void:
 	if not String(request.get("action", "")).begins_with("native_"):
 		super._dispatch_request(request)
 		return
@@ -123,9 +134,11 @@ func _process(_delta: float) -> void:
 		_edit_hold_stage = ""
 		_edit_hold_announced = false
 	elif action == "native_info":
-		response.api_installed = api.has_all(["api_revision", "build_id", "configure", "close"])
-		response.edit_installed = api.has_all(["edit_inspect", "edit_prepare",
+		response.api_installed = _native_callable_family(api, ["api_revision", "build_id", "configure", "close"])
+		response.edit_installed = _native_callable_family(api, ["edit_inspect", "edit_prepare",
 			"edit_advance", "edit_cancel", "edit_expire"])
+		response.open_installed = _native_callable_family(api, ["open_inspect", "open_prepare",
+			"open_advance", "open_verify", "open_recheck", "open_finish", "open_abort", "open_expire"])
 		if response.api_installed:
 			response.api_revision = api.api_revision.call()
 			response.build_id = api.build_id.call()
@@ -139,15 +152,21 @@ func _process(_delta: float) -> void:
 			if bridge != null else null
 		var prefix := "res://addons/godot_agent_kit/native/"
 		var manifest: Variant = JSON.parse_string(FileAccess.get_file_as_string(prefix + "build-manifest.json"))
-		var dylib := prefix + "libscript_edit.macos.arm64.dylib"
+		var dylib := prefix + "libeditor_integration.macos.arm64.dylib"
 		response.ok = bridge != null and owner != null and typeof(manifest) == TYPE_DICTIONARY \
 			and manifest.get("fixture_only") == true and FileAccess.file_exists(dylib) \
 			and manifest.get("native_library_sha256") == FileAccess.get_sha256(dylib) \
-			and api.has_all(["api_revision", "build_id", "edit_inspect", "edit_prepare",
-				"edit_advance", "edit_cancel", "edit_expire"]) \
-			and api.api_revision.call() == 1 and manifest.get("native_build_id") == api.build_id.call()
+			and manifest.get("native_api_revision") == 2 \
+			and manifest.get("native_family") == "editor_integration" \
+			and manifest.get("native_library") == "libeditor_integration.macos.arm64.dylib" \
+			and manifest.get("entry_symbol") == "editor_integration_library_init" \
+			and _native_callable_family(api, ["api_revision", "build_id", "configure", "close",
+				"edit_inspect", "edit_prepare", "edit_advance", "edit_cancel", "edit_expire",
+				"open_inspect", "open_prepare", "open_advance", "open_verify", "open_recheck",
+				"open_finish", "open_abort", "open_expire"]) \
+			and api.api_revision.call() == 2 and manifest.get("native_build_id") == api.build_id.call()
 		if response.ok:
-			bridge.attach_edit(owner, 1, api.build_id.call())
+			bridge.attach_edit(owner, 2, api.build_id.call())
 	elif action == "native_edit_probe_entered":
 		var bridge: Node = get_tree().get_first_node_in_group("godot_agent_kit_session_bridge")
 		var doc := _document("res://scripts/subject.gd")

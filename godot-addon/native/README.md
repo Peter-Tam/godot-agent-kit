@@ -1,4 +1,4 @@
-# Stock Godot GDScript validation and guarded editing (editor only)
+# Native editor integration (editor only)
 
 T003 implements a private native application/persistence/finalization boundary
 on exact official stock Godot 4.7.2 and a separate Rust-owned one-shot stock
@@ -14,12 +14,19 @@ is complete; [T005 cumulative acceptance](../../specs/002-edit-open-gdscript/qui
 completes Feature 002 on the exact recorded stock/macOS arm64 candidate. No other
 Godot version or platform is claimed.
 
+Feature 003 T001 adds guarded native opening and current-source validation in
+the shared revision-2 `editor_integration` bundle. Its private fixture consumes
+the real addon operation slot; the product `open_gdscript` capability remains
+false until T002 provides the complete caller. [T001 acceptance](../../specs/003-open-project-gdscript/quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30)
+is complete on the exact recorded candidate; it does not establish a public
+opening caller, wider support or Feature 003 completion.
+
 ## Build and private integration
 
 Use the exact official `4.7.2.stable.official.ed1daf0bf` executable (SHA-256
 `c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`)
 on the studied macOS arm64 environment. From the repository root, provide its
-absolute path as `STOCK_GODOT`:
+canonical absolute path (not a symlink) as `STOCK_GODOT`:
 
 ```sh
 python3 godot-addon/native/build.py --godot "$STOCK_GODOT"
@@ -30,31 +37,40 @@ the supported single-precision 64-bit `float_64` layout, rejects unsupported
 precision/word sizes, extracts method hashes and compiles C++17 against public
 generated headers only. It does not download or build Godot. Generated inputs
 belong under ignored `godot-addon/native/build/`. The installed
-`addons/godot_agent_kit/native/` contains `script_edit.gdextension`,
-`libscript_edit.macos.arm64.dylib` and `build-manifest.json`. The manifest
+`addons/godot_agent_kit/native/` contains `editor_integration.gdextension`,
+`libeditor_integration.macos.arm64.dylib` and `build-manifest.json`. The manifest
 records exact binary, ABI/header/API, source and library hashes, compiler/SDK
 and the stable 64-hex native build ID; it has no patched-engine mode or patch
 hash. The build ID derives from exact engine, ABI and source/configuration
 inputs before compilation, so the library hash cannot recursively enter it.
 Do not commit generated inputs, manifests or binaries.
+The builder removes obsolete kit-owned `script_edit` artifacts only after
+matching their exact descriptor/library provenance; substituted or unrelated
+files are preserved and cause refusal. Rebuild callers and addon together,
+restart the editor and discard old session-bound edit bases. There is no
+old-library alias or private-v2 fallback.
 
 The loader checks the running engine version/full commit and executable SHA-256.
 `configure(session_id)` binds the actual project and existing 32-lowercase-hex
 bridge or owned-fixture session; `close()` and editor shutdown release state.
 Unmatched or missing binaries fail closed without changing observation.
-Bridge v2 authenticates the installed native build and advertises editing only
-when its complete required family is available. Public observation stays v1.
+Bridge v3 authenticates seven capability bits and the installed native build.
+Editing requires its matched complete family; public observation/edit stay v1.
 
 The editor-local `godot_agent_kit_native` metadata exposes `configure`, `close`,
 `api_revision`, `build_id`, read-only `edit_inspect`, `edit_prepare`,
-`edit_advance`, `edit_cancel` and `edit_expire`. Revision `1` and the matched
-build ID are bound into bridge-v2 authentication; unavailable tooling cannot
-advertise editing.
-Stock exact-source validation runs in Rust's one-shot worker, not a native
-validation fallback. `session.cpp` owns session/project/confinement support;
-the native attempt is in `script_document.cpp` and registration in
-`extension.cpp`. The [native contract](../../specs/002-edit-open-gdscript/contracts/native-integration.md#7-current-private-implementation-boundary)
-records the bounded stages and result distinction.
+`edit_advance`, `edit_cancel` and `edit_expire`. The opening family is
+`open_inspect`, `open_prepare`, `open_advance`, `open_verify`, `open_recheck`,
+`open_finish`, `open_abort` and `open_expire`. Revision `2` and the matched
+build ID are authenticated; unavailable tooling cannot advertise editing.
+Stock validation stays in the supervised Rust helper, never a native fallback.
+`session.cpp` owns one edit/open session owner; `document_guard` owns shared
+read/identity/document checks. Editing and its Save-format/write/T0/saved-state
+steps remain in `script_document.cpp`; opening stages are in `script_open.cpp`
+and private current/source/effective-context admission in `open_context.cpp`.
+Registration remains in `extension.cpp`. The [opening native contract](../../specs/003-open-project-gdscript/contracts/native-integration.md)
+and [editing contract](../../specs/002-edit-open-gdscript/contracts/native-integration.md#7-current-private-implementation-boundary)
+distinguish stage facts from independent verification.
 
 The native directory has `.gdignore`: the editor plugin loads its installed
 manifest explicitly through `GDExtensionManager`, while an unbuilt checkout
@@ -65,7 +81,7 @@ or a dangling runtime extension dependency.
 ## Guarded caller integration
 
 Build `observe-gdscript` and `edit-gdscript` from `mcp-server/` with locked
-resolution. Re-enable the updated addon to create a new v2 session, obtain a
+resolution. Re-enable the updated addon to create a new v3 session, obtain a
 fresh observation, and submit the complete basis plus replacement source through
 stdin using the [caller contract](../../specs/002-edit-open-gdscript/contracts/edit-api.md).
 The caller owns validation supervision and a 9.5-second operation budget with
@@ -131,10 +147,26 @@ only admitted sources, checks the exact official binary and its loopback listene
 requires each URI's diagnostics before its shaped symbol response, discards all
 raw child output and owns teardown. Effective editor context must be freshly
 acquired and rechecked by the trusted integration through authenticated
-bridge-v2 ProjectSettings observations, not inferred from disk configuration.
+bridge-v3 ProjectSettings observations, not inferred from disk configuration.
 Unsupported context and incomplete evidence remain unavailable, not invalid or
 valid by omission. The stock endpoint's documented inherited limitation remains;
 private staging is context isolation, not an OS sandbox.
+
+Opening uses a read-only retained file and exact source/path methods on a new
+unbound GDScript, initial compilation only for that new object, then native
+document creation. It never writes source, Saves, clears edited state or tags a
+buffer. Retained cached scripts are neither assigned nor recompiled. Its LF
+source profile is not editing's Save-format eligibility check: exact whitespace
+is preserved rather than normalized or rejected because a later Save may format it.
+
+For a departing current GDScript, the native guard independently obtains equal
+R/B plus dirty/history/compiled/context evidence. Purpose `open_context` validates
+that private source even when it differs from current D. It rejects edit-proposal
+input and binds completed validity to the exact request/session/document/guard.
+The helper retains ordinary-string path-confinement checks and owned-child cleanup.
+Display-category metadata is not a script variable or exported/Object property;
+real variable metadata retains every effect guard and bound.
+
 
 ## Licenses and dependency provenance
 
