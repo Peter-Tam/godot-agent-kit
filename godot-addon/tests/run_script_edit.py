@@ -26,6 +26,8 @@ from caller_edit_acceptance import CallerEditAcceptanceMixin
 from cumulative_edit_acceptance import CumulativeEditAcceptanceMixin
 
 FIXTURE = Path(__file__).parent / "fixtures" / "script_edit"
+SCENARIOS = ("native-primitives", "clean-open", "conflicts", "routing", "interruption",
+             "validation", "history", "durability", "sequential", "privacy-export")
 MARKERS = (b"NATIVE_DIRECT", b"NATIVE_TRANSITIVE", b"NATIVE_SIBLING_VALUE",
            b"NATIVE_DEPENDENCY_VALUE", b"not an int", b"func value() -> int:",
            b"ACTUAL_PROPOSAL_PARSE_FAILURE", b"HUMAN_NEWER_TEXT",
@@ -260,10 +262,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--godot", required=True, type=Path)
     parser.add_argument("--observer", required=True, type=Path)
-    parser.add_argument("--scenario", required=True,
-                        choices=("clean-open", "conflicts", "routing", "interruption",
-                                 "validation", "history", "native-primitives", "durability",
-                                 "sequential", "privacy-export", "all"))
+    parser.add_argument("--scenario", required=True, choices=(*SCENARIOS, "all"))
     parser.add_argument("--editor", type=Path, help="built edit-gdscript stdin caller")
     parser.add_argument("--stock-validator", type=Path,
                         help="built test-only Rust validator example (native-primitives)")
@@ -320,30 +319,28 @@ def main():
         status = 0
         try:
             harness.initialize()
-            if args.scenario in ("native-primitives", "all"):
-                harness.group("stock-validation", harness.stock_validation)
-                harness.group("native-finalization", harness.native_finalization)
-                if args.scenario == "native-primitives":
-                    harness.group("native-export", harness.native_export)
-            if args.scenario in ("clean-open", "all"):
-                harness.group("clean-open", harness.clean_open_edit)
-            if args.scenario in ("conflicts", "all"):
-                harness.group("conflicts", harness.conflict_edit)
-            if args.scenario in ("routing", "all"):
-                harness.group("routing", harness.routing_edit)
-            if args.scenario in ("interruption", "all"):
-                harness.group("interruption", harness.interruption_edit)
-            if args.scenario in ("validation", "all"):
-                harness.group("validation", lambda: (harness.validation_edit(),
-                                                     harness.post_change_validation_edit()))
-            if args.scenario in ("history", "all"):
-                harness.group("history", harness.history_edit)
-            if args.scenario in ("durability", "all"):
-                harness.group("durability", harness.durability_edit)
-            if args.scenario in ("sequential", "all"):
-                harness.group("sequential", harness.sequential_edit)
-            if args.scenario in ("privacy-export", "all"):
-                harness.group("privacy-export", harness.privacy_export_edit)
+            for scenario in SCENARIOS:
+                if args.scenario not in (scenario, "all"):
+                    continue
+                if scenario == "native-primitives":
+                    harness.group("stock-validation", harness.stock_validation)
+                    harness.group("native-finalization", harness.native_finalization)
+                    if args.scenario == "native-primitives":
+                        harness.group("native-export", harness.native_export)
+                else:
+                    actions = {
+                        "clean-open": harness.clean_open_edit,
+                        "conflicts": harness.conflict_edit,
+                        "routing": harness.routing_edit,
+                        "interruption": harness.interruption_edit,
+                        "validation": lambda: (harness.validation_edit(),
+                                               harness.post_change_validation_edit()),
+                        "history": harness.history_edit,
+                        "durability": harness.durability_edit,
+                        "sequential": harness.sequential_edit,
+                        "privacy-export": harness.privacy_export_edit,
+                    }
+                    harness.group(scenario, actions[scenario])
             harness.summary["status"] = "passed"
         except (observation.Failure, OSError, ValueError, KeyError, TypeError,
                 EOFError, subprocess.SubprocessError) as error:

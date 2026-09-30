@@ -352,6 +352,18 @@ close/reopen, reparse, rescan, and runtime launch wherever applicable.
 
 Layer deterministic, isolated tests: unit tests for pure logic, integration tests for protocol/editor boundaries and changed state transitions, **real-Godot live-editor tests** for coherence. Use explicit deadlines and event-based synchronization, record regression cases for discovered failures, and make diagnostic evidence identify the actual transaction stage and observed D/R/B surfaces. Disk-only checks, headless runtime, and mocks cannot establish visible-buffer coherence.
 
+Real-editor validation MUST use the narrowest evidence set that proves the selected
+task: task-owned scenarios and directly affected regressions. During development,
+rerun the failed/affected scenario before broader cumulative validation. A complete
+unfiltered suite is REQUIRED when the approved task acceptance inherently requires
+whole-suite interaction, a changed shared boundary can invalidate that complete
+suite (for example authenticated bridge compatibility, native ABI/family loading,
+or shared editor-operation ownership), or the task is the feature cumulative/release
+gate. Do not invent wider reruns without a concrete affected obligation: an existing
+suite or generic regression caution is not justification. A–E, feature-completion,
+and release requirements remain unchanged; focused passes cannot establish feature
+completion where the approved cumulative gate requires complete final-head evidence.
+
 Mutation-related functionality MUST maintain real-Godot live-editor regression coverage for scenarios A–E, and all applicable gates MUST pass before a mutation feature is complete or released; C applies whenever UndoRedo is claimed:
 
 - **A — Clean open-buffer edit:** D, R, and B converge without human reconciliation.

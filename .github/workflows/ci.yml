@@ -47,6 +47,7 @@ jobs:
       - name: Exercise trust-gate decisions and validate workflows
         run: |
           "$RUNNER_TEMP/workflow-validation/bin/python" -m unittest discover -s .github/tests -v
+          "$RUNNER_TEMP/workflow-validation/bin/python" -m unittest discover -s godot-addon/tests -p test_editor_campaign.py -v
           go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color
 
   rust-native:
