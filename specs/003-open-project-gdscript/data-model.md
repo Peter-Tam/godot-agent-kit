@@ -1,6 +1,6 @@
 # Data Model: Known-Path GDScript Opening
 
-**Status:** The T001 native entities and T002 caller/domain types implement this design; [T002 acceptance](quickstart.md#9-t002-public-caller-acceptance-2026-09-30) passed. Implements [spec.md](spec.md) under the [plan](plan.md). JSON belongs to the [caller](contracts/open-api.md) and [bridge](contracts/bridge-protocol.md), not the domain reducer. T003's cumulative feature acceptance remains pending.
+**Status:** Implemented and accepted under [spec.md](spec.md) and the [plan](plan.md); [T003 cumulative acceptance](quickstart.md#10-t003-cumulative-acceptance-2026-09-30) completes Feature 003 on the exact recorded environment. JSON belongs to the [caller](contracts/open-api.md) and [bridge](contracts/bridge-protocol.md), not the domain reducer. T003 changes no domain or public contract.
 
 ## 1. Shared values and ownership
 

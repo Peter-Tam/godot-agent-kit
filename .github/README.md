@@ -16,12 +16,13 @@ runner](../specs/002-edit-open-gdscript/quickstart.md#3-owned-real-editor-runner
 and the [Feature 001 acceptance
 record](../specs/001-observe-gdscript-state/quickstart.md#29-rebased-t008-real-editor-acceptance-and-completion-2026-09-27).
 
-Known-path opening has its own [Feature 003 caller acceptance](../specs/003-open-project-gdscript/quickstart.md#3-owned-opening-runner-and-future-caller-groups).
+Known-path opening has its own [Feature 003 caller acceptance](../specs/003-open-project-gdscript/quickstart.md#3-owned-opening-runner-and-caller-groups).
 The ordinary Rust job builds `open-gdscript` alongside the observer and editor.
 The optional GUI workflow below still runs the existing edit and observation
-suites; those runs do not substitute for the opening runner's public-caller
-groups. Run opening acceptance separately on the same integrated head, with
-its own private artifacts and serial owned-window checks.
+suites; those runs do not substitute for `run_script_open.py --scenario all`,
+including repeated opening and composed A–E/durability. Run the complete opening
+campaign separately on the same integrated head, with its own private artifacts,
+then the full edit and observation campaigns serially.
 
 The remaining sections describe conditions **only for choosing the optional
 self-hosted workflow**. It is sourced from `main` even when the tested

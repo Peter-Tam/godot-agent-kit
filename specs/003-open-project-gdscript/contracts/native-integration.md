@@ -1,6 +1,6 @@
 # Native Known-Path Opening Integration
 
-**Status:** T001's native/addon integration, required acceptance and implementation-shape review are complete on the exact selected candidate. T002 connects the product caller to that unchanged native family and passed [public-caller acceptance](../quickstart.md#9-t002-public-caller-acceptance-2026-09-30). Primitive/composed planning research is in [research.md](../research.md); [native/cutover acceptance](../quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30) is separate. T003's cumulative feature acceptance remains pending. Standard public GDExtension ABI only; no engine patch/private editor field or alternate editor/history implementation.
+**Status:** Implemented and accepted on the exact recorded stock Godot/macOS arm64 environment; [T003 cumulative acceptance](../quickstart.md#10-t003-cumulative-acceptance-2026-09-30) completes Feature 003 with the unchanged native family. Primitive planning [research](../research.md), [native/cutover acceptance](../quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30) and [first-caller acceptance](../quickstart.md#9-t002-public-caller-acceptance-2026-09-30) remain distinct evidence. Standard public GDExtension ABI only; no engine patch/private editor field or alternate editor/history implementation.
 
 ## 1. Responsibilities and native API revision 2
 

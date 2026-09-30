@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/003-open-project-gdscript/spec.md`.
 
-**Status:** Phase 0 research and Phase 1 design complete. Granularity and consistency analysis passed. T001's [private native/cutover acceptance](quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30) passed and it merged in [PR #42](https://github.com/Peter-Tam/godot-agent-kit/pull/42). The maintainer selected T002 only; its [public-caller acceptance](quickstart.md#9-t002-public-caller-acceptance-2026-09-30) and [implementation-shape review](#t002-implementation-shape-and-constitutional-review-2026-09-30) passed. T003 remains pending. The initial B1 callback-isolation hold remains withdrawn under the inherited threat model; see [scope correction](research.md#6-scope-correction-and-callback-limitation). Historical research is not substituted for implementation acceptance.
+**Status:** Design, implementation and Feature 003 acceptance are complete. Granularity and consistency analysis passed; T001/T002 merged in PRs [#42](https://github.com/Peter-Tam/godot-agent-kit/pull/42)/[#43](https://github.com/Peter-Tam/godot-agent-kit/pull/43). The maintainer selected only T003; its [cumulative acceptance](quickstart.md#10-t003-cumulative-acceptance-2026-09-30) and [implementation-shape review](#t003-implementation-shape-and-constitutional-review-2026-09-30) passed independently of delivery review/merge. Roadmap Phase 1 remains in progress. The initial B1 callback-isolation hold remains withdrawn under the inherited threat model; see [scope correction](research.md#6-scope-correction-and-callback-limitation). Historical research is not substituted for implementation acceptance.
 
 ## Summary
 
@@ -77,6 +77,19 @@ owned-worker supervision; add no dependency, permission, service or workflow.
 Preservation, effect-aware interruption, privacy/export and unchanged observation/
 edit acceptance are T002 completion gates. T003's cumulative sequences and feature
 completion remain out of scope.
+
+**T003 execution planning (2026-09-30):** Selected only T003 after T002 merged in
+PR #43. Add repeated-opening and composed open/observe/edit acceptance as
+disjoint harness slices, then integrate the complete `all` selector and run the
+opening, edit and observation GUI campaigns serially. Reuse existing fixture,
+history, durability, result-review, privacy and export helpers; the concrete gap
+is cumulative current-identity/history proof after product opening, not a missing
+production mechanism. No new dependency, service, permission or CI boundary is
+needed. Constitutional I–VI/XII require independent D/R/B, preserved human work,
+real history and durability; VII–X/XIII retain existing boundaries, source
+privacy, truthful effects and the smallest current-consumer harness extension.
+Completion requires every T003 acceptance gate and a proportional shape review;
+Phase 1's separate discovery/lifecycle gaps remain out of scope.
 
 ## Native Opening Composition
 
@@ -165,6 +178,8 @@ godot-addon/
 └── tests/
     ├── run_script_open.py
     ├── caller_open_acceptance.py              # Public opening campaigns
+    ├── cumulative_open_acceptance.py          # Repeated opening/human/history transitions
+    ├── composed_open_acceptance.py            # Product preparation for existing edit A–E
     ├── open_result_review.py                  # Result-only interpretation
     ├── opening_fixture_witness.py             # Shared fixture sources and witness projections
     ├── fixtures/script_open/                  # Owned opening preparations/witnesses
@@ -267,3 +282,41 @@ framing, confinement and editor slot. Actual failure/cleanup tests justify that
 cost now. No dependency, daemon, sandbox, approval mechanism, registry monitor
 or CI trust boundary was added. The inherited local-endpoint and already-running
 malicious-plugin limits remain unchanged.
+
+## T003 implementation-shape and constitutional review (2026-09-30)
+
+No production API, policy, native effect, dependency or workflow changed.
+`cumulative_open_acceptance.py` owns repeated product requests and independently
+witnessed human/history/identity transitions. `composed_open_acceptance.py`
+owns product-opening preparation for the existing edit campaigns and the
+closed-observation/edit and cache-consumer composition checks. The runner owns
+group selection and evidence accounting; `all` dispatches each of its nine
+groups once. Nested group records are not added again to invocation totals.
+
+The existing edit fixture has one consumed preparation seam: the ordinary edit
+runner keeps direct preparation, while the opening runner uses the actual
+product caller and a separate fresh observation. Existing A–E implementations
+are reused rather than copied. Sequence helpers are private; no speculative
+production visibility, lifecycle flags, framework, extension points or future
+API were introduced. The large pre-existing runner/edit harnesses retain their
+responsibilities; current additions live in cohesive acceptance modules rather
+than another growing production module.
+
+The new composed history scenario exposed a real fixture-input precondition:
+an opened Script can exist while the scene workspace is visible. Local CodeEdit
+focus did not make the ordinary Save shortcut a script Save. The private human
+Save action now selects the Script workspace and checks actual buffer visibility
+before sending its single shortcut. The failing-before witness and passing
+composed campaign are retained; no product Save, retry or source-repair path was
+added. Earlier-history acceptance now requires the exact original source, not
+merely text different from the latest edit.
+
+Constitutional I–VI/X/XII are exercised through independent D/R/B, dirty and
+Resource-edited witnesses, actual prior Undo/Redo, human-work preservation,
+effect-aware refusal and composed durability. VII–IX retain existing product
+boundaries and tooling-only fixture controls. XIII's concrete gap was cumulative
+identity/history behavior after product opening; the simpler reused campaigns
+plus one preparation seam close it without duplicate suites or new operational
+infrastructure. Exact support, privacy/export and full-suite completion evidence
+remain governed by the [quickstart](quickstart.md); this shape review alone is
+not behavioral acceptance or a broader isolation claim.

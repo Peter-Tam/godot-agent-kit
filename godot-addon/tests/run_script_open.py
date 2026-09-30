@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Owned real-editor guarded opening caller and retained native-boundary coverage.
 
-The six public story groups exercise open-gdscript itself, with independent
-disk/editor/history witnesses. Native-boundary remains a separate low-level
-campaign. Sequential/composed/all campaigns belong to T003 and are not aliases.
+Public groups exercise open-gdscript itself with independent disk/editor/history
+witnesses, including repeated opening and composed edit durability. The all
+campaign runs each public group and the retained native boundary exactly once.
 """
 from __future__ import annotations
 
@@ -25,10 +25,15 @@ import run_observation as observation
 from run_script_edit import NativeHarness, STOCK_SHA256, concise_disk, sha
 from stock_acceptance import opening_context_fingerprint
 from caller_open_acceptance import CallerOpenAcceptanceMixin
+from cumulative_open_acceptance import CumulativeOpenAcceptanceMixin
+from composed_open_acceptance import ComposedOpenAcceptanceMixin
 from open_result_review import OPEN_CODES
 from opening_fixture_witness import (BACKGROUND, CURRENT, CURRENT_SOURCE, DECIMAL_FIELDS,
                                      FIXTURE, INVALID_SOURCE, TARGET, TARGET_SOURCE,
                                      method_names, property_projection, source_free_document)
+
+SCENARIOS = ("native-boundary", "new-open", "already-open", "preservation",
+             "routing", "interruption", "sequential", "composed", "privacy-export")
 
 
 def source_free_receipt(receipt):
@@ -40,7 +45,8 @@ def source_free_receipt(receipt):
     return {key: receipt[key] for key in keys if key in receipt}
 
 
-class OpeningHarness(CallerOpenAcceptanceMixin, NativeHarness):
+class OpeningHarness(CumulativeOpenAcceptanceMixin, ComposedOpenAcceptanceMixin,
+                     CallerOpenAcceptanceMixin, NativeHarness):
     def __init__(self, args, work):
         super().__init__(args, work)
         self.open_processes = []
@@ -50,10 +56,9 @@ class OpeningHarness(CallerOpenAcceptanceMixin, NativeHarness):
                                     b"OPEN_OUTSIDE_PRIVATE_SOURCE", b"OPEN_UNPERMITTED_EFFECT_EXECUTED",
                                     b"OPEN_SAME_BASENAME_PRIVATE", b"OPEN_NEWER_DISK_TEXT",
                                     b"OPEN_TRANSIENT_NATIVE_HISTORY"))
-        self.public_campaign = args.scenario != "native-boundary"
-        self.summary.update({"coverage_scope": ("feature_003_t002_public_" + args.scenario
-                             if self.public_campaign else "feature_003_t001_native_boundary_only"),
-                             "product_opening_caller_acceptance": self.public_campaign,
+        self.summary.update({"coverage_scope": ("complete_opening_groups" if args.scenario == "all"
+                             else "selected_opening_group"),
+                             "product_opening_caller_acceptance": args.scenario != "native-boundary",
                              "public_open_gdscript": True,
                              "opener_sha256": observation.digest(args.opener) if args.opener else None,
                              "support_claim": False,
@@ -63,7 +68,8 @@ class OpeningHarness(CallerOpenAcceptanceMixin, NativeHarness):
                              "opening_harness_modules_sha256": {
                                  name: observation.digest(Path(__file__).parent / name)
                                  for name in ("caller_open_acceptance.py", "open_result_review.py",
-                                              "opening_fixture_witness.py")},
+                                              "opening_fixture_witness.py", "cumulative_open_acceptance.py",
+                                              "composed_open_acceptance.py")},
                              "opening_fixture_files": {
                                  str(path.relative_to(FIXTURE)): observation.digest(path)
                                  for path in sorted(FIXTURE.rglob("*")) if path.is_file()}})
@@ -77,6 +83,11 @@ class OpeningHarness(CallerOpenAcceptanceMixin, NativeHarness):
             "interruption": ["US4.1", "US4.2", "US4.3", "native_entered_stall_loss_cancel_disable",
                              "actual_open_worker_and_parent_owned_helper_failure",
                              "independent_descendants_process_group_and_private_staging_cleanup"],
+            "sequential": ["US4.4", "SC-005", "current_identity_and_native_history",
+                           "five_genuinely_closed_successes", "five_dirty_recognitions"],
+            "composed": ["US1.4", "US4.5", "SC-006", "product_open_before_fresh_observe_edit",
+                         "A_E_Save_reopen_cache_reparse_rescan_runtime",
+                         "read_only_observation_and_closed_edit_refusal"],
             "privacy-export": ["selected_current_unrelated_other_project_sentinels",
                                "normal_denied_ambiguous_interrupted", "enabled_disabled_hook_only_actual_exports"]}
 
@@ -1138,8 +1149,7 @@ def main():
                         help="actual test-only stock_validation_fixture example")
     parser.add_argument("--native-fault-addon", required=True, type=Path,
                         help="separate GAK_FIXTURE editor_integration artifact directory")
-    parser.add_argument("--scenario", required=True, choices=(
-        "native-boundary", "new-open", "already-open", "preservation", "routing", "interruption", "privacy-export"))
+    parser.add_argument("--scenario", required=True, choices=(*SCENARIOS, "all"))
     parser.add_argument("--artifacts", required=True, type=Path)
     args = parser.parse_args()
     os.umask(0o077)
@@ -1178,10 +1188,12 @@ def main():
         status = 0
         try:
             harness.initialize()
-            harness.group(args.scenario, getattr(harness, args.scenario.replace("-", "_")))
-            if harness.public_campaign:
-                observation.require(len({case["case"] for case in harness.cases}) == len(harness.cases),
-                                    "opening_campaign_unique_real_case_names")
+            selected = SCENARIOS if args.scenario == "all" else (args.scenario,)
+            for scenario in selected:
+                harness.group(scenario, getattr(harness, scenario.replace("-", "_")))
+            observation.require(len({(case.get("artifact_directory"), case["case"])
+                                     for case in harness.cases}) == len(harness.cases),
+                                "opening_campaign_unique_real_case_records")
             harness.summary["status"] = "passed"
         except (observation.Failure, OSError, ValueError, KeyError, TypeError, EOFError,
                 subprocess.SubprocessError) as error:
@@ -1206,7 +1218,10 @@ def main():
                 outcome: sum(case["outcome"] == outcome for case in opening_calls) for outcome in OPEN_CODES}
             harness.summary["maximum_public_call_seconds"] = max(
                 (case["elapsed_seconds"] for case in opening_calls), default=None)
-            harness.summary["t003_cumulative_acceptance"] = "not_run_not_implemented"
+            harness.summary["cumulative_acceptance"] = {
+                scenario: "passed" if status == 0 and scenario in harness.summary["groups"] else
+                "failed" if args.scenario in (scenario, "all") else "not_run"
+                for scenario in ("sequential", "composed")}
             observation.json_file(args.artifacts / "summary.json", harness.summary)
         print(json.dumps({"status": harness.summary["status"], "stage": harness.summary.get("stage"),
                           "passed_cases": harness.summary["passed_case_count"],
