@@ -167,13 +167,13 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
                             "public_edited_flag_after_caller_" + name)
         return after, now
 
-    def held_edit(self, project, editor, basis, desired, stage, name, *, session):
+    def held_edit(self, project, editor, basis, desired, stage, name, *, session, script=ROOT):
         event = editor["control"] / "event.json"
         event.unlink(missing_ok=True)
         self.native_action(editor, "native_edit_hold", stage=stage)
         payload = self.edit_payload(basis, desired)
         started = time.monotonic()
-        process = self.edit_process(project, payload, session=session)
+        process = self.edit_process(project, payload, session=session, script=script)
         process.stdin.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
         process.stdin.close()
         process.stdin = None

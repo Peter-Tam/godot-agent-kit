@@ -10,6 +10,7 @@ var _bridge: Node
 var _request := ""
 var _session := ""
 var _expiry := 0
+var _product_attempt := false
 
 
 func configure(native_api: Dictionary, bridge: Node) -> void:
@@ -27,6 +28,7 @@ func is_active_stage() -> bool:
 func _release_attempt() -> void:
 	_request = ""
 	_session = ""
+	_product_attempt = false
 	_expiry = 0
 	_state = Lifecycle.IDLE
 	if is_instance_valid(_bridge):
@@ -45,19 +47,25 @@ func inspect(path: String, correlation: Dictionary) -> Dictionary:
 	var request_id: Variant = correlation.get("request_id")
 	var session_id: Variant = correlation.get("session_id")
 	var expiry: Variant = correlation.get("expiry_tick_us")
+	var now := Time.get_ticks_usec()
 	if not _bridge.call("_valid_id", request_id) or not (session_id is String) \
 			or session_id != _bridge.get("_session"):
 		return {"status": "refused", "reason": "wrong_attempt"}
-	if not _bridge.call("_valid_decimal", expiry) or not expiry.is_valid_int() \
-			or expiry.to_int() <= Time.get_ticks_usec():
+	if not _bridge.call("_valid_decimal", expiry) or expiry.length() > 19 \
+			or not expiry.is_valid_int() or expiry.to_int() <= now or expiry.to_int() - now > 9000000:
 		return {"status": "refused", "reason": "invalid_expiry"}
-	if not _bridge.call("_claim_operation", self):
+	var active: Dictionary = _bridge.get("_active")
+	var admitted: bool = active.get("operation_owner") == self \
+		and active.get("request_id") == request_id and active.get("open_path") == path \
+		and active.get("expiry_tick_us") == expiry.to_int() and active.get("pending") == null
+	if not admitted and not _bridge.call("_claim_operation", self):
 		return {"status": "busy", "reason": "slot_busy"}
+	active = _bridge.get("_active")
+	_product_attempt = admitted
 	_request = request_id
 	_session = session_id
 	_expiry = expiry.to_int()
 	_state = Lifecycle.OWNED
-	var active: Dictionary = _bridge.get("_active")
 	active.request_id = _request
 	active.expiry_tick_us = _expiry
 	var result := _call_owned(_request, "open_inspect", [path, correlation])
@@ -101,6 +109,17 @@ func prepare(request_id: String, source: String, capture: Dictionary) -> Diction
 
 
 func advance(request_id: String, stage: String, source_hash: String, context_hash: String) -> Dictionary:
+	if _product_attempt:
+		return {"status": "refused", "reason": "wrong_attempt_or_stage"}
+	return _call_owned(request_id, "open_advance", [request_id, stage, source_hash, context_hash])
+
+
+func advance_bound(request_id: String, stage: String, source_hash: String, context_hash: String) -> Dictionary:
+	var active: Dictionary = _bridge.get("_active") if is_instance_valid(_bridge) else {}
+	if not _product_attempt or active.get("operation_owner") != self \
+			or active.get("request_id") != request_id or active.get("open_native_stage_authorized") != stage:
+		return {"status": "refused", "reason": "wrong_attempt_or_stage"}
+	active.erase("open_native_stage_authorized")
 	return _call_owned(request_id, "open_advance", [request_id, stage, source_hash, context_hash])
 
 

@@ -3042,3 +3042,6 @@ fn old_private_descriptor_cannot_negotiate_a_downgrade() {
         std::io::ErrorKind::WouldBlock
     );
 }
+
+#[path = "bridge_boundary/open.rs"]
+mod script_open;

@@ -228,6 +228,7 @@ struct WireRequest {
     root_path: String,
     source: Option<String>,
     purpose: Purpose,
+    #[serde(serialize_with = "opening_context::serialize_context")]
     open_context: Option<OpeningContext>,
     warnings: WarningSettings,
     global_classes: Vec<String>,

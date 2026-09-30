@@ -29,6 +29,9 @@ pub mod stock_validation;
 #[path = "runner/edit.rs"]
 pub mod edit;
 
+#[path = "runner/open.rs"]
+pub mod open;
+
 /// The caller creates this before parsing flags or doing any filesystem/selection work.
 #[derive(Clone, Copy)]
 pub struct AttemptClock {

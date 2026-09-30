@@ -1,14 +1,95 @@
 //! Closed, private current-document guard records. No general JSON canonicalizer.
 use super::*;
+use crate::observation::{ObservationRequest, ResolvedTarget};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct OpeningContext {
     kind: ContextKind,
+    #[serde(deserialize_with = "required_nullable")]
     reason: Option<String>,
+    #[serde(deserialize_with = "required_nullable")]
     projection: Option<Projection>,
+    #[serde(deserialize_with = "required_nullable")]
     source: Option<String>,
+    #[serde(deserialize_with = "required_nullable")]
     sha256: Option<String>,
+}
+
+fn required_nullable<'de, T: Deserialize<'de>, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<T>, D::Error> {
+    struct Present<T>(std::marker::PhantomData<T>);
+    impl<'de, T: Deserialize<'de>> serde::de::Visitor<'de> for Present<T> {
+        type Value = Option<T>;
+        fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("a required context value or explicit null")
+        }
+        fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
+            T::deserialize(serde::de::value::StrDeserializer::<E>::new(v)).map(Some)
+        }
+        fn visit_map<A: serde::de::MapAccess<'de>>(self, v: A) -> Result<Self::Value, A::Error> {
+            T::deserialize(serde::de::value::MapAccessDeserializer::new(v)).map(Some)
+        }
+    }
+    d.deserialize_any(Present(std::marker::PhantomData))
+}
+
+fn unique_levels<'de, D: serde::Deserializer<'de>>(d: D) -> Result<BTreeMap<String, u8>, D::Error> {
+    struct Levels;
+    impl<'de> serde::de::Visitor<'de> for Levels {
+        type Value = BTreeMap<String, u8>;
+        fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("bounded unique guard warning levels")
+        }
+        fn visit_map<A: serde::de::MapAccess<'de>>(
+            self,
+            mut map: A,
+        ) -> Result<Self::Value, A::Error> {
+            let mut out = BTreeMap::new();
+            while let Some((key, value)) = map.next_entry::<String, u8>()? {
+                if out.len() == 128 || key.len() > 2048 || out.insert(key, value).is_some() {
+                    return Err(serde::de::Error::custom("invalid guard warning map"));
+                }
+            }
+            Ok(out)
+        }
+    }
+    d.deserialize_map(Levels)
+}
+
+impl std::fmt::Debug for OpeningContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("OpeningContext(<private>)")
+    }
+}
+
+// Only the owned validator transport may serialize private current source.
+pub(super) fn serialize_context<S: serde::Serializer>(
+    value: &Option<OpeningContext>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    #[derive(Serialize)]
+    struct Record<'a> {
+        kind: ContextKind,
+        reason: &'a Option<String>,
+        projection: &'a Option<Projection>,
+        source: &'a Option<String>,
+        sha256: &'a Option<String>,
+    }
+    value
+        .as_ref()
+        .map(|v| Record {
+            kind: v.kind,
+            reason: &v.reason,
+            projection: &v.projection,
+            source: &v.source,
+            sha256: &v.sha256,
+        })
+        .serialize(serializer)
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -67,7 +148,9 @@ struct Binding {
 #[serde(deny_unknown_fields)]
 struct Warnings {
     enable: bool,
+    #[serde(deserialize_with = "unique_levels")]
     levels: BTreeMap<String, u8>,
+    #[serde(deserialize_with = "unique_levels")]
     directory_rules: BTreeMap<String, u8>,
 }
 
@@ -146,6 +229,52 @@ impl OpeningContext {
         let (projection, _) = self.current().ok()?;
         Some(projection.binding(self.sha256.as_deref()?))
     }
+
+    pub(crate) fn no_source(&self) -> bool {
+        self.kind == ContextKind::NoSourceEditor
+            && self.reason.is_none()
+            && self.projection.is_none()
+            && self.source.is_none()
+            && self.sha256.is_none()
+    }
+
+    pub(crate) fn validation_request(
+        self,
+        request: &ObservationRequest,
+        target: &ResolvedTarget,
+        warnings: WarningSettings,
+        global_classes: Vec<String>,
+        official_binary: PathBuf,
+    ) -> Option<ValidationRequest> {
+        let (p, _) = self.current().ok()?;
+        if p.request_id != request.request_id().as_str()
+            || p.session_id != target.session_id().as_str()
+            || p.project_root != target.project_root().as_str()
+            || p.project_device != target.project_file_id().device().as_str()
+            || p.project_inode != target.project_file_id().inode().as_str()
+            || p.warnings.enable != warnings.enable
+            || p.warnings.levels != warnings.levels
+            || p.warnings.directory_rules != warnings.directory_rules
+            || p.global_classes != global_classes
+            || warnings.provenance.project_root != p.project_root
+            || warnings.provenance.session_id != p.session_id
+        {
+            return None;
+        }
+        let root_path = ResourcePath::new(p.path.clone()).ok()?;
+        Some(ValidationRequest {
+            request_id: request.request_id().clone(),
+            session_id: target.session_id().clone(),
+            project_root: target.project_root().clone(),
+            root_path,
+            source: None,
+            purpose: Purpose::OpenContext,
+            open_context: Some(self),
+            warnings,
+            global_classes,
+            official_binary,
+        })
+    }
 }
 impl OpeningValidationBinding {
     /// Only completed valid evidence for this exact checked context may release
@@ -156,6 +285,16 @@ impl OpeningValidationBinding {
             return None;
         }
         Some((&actual.source_sha256, &actual.guard_sha256))
+    }
+    pub(crate) fn invalid_result(&self, result: &ValidationResult) -> bool {
+        result.status == "invalid"
+            && result.opening_binding.is_none()
+            && attributed_completion(self, result)
+            && !result.diagnostics.is_empty()
+            && result
+                .diagnostics
+                .iter()
+                .all(|d| d.path == self.path && d.source_sha256 == self.source_sha256)
     }
 }
 impl Projection {
@@ -554,12 +693,15 @@ pub(super) fn recheck_project(request: &WireRequest) -> Result<(), &'static str>
 }
 fn completed(projection: &OpeningValidationBinding, result: &ValidationResult) -> bool {
     result.status == "valid"
-        && result.reason.is_none()
+        && result.diagnostics.is_empty()
+        && attributed_completion(projection, result)
+}
+fn attributed_completion(projection: &OpeningValidationBinding, result: &ValidationResult) -> bool {
+    result.reason.is_none()
         && result.purpose == Purpose::OpenContext
         && result.request_id == projection.request_id
         && result.session_id == projection.session_id
         && result.root_path == projection.path
-        && result.diagnostics.is_empty()
         && result.cleanup_confirmed
         && result.child_spawned == Some(true)
         && result.child_reaped == Some(true)
@@ -874,7 +1016,7 @@ mod tests {
     #[test]
     fn closed_typed_metadata_rejects_missing_unknown_unsorted_and_incompatible_fields() {
         let (_private, request) = opening();
-        let native = serde_json::to_value(request.open_context.as_ref().unwrap()).unwrap();
+        let native = serde_json::to_value(&request).unwrap()["open_context"].clone();
         let mut missing = native.clone();
         missing["projection"]
             .as_object_mut()
@@ -979,6 +1121,50 @@ mod tests {
                 _ => unreachable!(),
             }
             assert!(binding.validated_hashes(&changed).is_none(), "{field}");
+        }
+    }
+
+    #[test]
+    fn invalid_current_source_requires_complete_attributable_evidence_not_a_status_string() {
+        let (_private, request) = opening();
+        let binding = request
+            .open_context
+            .as_ref()
+            .unwrap()
+            .checked_binding()
+            .unwrap();
+        let closure = admission(&request).unwrap();
+        let mut result = ValidationResult::new(&request);
+        attribute(&mut result, &closure.sources[0]);
+        result.status = "invalid".into();
+        result.context_sha256 = Some("a".repeat(64));
+        result.child_spawned = Some(true);
+        result.child_reaped = Some(true);
+        result.child_pid = Some(42);
+        result.clone_extra_files = Some(false);
+        result.clone_log_files = Some(false);
+        result.diagnostics.push(ErrorDiagnostic {
+            path: binding.path.clone(),
+            source_sha256: binding.source_sha256.clone(),
+            line: 1,
+            column: 1,
+            message: "private parser output".into(),
+        });
+        assert!(!binding.invalid_result(&result));
+        result.sources[0].diagnostics_completed = true;
+        result.sources[0].symbols_completed = true;
+        assert!(binding.invalid_result(&result));
+        for field in ["source", "path", "diagnostics", "symbols", "cleanup"] {
+            let mut changed = result.clone();
+            match field {
+                "source" => changed.sources[0].sha256 = "0".repeat(64),
+                "path" => changed.diagnostics[0].path = "res://another.gd".into(),
+                "diagnostics" => changed.sources[0].diagnostics_completed = false,
+                "symbols" => changed.sources[0].symbols_completed = false,
+                "cleanup" => changed.cleanup_confirmed = false,
+                _ => unreachable!(),
+            }
+            assert!(!binding.invalid_result(&changed), "{field}");
         }
     }
 }

@@ -1,6 +1,6 @@
 # Open Project GDScript — Caller Contract v1
 
-**Status:** Planned interface, not an implemented binary or support claim. Governed by [spec.md](../spec.md), the [data model](../data-model.md) and [native contract](native-integration.md). Existing public observation/edit v1 contracts remain unchanged.
+**Status:** T002's caller, required [public-caller acceptance](../quickstart.md#9-t002-public-caller-acceptance-2026-09-30) and implementation-shape review are complete on the exact recorded candidate. Governed by [spec.md](../spec.md), the [data model](../data-model.md) and [native contract](native-integration.md). Existing public observation/edit v1 contracts remain unchanged. T003's cumulative feature acceptance and wider support are not claimed.
 
 ## 1. Invocation and input
 
@@ -33,7 +33,7 @@ Every normal result uses the following top-level fields. Null means no attributa
 | `application` | `not_applied`, `applied`, `partly_applied` or `unknown`. Lifecycle effects, not source-write status. |
 | `progress` | `resource_binding`, `initial_compilation`, `document_open`, `verification`, each a stage fact described below. |
 | `before` | Target summary or null: confirmed open/cache mode, attributed document identity, source availability/hash/length, buffer dirty and Resource-edited evidence. No duplicate source bodies. |
-| `observation` | Null or `{purpose, snapshot}`. `purpose` is `preparation`, `recognition` or `verification`; `snapshot` has the existing observation-v1 shape, independent D/R/B, intervals, comparisons and invalidation. |
+| `observation` | Null or `{purpose, snapshot}`. `purpose` is `preparation`, `recognition` or `verification`; `snapshot` preserves the existing observation-v1 snapshot fields and adds an opening-only `interval` for that acquisition, with the same `{started_unix_ms, finished_unix_ms, elapsed_us}` shape. Independent D/R/B, collection stamps, comparisons and invalidation keep their existing meanings. |
 | `resource_edited` | Latest separately acquired target Resource flag: `{availability, value, collection, witness, reason}`. `value` is boolean or null. Does not redefine observation v1's buffer dirty field. |
 | `target_parse` | `{state, origin, code, collection, diagnostics}`; states `valid`, `invalid`, `unavailable`, `not_collected`; origin `initial_compilation` or null. Only actual attributable evidence. |
 | `protection` | `{status, reason}`; status `not_applicable`, `preserved`, `unavailable` or `invalidated`. No current/unrelated source, path, hash or private validation receipt. |
@@ -45,6 +45,11 @@ Every normal result uses the following top-level fields. Null means no attributa
 A stage fact is `{state, reason, collection, script_instance_id, editor_instance_id, buffer_instance_id}`. State is `not_started`, `not_applicable`, `entered`, `completed`, `failed` or `unknown`; unused identities/collection/reason are null. `resource_binding` additionally has `mode: created|reused|null`; a completed reuse is not itself application. A completed compilation may be invalid; `target_parse` records the result. Actual document association and independent verification are distinct stages. No source is repeated in progress events.
 
 Source summaries replace each observed text with `{sha256, utf8_bytes}` while preserving its authority, availability, witness, collection and invalidation. They do not upgrade an unavailable surface. The latest snapshot retains its original interval and purpose; if effects may have invalidated a preparation sample, mark that explicitly rather than calling it current post-state. A source from a denied/ambiguous attribution is never included.
+
+The existing observer places its interval beside its snapshot. Opening retains
+that acquisition interval inside its opening-only snapshot wrapper so the outer
+operation interval cannot be mistaken for the latest sample's interval. This
+does not change observation/edit v1 or create another source-bearing record.
 
 `target_parse` diagnostic records are bounded by the existing validator diagnostic limits and contain only target logical path, severity, code and available line/column, not source snippets or raw compiler messages. A bare engine parse error may have no line/column. Cached opening does not reload merely to obtain diagnostics: `not_collected` is truthful. Invalid target parsing does not preclude verified opening. Private current-document validation failure is instead an opening-context refusal and does not disclose that other document's diagnostic content.
 

@@ -72,7 +72,7 @@ jobs:
           cargo clippy --all-targets --locked -- -D warnings
           cargo test --locked
           cargo doc --no-deps --locked
-          cargo build --locked --bin observe-gdscript --bin edit-gdscript
+          cargo build --locked --bin observe-gdscript --bin edit-gdscript --bin open-gdscript
 
   editor-native:
     name: Stock native build

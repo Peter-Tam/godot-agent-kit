@@ -2423,6 +2423,9 @@ impl ObservationOutcome {
     pub fn selection(&self) -> Option<&Selection> {
         self.selection.as_ref()
     }
+    pub(crate) fn into_snapshot(self) -> Option<ObservationSnapshot> {
+        self.snapshot
+    }
 }
 fn validate_target(
     request: &ObservationRequest,
