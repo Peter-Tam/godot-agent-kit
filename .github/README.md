@@ -8,8 +8,8 @@ completion prerequisite.
 
 **Real-editor acceptance is mandatory; dedicated GUI CI is optional.** A
 maintainer-operated real Mac with the pinned stock Godot candidate, the
-complete script-edit and observation `--scenario all` runs, and honestly
-recorded evidence can satisfy the GUI requirements alongside ordinary CI. An
+complete suites required by the approved feature cumulative/release gate, and
+honestly recorded evidence can satisfy the GUI requirements alongside ordinary CI. An
 observation run alone does not prove guarded mutation A–E, runtime durability,
 or caller completion. See the [Feature 002 acceptance
 runner](../specs/002-edit-open-gdscript/quickstart.md#3-owned-real-editor-runner)
@@ -19,10 +19,95 @@ record](../specs/001-observe-gdscript-state/quickstart.md#29-rebased-t008-real-e
 Known-path opening has its own [Feature 003 caller acceptance](../specs/003-open-project-gdscript/quickstart.md#3-owned-opening-runner-and-caller-groups).
 The ordinary Rust job builds `open-gdscript` alongside the observer and editor.
 The optional GUI workflow below still runs the existing edit and observation
-suites; those runs do not substitute for `run_script_open.py --scenario all`,
-including repeated opening and composed A–E/durability. Run the complete opening
-campaign separately on the same integrated head, with its own private artifacts,
-then the full edit and observation campaigns serially.
+suites; those runs do not substitute for complete opening acceptance, including
+repeated opening and composed A–E/durability. At the cumulative gate, run opening,
+edit and observation serially on the same final delivery head with private
+artifacts. The campaign utility below retains evidence at existing scenario boundaries.
+
+## Focused validation and resumable campaigns
+
+During development, run the failed/affected scenario, fix it, then rerun that
+scenario. Task completion needs task-owned scenarios plus directly affected
+regressions, not the entire historical GUI universe. Use a complete unfiltered
+suite when approved acceptance requires whole-suite interaction, a changed
+shared boundary can invalidate the suite (authenticated bridge compatibility,
+native ABI/family loading, shared editor-operation ownership), or the task is
+the feature cumulative/release gate. The existence of a suite or generic
+regression caution does not establish an affected obligation.
+
+The [campaign utility](../godot-addon/tests/run_editor_campaign.py) invokes the
+existing runners; they retain ownership of all product, D/R/B, history, privacy
+and export assertions. Build the existing acceptance inputs first, including
+the library used by observation probes and separate production/fault native
+artifacts; see the [opening runner prerequisites](../specs/003-open-project-gdscript/quickstart.md#3-owned-opening-runner-and-caller-groups).
+From the repository root, set the same absolute inputs for these examples:
+
+```sh
+GODOT=/absolute/path/to/Godot
+FAULT_NATIVE=/absolute/path/to/fixture-only-native
+set -- --godot "$GODOT" \
+  --observer "$PWD/mcp-server/target/debug/observe-gdscript" \
+  --editor "$PWD/mcp-server/target/debug/edit-gdscript" \
+  --opener "$PWD/mcp-server/target/debug/open-gdscript" \
+  --stock-validator "$PWD/mcp-server/target/debug/examples/stock_validation_fixture" \
+  --native-fault-addon "$FAULT_NATIVE"
+```
+
+Focused development (use a new empty private artifact directory each time):
+
+```sh
+ARTIFACTS="$(mktemp -d "$HOME/open-interruption.XXXXXX")"
+python3 godot-addon/tests/run_script_open.py \
+  --scenario interruption --artifacts "$ARTIFACTS" "$@"
+```
+
+Cumulative campaign on stable final code:
+
+```sh
+CAMPAIGN="$(mktemp -d "$HOME/editor-campaign.XXXXXX")"
+python3 godot-addon/tests/run_editor_campaign.py \
+  --suite all --campaign-dir "$CAMPAIGN" --keep-going "$@"
+```
+
+Resume the same unchanged interrupted campaign, retaining `CAMPAIGN`:
+
+```sh
+python3 godot-addon/tests/run_editor_campaign.py \
+  --suite all --campaign-dir "$CAMPAIGN" --keep-going --resume "$@"
+```
+
+`--suite open`, `edit`, and `observation` select individual suites. Only opening
+needs `--opener`; edit needs the remaining inputs above; observation needs only
+`--godot` and `--observer`. Campaigns are serial, with one isolated subprocess
+per existing opening/edit scenario, in each runner's authoritative order.
+Observation deliberately remains one `run_observation.py --scenario all` step:
+its cross-group redaction/replay/boundary assertions must stay together.
+There is no case-level resume.
+
+Every execution receives a fresh empty private directory such as
+`open/routing/attempt-001/`, with the runner's `summary.json`. Failed and
+interrupted attempts remain intact; retries allocate a new directory. An atomic
+`manifest.json` records per-step status, exit code, execution fingerprint,
+attempt/summary paths, summary SHA-256, command identity and executed/reused
+disposition, without copying source, credentials or runner-summary payloads.
+Without `--keep-going` the campaign stops at the first failure. With it,
+remaining independent steps run; the final PASS / FAIL / REUSED listing still
+exits nonzero if any required step failed or did not run.
+
+`--resume` reuses only a passed checkpoint whose summary still exists, says
+passed, matches its recorded SHA-256, and has an identical current execution
+fingerprint. Fingerprints cover applicable executables, native build artifacts,
+runner/helpers, fixtures, addon/runtime inputs and behavioral arguments;
+documentation edits and commit IDs are not execution identity. Missing, corrupt,
+failed or interrupted evidence is rerun, never promoted to passing.
+
+Focused scenario passes are development evidence, not a substitute for an
+approved final-head cumulative gate. After a code/build/runtime change, old-build
+passes cannot silently prove the new head: rerun the affected scenario during
+development, then run the complete required cumulative campaign once the final
+inputs are stable. Resume avoids restarting unchanged completed work, not the
+acceptance required by a new execution identity. A–E, feature-completion and
+release obligations are unchanged.
 
 The remaining sections describe conditions **only for choosing the optional
 self-hosted workflow**. It is sourced from `main` even when the tested
@@ -203,12 +288,14 @@ PyYAML **6.0.3**, and Actionlint installed; CI pins its Actionlint Go module):
 ```sh
 python3 -m pip install 'PyYAML==6.0.3'
 python3 -m unittest discover -s .github/tests -v
+python3 -m unittest discover -s godot-addon/tests -p test_editor_campaign.py -v
 actionlint -config-file .github/actionlint.yaml .github/workflows/ci.yml .github/workflows/live-editor.yml
 ```
 
-The `ci.yml` hosted workflow-validation job runs the trust-gate and shell-stage
-regressions without starting a GUI runner. Shell-stage tests use simulated
-candidate metadata to prove refusal and execution ordering, not real-editor
+The `ci.yml` hosted workflow-validation job runs the trust-gate, shell-stage and
+campaign-orchestration regressions without starting a GUI runner. Campaign tests
+use stub child processes and temporary evidence; shell-stage tests use simulated
+candidate metadata. These prove orchestration and refusal, not real-editor
 acceptance. Both main-push and main-targeting PR path filters include
 `godot-addon/**`, alongside Rust and workflow paths.
 
