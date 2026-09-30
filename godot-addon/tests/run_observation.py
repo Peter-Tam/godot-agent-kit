@@ -486,13 +486,19 @@ class Harness:
         editor["stream"].close()
         self.safe_log(editor["log"].name, editor["log"].read_bytes())
 
-    def screenshot(self, editor, name):
+    def present_editor(self, editor):
+        """Establish the owned OS window before a visible human interaction."""
+        self.compile_window_probe()
         self.action(editor, "present")
         def visible_window():
             require(editor["process"].poll() is None, "owned_editor_exited_before_capture")
             window = run([self.window_probe, editor["process"].pid], timeout=2)
             return window.stdout.decode().strip() if window.returncode == 0 and window.stdout.strip().isdigit() else None
         window = wait_for(visible_window, "owned_visible_window", timeout=20)
+        return window
+
+    def screenshot(self, editor, name):
+        window = self.present_editor(editor)
         path = self.artifacts / name
         result = run(["/usr/sbin/screencapture", "-x", "-l", window, path])
         require(result.returncode == 0 and path.is_file(), "owned_window_capture")
@@ -545,10 +551,10 @@ class Harness:
                 "real_server_identity")
         require(set(response["capabilities"]) == set(CAPABILITIES) and
                 all(type(response["capabilities"][name]) is bool for name in CAPABILITIES) and
-                response["capabilities"]["open_gdscript"] is False and
-                (not response["capabilities"]["edit_open_gdscript"] or
+                (not (response["capabilities"]["edit_open_gdscript"] or
+                      response["capabilities"]["open_gdscript"]) or
                  response["native_api_revision"] == 2),
-                "authenticated_complete_v3_capabilities_opening_not_product_enabled")
+                "authenticated_complete_v3_capabilities_matched_native_revision")
         require(hmac.compare_digest(response["server_proof"], proof(descriptor, response, "server")),
                 "independent_server_proof")
         require(descriptor["token"].encode() not in raw, "secret_free_challenge")

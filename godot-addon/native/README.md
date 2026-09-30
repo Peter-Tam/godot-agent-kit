@@ -14,12 +14,14 @@ is complete; [T005 cumulative acceptance](../../specs/002-edit-open-gdscript/qui
 completes Feature 002 on the exact recorded stock/macOS arm64 candidate. No other
 Godot version or platform is claimed.
 
-Feature 003 T001 adds guarded native opening and current-source validation in
-the shared revision-2 `editor_integration` bundle. Its private fixture consumes
-the real addon operation slot; the product `open_gdscript` capability remains
-false until T002 provides the complete caller. [T001 acceptance](../../specs/003-open-project-gdscript/quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30)
-is complete on the exact recorded candidate; it does not establish a public
-opening caller, wider support or Feature 003 completion.
+Feature 003 adds guarded native opening and current-source validation in the
+shared revision-2 `editor_integration` bundle. [T001 acceptance](../../specs/003-open-project-gdscript/quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30)
+established its private native/slot boundary. T002 connects the explicit
+`open-gdscript` caller to that same owner; `open_gdscript` is advertised only for
+the matched complete family. Its [public-caller acceptance](../../specs/003-open-project-gdscript/quickstart.md#9-t002-public-caller-acceptance-2026-09-30)
+and implementation-shape review are complete on the exact recorded candidate.
+T003's cumulative opening/composed acceptance remains pending; no wider support
+or Feature 003 completion is implied.
 
 ## Build and private integration
 
@@ -55,14 +57,14 @@ The loader checks the running engine version/full commit and executable SHA-256.
 bridge or owned-fixture session; `close()` and editor shutdown release state.
 Unmatched or missing binaries fail closed without changing observation.
 Bridge v3 authenticates seven capability bits and the installed native build.
-Editing requires its matched complete family; public observation/edit stay v1.
+Editing and opening each require their matched complete family; public observation/edit stay v1.
 
 The editor-local `godot_agent_kit_native` metadata exposes `configure`, `close`,
 `api_revision`, `build_id`, read-only `edit_inspect`, `edit_prepare`,
 `edit_advance`, `edit_cancel` and `edit_expire`. The opening family is
 `open_inspect`, `open_prepare`, `open_advance`, `open_verify`, `open_recheck`,
 `open_finish`, `open_abort` and `open_expire`. Revision `2` and the matched
-build ID are authenticated; unavailable tooling cannot advertise editing.
+build ID are authenticated; unavailable tooling cannot advertise editing or opening.
 Stock validation stays in the supervised Rust helper, never a native fallback.
 `session.cpp` owns one edit/open session owner; `document_guard` owns shared
 read/identity/document checks. Editing and its Save-format/write/T0/saved-state
@@ -98,6 +100,30 @@ suite separately afterward. Use a new empty mode-0700 `--artifacts` directory
 per invocation and an unlocked visible GUI session. State diagnostics without
 owned-window captures do not pass these acceptance gates.
 
+For a known closed script, build `open-gdscript` as well and invoke the distinct
+[opening caller](../../specs/003-open-project-gdscript/contracts/open-api.md):
+
+```sh
+open-gdscript --registry "$REGISTRY" --project "$PROJECT" \
+  --session "$SESSION" --script res://scripts/subject.gd
+```
+
+Opening reads no stdin and accepts no source, force, reload, focus or retry
+option. An already-open result leaves dirty/divergent state and selection
+unchanged; a newly-opened result requires separate D/R/B, dirty, Resource-edited
+and protection evidence. A target syntax error is not an opening failure.
+Always obtain a new ordinary observation before editing; an opening result is
+not an edit basis. Possibly applied results require fresh observation of the
+original target, not retry or assumed rollback.
+
+The opening runner accepts `native-boundary`, `new-open`, `already-open`,
+`preservation`, `routing`, `interruption` and `privacy-export`. Public groups
+require `--opener` in addition to the existing absolute executable/fault-artifact
+paths. T003's cumulative `all`, `sequential` and `composed` groups are not
+implemented aliases; run the T002 groups individually and retain separate
+evidence. Use the [opening quickstart](../../specs/003-open-project-gdscript/quickstart.md)
+for exact commands and current acceptance limits.
+
 
 ## Official-stock boundary and verification
 
@@ -106,7 +132,7 @@ From the repository root, after setting the absolute executable and output paths
 ```sh
 python3 godot-addon/native/build.py --godot "$STOCK_GODOT"
 cargo +1.98.1 build --manifest-path mcp-server/Cargo.toml --locked \
-  --lib --example stock_validation_fixture --bin observe-gdscript --bin edit-gdscript
+  --lib --example stock_validation_fixture --bin observe-gdscript --bin edit-gdscript --bin open-gdscript
 python3 godot-addon/native/build.py --godot "$STOCK_GODOT" \
   --fixture-faults --output-addon "$PRIVATE_FAULT_NATIVE"
 python3 godot-addon/tests/run_script_edit.py \

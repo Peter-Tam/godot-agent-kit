@@ -141,6 +141,10 @@ class NativeHarness(CumulativeEditAcceptanceMixin, CallerEditAcceptanceMixin,
         return project
 
     def native_action(self, editor, action, **arguments):
+        if action in ("native_edit_save", "native_edit_save_clean"):
+            # Control.has_focus alone does not establish a foreground OS window.
+            # Deliver the ordinary shortcut once, after the owned surface is ready.
+            self.present_editor(editor)
         request_id = secrets.token_hex(8)
         observation.json_file(editor["control"] / "request.json",
                               {"id": request_id, "action": action, **arguments})

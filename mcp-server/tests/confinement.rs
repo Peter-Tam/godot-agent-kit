@@ -803,3 +803,49 @@ fn selected_disk_rejects_project_root_rebinding_without_reading_replacement() {
     drop(selected);
     peer.join().unwrap();
 }
+
+#[test]
+fn opening_caller_refuses_leaf_and_directory_symlinks_before_authentication() {
+    for directory in [false, true] {
+        let f = Fixture::new();
+        let outside = f.home.join("outside.gd");
+        fs::write(&outside, b"OPEN_OUTSIDE_SOURCE_SENTINEL").unwrap();
+        fs::create_dir(f.project.join("scripts")).unwrap();
+        let locator = if directory {
+            symlink(&f.home, f.project.join("scripts/escape")).unwrap();
+            "res://scripts/escape/outside.gd"
+        } else {
+            symlink(&outside, f.project.join("scripts/escape.gd")).unwrap();
+            "res://scripts/escape.gd"
+        };
+        f.descriptor(ID, &f.valid_descriptor(ID));
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_open-gdscript"))
+            .args([
+                "--registry",
+                f.registry.to_str().unwrap(),
+                "--project",
+                f.project.to_str().unwrap(),
+                "--session",
+                ID,
+                "--script",
+                locator,
+            ])
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(3));
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(result["reason"], "outside_project");
+        assert_eq!(result["application"], "not_applied");
+        assert_eq!(result["resolved_target"], Value::Null);
+        assert_eq!(result["observation"], Value::Null);
+        for bytes in [&output.stdout, &output.stderr] {
+            assert!(!String::from_utf8_lossy(bytes).contains("OPEN_OUTSIDE_SOURCE_SENTINEL"));
+        }
+        f.listener.set_nonblocking(true).unwrap();
+        assert_eq!(
+            f.listener.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+        assert_eq!(fs::read(&outside).unwrap(), b"OPEN_OUTSIDE_SOURCE_SENTINEL");
+    }
+}

@@ -5,6 +5,7 @@ const VERSION := "4.7.2.stable.official.ed1daf0bf"
 const ENGINE_HASH := "ed1daf0bf001b61586d9930840f2f1394092c079"
 const DOMAIN := "godot-agent-kit/editor-bridge/v3"
 const ObservationScript = preload("res://addons/godot_agent_kit/observation.gd")
+const OpeningTransportScript = preload("res://addons/godot_agent_kit/script_open_transport.gd")
 const MAX_FRAME := 4096
 const MAX_SELECTED_REQUEST := 4 * 1024 * 1024
 const MAX_RESPONSE := 12 * 1024 * 1024
@@ -40,6 +41,8 @@ var _uid := ""
 var _project_identity := ""
 
 var _edit_owner: Node
+var _open_owner: Node
+var _opening_exchange := OpeningTransportScript.new()
 var _native_revision := 0
 var _native_build_id := ""
 var _active: Dictionary = {}
@@ -173,6 +176,7 @@ func _registry_unchanged() -> bool:
 
 func start(registry: String) -> bool:
 	stop()
+	_opening_exchange.configure(self)
 	if not Engine.is_editor_hint():
 		return false
 	var version := Engine.get_version_info()
@@ -290,7 +294,7 @@ func _release_operation(owner: Node) -> void:
 			call_deferred("free")
 
 
-func attach_edit(owner: Node, revision: int, build_id: String) -> void:
+func _matched_family(owner: Node, revision: int, build_id: String) -> bool:
 	var valid: bool = is_instance_valid(owner) and owner.get("_bridge") == self \
 		and revision == 2 and _valid_hex(build_id, 64)
 	if valid:
@@ -309,14 +313,27 @@ func attach_edit(owner: Node, revision: int, build_id: String) -> void:
 					break
 		if valid:
 			valid = family["api_revision"].call() == 2 and family["build_id"].call() == build_id
+	return valid
+
+
+func attach_edit(owner: Node, revision: int, build_id: String) -> void:
+	var valid := _matched_family(owner, revision, build_id)
 	_edit_owner = owner if valid else null
 	_native_revision = 2 if valid else 0
 	_native_build_id = build_id if valid else ""
+	if not valid:
+		_open_owner = null
+
+
+func attach_open(owner: Node, revision: int, build_id: String) -> void:
+	_open_owner = owner if _native_revision == 2 and build_id == _native_build_id \
+		and _matched_family(owner, revision, build_id) else null
 
 
 func _capabilities() -> Dictionary:
 	var capabilities := CAPABILITIES.duplicate()
 	capabilities.edit_open_gdscript = is_instance_valid(_edit_owner) and _native_revision == 2
+	capabilities.open_gdscript = is_instance_valid(_open_owner) and _native_revision == 2
 	return capabilities
 
 
@@ -331,6 +348,10 @@ func stop() -> void:
 			peer.collector.clear()
 		if peer.has("edit_collector"):
 			peer.edit_collector.clear()
+		if peer.has("open_collector"):
+			peer.open_collector.clear()
+		for field in ["pending", "open_prepare_tuple", "open_advance_tuple", "open_reply", "open_reply_closing"]:
+			peer.erase(field)
 	# Reentrant shutdown may interrupt an already-entered native call. Its owner
 	# releases this marker only after the call and its history cleanup return.
 	if not _active.has("operation_owner") or not is_instance_valid(operation_owner) or not operation_owner.call("is_active_stage"):
@@ -353,6 +374,7 @@ func stop() -> void:
 	_registry_identity = ""
 	_project_identity = ""
 	_edit_owner = null
+	_open_owner = null
 	_native_revision = 0
 	_native_build_id = ""
 
@@ -387,7 +409,7 @@ func _process(_delta: float) -> void:
 		if socket.get_status() != StreamPeerTCP.STATUS_CONNECTED or (peer.state in ["initial", "challenged"] and Time.get_ticks_usec() - int(peer.since) >= HANDSHAKE_EXPIRY_USEC):
 			_close_peer(peer)
 			continue
-		if peer.has("frame_pending"):
+		if peer.has("frame_pending") or peer.has("open_reply"):
 			continue
 		if not peer.output.is_empty():
 			var remaining: int = peer.output.size() - peer.sent
@@ -432,7 +454,7 @@ func _process(_delta: float) -> void:
 				var prefix: String = peer.input.slice(4).get_string_from_utf8()
 				for whitespace in [" ", "\t", "\r", "\n"]:
 					prefix = prefix.replace(whitespace, "")
-				if not prefix.begins_with('[3,"edit_prepare",'):
+				if not prefix.begins_with('[3,"edit_prepare",') and not prefix.begins_with('[3,"open_prepare",'):
 					_close_peer(peer)
 					break
 				peer.large_prefix = true
@@ -468,10 +490,16 @@ func _process(_delta: float) -> void:
 			_handle_frame(peer, message.slice(4))
 			break
 	if not _active.is_empty() and _active.has("pending"):
-		if _active.has("operation_owner"):
+		if _active.get("operation_owner") == _open_owner and is_instance_valid(_open_owner):
+			_opening_exchange.collect(_active)
+		elif _active.has("operation_owner"):
 			_collect_edit(_active)
 		else:
 			_collect_pending()
+	for peer in schedule:
+		if peer.has("open_reply") and _peers.has(peer):
+			_opening_exchange.flush(peer)
+			break
 
 
 func _close_peer(peer: Dictionary) -> void:
@@ -491,6 +519,13 @@ func _close_peer(peer: Dictionary) -> void:
 	if peer.has("edit_collector"):
 		peer.edit_collector.clear()
 		peer.erase("edit_collector")
+	if peer.has("open_collector"):
+		peer.open_collector.clear()
+		peer.erase("open_collector")
+	for field in ["open_prepare_tuple", "open_advance_tuple", "open_reply", "open_reply_closing"]:
+		peer.erase(field)
+	if peer.has("open_path"):
+		peer.erase("pending")
 	_peers.erase(peer)
 
 
@@ -599,7 +634,11 @@ func _valid_id(value: Variant) -> bool:
 
 
 func _integral_control(value: Variant, minimum: int, maximum: int) -> bool:
-	if typeof(value) not in [TYPE_INT, TYPE_FLOAT] or value < minimum or value > maximum:
+	if typeof(value) not in [TYPE_INT, TYPE_FLOAT]:
+		return false
+	if typeof(value) == TYPE_FLOAT and not is_finite(value):
+		return false
+	if value < minimum or value > maximum:
 		return false
 	return value == int(value)
 
@@ -718,6 +757,10 @@ func _handle_frame(peer: Dictionary, bytes: PackedByteArray) -> void:
 		if typeof(value) == TYPE_ARRAY and value.size() >= 2 and typeof(value[1]) == TYPE_STRING \
 				and (value[1] as String).begins_with("edit_"):
 			_handle_edit_tuple(peer, value, bytes.size())
+			return
+		if typeof(value) == TYPE_ARRAY and value.size() >= 2 and typeof(value[1]) == TYPE_STRING \
+				and (value[1] as String).begins_with("open_"):
+			_opening_exchange.handle(peer, value, bytes.size())
 			return
 		if bytes.size() > MAX_FRAME:
 			_close_peer(peer)
@@ -977,6 +1020,16 @@ func _collect_pending() -> void:
 		peer.collector.clear()
 		peer.erase("collector")
 		_active = {}
+
+
+# Private fixture subclasses can hold an unentered stage or acquired response.
+# Product never introduces a pause, fault option or alternate native path.
+func _open_ready(_peer: Dictionary, _stage: String) -> bool:
+	return true
+
+
+func _open_response_ready(_peer: Dictionary, _kind: String, _reply: Dictionary) -> bool:
+	return true
 
 
 # Fixture bridge subclasses may hold a queued stage at this nonblocking gap.

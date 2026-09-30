@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Owned real-editor T001 native-boundary campaign, not a product opening caller.
+"""Owned real-editor guarded opening caller and retained native-boundary coverage.
 
-Only native-boundary is implemented. The installed GodotAgentKitScriptOpen owns
-all opening stages; a separately built Rust stock-validation fixture checks the
-private departing-source context before any native authorization. Public opening
-capability deliberately remains false. Existing observer/edit callers are used
-only for fresh composition and real between-stage/entered contention witnesses.
+The six public story groups exercise open-gdscript itself, with independent
+disk/editor/history witnesses. Native-boundary remains a separate low-level
+campaign. Sequential/composed/all campaigns belong to T003 and are not aliases.
 """
 from __future__ import annotations
 
@@ -20,43 +18,17 @@ import shutil
 import stat
 import subprocess
 import tempfile
+import signal
 import time
 
 import run_observation as observation
 from run_script_edit import NativeHarness, STOCK_SHA256, concise_disk, sha
 from stock_acceptance import opening_context_fingerprint
-
-FIXTURE = Path(__file__).parent / "fixtures" / "script_open"
-TARGET = "res://scripts/subject.gd"
-CURRENT = "res://scripts/other.gd"
-BACKGROUND = "res://scripts/open/background.gd"
-TARGET_SOURCE = (FIXTURE / "scripts/target.gd").read_text()
-CURRENT_SOURCE = (FIXTURE / "scripts/current.gd").read_text()
-INVALID_SOURCE = (FIXTURE / "scripts/invalid.gd").read_text()
-DECIMAL_FIELDS = ("project_device", "project_inode", "script_id", "editor_id", "buffer_id",
-                  "source_length", "version", "saved_version", "script_base_id")
-
-
-def property_projection(document):
-    keys = ("name", "type", "hint", "hint_string", "usage", "class_name")
-    return sorted(({key: item[key] for key in keys} for item in document["properties"]),
-                  key=lambda item: item["name"].encode("utf-8"))
-
-
-def method_names(document):
-    return sorted((item["name"] for item in document["methods"]), key=lambda name: name.encode("utf-8"))
-
-
-def source_free_document(document):
-    if not document.get("associated"):
-        return {"associated": False, "matches": document.get("matches")}
-    keys = ("script_id", "editor_id", "buffer_id", "version", "saved_version", "dirty",
-            "resource_edited", "has_undo", "has_redo", "caret_line", "caret_column",
-            "has_selection", "tool", "script_base_id")
-    return {key: document[key] for key in keys} | {
-        "resource_sha256": sha(document["R"]), "buffer_sha256": sha(document["B"]),
-        "compiled_properties_sha256": sha(json.dumps(property_projection(document), sort_keys=True)),
-        "compiled_methods_sha256": sha(json.dumps(method_names(document)))}
+from caller_open_acceptance import CallerOpenAcceptanceMixin
+from open_result_review import OPEN_CODES
+from opening_fixture_witness import (BACKGROUND, CURRENT, CURRENT_SOURCE, DECIMAL_FIELDS,
+                                     FIXTURE, INVALID_SOURCE, TARGET, TARGET_SOURCE,
+                                     method_names, property_projection, source_free_document)
 
 
 def source_free_receipt(receipt):
@@ -68,23 +40,57 @@ def source_free_receipt(receipt):
     return {key: receipt[key] for key in keys if key in receipt}
 
 
-class OpeningHarness(NativeHarness):
+class OpeningHarness(CallerOpenAcceptanceMixin, NativeHarness):
     def __init__(self, args, work):
         super().__init__(args, work)
+        self.open_processes = []
         self.source_markers.update((b"OPEN_HUMAN_EARLIER", b"OPEN_HUMAN_CONFLICT",
                                     b"OPEN_CURRENT_CHANGED", b"OPEN_RESOURCE_CHANGED",
                                     b"OPEN_CACHE_CHANGED", b"OPEN_LOADER_NOT_CALLED",
-                                    b"OPEN_OUTSIDE_PRIVATE_SOURCE"))
-        self.summary.update({"coverage_scope": "feature_003_t001_native_boundary_only",
-                             "product_opening_caller_acceptance": False,
-                             "public_open_gdscript": False,
+                                    b"OPEN_OUTSIDE_PRIVATE_SOURCE", b"OPEN_UNPERMITTED_EFFECT_EXECUTED",
+                                    b"OPEN_SAME_BASENAME_PRIVATE", b"OPEN_NEWER_DISK_TEXT",
+                                    b"OPEN_TRANSIENT_NATIVE_HISTORY"))
+        self.public_campaign = args.scenario != "native-boundary"
+        self.summary.update({"coverage_scope": ("feature_003_t002_public_" + args.scenario
+                             if self.public_campaign else "feature_003_t001_native_boundary_only"),
+                             "product_opening_caller_acceptance": self.public_campaign,
+                             "public_open_gdscript": True,
+                             "opener_sha256": observation.digest(args.opener) if args.opener else None,
                              "support_claim": False,
                              "partial_cache_witness": "independent_ordinary_consumer_retains_actual_cached_ref",
                              "driver_sha256": observation.digest(Path(__file__)),
                              "fixture_driver_sha256": observation.digest(FIXTURE / "fixture_driver.gd"),
+                             "opening_harness_modules_sha256": {
+                                 name: observation.digest(Path(__file__).parent / name)
+                                 for name in ("caller_open_acceptance.py", "open_result_review.py",
+                                              "opening_fixture_witness.py")},
                              "opening_fixture_files": {
                                  str(path.relative_to(FIXTURE)): observation.digest(path)
                                  for path in sorted(FIXTURE.rglob("*")) if path.is_file()}})
+        self.summary["acceptance_coverage"] = {
+            "new-open": ["US1.1", "US1.2", "US1.4", "US1.5", "focused_native_history_and_durability"],
+            "already-open": ["US2.1", "US2.2", "independent_D_R_B_limits"],
+            "preservation": ["US2.3", "US2.4", "US2.5", "dirty_current_R_equals_B",
+                             "current_R_differs_B", "pending_drag", "stale_compiled_metadata",
+                             "post_open_human_current_and_background_selection"],
+            "routing": ["US1.3", "US3.1", "US3.2", "US3.3", "US3.4", "US3.5", "actual_shared_slot_busy"],
+            "interruption": ["US4.1", "US4.2", "US4.3", "native_entered_stall_loss_cancel_disable",
+                             "actual_open_worker_and_parent_owned_helper_failure",
+                             "independent_descendants_process_group_and_private_staging_cleanup"],
+            "privacy-export": ["selected_current_unrelated_other_project_sentinels",
+                               "normal_denied_ambiguous_interrupted", "enabled_disabled_hook_only_actual_exports"]}
+
+    def cleanup(self):
+        for process in self.open_processes:
+            if process.poll() is None:
+                process.send_signal(signal.SIGTERM)
+            try:
+                process.communicate(timeout=2)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate(timeout=2)
+        self.open_processes.clear()
+        super().cleanup()
 
     def safe_log(self, name, payload):
         if name.startswith("editor-") and name.endswith(".log"):
@@ -97,6 +103,9 @@ class OpeningHarness(NativeHarness):
 
     def fixture(self, name, *, controlled=False):
         project = super().fixture(name, controlled=controlled)
+        if name.startswith("export-"):
+            # Keep ordinary gameplay importable; cold gdignore is editor-only.
+            return project
         helper = project / "addons/fixture_driver"
         shutil.copy2(FIXTURE / "fixture_driver.gd", helper / "open_fixture_driver.gd")
         (helper / "plugin.gd").write_text(
@@ -167,13 +176,13 @@ class OpeningHarness(NativeHarness):
                                 "actual_native_owner_selected_v3_revision2")
             if faults:
                 observation.require(info["fixture_faults"], "fixture_fault_controls_separate_binary")
-                # Enable only existing edit composition on this private fixture binary.
                 self.native_action(editor, "native_edit_fixture_activate")
+                self.open_action(editor, "open_fixture_activate")
             stream, challenge = self.challenge(descriptor)
             stream.close()
-            observation.require(challenge["capabilities"]["open_gdscript"] is False and
+            observation.require(challenge["capabilities"]["open_gdscript"] is True and
                                 challenge["native_api_revision"] == 2,
-                                "actual_authenticated_capability_truthful_no_product_opener")
+                                "actual_authenticated_matched_product_opener")
             if not no_current:
                 self.open_action(editor, "open_setup", paths=[BACKGROUND])
                 if current == INVALID_SOURCE:
@@ -1124,15 +1133,20 @@ def main():
     parser.add_argument("--godot", required=True, type=Path)
     parser.add_argument("--observer", required=True, type=Path)
     parser.add_argument("--editor", required=True, type=Path, help="existing edit-gdscript caller")
+    parser.add_argument("--opener", type=Path, help="actual public open-gdscript caller; required for public groups")
     parser.add_argument("--stock-validator", required=True, type=Path,
                         help="actual test-only stock_validation_fixture example")
     parser.add_argument("--native-fault-addon", required=True, type=Path,
                         help="separate GAK_FIXTURE editor_integration artifact directory")
-    parser.add_argument("--scenario", required=True, choices=("native-boundary",))
+    parser.add_argument("--scenario", required=True, choices=(
+        "native-boundary", "new-open", "already-open", "preservation", "routing", "interruption", "privacy-export"))
     parser.add_argument("--artifacts", required=True, type=Path)
     args = parser.parse_args()
     os.umask(0o077)
-    for path in (args.godot, args.observer, args.editor, args.stock_validator):
+    observation.require(args.scenario == "native-boundary" or args.opener is not None,
+                        "public_opening_group_requires_real_opener_binary")
+    for path in (args.godot, args.observer, args.editor, args.stock_validator,
+                 *((args.opener,) if args.opener else ())):
         observation.require(path.is_absolute() and path.is_file() and os.access(path, os.X_OK),
                             "exact_absolute_executable_inputs_required")
     observation.require(args.artifacts.is_absolute() and args.artifacts.is_dir() and
@@ -1159,12 +1173,15 @@ def main():
                         receipt.get("engine_sha256") == STOCK_SHA256 and
                         receipt.get("native_library_sha256") == observation.digest(library),
                         "fixture_controls_never_installed_from_product_binary")
-    with tempfile.TemporaryDirectory(prefix=".godot-agent-kit-open-native-", dir=Path.home()) as temporary:
+    with tempfile.TemporaryDirectory(prefix=".godot-agent-kit-script-open-", dir=Path.home()) as temporary:
         harness = OpeningHarness(args, Path(temporary))
         status = 0
         try:
             harness.initialize()
-            harness.group("native-boundary", harness.native_boundary)
+            harness.group(args.scenario, getattr(harness, args.scenario.replace("-", "_")))
+            if harness.public_campaign:
+                observation.require(len({case["case"] for case in harness.cases}) == len(harness.cases),
+                                    "opening_campaign_unique_real_case_names")
             harness.summary["status"] = "passed"
         except (observation.Failure, OSError, ValueError, KeyError, TypeError, EOFError,
                 subprocess.SubprocessError) as error:
@@ -1183,6 +1200,13 @@ def main():
                 str(path.relative_to(args.artifacts)): observation.digest(path)
                 for path in sorted(args.artifacts.rglob("*")) if path.is_file()}
             harness.summary["passed_case_count"] = len(harness.cases) if status == 0 else 0
+            opening_calls = [case for case in harness.cases if case.get("operation") == "open_gdscript"]
+            harness.summary["public_opening_call_count"] = len(opening_calls)
+            harness.summary["public_outcome_counts"] = {
+                outcome: sum(case["outcome"] == outcome for case in opening_calls) for outcome in OPEN_CODES}
+            harness.summary["maximum_public_call_seconds"] = max(
+                (case["elapsed_seconds"] for case in opening_calls), default=None)
+            harness.summary["t003_cumulative_acceptance"] = "not_run_not_implemented"
             observation.json_file(args.artifacts / "summary.json", harness.summary)
         print(json.dumps({"status": harness.summary["status"], "stage": harness.summary.get("stage"),
                           "passed_cases": harness.summary["passed_case_count"],
@@ -1195,5 +1219,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except observation.Failure as error:
-        print("Native-boundary prerequisite failed: " + str(error))
+        print("Opening acceptance prerequisite failed: " + str(error))
         raise SystemExit(1)

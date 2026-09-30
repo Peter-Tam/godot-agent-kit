@@ -1,6 +1,6 @@
 # Private Editor Bridge — Version 3
 
-**Status:** T001's coordinated v3 authentication/observation/edit cutover and private native-owner fixture integration are complete with [acceptance evidence](../quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30). The authenticated product opening exchange in §3 remains pending T002 work and `open_gdscript` remains **false**. Public observation/edit v1 stay unchanged; the planned opening caller has its own [v1 contract](open-api.md). Historical [v2 acceptance](../../002-edit-open-gdscript/contracts/bridge-protocol.md) is not relabeled as v3 acceptance.
+**Status:** T001's coordinated v3 authentication/observation/edit cutover and private native-owner fixture integration are complete with [acceptance evidence](../quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30). T002's authenticated product opening exchange in §3 passed [public-caller acceptance](../quickstart.md#9-t002-public-caller-acceptance-2026-09-30); matched complete families advertise `open_gdscript`. Public observation/edit v1 stay unchanged; opening has its own [v1 contract](open-api.md). T003's cumulative feature acceptance remains pending. Historical [v2 acceptance](../../002-edit-open-gdscript/contracts/bridge-protocol.md) is not relabeled as v3 acceptance.
 
 ## 1. Bootstrap, authentication and migration
 
@@ -80,6 +80,45 @@ Each call returns one `open_progress` envelope with `status`, `reason`, reached/
 `open_recheck` appends the same purpose and uses the retained original collection identity, fresh current/reference/context/saved-state inspection and native file guards. Its `open_rechecked` response carries actual detected changes/unavailable reasons. Rust separately rechecks D/namespace. Preserve every known invalidation; later equality cannot erase it. The core alone reduces the terminal outcome.
 
 `open_finish` and best-effort `open_abort` have no trailing arguments. The terminal response identifies whether this owned attempt is irrevocably discarded and includes earlier known effects; it does not close a document, clear a flag, Save or undo cache/source state. An abort sent before the deadline is not itself proof it was processed. Do not delay the terminal caller result waiting for cleanup acknowledgment.
+
+### Implemented response projection
+
+The common envelope is `v`, `kind`, `request_id`, `session_id`, `project_root`,
+`script_path`, `collection`, `status`, `reason`, `native`, `resource_edited` and
+`expiry_tick_us`. The last two are a nullable Boolean and nullable decimal string.
+The addon supplies editor-local collection ticks with receive time zero; Rust
+assigns one actual caller-relative receipt to the entire received frame.
+
+`native` is null before native inspection. Otherwise all of its keys are
+required, with explicit null for a fact the native boundary did not acquire:
+`request_id`, `stage`, `next_stage`, `cache_binding`, `initial_compilation`,
+`document_open`, `target_parse_code`, `script_instance_id`, `editor_instance_id`,
+`buffer_instance_id`, `target_open`, `terminal_discard`, `entered`, `mode`,
+`protection` and `selection`. Instance IDs remain checked unsigned decimal
+strings, not lossy JSON numbers or signed GDScript conversions. This source-free
+projection carries native facts, not a success verdict.
+
+| Response kind | Additional required fields |
+|---|---|
+| `open_state` | Nullable `sample` and `cache`. Cache keys are `state`, `script_instance_id`, `sha256`, `utf8_bytes`, `reason`; absent/unavailable identity/hash/length remain null. |
+| `open_prepared` | Nullable `mode`, `sample`, `context`, `validation`, `project_device`, `project_inode`, `target_device`, `target_inode`. Device/inode values are decimal strings. |
+| `open_progress` | None; no repeated source or context. |
+| `open_sample` | `purpose`, nullable `sample`/`protection`, and `selection`. |
+| `open_rechecked` | `purpose`, ordinary `recheck`, nullable `protection`, and `selection`. A native failure does not erase ordinary detected changes. |
+| `open_finished` / `open_aborted` | Boolean `terminal_discard`. This must be attributable to actual native discard or the addon's exact unentered claimed slot. |
+
+Private `context` has exactly `kind`, `reason`, `projection`, `source`, `sha256`,
+with required nullable values. `validation` is null except for a current
+GDScript; otherwise it carries the matched editor `executable`, captured
+`warnings`, and captured `global_classes`. Warning provenance is the existing
+`{source: "editor_project_settings", project_root, session_id}` record. These
+fields are private helper input, never public target evidence. Nullable fields
+cannot be omitted, and unknown/duplicate fields or wrong types are rejected.
+
+A discarded held begin can have `native`, `resource_edited` and expiry null:
+no native attempt existed. Its terminal discard retires only that exact slot;
+it does not prove rollback of a different or previously entered attempt.
+
 
 ## 4. Observation/edit preservation and privacy
 

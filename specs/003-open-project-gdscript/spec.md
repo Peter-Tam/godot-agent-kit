@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-29
 
-**Status**: Implementation — T001's private native boundary and compatible cutover are complete; the public caller and cumulative acceptance remain pending T002/T003 work. The feature is not complete.
+**Status**: Implementation — T001's private native boundary/cutover and T002's complete public caller are accepted with [recorded evidence](quickstart.md#9-t002-public-caller-acceptance-2026-09-30). T003's cumulative acceptance remains pending. The feature is not complete.
 
 **Input**: Generated feature description supplied to `/speckit.specify`:
 

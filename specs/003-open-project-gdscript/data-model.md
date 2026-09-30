@@ -1,6 +1,6 @@
 # Data Model: Known-Path GDScript Opening
 
-**Status:** Phase 1 design, not implemented types or acceptance evidence. Implements [spec.md](spec.md) under the [plan](plan.md). JSON belongs to the [caller](contracts/open-api.md) and [bridge](contracts/bridge-protocol.md), not the domain reducer.
+**Status:** The T001 native entities and T002 caller/domain types implement this design; [T002 acceptance](quickstart.md#9-t002-public-caller-acceptance-2026-09-30) passed. Implements [spec.md](spec.md) under the [plan](plan.md). JSON belongs to the [caller](contracts/open-api.md) and [bridge](contracts/bridge-protocol.md), not the domain reducer. T003's cumulative feature acceptance remains pending.
 
 ## 1. Shared values and ownership
 
@@ -159,4 +159,4 @@ Public output includes only the authorized requested target's source; private cu
 
 Retain 512 KiB/source, 4 MiB selected-peer request, 12 MiB response/worker frame, 4 KiB source-free control and JSON depth 32 limits. Bounded source/profile/compiled/context collections are specified in the contracts. A limit during new-open preparation refuses before effects where observable; a newly discovered post-effect limit produces an unverified result. Already-open recognition retains the existing independent source-limit semantics.
 
-Opening v1 is a new public operation. Observe/edit v1 semantics stay unchanged. Private v3/native revision 2 is a coordinated clean cutover, including the shared native bundle rename. No obsolete aliases, old mutation fallback or feature/task IDs in shared APIs. This model changes no current implementation until an approved task is selected.
+Opening v1 is a new public operation. Observe/edit v1 semantics stay unchanged. Private v3/native revision 2 is a coordinated clean cutover, including the shared native bundle rename. No obsolete aliases, old mutation fallback or feature/task IDs in shared APIs.

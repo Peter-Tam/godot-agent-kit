@@ -13,6 +13,7 @@ pub const RESULT_LIMIT: usize = 12 * 1024 * 1024;
 const COLLECTION_LIMIT: usize = 64;
 
 pub mod edit;
+pub mod open;
 
 /// Inclusive editor interval enclosing every editor fact in this sample.
 /// Retained through private IPC so the supervisor can validate worker evidence.

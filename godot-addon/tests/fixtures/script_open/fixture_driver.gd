@@ -16,6 +16,41 @@ var _open_callback_result := {}
 var _open_original_settings := {}
 var _open_pending_node: Node
 var _open_pending_resource: Resource
+var _open_hold_stage := ""
+var _open_hold_response := ""
+var _open_hold_announced := false
+var _open_fault_stage := ""
+var _open_fault_name := ""
+var _open_held_peer := {}
+
+func _open_publish_event(stage: String, request_id: String) -> bool:
+	var event := FileAccess.open(_control.path_join("open-event.json"), FileAccess.WRITE)
+	if event == null: return false
+	event.store_string(JSON.stringify({"stage": stage, "request_id": request_id}))
+	event.close()
+	return true
+
+func open_barrier(stage: String, peer: Dictionary) -> bool:
+	_open_held_peer = peer
+	if stage == _open_fault_stage and not _open_fault_name.is_empty():
+		var api: Dictionary = Engine.get_meta(NATIVE_META, {})
+		if api.has("open_fixture_fault"):
+			api.open_fixture_fault.call(peer.request_id, _open_fault_name)
+		_open_fault_stage = ""
+		_open_fault_name = ""
+	if stage != _open_hold_stage: return true
+	if not _open_hold_announced:
+		_open_hold_announced = _open_publish_event(stage, peer.request_id)
+	return false
+
+func open_response_barrier(kind: String, peer: Dictionary, _reply: Dictionary) -> bool:
+	_open_retain_cached()
+	_open_held_peer = peer
+	if kind != _open_hold_response: return true
+	if not _open_hold_announced:
+		_open_hold_announced = _open_publish_event("response:" + kind, peer.request_id)
+	return false
+
 
 class WitnessLoader extends ResourceFormatLoader:
 	var calls := 0
@@ -128,6 +163,12 @@ func _open_payload_id() -> String:
 	return String.num_uint64(value.get_instance_id()) if value is Object else str(value)
 
 func _open_entered(request_id: String, stage: String) -> void:
+	# Entry precedes deliberate endpoint loss/disable. The event is not a
+	# completion receipt; survivor witnesses are acquired after the native return.
+	var event := FileAccess.open(_control.path_join("open-entered.json"), FileAccess.WRITE)
+	if event != null:
+		event.store_string(JSON.stringify({"request_id": request_id, "stage": stage}))
+		event.close()
 	var api: Dictionary = Engine.get_meta(NATIVE_META, {})
 	var owner := _open_owner()
 	var bridge := _open_bridge()
@@ -154,6 +195,10 @@ func _open_entered(request_id: String, stage: String) -> void:
 		_open_callback_result.competitor = owner.inspect(OPEN_TARGET,
 			{"request_id": "entered-competitor", "session_id": bridge.get("_session"),
 			"expiry_tick_us": str(Time.get_ticks_usec() + 9000000)})
+	elif _open_callback_mode == "target_typing":
+		_open_callback_result.mutated = _open_mutate("dirty_different", OPEN_TARGET)
+	elif _open_callback_mode == "current_typing":
+		_open_callback_result.mutated = _open_mutate("current_source")
 	_open_callback_result.after = _open_state()
 	_open_callback_result.retained_after = api.open_fixture_state.call(request_id)
 	_open_callback_result.retained_slot_busy = is_instance_valid(bridge) and \
@@ -165,10 +210,6 @@ func _open_entered(request_id: String, stage: String) -> void:
 		String.num_uint64(current_script.get_instance_id()) == current.script_id and \
 		String.num_uint64(current_editor.get_instance_id()) == current.editor_id and \
 		String.num_uint64(current_buffer.get_instance_id()) == current.buffer_id
-	var event := FileAccess.open(_control.path_join("open-entered.json"), FileAccess.WRITE)
-	if event != null:
-		event.store_string(JSON.stringify({"request_id": request_id, "stage": stage}))
-		event.close()
 
 func _open_mutate(mode: String, source_path: String = OPEN_CURRENT) -> bool:
 	var doc := _open_document(source_path)
@@ -190,6 +231,19 @@ func _open_mutate(mode: String, source_path: String = OPEN_CURRENT) -> bool:
 			buffer.begin_complex_operation()
 			buffer.insert_text("var = # OPEN_HUMAN_CONFLICT\n", 1, 0)
 			buffer.end_complex_operation()
+		"dirty_disk_equal":
+			if buffer == null: return false
+			buffer.begin_complex_operation()
+			buffer.insert_text("# OPEN_TRANSIENT_NATIVE_HISTORY\n", 0, 0)
+			buffer.end_complex_operation()
+			buffer.begin_complex_operation()
+			buffer.remove_text(0, 0, 1, 0)
+			buffer.end_complex_operation()
+		"target_reopen":
+			if EditorInterface.get_script_editor().close_file(OPEN_TARGET) != OK: return false
+			return _prepare(OPEN_TARGET).get("ready", false)
+		"target_close":
+			return EditorInterface.get_script_editor().close_file(OPEN_TARGET) == OK
 		"undo":
 			if buffer == null: return false
 			buffer.undo()
@@ -333,6 +387,60 @@ func _process(delta: float) -> void:
 			response.fixture_faults = api.has_all(["open_fixture_fault", "open_fixture_state"])
 			response.session_id = bridge.get("_session") if bridge != null else ""
 		"open_witness": response.state = _open_state()
+		"open_document":
+			response.document = _open_document(request.get("path", OPEN_TARGET))
+		"open_select":
+			var selected_path: String = request.get("path", "")
+			var selected := _open_document(selected_path)
+			response.ok = selected_path in [OPEN_CURRENT, OPEN_BACKGROUND] and selected.get("associated", false)
+			if response.ok:
+				# Existing-document native navigation, not load/reopen or text assignment.
+				var selected_script: Script = EditorInterface.get_script_editor().get_open_scripts()[selected.index]
+				EditorInterface.edit_script(selected_script)
+				EditorInterface.set_main_screen_editor("Script")
+				await get_tree().process_frame
+				response.state = _open_state()
+				response.ok = response.state.selection == selected_path
+		"open_callback_witness":
+			response.callback = _open_callback_result
+			response.plugin_enabled = EditorInterface.is_plugin_enabled(PRODUCT)
+		"open_arm":
+			_open_hold_stage = request.get("stage", "")
+			_open_hold_response = request.get("response_kind", "")
+			_open_fault_stage = request.get("native_stage", "")
+			_open_fault_name = request.get("native_fault", "")
+			_open_callback_mode = request.get("callback", "")
+			_open_hold_announced = false
+			_open_held_peer = {}
+			response.ok = _open_hold_stage.is_empty() or _open_hold_stage in [
+				"begin", "prepare", "bind", "compile", "open", "verify:recognition",
+				"verify:post_open", "recheck:recognition", "recheck:post_open", "finish", "abort"]
+			response.ok = response.ok and (_open_hold_response.is_empty() or _open_hold_response in [
+				"open_state", "open_prepared", "open_progress", "open_sample", "open_rechecked"])
+		"open_release":
+			_open_hold_stage = ""
+			_open_hold_response = ""
+			_open_hold_announced = false
+			_open_callback_mode = ""
+		"open_idle":
+			# Let released peers, late socket EOF and ordinary editor frames settle.
+			# Unlike edit's convergence helper this also observes truly closed targets.
+			for frame in 8:
+				await get_tree().process_frame
+		"open_disconnect":
+			response.ok = _open_held_peer.has("socket")
+			if response.ok: _open_held_peer.socket.disconnect_from_host()
+		"open_fixture_activate":
+			var manifest_file := FileAccess.open("res://addons/godot_agent_kit/native/build-manifest.json", FileAccess.READ)
+			var manifest: Variant = JSON.parse_string(manifest_file.get_as_text()) if manifest_file != null else null
+			var library := "res://addons/godot_agent_kit/native/libeditor_integration.macos.arm64.dylib"
+			response.ok = manifest is Dictionary and manifest.get("fixture_only") == true and \
+				manifest.get("native_api_revision") == 2 and manifest.get("native_family") == "editor_integration" and \
+				manifest.get("native_library_sha256") == FileAccess.get_sha256(library) and \
+				owner != null and bridge != null and api.has("open_fixture_fault")
+			if response.ok:
+				bridge.attach_open(owner, 2, api.build_id.call())
+				response.ok = bridge.get("_open_owner") == owner
 		"open_setup":
 			for source_path in request.get("paths", []):
 				response.ok = response.ok and _prepare(source_path).get("ready", false)

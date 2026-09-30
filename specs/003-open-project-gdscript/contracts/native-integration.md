@@ -1,6 +1,6 @@
 # Native Known-Path Opening Integration
 
-**Status:** T001's native/addon integration, required acceptance and implementation-shape review are complete on the exact selected candidate. The product opening caller remains T002 work and `open_gdscript` remains false. Primitive/composed planning research is in [research.md](../research.md); [current native/cutover acceptance](../quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30) is separate. Standard public GDExtension ABI only; no engine patch/private editor field or alternate editor/history implementation.
+**Status:** T001's native/addon integration, required acceptance and implementation-shape review are complete on the exact selected candidate. T002 connects the product caller to that unchanged native family and passed [public-caller acceptance](../quickstart.md#9-t002-public-caller-acceptance-2026-09-30). Primitive/composed planning research is in [research.md](../research.md); [native/cutover acceptance](../quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30) is separate. T003's cumulative feature acceptance remains pending. Standard public GDExtension ABI only; no engine patch/private editor field or alternate editor/history implementation.
 
 ## 1. Responsibilities and native API revision 2
 
@@ -122,6 +122,9 @@ single `_active.operation_owner` slot through `_claim_operation` and releases
 through `_release_operation`. Native `Session` uses one edit/open owner variant.
 Disconnect/disable retains the entered owner and detached bridge until return.
 No authenticated product opening opcode is installed in T001.
+T002's `script_open_transport.gd` connects authenticated tuples to that same
+owner and the ordinary collector. `advance_bound` consumes the exact staged
+peer authorization; private native fixture controls remain outside product input.
 
 The native custom Callables take:
 
