@@ -1,6 +1,6 @@
 # Private Editor Bridge — Version 3
 
-**Status:** T001's coordinated v3 authentication/observation/edit cutover and private native-owner fixture integration are complete with [acceptance evidence](../quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30). T002's authenticated product opening exchange in §3 passed [public-caller acceptance](../quickstart.md#9-t002-public-caller-acceptance-2026-09-30); matched complete families advertise `open_gdscript`. Public observation/edit v1 stay unchanged; opening has its own [v1 contract](open-api.md). T003's cumulative feature acceptance remains pending. Historical [v2 acceptance](../../002-edit-open-gdscript/contracts/bridge-protocol.md) is not relabeled as v3 acceptance.
+**Status:** The coordinated v3 authentication/observation/edit cutover and authenticated opening exchange are implemented and accepted; [T003 cumulative acceptance](../quickstart.md#10-t003-cumulative-acceptance-2026-09-30) completes Feature 003 on the exact recorded environment. Matched complete families advertise `open_gdscript`. Public observation/edit v1 and opening's [v1 contract](open-api.md) are unchanged. Historical [v2 acceptance](../../002-edit-open-gdscript/contracts/bridge-protocol.md) is not relabeled as v3 acceptance.
 
 ## 1. Bootstrap, authentication and migration
 

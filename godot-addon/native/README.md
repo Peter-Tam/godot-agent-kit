@@ -20,8 +20,10 @@ established its private native/slot boundary. T002 connects the explicit
 `open-gdscript` caller to that same owner; `open_gdscript` is advertised only for
 the matched complete family. Its [public-caller acceptance](../../specs/003-open-project-gdscript/quickstart.md#9-t002-public-caller-acceptance-2026-09-30)
 and implementation-shape review are complete on the exact recorded candidate.
-T003's cumulative opening/composed acceptance remains pending; no wider support
-or Feature 003 completion is implied.
+[T003 cumulative acceptance](../../specs/003-open-project-gdscript/quickstart.md#10-t003-cumulative-acceptance-2026-09-30)
+completes Feature 003: full opening/edit/observation campaigns, repeated opening,
+composed A–E/durability and all three export modes passed on that exact
+environment. No wider support or roadmap Phase 1 completion is implied.
 
 ## Build and private integration
 
@@ -117,12 +119,13 @@ not an edit basis. Possibly applied results require fresh observation of the
 original target, not retry or assumed rollback.
 
 The opening runner accepts `native-boundary`, `new-open`, `already-open`,
-`preservation`, `routing`, `interruption` and `privacy-export`. Public groups
+`preservation`, `routing`, `interruption`, `sequential`, `composed` and
+`privacy-export`. `all` runs each group exactly once. Public groups and `all`
 require `--opener` in addition to the existing absolute executable/fault-artifact
-paths. T003's cumulative `all`, `sequential` and `composed` groups are not
-implemented aliases; run the T002 groups individually and retain separate
-evidence. Use the [opening quickstart](../../specs/003-open-project-gdscript/quickstart.md)
-for exact commands and current acceptance limits.
+paths. The composed campaign uses product opening before the reused edit A–E
+workflows; fixture-only human Save/close/history actions remain distinct from
+product capabilities. Use the [opening quickstart](../../specs/003-open-project-gdscript/quickstart.md)
+for exact commands, separate artifact directories and current acceptance limits.
 
 
 ## Official-stock boundary and verification

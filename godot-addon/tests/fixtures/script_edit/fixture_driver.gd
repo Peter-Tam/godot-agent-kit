@@ -418,9 +418,12 @@ func _dispatch_native_request(request: Dictionary) -> void:
 			var buffer := EditorInterface.get_script_editor().get_open_script_editors()[doc.index].get_base_editor() as CodeEdit
 			var script := EditorInterface.get_script_editor().get_open_scripts()[doc.index] as GDScript
 			EditorInterface.edit_script(script)
+			# A product-opened document may exist while the scene workspace is
+			# visible. A real human script Save first presents that workspace.
+			EditorInterface.set_main_screen_editor("Script")
 			buffer.grab_focus()
 			await get_tree().process_frame
-			response.focused = buffer.has_focus()
+			response.focused = buffer.has_focus() and buffer.is_visible_in_tree()
 			var before_disk := FileAccess.get_file_as_string("res://scripts/subject.gd")
 			var press := InputEventKey.new()
 			press.keycode = KEY_S

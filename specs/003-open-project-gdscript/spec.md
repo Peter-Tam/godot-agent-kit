@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-29
 
-**Status**: Implementation — T001's private native boundary/cutover and T002's complete public caller are accepted with [recorded evidence](quickstart.md#9-t002-public-caller-acceptance-2026-09-30). T003's cumulative acceptance remains pending. The feature is not complete.
+**Status**: **Complete** — T001–T003 satisfy the approved acceptance criteria on the exact recorded stock Godot/macOS arm64 environment. [Cumulative evidence](quickstart.md#10-t003-cumulative-acceptance-2026-09-30) covers complete opening, edit and observation campaigns; the [implementation-shape review](plan.md#t003-implementation-shape-and-constitutional-review-2026-09-30) passed. Completion is independent of PR review/merge. Roadmap Phase 1 remains in progress.
 
 **Input**: Generated feature description supplied to `/speckit.specify`:
 

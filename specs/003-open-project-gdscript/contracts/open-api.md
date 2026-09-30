@@ -1,6 +1,6 @@
 # Open Project GDScript — Caller Contract v1
 
-**Status:** T002's caller, required [public-caller acceptance](../quickstart.md#9-t002-public-caller-acceptance-2026-09-30) and implementation-shape review are complete on the exact recorded candidate. Governed by [spec.md](../spec.md), the [data model](../data-model.md) and [native contract](native-integration.md). Existing public observation/edit v1 contracts remain unchanged. T003's cumulative feature acceptance and wider support are not claimed.
+**Status:** Implemented and accepted on the exact recorded stock Godot/macOS arm64 environment; [T003 cumulative acceptance](../quickstart.md#10-t003-cumulative-acceptance-2026-09-30) completes Feature 003. Governed by [spec.md](../spec.md), the [data model](../data-model.md) and [native contract](native-integration.md). This opening v1 and existing public observation/edit v1 contracts are unchanged by T003. No wider support is claimed.
 
 ## 1. Invocation and input
 

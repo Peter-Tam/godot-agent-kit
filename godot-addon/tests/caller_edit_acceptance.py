@@ -33,7 +33,7 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
                             info["build_id"] == self.expected_native_build_id, "real_native_shared_build")
         if faults:
             self.native_action(editor, "native_edit_fixture_activate")
-        self.action(editor, "prepare_subject")
+        self.prepare_caller_subject(project, editor, descriptor, name)
         if prior:
             seeded = self.native_action(editor, "native_edit_human", mode="seed_prior")
             observation.require(seeded["document"]["dirty"] and
@@ -48,6 +48,9 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
                             disks["subject"]["text"] and before["other"]["dirty"] and
                             before["current_script"] == "res://scripts/other.gd", "edit_independent_initial_state")
         return project, editor, descriptor, before, disks
+
+    def prepare_caller_subject(self, project, editor, descriptor, name):
+        self.action(editor, "prepare_subject")
 
     def edit_basis(self, project, descriptor, name):
         return self.observe(project, "complete_observation", 0,
@@ -686,7 +689,9 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
 
     def history_edit(self):
         self.compile_window_probe()
-        project, editor, descriptor, before, disks = self.caller_fixture("history", prior=True)
+        original = self.revision(17)
+        project, editor, descriptor, before, disks = self.caller_fixture(
+            "history", prior=True, baseline=original)
         first = before["subject"]["B"]
         basis = self.edit_basis(project, descriptor, "basis-history")
         capture = self.screenshot(editor, "caller-history-before.png")
@@ -720,7 +725,7 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
                       source_surfaces="actual_undo_or_redo_then_native_save_d_r_b")
         previous = self.native_action(editor, "native_edit_human", mode="undo")["document"]
         older = self.native_action(editor, "native_edit_human", mode="undo")["document"]
-        observation.require(previous["B"] == first and older["B"] != first and
+        observation.require(previous["B"] == first and older["B"] == original and
                             older["has_redo"], "caller_earlier_history_order_reachable")
         self.case("caller_earlier_saved_human_history_reachable",
                   source_surfaces="actual_two_native_undo_steps")
