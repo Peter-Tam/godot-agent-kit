@@ -102,9 +102,12 @@ elif name == "python3" and args[0] == "godot-addon/native/build.py":
         sys.exit("fixture build preceded product")
     target = fixture if is_fixture else product
     target.mkdir(parents=True, exist_ok=True)
-    (target / "libscript_edit.macos.arm64.dylib").write_text("fixture" if is_fixture else "product")
+    (target / "libeditor_integration.macos.arm64.dylib").write_text("fixture" if is_fixture else "product")
     (target / "build-manifest.json").write_text(json.dumps({
-        "fixture_only": is_fixture, "native_build_id": "f" * 64 if is_fixture else "e" * 64}))
+        "fixture_only": is_fixture, "native_api_revision": 2, "native_family": "editor_integration",
+        "native_library": "libeditor_integration.macos.arm64.dylib",
+        "entry_symbol": "editor_integration_library_init",
+        "native_build_id": "f" * 64 if is_fixture else "e" * 64}))
 elif name == "python3" and args[0] == "godot-addon/tests/run_script_edit.py":
     workspace = Path(os.environ["GITHUB_WORKSPACE"])
     temp = Path(os.environ["RUNNER_TEMP"])

@@ -1,4 +1,4 @@
-#include "native.hpp"
+#include "document_guard.hpp"
 
 #include <sys/acl.h>
 #include <sys/stat.h>
@@ -15,176 +15,15 @@
 
 namespace gak {
 namespace {
-constexpr size_t LIMIT = 512 * 1024;
-struct Fd {
-    int value = -1;
-    explicit Fd(int n = -1) : value(n) {}
-    ~Fd() { if (value >= 0) { ::close(value); } }
-    Fd(const Fd &) = delete;
-    Fd &operator=(const Fd &) = delete;
-    Fd(Fd &&other) noexcept : value(other.value) { other.value = -1; }
-    Fd &operator=(Fd &&other) noexcept {
-        if (this != &other) {
-            if (value >= 0) { ::close(value); }
-            value = other.value;
-            other.value = -1;
-        }
-        return *this;
-    }
-};
-
-bool number(const Value &v, int64_t &n) {
-    if (v.type() != GDEXTENSION_VARIANT_TYPE_INT) { return false; }
-    api.to[GDEXTENSION_VARIANT_TYPE_INT](&n, const_cast<void *>(v.ptr()));
-    return true;
-}
-bool decimal(const Value &v, uint64_t &n) {
-    if (v.type() != GDEXTENSION_VARIANT_TYPE_STRING) { return false; }
-    const std::string s = bytes(v, 20);
-    if (s.empty() || (s.size() > 1 && s[0] == '0')) { return false; }
-    const auto p = std::from_chars(s.data(), s.data() + s.size(), n);
-    return p.ec == std::errc{} && p.ptr == s.data() + s.size();
-}
-bool component(std::string_view s) {
-    return !s.empty() && s != "." && s != ".." && s.size() <= 255 &&
-            s.find_first_of("\\:\r\n\0", 0, 5) == s.npos;
-}
-bool path_ok(const std::string &p) {
-    if (p.size() < 10 || p.size() > 2048 || p.compare(0, 6, "res://") ||
-            p.compare(p.size() - 3, 3, ".gd") || p.find("::") != p.npos) { return false; }
-    for (size_t start = 6; start < p.size();) {
-        const size_t end = p.find('/', start);
-        if (!component(std::string_view(p).substr(start, end == p.npos ? end : end - start))) { return false; }
-        if (end == p.npos) { break; }
-        start = end + 1;
-    }
-    return true;
-}
-bool secure(int fd, bool directory, bool project = false) {
-    struct stat st{};
-    if (fstat(fd, &st) || st.st_nlink == 0 || (directory ? !S_ISDIR(st.st_mode) : !S_ISREG(st.st_mode)) ||
-            (st.st_uid != geteuid() && (!directory || project || st.st_uid != 0)) ||
-            (st.st_mode & (S_IWGRP | S_IWOTH))) { return false; }
-    acl_t acl = acl_get_fd_np(fd, ACL_TYPE_EXTENDED);
-    if (!acl) { return errno == ENOENT; }
-    int cursor = ACL_FIRST_ENTRY;
-    while (true) {
-        acl_entry_t entry = nullptr;
-        const int result = acl_get_entry(acl, cursor, &entry);
-        if (result == 0 && entry) {
-            acl_tag_t tag{};
-            if (acl_get_tag_type(entry, &tag) || tag != ACL_EXTENDED_DENY) { acl_free(acl); return false; }
-            cursor = ACL_NEXT_ENTRY;
-        } else {
-            const bool done = result == -1 && cursor == ACL_NEXT_ENTRY && errno == EINVAL;
-            acl_free(acl);
-            return done;
-        }
-    }
-}
-bool same(const struct stat &a, const struct stat &b) { return a.st_dev == b.st_dev && a.st_ino == b.st_ino; }
-bool attached_project(const Session &session) {
-    Fd dir(open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
-    if (dir.value < 0) { return false; }
-    const std::string &path = session.project_path;
-    for (size_t start = 1; start < path.size();) {
-        const size_t end = path.find('/', start);
-        const std::string part = path.substr(start, end == path.npos ? end : end - start);
-        if (!component(part)) { return false; }
-        Fd next(openat(dir.value, part.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
-        if (next.value < 0) { return false; }
-        dir = std::move(next);
-        if (end == path.npos) { break; }
-        start = end + 1;
-    }
-    struct stat a{}, b{};
-    return !fstat(dir.value, &a) && !fstat(session.project_fd, &b) && same(a, b) &&
-            a.st_dev == session.device && a.st_ino == session.inode && secure(session.project_fd, true, true);
-}
-// A retained parent chain detects a same-path parent replacement even if the leaf is relinked.
-struct Parent { Fd fd; std::string segment; dev_t device{}; ino_t inode{}; };
-struct FileBinding {
-    std::vector<Parent> parents;
-    Fd leaf;
-    std::string name;
-    dev_t device{}; ino_t inode{};
-    timespec original_mtime{};
-};
-bool file_attached(const Session &session, const FileBinding &file) {
-    if (!attached_project(session)) { return false; }
-    Fd cursor(dup(session.project_fd));
-    if (cursor.value < 0) { return false; }
-    for (const Parent &parent : file.parents) {
-        Fd next(openat(cursor.value, parent.segment.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
-        struct stat held{}, found{};
-        if (next.value < 0 || fstat(parent.fd.value, &held) || fstat(next.value, &found) ||
-                !same(held, found) || held.st_dev != parent.device || held.st_ino != parent.inode ||
-                !secure(next.value, true)) { return false; }
-        cursor = std::move(next);
-    }
-    struct stat found{}, held{};
-    return !fstatat(cursor.value, file.name.c_str(), &found, AT_SYMLINK_NOFOLLOW) &&
-            !fstat(file.leaf.value, &held) && S_ISREG(found.st_mode) && same(found, held) &&
-            held.st_dev == file.device && held.st_ino == file.inode && secure(file.leaf.value, false);
-}
-const char *open_failure() {
-    switch (errno) {
-        case EACCES: case EPERM: case ELOOP: return "denied_access";
-        case ENOENT: case ENOTDIR: return "namespace_or_descriptor_changed";
-        default: return "source_unavailable";
-    }
-}
-const char *open_file(const Session &session, const std::string &path, FileBinding &out) {
-    Fd cursor(dup(session.project_fd));
-    if (cursor.value < 0) { return "source_unavailable"; }
-    if (!attached_project(session)) { return "namespace_or_descriptor_changed"; }
-    for (size_t start = 6; start < path.size();) {
-        const size_t end = path.find('/', start);
-        const std::string part = path.substr(start, end == path.npos ? end : end - start);
-        if (end == path.npos) {
-            out.name = part;
-            out.leaf = Fd(openat(cursor.value, part.c_str(), O_RDWR | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC));
-            if (out.leaf.value < 0) { return open_failure(); }
-            struct stat st{};
-            if (fstat(out.leaf.value, &st)) { return "source_unavailable"; }
-            if (!secure(out.leaf.value, false) || st.st_uid != geteuid()) { return "denied_access"; }
-            if (st.st_size < 0 || st.st_size > static_cast<off_t>(LIMIT)) { return "evidence_limit"; }
-            out.device = st.st_dev; out.inode = st.st_ino; out.original_mtime = st.st_mtimespec;
-            return file_attached(session, out) ? nullptr : "namespace_or_descriptor_changed";
-        }
-        Fd next(openat(cursor.value, part.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
-        if (next.value < 0) { return open_failure(); }
-        struct stat st{};
-        if (fstat(next.value, &st)) { return "source_unavailable"; }
-        if (!secure(next.value, true)) { return "denied_access"; }
-        out.parents.push_back(Parent{Fd(dup(next.value)), part, st.st_dev, st.st_ino});
-        if (out.parents.back().fd.value < 0) { return "source_unavailable"; }
-        cursor = std::move(next);
-        start = end + 1;
-    }
-    return "denied_access";
-}
-bool content(int fd, std::string_view expected) {
-    struct stat st{};
-    if (fstat(fd, &st) || st.st_size != static_cast<off_t>(expected.size())) { return false; }
-    char block[8192];
-    for (size_t i = 0; i < expected.size();) {
-        const size_t size = std::min(sizeof(block), expected.size() - i);
-        ssize_t n = pread(fd, block, size, static_cast<off_t>(i));
-        if (n < 0 && errno == EINTR) { continue; }
-        if (n <= 0 || std::memcmp(block, expected.data() + i, static_cast<size_t>(n))) { return false; }
-        i += static_cast<size_t>(n);
-    }
-    return true;
-}
 struct Profile {
     bool trim_space{}, trim_newlines{}, convert{}, spaces{};
     int64_t indent{};
-    bool operator==(const Profile &o) const {
-        return trim_space == o.trim_space && trim_newlines == o.trim_newlines && convert == o.convert &&
-                spaces == o.spaces && indent == o.indent;
-    }
+    bool operator==(const Profile &other) const;
 };
+bool Profile::operator==(const Profile &o) const {
+    return trim_space == o.trim_space && trim_newlines == o.trim_newlines && convert == o.convert &&
+            spaces == o.spaces && indent == o.indent;
+}
 bool compatible(const Profile &profile, std::string_view s) {
     if (profile.trim_newlines && (s == "\n" ||
             (s.size() >= 2 && s.substr(s.size() - 2) == "\n\n"))) { return false; }
@@ -205,7 +44,7 @@ bool compatible(const Profile &profile, std::string_view s) {
 bool profile(void *buffer, Profile &out) {
     Name name("EditorInterface");
     void *interface = api.singleton(name.ptr());
-    if (!interface) { return false; }
+    if (!interface || !buffer) { return false; }
     Value settings = call(interface, "EditorInterface", "get_editor_settings", GAK_HASH_EDITOR_SETTINGS);
     void *instance = object_ptr(settings);
     if (!instance) { return false; }
@@ -223,9 +62,9 @@ bool profile(void *buffer, Profile &out) {
     }
     Value spaces = call(buffer, "CodeEdit", "is_indent_using_spaces", GAK_HASH_INDENT_SPACES);
     Value indent = call(buffer, "CodeEdit", "get_indent_size", GAK_HASH_INDENT_SIZE);
-    if (spaces.type() != GDEXTENSION_VARIANT_TYPE_BOOL || !number(indent, out.indent) ||
-            out.indent < 1 || out.indent > 1024) { return false; }
+    if (spaces.type() != GDEXTENSION_VARIANT_TYPE_BOOL) { return false; }
     out.spaces = truth(spaces);
+    if (!number(indent, out.indent) || out.indent < 1 || out.indent > 1024) { return false; }
     return true;
 }
 std::string profile_digest(const Profile &p) {
@@ -234,45 +73,9 @@ std::string profile_digest(const Profile &p) {
     const auto result = std::to_chars(serialized + 8, serialized + sizeof(serialized), p.indent);
     return result.ec == std::errc{} ? sha256(std::string_view(serialized, result.ptr - serialized)) : std::string{};
 }
-struct Binding {
-    Value script, editor, buffer;
-    void *script_ptr = nullptr, *editor_ptr = nullptr, *buffer_ptr = nullptr;
-};
-// Never dereference an old editor/CodeEdit pointer; obtain live parallel topology afresh.
-bool resolve(const std::string &path, uint64_t rid, uint64_t eid, uint64_t bid, Binding &out) {
-    Name editor_name("EditorInterface"), gd_name("GDScript"), code_name("CodeEdit");
-    void *interface = api.singleton(editor_name.ptr());
-    if (!interface || !api.class_tag(gd_name.ptr()) || !api.class_tag(code_name.ptr())) { return false; }
-    Value owner = call(interface, "EditorInterface", "get_script_editor", GAK_HASH_SCRIPT_EDITOR);
-    void *se = object_ptr(owner);
-    if (!se) { return false; }
-    Value scripts = call(se, "ScriptEditor", "get_open_scripts", GAK_HASH_OPEN_SCRIPTS);
-    Value editors = call(se, "ScriptEditor", "get_open_script_editors", GAK_HASH_OPEN_EDITORS);
-    if (scripts.type() != GDEXTENSION_VARIANT_TYPE_ARRAY || editors.type() != GDEXTENSION_VARIANT_TYPE_ARRAY) { return false; }
-    int64_t sc = 0, ec = 0;
-    if (!number(invoke(scripts, "size"), sc) || !number(invoke(editors, "size"), ec) || sc < 1 || sc != ec || sc > 256) { return false; }
-    int matches = 0;
-    for (int64_t i = 0; i < sc; ++i) {
-        auto *a = api.array_index_const(api.internal[GDEXTENSION_VARIANT_TYPE_ARRAY](scripts.ptr()), i);
-        auto *b = api.array_index_const(api.internal[GDEXTENSION_VARIANT_TYPE_ARRAY](editors.ptr()), i);
-        if (!a || !b) { return false; }
-        Value script(a), editor(b);
-        void *sp = object_ptr(script), *ep = object_ptr(editor);
-        if (!sp || !ep) { return false; }
-        Value location = call(sp, "Resource", "get_path", GAK_HASH_RESOURCE_PATH);
-        if (location.type() != GDEXTENSION_VARIANT_TYPE_STRING) { return false; }
-        const std::string found = bytes(location, 2048);
-        if (found != path) { continue; }
-        if (!api.cast_to(sp, api.class_tag(gd_name.ptr()))) { return false; }
-        ++matches;
-        if (id(script) != rid || id(editor) != eid) { return false; }
-        Value buffer = call(ep, "ScriptEditorBase", "get_base_editor", GAK_HASH_BASE_EDITOR);
-        void *bp = object_ptr(buffer);
-        if (!bp || !api.cast_to(bp, api.class_tag(code_name.ptr())) || id(buffer) != bid) { return false; }
-        out.script = script; out.editor = editor; out.buffer = buffer;
-        out.script_ptr = sp; out.editor_ptr = ep; out.buffer_ptr = bp;
-    }
-    return matches == 1 && out.script_ptr && out.buffer_ptr;
+constexpr size_t LIMIT = SOURCE_LIMIT;
+const char *open_file(const Session &session, const std::string &path, FileBinding &out) {
+    return pin_file(session, path, out, O_RDWR);
 }
 bool unsaved(const std::string &path) {
     Name name("EditorInterface");
@@ -285,19 +88,6 @@ bool unsaved(const std::string &path) {
     Value target = string(path);
     Value exists = invoke(files, "has", {&target});
     return exists.type() != GDEXTENSION_VARIANT_TYPE_BOOL || truth(exists);
-}
-uint64_t ticks() {
-    Name name("Time");
-    void *time = api.singleton(name.ptr());
-    int64_t current = -1;
-    return time && number(call(time, "Time", "get_ticks_usec", 3905245786ULL), current) && current >= 0
-            ? static_cast<uint64_t>(current) : UINT64_MAX;
-}
-bool valid_request(const std::string &id) {
-    if (id.empty() || id.size() > 64) { return false; }
-    for (char c : id) { if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') ||
-            (c >= 'a' && c <= 'z') || c == '_' || c == '-')) { return false; } }
-    return true;
 }
 } // namespace
 
@@ -316,7 +106,7 @@ struct EditAttempt {
             futimens_called{}, metadata_after_observed{}, restored{}, edited_clear_attempted{}, edited_cleared{}, tag_attempted{}, tagged{};
     int write_calls{}, write_errno{}, truncate_errno{}, fsync_errno{}, pread_errno{}, futimens_errno{};
     size_t written{};
-    timespec before_restore{}, after_restore{};
+    timespec original_mtime{}, before_restore{}, after_restore{};
 };
 namespace {
 const char *stage_name(EditAttempt::Stage stage) {
@@ -377,7 +167,7 @@ Value reply(const EditAttempt *attempt, const char *status, const char *reason) 
 #if GAK_FIXTURE
     if (!attempt->fault.empty()) { put_string(facts, "injected_fault", attempt->fault); }
 #endif
-    time_fact(facts, "t0", attempt->file.original_mtime);
+    time_fact(facts, "t0", attempt->original_mtime);
     if (attempt->futimens_called) { time_fact(facts, "before_restore", attempt->before_restore); }
     if (attempt->metadata_after_observed) { time_fact(facts, "after_restore", attempt->after_restore); }
     put(out, "facts", facts);
@@ -426,7 +216,7 @@ const char *guard(Session &session, EditAttempt &a, Binding &binding, bool needs
     } else if (!content(a.file.leaf.value, a.before)) { return "disk_content_changed"; }
     if (needs_metadata) {
         struct stat st{};
-        if (!a.restored || fstat(a.file.leaf.value, &st) || !same_time(st.st_mtimespec, a.file.original_mtime)) {
+        if (!a.restored || fstat(a.file.leaf.value, &st) || !same_time(st.st_mtimespec, a.original_mtime)) {
             return "mtime_changed";
         }
     }
@@ -525,11 +315,14 @@ bool editor_effects_inert(std::string_view source) {
 } // namespace
 
 void edit_cleanup(Session &session) {
-    delete session.attempt;
-    session.attempt = nullptr;
+    if (auto *attempt = edit_attempt(session)) {
+        session.owner = std::monostate{};
+        delete attempt;
+    }
 }
 Value edit_inspect(Session &session, const Value &path_value, const Value &original_value,
         const Value &desired_value, const Value &document) {
+    if (open_attempt(session)) { return reply(nullptr, "busy", "slot_busy"); }
     Value out = reply(nullptr, "refused", "inspection_unavailable");
     if (session.project_fd < 0 || std::this_thread::get_id() != session.main_thread ||
             session.call_state != Session::CallState::Idle ||
@@ -568,7 +361,7 @@ Value edit_inspect(Session &session, const Value &path_value, const Value &origi
 }
 Value edit_prepare(Session &session, const Value &path_value, const Value &original_value,
         const Value &desired_value, const Value &correlation) {
-    if (session.attempt || session.call_state != Session::CallState::Idle) { return reply(nullptr, "busy", "slot_busy"); }
+    if (occupied(session) || session.call_state != Session::CallState::Idle) { return reply(nullptr, "busy", "slot_busy"); }
     if (session.project_fd < 0 || std::this_thread::get_id() != session.main_thread ||
             path_value.type() != GDEXTENSION_VARIANT_TYPE_STRING ||
             original_value.type() != GDEXTENSION_VARIANT_TYPE_STRING ||
@@ -632,6 +425,9 @@ Value edit_prepare(Session &session, const Value &path_value, const Value &origi
     if (const char *reason = open_file(session, path, attempt->file)) {
         return reply(nullptr, "refused", reason);
     }
+    struct stat pinned{};
+    if (fstat(attempt->file.leaf.value, &pinned)) { return reply(nullptr, "refused", "source_unavailable"); }
+    attempt->original_mtime = pinned.st_mtimespec;
     if (static_cast<uint64_t>(attempt->file.device) != file_device ||
             static_cast<uint64_t>(attempt->file.inode) != file_inode) {
         return reply(nullptr, "refused", "namespace_or_descriptor_changed");
@@ -661,13 +457,13 @@ Value edit_prepare(Session &session, const Value &path_value, const Value &origi
     if (const char *reason = guard(session, *attempt, again, false, false)) {
         return reply(nullptr, "refused", reason);
     }
-    session.attempt = attempt.release();
-    return reply(session.attempt, "prepared", "");
+    session.owner = attempt.release();
+    return reply(edit_attempt(session), "prepared", "");
 }
 
 Value edit_advance(Session &session, const Value &request, const Value &stage) {
     if (session.call_state != Session::CallState::Idle) { return reply(nullptr, "busy", "slot_busy"); }
-    EditAttempt *a = session.attempt;
+    EditAttempt *a = edit_attempt(session);
     if (!a || request.type() != GDEXTENSION_VARIANT_TYPE_STRING || stage.type() != GDEXTENSION_VARIANT_TYPE_STRING ||
             bytes(request, 64) != a->request || bytes(stage, 32) != stage_name(a->stage)) {
         return reply(nullptr, "refused", "wrong_attempt_or_stage");
@@ -802,7 +598,7 @@ Value edit_advance(Session &session, const Value &request, const Value &stage) {
                 ::close(a->file.leaf.value); a->file.leaf.value = -1;
             }
 #endif
-            timespec times[2] = {{0, UTIME_OMIT}, a->file.original_mtime};
+            timespec times[2] = {{0, UTIME_OMIT}, a->original_mtime};
 #if GAK_FIXTURE
             if (a->fault == "mismatch_mtime") {
                 if (++times[1].tv_nsec == 1000000000) { times[1].tv_nsec = 0; ++times[1].tv_sec; }
@@ -820,7 +616,7 @@ Value edit_advance(Session &session, const Value &request, const Value &stage) {
                 a->after_restore = after.st_mtimespec;
                 a->metadata_after_observed = true;
             }
-            if (!a->metadata_after_observed || !same_time(after.st_mtimespec, a->file.original_mtime) ||
+            if (!a->metadata_after_observed || !same_time(after.st_mtimespec, a->original_mtime) ||
                     !same(after, before) || !content(a->file.leaf.value, a->after) || !file_attached(session, a->file)) {
                 return finish("partial", "mtime_readback_failed");
             }
@@ -864,7 +660,7 @@ Value edit_advance(Session &session, const Value &request, const Value &stage) {
                     b.type() != GDEXTENSION_VARIANT_TYPE_STRING || bytes(b) != a->after ||
                     r.type() != GDEXTENSION_VARIANT_TYPE_STRING || bytes(r) != a->after ||
                     !interface || edited.type() != GDEXTENSION_VARIANT_TYPE_BOOL || truth(edited) ||
-                    fstat(a->file.leaf.value, &st) || !same_time(st.st_mtimespec, a->file.original_mtime) ||
+                    fstat(a->file.leaf.value, &st) || !same_time(st.st_mtimespec, a->original_mtime) ||
                     !content(a->file.leaf.value, a->after) || !file_attached(session, a->file) || unsaved(a->path)) {
                 return finish("partial", "post_tag_unverified");
             }
@@ -876,18 +672,20 @@ Value edit_advance(Session &session, const Value &request, const Value &stage) {
     return finish("ready", "");
 }
 Value edit_cancel(Session &session, const Value &request) {
-    if (!session.attempt || request.type() != GDEXTENSION_VARIANT_TYPE_STRING ||
-            bytes(request, 64) != session.attempt->request) { return reply(nullptr, "refused", "wrong_attempt"); }
+    auto *attempt = edit_attempt(session);
+    if (!attempt || request.type() != GDEXTENSION_VARIANT_TYPE_STRING ||
+            bytes(request, 64) != attempt->request) { return reply(nullptr, "refused", "wrong_attempt"); }
     if (session.call_state != Session::CallState::Idle) {
         session.call_state = Session::CallState::Closing;
-        return reply(session.attempt, "partial", "closing_after_active_stage");
+        return reply(attempt, "partial", "closing_after_active_stage");
     }
-    Value result = reply(session.attempt, failure_status(*session.attempt), "cancelled");
+    Value result = reply(attempt, failure_status(*attempt), "cancelled");
     edit_cleanup(session);
     return result;
 }
 bool edit_expire(Session &session) {
-    if (!session.attempt || ticks() < session.attempt->expires) { return false; }
+    auto *attempt = edit_attempt(session);
+    if (!attempt || ticks() < attempt->expires) { return false; }
     if (session.call_state == Session::CallState::Idle) { edit_cleanup(session); }
     else { session.call_state = Session::CallState::Closing; }
     return true;
@@ -897,16 +695,17 @@ Value edit_fixture_fault(Session &session, const Value &request, const Value &fa
     if (session.call_state != Session::CallState::Idle) { return reply(nullptr, "busy", "slot_busy"); }
     static constexpr const char *allowed[] = {"read_only", "short_write", "fail_pwrite", "fail_truncate",
         "fail_fsync", "fail_pread", "fail_futimens", "close_fd_before_restore", "mismatch_mtime"};
-    if (!session.attempt || request.type() != GDEXTENSION_VARIANT_TYPE_STRING ||
-            bytes(request, 64) != session.attempt->request || fault.type() != GDEXTENSION_VARIANT_TYPE_STRING) {
+    auto *attempt = edit_attempt(session);
+    if (!attempt || request.type() != GDEXTENSION_VARIANT_TYPE_STRING ||
+            bytes(request, 64) != attempt->request || fault.type() != GDEXTENSION_VARIANT_TYPE_STRING) {
         return reply(nullptr, "refused", "wrong_attempt");
     }
     std::string selected = bytes(fault, 32);
     if (std::find_if(std::begin(allowed), std::end(allowed), [&](const char *candidate) {
         return selected == candidate;
-    }) == std::end(allowed)) { return reply(session.attempt, "refused", "invalid_fault"); }
-    session.attempt->fault = std::move(selected);
-    return reply(session.attempt, "ready", "");
+    }) == std::end(allowed)) { return reply(attempt, "refused", "invalid_fault"); }
+    attempt->fault = std::move(selected);
+    return reply(attempt, "ready", "");
 }
 #endif
 } // namespace gak

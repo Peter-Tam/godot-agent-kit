@@ -2,6 +2,13 @@
 
 **Status (2026-09-29):** **T001–T005 and Feature 002 are complete.** [T005 cumulative acceptance](../quickstart.md#14-t005-cumulative-acceptance-2026-09-29) verifies the unchanged stock §18 T1 / §19 L1 native/helper boundary. [T003](../quickstart.md#11-t003-native-boundary-acceptance-2026-09-29) and [T004](../quickstart.md#13-t004-caller-acceptance-2026-09-29) retain earlier private/caller evidence. T002's superseded validator is historical evidence in [PR #29](https://github.com/Peter-Tam/godot-agent-kit/pull/29), not a fallback. The inherited stock endpoint limitation remains non-blocking; no wider-platform support is claimed.
 
+**Current migration:** Feature 003 T001 moves the unchanged edit family into
+the shared `editor_integration` bundle, native revision 2 and
+[private bridge v3](../../003-open-project-gdscript/contracts/bridge-protocol.md).
+The revision-1/v2 statements below identify historical Feature 002 delivery.
+Current commands/provenance are in the [native guide](../../../godot-addon/native/README.md);
+the new [native/cutover acceptance](../../003-open-project-gdscript/quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30) is recorded separately.
+
 ## 1. Ownership and minimum exposure
 
 **Stock native boundary and guarded caller integration:** Official stock Godot plus addon and standard public-ABI C++17 GDExtension implement one guarded CodeEdit complex edit, explicit bound `Script.set_source_code`, descriptor-bound content persistence, same-fd T0 restoration, then public Resource edited=false and direct CodeEdit tag/STOP. No saved-handler Callable, ResourceSaver, full Save, engine patch or private Godot timestamp setter is used. T004 passed caller safety/history acceptance; T005 passed cumulative feature A–E and durability.

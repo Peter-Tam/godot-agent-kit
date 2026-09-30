@@ -1,6 +1,6 @@
 # Private Editor Bridge — Version 3
 
-**Status:** Planned coordinated cutover, not implemented protocol. Extends the completed [v2 boundary](../../002-edit-open-gdscript/contracts/bridge-protocol.md) for one opening operation. Public observation/edit v1 stay unchanged; opening has its own [caller v1](open-api.md).
+**Status:** T001's coordinated v3 authentication/observation/edit cutover and private native-owner fixture integration are complete with [acceptance evidence](../quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30). The authenticated product opening exchange in §3 remains pending T002 work and `open_gdscript` remains **false**. Public observation/edit v1 stay unchanged; the planned opening caller has its own [v1 contract](open-api.md). Historical [v2 acceptance](../../002-edit-open-gdscript/contracts/bridge-protocol.md) is not relabeled as v3 acceptance.
 
 ## 1. Bootstrap, authentication and migration
 

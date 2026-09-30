@@ -26,10 +26,11 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
         editor = self.start_editor(project)
         descriptor = observation.wait_for(lambda: next(iter(self.descriptors(project)), None),
                                           "edit_native_advertisement")
-        observation.require(descriptor["v"] == 2, "edit_private_v2_descriptor")
+        observation.require(descriptor["v"] == 3, "edit_private_v3_descriptor")
         info = self.native_action(editor, "native_info")
-        observation.require(info["edit_installed"] and info["build_id"] ==
-                            self.expected_native_build_id, "real_native_edit_build")
+        observation.require(info["edit_installed"] and info["open_installed"] and
+                            info["api_revision"] == 2 and
+                            info["build_id"] == self.expected_native_build_id, "real_native_shared_build")
         if faults:
             self.native_action(editor, "native_edit_fixture_activate")
         self.action(editor, "prepare_subject")
@@ -242,6 +243,16 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
         self.case("caller_later_human_save_reopen_and_repeat", screenshot=
                   self.screenshot(editor, "caller-later-save-reopen.png"),
                   source_surfaces="actual_later_human_save_close_reopen_fresh_basis")
+        # Cross the source-free control ceiling through the actual authenticated
+        # edit exchange, not just native mutation or a synthetic codec peer.
+        fresh = self.edit_basis(project, descriptor, "caller-large-frame-basis")
+        current, disk = self.state(editor, project)
+        large = DESIRED + "# " + "large_frame_" * 1024 + "\n"
+        changed = self.edit(project, fresh, large, "caller_v3_large_selected_frame",
+                            "verified_changed", 0, session=descriptor["session_id"])
+        self.validated_source(changed, large, "preflight", "valid")
+        self.validated_source(changed, large, "post_change", "valid")
+        self.changed_state(editor, project, current, disk, large, "large_selected_frame")
 
     def conflict_edit(self):
         self.compile_window_probe()
@@ -536,7 +547,9 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
         clean = self.edit_basis(unsupported, unsupported_descriptor, "basis-unsupported-native")
         challenge_socket, challenge = self.challenge(unsupported_descriptor)
         challenge_socket.close()
-        observation.require(challenge["capabilities"]["edit_open_gdscript"] is False,
+        observation.require(challenge["capabilities"]["edit_open_gdscript"] is False and
+                            challenge["capabilities"]["open_gdscript"] is False and
+                            challenge["native_api_revision"] == 0 and challenge["native_build_id"] == "",
                             "unsupported_native_never_advertised")
         before = self.action(unsupported_editor, "witness")
         disk = observation.disk_witness(unsupported / "scripts/subject.gd")

@@ -31,7 +31,7 @@ FIXTURE = Path(__file__).resolve().parent / "fixtures" / "observation"
 VERSION = "4.7.2.stable.official.ed1daf0bf"
 ENGINE_HASH = "ed1daf0bf001b61586d9930840f2f1394092c079"
 CAPABILITIES = ("observe_gdscript", "open_enumeration", "buffer_attribution",
-                "unsaved_paths", "cached_resource_lookup", "edit_open_gdscript")
+                "unsaved_paths", "cached_resource_lookup", "edit_open_gdscript", "open_gdscript")
 SOURCE_SENTINEL = b"T002_SYNTHETIC_SOURCE_ONLY"
 CAP_SENTINELS = (b"# " + b"r" * 64, b"# " + b"b" * 64, b"# " + b"d" * 64)
 SOURCE_SENTINELS = (
@@ -166,7 +166,7 @@ def receive(stream, limit=4096):
 
 
 def proof(descriptor, response, role):
-    fields = [b"godot-agent-kit/editor-bridge/v2", response["request_id"].encode(),
+    fields = [b"godot-agent-kit/editor-bridge/v3", response["request_id"].encode(),
               bytes.fromhex(descriptor["session_id"]), descriptor["project_root"].encode(),
               descriptor["godot_version"].encode(), descriptor["engine_hash"].encode()]
     fields += [bytes([response["capabilities"][name]]) for name in CAPABILITIES]
@@ -423,8 +423,8 @@ class Harness:
             self.secrets.add(descriptor["token"].encode())
             require(path.stat().st_uid == os.geteuid() and stat.S_IMODE(path.stat().st_mode) == 0o600,
                     "descriptor_owner_mode")
-            require(descriptor.get("v") == 2 and descriptor["godot_version"] == self.version and
-                    descriptor["engine_hash"] == self.engine_hash, "descriptor_private_v2_exact_engine")
+            require(descriptor.get("v") == 3 and descriptor["godot_version"] == self.version and
+                    descriptor["engine_hash"] == self.engine_hash, "descriptor_private_v3_exact_engine")
             if project is None or Path(descriptor["project_root"]).resolve() == project.resolve():
                 descriptors.append(descriptor)
         return descriptors
@@ -525,7 +525,7 @@ class Harness:
         nonce = secrets.token_hex(32)
         self.secrets.add(nonce.encode())
         request = "python-proof-" + secrets.token_hex(4)
-        hello = [2, "hello", request, descriptor["session_id"], descriptor["project_root"], nonce]
+        hello = [3, "hello", request, descriptor["session_id"], descriptor["project_root"], nonce]
         wire = packet(hello)
         require(descriptor["token"].encode() not in wire, "secret_free_hello")
         stream.sendall(wire)
@@ -536,13 +536,19 @@ class Harness:
                 "real_server_transcript")
         require(response.get("project_root") == descriptor["project_root"] and
                 response.get("godot_version") == VERSION and response.get("engine_hash") == ENGINE_HASH and
-                response.get("v") == 2 and
+                response.get("v") == 3 and
                 type(response.get("native_api_revision")) is int and
-                response["native_api_revision"] in (0, 1) and
+                response["native_api_revision"] in (0, 2) and
                 isinstance(response.get("native_build_id"), str) and
                 (response["native_build_id"] == "" if response["native_api_revision"] == 0
                  else bool(re.fullmatch(r"[0-9a-f]{64}", response["native_build_id"]))),
                 "real_server_identity")
+        require(set(response["capabilities"]) == set(CAPABILITIES) and
+                all(type(response["capabilities"][name]) is bool for name in CAPABILITIES) and
+                response["capabilities"]["open_gdscript"] is False and
+                (not response["capabilities"]["edit_open_gdscript"] or
+                 response["native_api_revision"] == 2),
+                "authenticated_complete_v3_capabilities_opening_not_product_enabled")
         require(hmac.compare_digest(response["server_proof"], proof(descriptor, response, "server")),
                 "independent_server_proof")
         require(descriptor["token"].encode() not in raw, "secret_free_challenge")
@@ -551,7 +557,7 @@ class Harness:
         return stream, response
 
     def authenticate(self, descriptor, response, client_proof):
-        return [2, "authenticate", response["request_id"], descriptor["session_id"],
+        return [3, "authenticate", response["request_id"], descriptor["session_id"],
                 descriptor["project_root"], response["client_nonce"], response["server_nonce"], client_proof]
 
     def refused(self, stream, payload):
@@ -568,8 +574,23 @@ class Harness:
 
     def authentication_cases(self, descriptor, editor):
         vectors = self.action(editor, "proof_vectors")
-        require(vectors == {"transcript_bytes": 346, "server_matches": True,
-                            "client_matches": True, "finish_matches": True}, "godot_contract_proof_vectors")
+        require(vectors == {"server_matches": True, "client_matches": True,
+                            "finish_matches": True}, "godot_contract_proof_vectors")
+        synthetic_descriptor = {
+            "session_id": "00112233445566778899aabbccddeeff", "project_root": "/fixture/project",
+            "godot_version": VERSION, "engine_hash": ENGINE_HASH,
+            "token": bytes(range(32)).hex()}
+        synthetic_response = {
+            "request_id": "example-1",
+            "capabilities": {name: name != "open_gdscript" for name in CAPABILITIES},
+            "native_api_revision": 2, "native_build_id": "a" * 64,
+            "client_nonce": bytes(range(32, 64)).hex(), "server_nonce": bytes(range(64, 96)).hex()}
+        for role, expected in (
+                ("server", "551fab39e1b856768c16a9722e38c9deb8c73a027220d1209a7c2c4653709d02"),
+                ("client", "c1ee473fd4f970e1c1eb2c35d2fd204c402672c865dc8182d95b2721d7517fa1"),
+                ("finish", "1abd54c16694a3158b96f59882fca5d16050f2fe54f49b0c07965de77b527053")):
+            require(proof(synthetic_descriptor, synthetic_response, role) == expected,
+                    "independent_python_v3_vector_" + role)
         self.case("cross_language_proof_vectors", **vectors)
         stream, challenge = self.challenge(descriptor)
         client = proof(descriptor, challenge, "client")
@@ -588,8 +609,8 @@ class Harness:
             require(descriptor["token"].encode() not in raw, "secret_free_finish")
         self.case("independent_mutual_proofs_and_secret_free_wire")
         for mode in ("wrong_secret", "replay", "reflection", "changed_request", "malformed_proof",
-                     "changed_capability", "changed_native_revision", "changed_native_build",
-                     "changed_engine_version"):
+                     *("changed_capability:" + name for name in CAPABILITIES),
+                     "changed_native_revision", "changed_native_build", "changed_engine_version"):
             stream, response = self.challenge(descriptor)
             value = proof(descriptor, response, "client")
             if mode == "wrong_secret":
@@ -602,11 +623,11 @@ class Harness:
                 value = "not-a-proof"
             elif mode.startswith("changed_") and mode != "changed_request":
                 mutated = {**response, "capabilities": dict(response["capabilities"])}
-                if mode == "changed_capability":
-                    mutated["capabilities"]["edit_open_gdscript"] = not response["capabilities"][
-                        "edit_open_gdscript"]
+                if mode.startswith("changed_capability:"):
+                    name = mode.split(":", 1)[1]
+                    mutated["capabilities"][name] = not response["capabilities"][name]
                 elif mode == "changed_native_revision":
-                    mutated["native_api_revision"] = 1 - response["native_api_revision"]
+                    mutated["native_api_revision"] = 2 - response["native_api_revision"]
                 elif mode == "changed_native_build":
                     mutated["native_build_id"] = ("f" * 64 if response["native_build_id"] != "f" * 64
                                                   else "e" * 64)
@@ -620,14 +641,14 @@ class Harness:
             self.refused(stream, packet(message))
             self.case("live_reject_" + mode)
         for operation in ("observe", "recheck", "authenticate"):
-            message = [2, operation, "premature", descriptor["session_id"], descriptor["project_root"],
+            message = [3, operation, "premature", descriptor["session_id"], descriptor["project_root"],
                        "res://scripts/subject.gd"]
             self.refused(self.connect(descriptor), packet(message))
             self.case("live_reject_premature_" + operation)
-        for name, index, value in (("old_version", 0, 1), ("boolean_version", 0, True),
-                                   ("fractional_version", 0, 2.5),
+        for name, index, value in (("old_version", 0, 2), ("boolean_version", 0, True),
+                                   ("fractional_version", 0, 3.5),
                                    ("nonscalar_session", 3, {}), ("nonscalar_project", 4, [])):
-            message = [2, "hello", "invalid-type", descriptor["session_id"],
+            message = [3, "hello", "invalid-type", descriptor["session_id"],
                        descriptor["project_root"], "a" * 64]
             message[index] = value
             self.refused(self.connect(descriptor), packet(message))
@@ -780,7 +801,7 @@ class Harness:
             require(descriptor["token"].encode() not in raw,
                     "observation_peer_secret_free_finish")
             require(all(challenge["capabilities"].get(name) is True for name in CAPABILITIES[:5]) and
-                    isinstance(challenge["capabilities"].get("edit_open_gdscript"), bool),
+                    all(isinstance(challenge["capabilities"].get(name), bool) for name in CAPABILITIES[5:]),
                     "live_collector_capabilities")
             return stream, challenge["request_id"]
         except (Failure, OSError, EOFError):
@@ -788,10 +809,10 @@ class Harness:
             raise
 
     def peer_operation(self, stream, descriptor, request_id, operation, path):
-        stream.sendall(packet([2, operation, request_id, descriptor["session_id"],
+        stream.sendall(packet([3, operation, request_id, descriptor["session_id"],
                                descriptor["project_root"], "res://scripts/" + path.name]))
         result, raw = receive(stream, 12 * 1024 * 1024)
-        require(result.get("v") == 2 and result.get("kind") ==
+        require(result.get("v") == 3 and result.get("kind") ==
                 ("sample" if operation == "observe" else "recheck") and
                 result.get("request_id") == request_id and
                 result.get("session_id") == descriptor["session_id"] and
@@ -1005,11 +1026,11 @@ class Harness:
         original = self.live_witness(editor, path, disk)
         refused, refusal_id = self.authenticated_peer(descriptor)
         with refused:
-            refused.sendall(packet([2, "observe", refusal_id, descriptor["session_id"],
+            refused.sendall(packet([3, "observe", refusal_id, descriptor["session_id"],
                                    descriptor["project_root"], "res://../outside.gd"]))
             failure, raw = receive(refused)
             require(failure == {
-                "v": 2, "kind": "failure", "request_id": refusal_id,
+                "v": 3, "kind": "failure", "request_id": refusal_id,
                 "session_id": descriptor["session_id"], "project_root": descriptor["project_root"],
                 "script_path": "res://../outside.gd", "code": "out_of_project", "stage": "read_editor"},
                 "authenticated_locator_refusal_has_no_source")
@@ -2134,7 +2155,7 @@ class Harness:
                     self.secrets.add(hello[5].encode())
                     nonce = secrets.token_hex(32)
                     self.secrets.add(nonce.encode())
-                    fake = {"v": 2, "kind": "challenge", "request_id": hello[2], "session_id": hello[3],
+                    fake = {"v": 3, "kind": "challenge", "request_id": hello[2], "session_id": hello[3],
                             "project_root": hello[4], "godot_version": VERSION, "engine_hash": ENGINE_HASH,
                             "capabilities": {name: False for name in CAPABILITIES},
                             "native_api_revision": 0, "native_build_id": "", "client_nonce": hello[5],
@@ -2533,7 +2554,7 @@ class Harness:
                 if name != "wrong_request":
                     stream.close()
                     stream, request_id = self.authenticated_peer(descriptor)
-                message = [2, "observe", request_id, descriptor["session_id"],
+                message = [3, "observe", request_id, descriptor["session_id"],
                            descriptor["project_root"], "res://scripts/subject.gd"]
                 message[field] = value
                 self.refused(stream, packet(message))

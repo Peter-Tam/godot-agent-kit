@@ -1,4 +1,6 @@
 """Actual official-stock one-shot validator acceptance in owned GUI projects."""
+import copy
+import hashlib
 import json
 import os
 import re
@@ -17,6 +19,67 @@ NESTED = 'extends "./native/deep/level_two.gd"\nconst NATIVE_TRANSITIVE := 2\n'
 INVALID = 'extends RefCounted\nvar = # STOCK_PRIVATE_PARSER_SOURCE\n'
 WARNING = ('extends RefCounted\nfunc value() -> int:\n'
            '\treturn 3 / 2 # STOCK_PRIVATE_WARNING_SOURCE\n')
+
+
+def opening_context_fingerprint(projection):
+    """Independent fixture encoding of the one closed native guard projection."""
+    strings = {"request_id", "session_id", "project_root", "project_device", "project_inode",
+               "path", "script_id", "editor_id", "buffer_id", "source_sha256", "source_length",
+               "version", "saved_version", "script_base_id"}
+    booleans = {"dirty", "resource_edited", "has_undo", "has_redo", "tool", "external_editor"}
+    arrays = {"methods", "global_classes", "autoloads"}
+    observation.require(set(projection) == strings | booleans | arrays |
+                        {"properties", "bindings", "warnings"}, "closed_opening_guard_projection")
+
+    def frame(value):
+        encoded = value.encode("utf-8")
+        return len(encoded).to_bytes(4, "big") + encoded
+
+    def scalar(value, kind):
+        observation.require(type(value) is kind, "typed_opening_guard_value")
+        if kind is str:
+            return b"s" + frame(value)
+        if kind is bool:
+            return b"b" + bytes([value])
+        observation.require(0 <= value <= 0xffffffffffffffff, "bounded_opening_guard_integer")
+        return b"u" + value.to_bytes(8, "big")
+
+    def record(values, types):
+        observation.require(set(values) == set(types), "closed_opening_guard_record")
+        return b"o" + len(values).to_bytes(4, "big") + b"".join(
+            frame(key) + scalar(values[key], types[key])
+            for key in sorted(values, key=lambda value: value.encode("utf-8")))
+
+    def sequence(values, encode):
+        observation.require(isinstance(values, list), "typed_opening_guard_array")
+        return b"a" + len(values).to_bytes(4, "big") + b"".join(encode(value) for value in values)
+
+    fields = {}
+    for key in strings:
+        fields[key] = scalar(projection[key], str)
+    for key in booleans:
+        fields[key] = scalar(projection[key], bool)
+    for key in arrays:
+        fields[key] = sequence(projection[key], lambda value: scalar(value, str))
+    fields["properties"] = sequence(projection["properties"], lambda value: record(value, {
+        "name": str, "type": int, "hint": int, "hint_string": str, "usage": int,
+        "class_name": str}))
+    fields["bindings"] = sequence(projection["bindings"], lambda value: record(value, {
+        "name": str, "api_type": int}))
+    warnings = projection["warnings"]
+    observation.require(set(warnings) == {"enable", "levels", "directory_rules"},
+                        "closed_opening_guard_warnings")
+    warning_fields = {
+        "enable": scalar(warnings["enable"], bool),
+        "levels": record(warnings["levels"], {key: int for key in warnings["levels"]}),
+        "directory_rules": record(warnings["directory_rules"],
+                                  {key: int for key in warnings["directory_rules"]})}
+    fields["warnings"] = b"o" + len(warning_fields).to_bytes(4, "big") + b"".join(
+        frame(key) + warning_fields[key] for key in sorted(warning_fields))
+    encoded = frame("godot-agent-kit/open-context/v1") + b"o" + len(fields).to_bytes(
+        4, "big") + b"".join(frame(key) + fields[key] for key in sorted(fields))
+    observation.require(len(encoded) <= 256 * 1024, "bounded_opening_guard_projection")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 class StockAcceptanceMixin:
@@ -192,6 +255,155 @@ class StockAcceptanceMixin:
             if process.poll() is None:
                 process.kill()
                 process.wait(timeout=2)
+
+    def stock_open_context_validate(self, project, context, name, expected, *, binary=None,
+                                    interruption=None, mutate=None):
+        """Consume real native prepared R==B, not an arbitrary proposal or target D."""
+        observation.require(context.get("kind") == "current_gdscript",
+                            "actual_current_gdscript_context_" + name)
+        projection = context["projection"]
+        guard = opening_context_fingerprint(projection)
+        source = context["source"]
+        observation.require(context["sha256"] == guard and isinstance(source, str) and
+                            self.stock_sha(source) == projection["source_sha256"] and
+                            str(len(source.encode("utf-8"))) == projection["source_length"] and
+                            projection["project_root"] == str(project.resolve()),
+                            "independently_recomputed_native_opening_context_" + name)
+        current = project / projection["path"].removeprefix("res://")
+        observation.require(current.is_file() and not current.is_symlink(),
+                            "actual_current_context_file_" + name)
+        before = current.read_bytes()
+        identity = current.stat()
+        project_identity = project.stat()
+        observation.require(str(project_identity.st_dev) == projection["project_device"] and
+                            str(project_identity.st_ino) == projection["project_inode"],
+                            "independent_opening_project_identity_" + name)
+        request = {"binary": str(binary or self.args.godot), "project": str(project.resolve()),
+                   "script": projection["path"], "source": None, "purpose": "open_context",
+                   "request_id": projection["request_id"], "session_id": projection["session_id"],
+                   "warnings": {**projection["warnings"], "provenance": {
+                       "source": "editor_project_settings",
+                       "project_root": projection["project_root"],
+                       "session_id": projection["session_id"]}},
+                   "global_classes": projection["global_classes"],
+                   "open_context": copy.deepcopy(context)}
+        if mutate is not None:
+            mutate(request)
+        if interruption is None:
+            output = subprocess.run([str(self.args.stock_validator)],
+                                    input=json.dumps(request, ensure_ascii=False).encode() + b"\n",
+                                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=10)
+            interruption_evidence = None
+        else:
+            output, interruption_evidence = self.stock_controlled_run(
+                request, interruption=interruption)
+        observation.require(output.returncode == 0 and len(output.stdout) <= 262144,
+                            "bounded_opening_stock_receipt_" + name)
+        result = json.loads(output.stdout)
+        self.summary["last_open_context_validation"] = {
+            key: result.get(key) for key in (
+                "status", "reason", "request_id", "session_id", "purpose",
+                "child_spawned", "child_reaped", "cleanup_confirmed", "elapsed_us")}
+        observation.require(result.get("status") == expected and
+                            result.get("request_id") == request["request_id"] and
+                            result.get("session_id") == request["session_id"] and
+                            result.get("purpose") == request["purpose"] and
+                            result.get("root_path") == request["script"],
+                            "actual_opening_stock_receipt_attribution_" + name)
+        observation.require(result.get("cleanup_confirmed") is True and
+                            (result.get("clone_path") is None or
+                             not Path(result["clone_path"]).exists()) and
+                            current.read_bytes() == before and
+                            (current.stat().st_dev, current.stat().st_ino) ==
+                            (identity.st_dev, identity.st_ino),
+                            "opening_stock_cleanup_preserves_original_d_" + name)
+        observation.require(isinstance(result.get("elapsed_us"), int) and
+                            0 <= result["elapsed_us"] <= 9_500_000 and
+                            result["finished_unix_ms"] >= result["started_unix_ms"],
+                            "opening_stock_original_deadline_" + name)
+        if result.get("child_spawned") is True:
+            observation.require(result.get("child_reaped") is True and
+                                result.get("clone_extra_files") is False and
+                                result.get("clone_log_files") is False and
+                                "--log-file" not in result.get("launch_args", []),
+                                "opening_owned_child_reaped_without_incidental_effects_" + name)
+        if expected != "unavailable":
+            fences = result["sources"]
+            observation.require(result.get("child_spawned") is True and len(fences) == 1 and
+                                fences[0]["path"] == projection["path"] and
+                                fences[0]["sha256"] == projection["source_sha256"] and
+                                str(fences[0]["utf8_bytes"]) == projection["source_length"] and
+                                fences[0]["device"] == identity.st_dev and
+                                fences[0]["inode"] == identity.st_ino and
+                                fences[0]["diagnostics_completed"] is True and
+                                fences[0]["symbols_completed"] is True and
+                                re.fullmatch(r"[0-9a-f]{64}", result["context_sha256"]),
+                                "completed_private_current_source_not_original_d_" + name)
+        binding = result.get("opening_binding")
+        if expected == "valid":
+            expected_binding = {key: projection[key] for key in (
+                "request_id", "session_id", "project_root", "project_device", "project_inode",
+                "path", "script_id", "editor_id", "buffer_id", "source_sha256", "source_length")}
+            expected_binding["guard_sha256"] = guard
+            observation.require(binding == expected_binding and not result["diagnostics"] and
+                                result["context_sha256"] != guard,
+                                "only_bound_completed_valid_context_authorizes_" + name)
+        else:
+            observation.require(binding is None, "invalid_or_unavailable_never_authorizes_" + name)
+            if expected == "invalid":
+                observation.require(any(item["path"] == projection["path"] and
+                                        item["source_sha256"] == projection["source_sha256"]
+                                        for item in result["diagnostics"]),
+                                    "invalid_current_diagnostic_is_privately_attributed_" + name)
+            else:
+                observation.require(isinstance(result.get("reason"), str) and result["reason"],
+                                    "unavailable_current_context_reason_" + name)
+        self.case(name, mapping="T001/current-source validation", validation_status=expected,
+                  reason=result.get("reason"), purpose=request["purpose"], guard_sha256=guard,
+                  source_sha256=projection["source_sha256"],
+                  current_differs_from_d=source.encode("utf-8") != before,
+                  cleanup_confirmed=result["cleanup_confirmed"],
+                  interruption=interruption_evidence)
+        return result
+
+    def stock_open_context_regressions(self, project, context):
+        """Actual helper failures on a real admitted native context; no fake verdict."""
+        def change_source(request):
+            request["open_context"]["source"] += "# replaced private capture\n"
+
+        def change_identity(request):
+            request["open_context"]["projection"]["buffer_id"] = "999999999"
+
+        def change_project(request):
+            projection = request["open_context"]["projection"]
+            projection["project_inode"] = str(int(projection["project_inode"]) + 1)
+            request["open_context"]["sha256"] = opening_context_fingerprint(projection)
+
+        def change_warnings(request):
+            request["warnings"]["enable"] = not request["warnings"]["enable"]
+
+        cases = [
+            ("wrong_purpose", lambda request: request.update(purpose="unchanged")),
+            ("proposal_disguise", lambda request: request.update(source=context["source"])),
+            ("replaced_source", change_source), ("replaced_document", change_identity),
+            ("wrong_project_identity", change_project), ("effective_warning_change", change_warnings),
+            ("missing_context", lambda request: request.update(open_context=None)),
+            ("unavailable_context", lambda request: request.update(open_context={
+                "kind": "unavailable", "reason": "getter_unavailable", "projection": None,
+                "source": None, "sha256": None})),
+            ("wrong_request", lambda request: request.update(request_id=secrets.token_hex(16))),
+            ("wrong_current_path", lambda request: request.update(script="res://wrong_current.gd")),
+            ("wrong_session", lambda request: request.update(session_id=secrets.token_hex(16))),
+            ("replaced_fingerprint", lambda request: request["open_context"].update(sha256="0" * 64)),
+        ]
+        for suffix, mutate in cases:
+            self.stock_open_context_validate(project, context, "open_context_" + suffix,
+                                             "unavailable", mutate=mutate)
+        self.stock_open_context_validate(project, context, "open_context_wrong_stock_binary",
+                                         "unavailable", binary=Path("/bin/false"))
+        for interruption in ("worker_loss", "deadline"):
+            self.stock_open_context_validate(project, context, "open_context_" + interruption,
+                                             "unavailable", interruption=interruption)
 
     def stock_validate(self, editor, project, name, source, expected, *, purpose="preflight",
                        warnings=None, dependency=None, origin=None, spawn=None, binary=None,

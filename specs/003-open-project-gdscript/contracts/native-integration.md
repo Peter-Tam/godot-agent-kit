@@ -1,6 +1,6 @@
 # Native Known-Path Opening Integration
 
-**Status:** Selected Phase 1 design. Primitive and composed research is in [research.md](../research.md); production opening acceptance has not run. Use the exact stock candidate in [plan.md](../plan.md#technical-context), standard public GDExtension ABI and existing native session/guard ownership. No engine patch/private editor field or alternate editor/history implementation.
+**Status:** T001's native/addon integration, required acceptance and implementation-shape review are complete on the exact selected candidate. The product opening caller remains T002 work and `open_gdscript` remains false. Primitive/composed planning research is in [research.md](../research.md); [current native/cutover acceptance](../quickstart.md#8-t001-native-boundary-and-cutover-acceptance-2026-09-30) is separate. Standard public GDExtension ABI only; no engine patch/private editor field or alternate editor/history implementation.
 
 ## 1. Responsibilities and native API revision 2
 
@@ -16,6 +16,7 @@ Keep metadata key `godot_agent_kit_native`. Revision 2 retains the implemented e
 | `open_verify` | Fresh target Resource-edited/protection/selection inspection for recognition or post-open verification. Separate ordinary collector obtains R/B. |
 | `open_recheck` | Recheck the retained same identities, source, versions, configuration and file namespace; retain detected invalidation. |
 | `open_finish` / `open_abort` | Terminalize owned work without rollback; release handles only after any entered stage has returned. |
+| `open_expire` | Owner's per-frame expiry cleanup; terminalize expired work without releasing an entered call's references early. |
 
 These are private typed integration calls, not additional user tools. Use one shared session-owner state for collection/edit/open and one lifecycle-state enum for opening, not simultaneous effectful attempt pointers. Retain actual Resource references; validate ScriptEditorBase/CodeEdit object lifetime and association before dereferencing. A raw ID alone is not ownership. Generation of a new transaction UUID or generic backend framework is unnecessary.
 
@@ -113,3 +114,49 @@ Native display callbacks and already-authorized editor tooling remain inside the
 Require actual cold/cached/empty/read-only/syntax-invalid opening; dirty current R == B and background preservation; R != B refusal; loader/dependency/tool/static/global/extension/compiled-metadata refusals; file/cache/session/open-state races; loss/timeout/disable at each effect stage; native human history transitions; and the composed fresh-observe/edit A–E plus Save/reopen/reparse/rescan/runtime/export checks. The source-bound method sequence must retain ordinary cache consumers and save/reopen behavior, not merely create a visually clean tab.
 
 The shared bundle rename must update build inputs, generated manifest/hash identities, plugin loading, fixtures, current documentation and export exclusions together. No old library/entrypoint aliases remain. This contract authorizes no implementation until normal approved-task selection; [quickstart.md](../quickstart.md) defines the required future evidence.
+
+## 8. Implemented private fixture boundary
+
+T001's actual addon node is `GodotAgentKitScriptOpen`; it claims the bridge's
+single `_active.operation_owner` slot through `_claim_operation` and releases
+through `_release_operation`. Native `Session` uses one edit/open owner variant.
+Disconnect/disable retains the entered owner and detached bridge until return.
+No authenticated product opening opcode is installed in T001.
+
+The native custom Callables take:
+
+| Call | Arguments |
+|---|---|
+| `open_inspect` | `path`, `{request_id, session_id, expiry_tick_us}` |
+| `open_prepare` | `request_id`, captured source, `{project_device, project_inode, target_device, target_inode, cache_mode, cached_script_id, sha256, utf8_bytes}` |
+| `open_advance` | `request_id`, exact next stage, validated source hash, validated context hash |
+| `open_verify` / `open_recheck` | `request_id`, `recognition` or `post_open` |
+| `open_finish` / `open_abort` | `request_id` |
+| `open_expire` | No arguments |
+
+IDs, counters, lengths and native expiry are canonical decimal strings; the
+request/session use their existing checked formats. The local remaining budget
+must not exceed nine seconds. Cache mode is `absent`/`present`; the absent cached
+ID is empty. Native replies retain monotonic cache/compilation/document facts,
+separate Resource-edited and selection observations, invalidation and terminal
+discard. They do not contain a product success verdict or copied verification R/B.
+
+Preparation returns private `{kind, reason, projection, source, sha256}` context.
+The typed guard and its exact encoding follow the [bridge contract](bridge-protocol.md).
+Rust independently validates/recomputes it; the fixture supplies `source: null`,
+purpose `open_context` and this real context to the existing stock validator.
+Only an exact completed-valid receipt with owned-child reap and cleanup produces
+`opening_binding`. Its `guard_sha256` is distinct from the validator's
+`context_sha256`; edit evidence rejects this purpose and binding.
+
+`document_guard` owns only shared descriptor/namespace/document/source checks.
+Save-format eligibility remains edit-only in `script_document.cpp`; opening
+preserves supported LF whitespace and does not apply future Save preferences.
+Compiled category/group display records remain bounded, fingerprinted metadata,
+not script variables: their display hints do not bypass checks on actual
+exported, Object-valued or hinted variables.
+
+The separate `GAK_FIXTURE` artifact adds controlled stage faults and an actual
+extension-category refusal class. Neither belongs to the product native family
+or exports. The normal opening runner requires actual owned-window captures;
+state-only diagnostics cannot satisfy T001 acceptance.

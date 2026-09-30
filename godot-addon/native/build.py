@@ -9,12 +9,25 @@ from pathlib import Path
 import platform
 import subprocess
 import sys
+import stat
 
 BASE = "ed1daf0bf001b61586d9930840f2f1394092c079"
 STOCK_SHA256 = "c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf"
 HERE = Path(__file__).resolve().parent
 ADDON = HERE.parent / "addons" / "godot_agent_kit" / "native"
 BUILD = HERE / "build"
+SOURCES = ("extension.cpp", "session.cpp", "document_guard.cpp", "script_document.cpp",
+           "open_context.cpp", "script_open.cpp")
+HEADERS = ("native.hpp", "document_guard.hpp", "open_context.hpp")
+DESCRIPTOR = """[configuration]
+entry_symbol = "editor_integration_library_init"
+compatibility_minimum = "4.7"
+reloadable = false
+
+[libraries]
+macos.arm64 = "res://addons/godot_agent_kit/native/libeditor_integration.macos.arm64.dylib"
+"""
+OLD_DESCRIPTOR = DESCRIPTOR.replace("editor_integration", "script_edit")
 
 
 def digest(path):
@@ -35,6 +48,42 @@ def method(api, cls, name):
     if len(methods) != 1:
         raise ValueError(f"Required method missing or ambiguous: {cls}.{name}")
     return methods[0]["hash"]
+
+def enum_constant(api, name):
+    values = [value["value"] for enum in api["global_enums"]
+              for value in enum["values"] if value["name"] == name]
+    if len(values) != 1:
+        raise ValueError(f"Required enum constant missing or ambiguous: {name}")
+    return values[0]
+
+
+def remove_obsolete_artifacts(addon):
+    """Remove only old kit artifacts whose exact installed provenance is known."""
+    descriptor = addon / "script_edit.gdextension"
+    library = addon / "libscript_edit.macos.arm64.dylib"
+    pending = []
+    if descriptor.exists() or descriptor.is_symlink():
+        info = descriptor.lstat()
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or descriptor.read_text() != OLD_DESCRIPTOR):
+            raise ValueError("obsolete descriptor is not the kit-owned installed artifact")
+        pending.append(descriptor)
+    if library.exists() or library.is_symlink():
+        info = library.lstat()
+        manifest_path = addon / "build-manifest.json"
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or not manifest_path.is_file() or manifest_path.is_symlink()):
+            raise ValueError("obsolete library has no safe kit-owned installation witness")
+        manifest = json.loads(manifest_path.read_text())
+        if (manifest.get("base_commit") != BASE or manifest.get("engine_sha256") != STOCK_SHA256
+                or manifest.get("native_library", library.name) != library.name
+                or manifest.get("native_library_sha256") != digest(library)):
+            raise ValueError("obsolete library does not match the kit-owned installed manifest")
+        pending.append(library)
+    # Validate all candidates before removing either one; preserve unrelated files.
+    for path in pending:
+        path.unlink()
+
 
 
 def single_precision_sizes(api):
@@ -106,8 +155,31 @@ def main(argv=None):
         "GET_SETTING": method(api, "EditorSettings", "get_setting"),
         "INDENT_SPACES": method(api, "CodeEdit", "is_indent_using_spaces"),
         "INDENT_SIZE": method(api, "CodeEdit", "get_indent_size"),
+        "RESOURCE_SET_PATH": method(api, "Resource", "set_path"),
+        "SCRIPT_RELOAD": method(api, "Script", "reload"),
+        "SCRIPT_TOOL": method(api, "Script", "is_tool"),
+        "SCRIPT_BASE": method(api, "Script", "get_base_script"),
+        "SCRIPT_PROPERTIES": method(api, "Script", "get_script_property_list"),
+        "SCRIPT_METHODS": method(api, "Script", "get_script_method_list"),
+        "CURRENT_EDITOR": method(api, "ScriptEditor", "get_current_editor"),
+        "CURRENT_SCRIPT": method(api, "ScriptEditor", "get_current_script"),
+        "HAS_UNDO": method(api, "TextEdit", "has_undo"),
+        "HAS_REDO": method(api, "TextEdit", "has_redo"),
+        "HAS_CACHED": method(api, "ResourceLoader", "has_cached"),
+        "CACHED_REF": method(api, "ResourceLoader", "get_cached_ref"),
+        "EDIT_SCRIPT": method(api, "EditorInterface", "edit_script"),
+        "INSTANTIATE": method(api, "ClassDB", "instantiate"),
+        "CLASS_EXISTS": method(api, "ClassDB", "class_exists"),
+        "CLASS_API": method(api, "ClassDB", "class_get_api_type"),
+        "PROJECT_OVERRIDE": method(api, "ProjectSettings", "get_setting_with_override"),
+        "GLOBALIZE_PATH": method(api, "ProjectSettings", "globalize_path"),
+        "GLOBAL_CLASSES": method(api, "ProjectSettings", "get_global_class_list"),
+        "OBJECT_PROPERTIES": method(api, "Object", "get_property_list"),
+        "GET_META": method(api, "Object", "get_meta"),
+        "OBJECT_SET": method(api, "Object", "set"),
     }
-    inputs = {p.name: digest(p) for p in (header, abi_json, api_json, HERE / "extension.cpp", HERE / "session.cpp", HERE / "script_document.cpp", HERE / "native.hpp", HERE / "build.py")}
+    inputs = {p.name: digest(p) for p in (header, abi_json, api_json,
+              *(HERE / name for name in (*SOURCES, *HEADERS, "build.py")))}
     compiler = os.environ.get("CXX", "clang++")
     compiler_version = run([compiler, "--version"]).stdout.splitlines()[0]
     sdk_version = run(["xcrun", "--show-sdk-version"]).stdout.strip()
@@ -121,18 +193,28 @@ def main(argv=None):
     macros = ["// Generated by build.py from the exact --godot binary; never hand-edit.", "#pragma once"]
     macros += [f"#define GAK_SIZE_{k.upper()} {sizes[k]}" for k in sorted(required)]
     macros += [f"#define GAK_HASH_{k} {v}ULL" for k, v in methods.items()]
+    macros += [f"#define GAK_ERR_PARSE_ERROR {enum_constant(api, 'ERR_PARSE_ERROR')}"]
     macros += [f'#define GAK_ENGINE_HASH "{BASE}"',
                f'#define GAK_ENGINE_BUILD "{api["header"]["version_build"]}"',
                f'#define GAK_ENGINE_BINARY_SHA256 "{engine_sha}"',
                f'#define GAK_BUILD_ID "{build_id}"']
     (BUILD / "native_abi_sizes.h").write_text("\n".join(macros) + "\n")
-    output = addon / "libscript_edit.macos.arm64.dylib"
+    output = addon / "libeditor_integration.macos.arm64.dylib"
     addon.mkdir(parents=True, exist_ok=True)
-    run([compiler, *flags, str(HERE / "extension.cpp"), str(HERE / "session.cpp"),
-         str(HERE / "script_document.cpp"), "-o", str(output)])
+    run([compiler, *flags, *(str(HERE / name) for name in SOURCES), "-o", str(output)])
+    installed_descriptor = addon / "editor_integration.gdextension"
+    if installed_descriptor.exists() or installed_descriptor.is_symlink():
+        info = installed_descriptor.lstat()
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or installed_descriptor.read_text() != DESCRIPTOR):
+            raise ValueError("current descriptor is not the expected kit-owned artifact")
+    remove_obsolete_artifacts(addon)
+    installed_descriptor.write_text(DESCRIPTOR)
     manifest = {
         "base_commit": BASE, "engine_version": version, "engine_binary": str(engine), "engine_sha256": engine_sha,
         "fixture_only": args.fixture,
+        "native_api_revision": 2, "native_family": "editor_integration",
+        "native_library": output.name, "entry_symbol": "editor_integration_library_init",
         "abi_sha256": digest(abi_json), "api_sha256": digest(api_json), "header_sha256": digest(header),
         "native_build_id": build_id, "native_library_sha256": digest(output),
         "source_sha256": {key: value for key, value in inputs.items() if key.endswith((".cpp", ".hpp", ".py"))},

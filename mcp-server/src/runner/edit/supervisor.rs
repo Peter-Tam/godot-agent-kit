@@ -545,7 +545,8 @@ fn run_helper(
     clock: AttemptClock,
     cancelled: &AtomicBool,
 ) -> Result<(), RoutingFailure> {
-    if bytes.len() > ipc::HELPER_REQUEST_LIMIT {
+    if purpose == stock_validation::Purpose::OpenContext || bytes.len() > ipc::HELPER_REQUEST_LIMIT
+    {
         return Err(protocol_failure());
     }
     let request: ipc::HelperRequestIn =
@@ -627,7 +628,7 @@ pub fn run(
     let id = request.request_id().clone();
     let original = attempt.request();
     let startup = serde_json::to_vec(&(
-        2,
+        3,
         id.as_str(),
         original.project_root().as_str(),
         original.session_id().map(SessionId::as_str),

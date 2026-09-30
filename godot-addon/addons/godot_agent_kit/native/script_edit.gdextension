@@ -1,7 +1,0 @@
-[configuration]
-entry_symbol = "script_edit_library_init"
-compatibility_minimum = "4.7"
-reloadable = false
-
-[libraries]
-macos.arm64 = "res://addons/godot_agent_kit/native/libscript_edit.macos.arm64.dylib"

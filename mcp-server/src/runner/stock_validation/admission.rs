@@ -3,7 +3,7 @@ use super::*;
 fn root_path(request: &WireRequest) -> Result<ProjectRoot, &'static str> {
     ProjectRoot::new(request.project_root.clone()).map_err(|_| "unsafe_project")
 }
-fn locator(value: &str) -> Result<ResourcePath, &'static str> {
+pub(super) fn locator(value: &str) -> Result<ResourcePath, &'static str> {
     let path = ResourcePath::new(value.to_owned()).map_err(|_| "unsafe_path")?;
     if !value.starts_with("res://")
         || !value.ends_with(".gd")
@@ -179,6 +179,21 @@ pub(super) fn resolve(referrer: &str, literal: &str) -> Result<String, &'static 
     }
     Ok(format!("res://{}", parts.join("/")))
 }
+// Stock document-link collection probes ordinary literals too. Both validation
+// purposes keep this exact namespace fence, independently of dependency staging.
+pub(super) fn literal_path(referrer: &str, literal: &str) -> Result<ResourcePath, &'static str> {
+    if literal.ends_with(".uid") || literal.ends_with(".remap") || literal.ends_with(".gdextension")
+    {
+        return Err("unsupported_context");
+    }
+    ResourcePath::new(resolve(referrer, literal)?).map_err(|_| "unsafe_link")
+}
+pub(super) fn probe_literal(root: &ProjectRoot, path: &ResourcePath) -> Result<(), &'static str> {
+    match confined::capture(root, path, 0) {
+        Ok(_) | Err(confined::CaptureError::TooLarge) => Ok(()),
+        Err(_) => Err("unsafe_link"),
+    }
+}
 fn links(
     root: &ProjectRoot,
     source: &Source,
@@ -205,16 +220,8 @@ fn links(
             if literal.is_empty() {
                 continue;
             }
-            if literal.ends_with(".uid")
-                || literal.ends_with(".remap")
-                || literal.ends_with(".gdextension")
-            {
-                return Err("unsupported_context");
-            }
-            // Document links probe every literal, not only explicit preload/extends.
-            // Do not probe a caller-chosen absolute, UID or external path.
-            let link = resolve(source.path.as_str(), literal)?;
-            let path = ResourcePath::new(link).map_err(|_| "unsafe_link")?;
+            // Never let a plain document link select an external/UID path.
+            let path = literal_path(source.path.as_str(), literal)?;
             let relationship = matches!(i.checked_sub(1).and_then(|j| toks.get(j)),
                 Some(Token::Ident(name)) if *name == "extends")
                 || (i >= 2
@@ -224,10 +231,7 @@ fn links(
             if !relationship || !path.as_str().ends_with(".gd") {
                 // Plain strings only request a confined existence probe. Their
                 // contents are neither a dependency nor staged source.
-                match confined::capture(root, &path, 0) {
-                    Ok(_) | Err(confined::CaptureError::TooLarge) => {}
-                    Err(_) => return Err("unsafe_link"),
-                }
+                probe_literal(root, &path)?;
             }
         }
         if let Token::Ident(name) = token {
@@ -404,10 +408,15 @@ fn context(request: &WireRequest, root: &ProjectRoot) -> Result<Captured, &'stat
     {
         return Err("incomplete_editor_context");
     }
-    if request.global_classes.len() > 256
+    let (name_limit, count_limit) = if request.purpose == Purpose::OpenContext {
+        (256, 64)
+    } else {
+        (128, 256)
+    };
+    if request.global_classes.len() > count_limit
         || request.global_classes.iter().any(|name| {
             name.is_empty()
-                || name.len() > 128
+                || name.len() > name_limit
                 || !name.chars().all(|c| c.is_alphanumeric() || c == '_')
         })
         || request.global_classes.iter().collect::<BTreeSet<_>>().len()
@@ -428,10 +437,11 @@ fn context(request: &WireRequest, root: &ProjectRoot) -> Result<Captured, &'stat
         if line.starts_with('[') {
             section = line;
         }
-        // Editor plugins are not staged. They cannot supply a stock native
-        // ClassDB name; unknown project classes and non-GD resource loads
-        // are excluded by the source-only admission below.
+        // Never stage plugins, autoloads or extensions. Opening has independently
+        // bounded effective names/ClassDB bindings and forbids source dependencies;
+        // edit validation retains its broader source closure and stricter config gate.
         if matches!(section, "[autoload]" | "[gdextension]")
+            && request.purpose != Purpose::OpenContext
             && !line.is_empty()
             && !line.starts_with('[')
             && !line.starts_with(';')
@@ -502,16 +512,8 @@ pub(super) fn capture_closure(
 ) -> Result<Closure, &'static str> {
     let root = root_path(request)?;
     let root_locator = locator(&request.root_path)?;
-    if (request.purpose == Purpose::Preflight) != request.source.is_some() {
-        return Err("wrong_purpose");
-    }
-    if request
-        .source
-        .as_ref()
-        .is_some_and(|source| source.len() > SOURCE_LIMIT_BYTES)
-    {
-        return Err("source_limit");
-    }
+    let private_source = opening_context::source(request)?;
+    opening_literals::fence(request, &root, private_source, deadline_at)?;
     let settings = context(request, &root)?;
     result.context_sha256 = Some(confined::hex_sha256(
         format!(
@@ -523,10 +525,10 @@ pub(super) fn capture_closure(
         .as_bytes(),
     ));
     let selected_root = capture(&root, &root_locator)?.ok_or("root_missing")?;
-    let (root_source, baseline) = match &request.source {
+    let (root_source, baseline) = match private_source {
         Some(text) => {
             let proposed = Captured {
-                text: text.clone(),
+                text: text.to_owned(),
                 sha256: confined::hex_sha256(text.as_bytes()),
                 bytes: text.len(),
                 device: selected_root.device,
@@ -540,7 +542,7 @@ pub(super) fn capture_closure(
     let mut sources = vec![Source {
         path: root_locator,
         captured: root_source,
-        proposed: request.source.is_some(),
+        proposed: request.purpose == Purpose::Preflight,
     }];
     attribute(result, &sources[0]);
     let global_classes: BTreeSet<String> = request.global_classes.iter().cloned().collect();
@@ -550,7 +552,13 @@ pub(super) fn capture_closure(
     let mut index = 0usize;
     while index < sources.len() {
         deadline(deadline_at)?;
-        let paths = links(&root, &sources[index], &global_classes)?;
+        let paths = if request.purpose == Purpose::OpenContext {
+            // Opening's admitted current source cannot reference dependencies.
+            // Do not probe arbitrary literals or traverse project sources.
+            Vec::new()
+        } else {
+            links(&root, &sources[index], &global_classes)?
+        };
         for link in paths {
             let dep = locator(&link.path)?;
             if known.contains(&link.path) {
@@ -625,6 +633,7 @@ pub(super) fn recheck(
         return Err("context_changed");
     }
     let root = root_path(request)?;
+    opening_context::recheck_project(request)?;
     let config = context(request, &root)?;
     if config != closure.settings {
         return Err("context_changed");
@@ -632,9 +641,9 @@ pub(super) fn recheck(
     for source in &closure.sources {
         deadline(deadline_at)?;
         let now = capture(&root, &source.path)?.ok_or("source_changed")?;
-        if source.proposed {
-            // The proposed root is not yet on disk; exact original bytes and
-            // metadata must still be attached at this name.
+        if source.proposed || request.purpose == Purpose::OpenContext {
+            // Private current R/B, like a proposal, need not equal original D.
+            // The independently captured D name/bytes/identity must stay fixed.
             if Some(&now) != closure.baseline.as_ref() {
                 return Err("source_changed");
             }

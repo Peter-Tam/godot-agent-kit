@@ -66,6 +66,9 @@ fn helper(
     started: Instant,
     deadline_at: Instant,
 ) -> Result<(stock_validation::ValidationResult, u64, u64), RoutingFailure> {
+    if matches!(purpose, stock_validation::Purpose::OpenContext) {
+        return Err(protocol_failure());
+    }
     let begin = started.elapsed().as_micros().min(u128::from(u64::MAX)) as u64;
     send(
         output,
@@ -228,6 +231,8 @@ fn sample(
 }
 fn valid(result: &stock_validation::ValidationResult) -> bool {
     result.status == "valid"
+        && !matches!(result.purpose, stock_validation::Purpose::OpenContext)
+        && result.opening_binding.is_none()
         && result.cleanup_confirmed
         && result
             .sources
@@ -281,7 +286,7 @@ fn run_worker(
     )?;
     // No source-bearing preparation before unique authentication and exact native family.
     if !selected.capabilities().edit_open_gdscript
-        || selected.native_api_revision() != 1
+        || selected.native_api_revision() != 2
         || selected.native_build_id().len() != 64
     {
         return Err(error(Reason::UnsupportedEngine));
@@ -636,7 +641,7 @@ pub fn worker_main() -> Option<i32> {
         type Startup = (u32, String, String, Option<String>, String, String, u64);
         let (v, id, root, session, path, registry, elapsed): Startup =
             serde_json::from_slice(&frame).map_err(|_| protocol_failure())?;
-        if v != 2
+        if v != 3
             || elapsed >= 9_500_000
             || registry.len() > 1024
             || !Path::new(&registry).is_absolute()

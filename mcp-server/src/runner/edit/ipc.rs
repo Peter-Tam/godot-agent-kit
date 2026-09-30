@@ -85,6 +85,9 @@ pub(super) fn helper_request(
     purpose: stock_validation::Purpose,
     context: &wire::edit::EditContext,
 ) -> Result<Vec<u8>, RoutingFailure> {
+    if purpose == stock_validation::Purpose::OpenContext {
+        return Err(protocol_failure());
+    }
     let bytes = serde_json::to_vec(&json!({"v":1,"kind":"edit_helper_request",
         "request_id":id.as_str(),"purpose":purpose,"warnings":context.warnings,
         "global_classes":context.global_classes,
@@ -106,6 +109,7 @@ impl HelperRequestIn {
             || self.kind != "edit_helper_request"
             || self.request_id != request.request_id().as_str()
             || self.purpose != purpose
+            || purpose == stock_validation::Purpose::OpenContext
             || self.global_classes.len() > 256
             || self.global_classes.iter().any(|v| v.len() > 2048)
             || self.warnings.levels.len() > 128
@@ -125,6 +129,7 @@ impl HelperRequestIn {
             source: (purpose == stock_validation::Purpose::Preflight)
                 .then(|| request.replacement_source().as_str().to_owned()),
             purpose,
+            open_context: None,
             warnings: self.warnings,
             global_classes: self.global_classes,
             official_binary: self.official_binary.into(),
@@ -151,6 +156,8 @@ impl HelperReplyIn {
             || self.purpose != purpose
             || self.result.request_id != id.as_str()
             || self.result.purpose != purpose
+            || purpose == stock_validation::Purpose::OpenContext
+            || self.result.opening_binding.is_some()
         {
             return Err(protocol_failure());
         }
@@ -584,6 +591,19 @@ impl ValidationIn {
             || self.result.request_id != request.request_id().as_str()
             || self.result.session_id != request.expected().target().session_id().as_str()
             || self.result.root_path != request.script_path().as_str()
+            || self.result.purpose
+                != match purpose {
+                    script_edit::ValidationPurpose::Preflight => {
+                        stock_validation::Purpose::Preflight
+                    }
+                    script_edit::ValidationPurpose::PostChange => {
+                        stock_validation::Purpose::PostChange
+                    }
+                    script_edit::ValidationPurpose::Unchanged => {
+                        stock_validation::Purpose::Unchanged
+                    }
+                }
+            || self.result.opening_binding.is_some()
             || self.started_tick_us > self.finished_tick_us
             || self.finished_tick_us > receipt
             || self.result.sources.len() > 33
@@ -988,5 +1008,43 @@ mod tests {
         assert!(replacement.current.is_none());
         assert!(replacement.saved.is_none());
         assert!(replacement.edited.is_none());
+    }
+
+    #[test]
+    fn edit_helper_rejects_even_matching_opening_purpose_and_disguised_binding() {
+        let id = RequestId::new("edit-only").unwrap();
+        let mut result: stock_validation::ValidationResult = serde_json::from_value(json!({
+            "status":"unavailable", "reason":"context unavailable",
+            "request_id":id.as_str(), "session_id":"0123456789abcdef0123456789abcdef",
+            "purpose":"open_context", "root_path":"res://subject.gd", "sources":[],
+            "diagnostics":[], "context_sha256":null, "child_spawned":false,
+            "child_pid":null, "child_reaped":false, "clone_path":null,
+            "clone_extra_files":null, "clone_log_files":null, "cleanup_confirmed":true,
+            "launch_args":[], "started_unix_ms":1, "finished_unix_ms":2, "elapsed_us":1000
+        }))
+        .unwrap();
+        let reply = |result: stock_validation::ValidationResult| HelperReplyIn {
+            v: 1,
+            kind: "edit_helper_reply".into(),
+            request_id: id.as_str().into(),
+            purpose: result.purpose,
+            result,
+        };
+        assert!(reply(result.clone())
+            .domain(&id, stock_validation::Purpose::OpenContext)
+            .is_err());
+        result.purpose = stock_validation::Purpose::Preflight;
+        result.opening_binding = Some(
+            serde_json::from_value(json!({
+                "request_id":id.as_str(), "session_id":result.session_id,
+                "project_root":"/private/project", "project_device":"1", "project_inode":"2",
+                "path":"res://subject.gd", "script_id":"3", "editor_id":"4", "buffer_id":"5",
+                "source_sha256":"a".repeat(64), "source_length":"0", "guard_sha256":"b".repeat(64)
+            }))
+            .unwrap(),
+        );
+        assert!(reply(result)
+            .domain(&id, stock_validation::Purpose::Preflight)
+            .is_err());
     }
 }

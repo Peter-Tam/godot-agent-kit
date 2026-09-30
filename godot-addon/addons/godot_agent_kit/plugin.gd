@@ -4,8 +4,9 @@ extends EditorPlugin
 const BridgeScript = preload("res://addons/godot_agent_kit/bridge.gd")
 const ExportGuardScript = preload("res://addons/godot_agent_kit/export_guard.gd")
 const ScriptEditScript = preload("res://addons/godot_agent_kit/script_edit.gd")
-const NATIVE_EXTENSION := "res://addons/godot_agent_kit/native/script_edit.gdextension"
-const NATIVE_LIBRARY := "res://addons/godot_agent_kit/native/libscript_edit.macos.arm64.dylib"
+const ScriptOpenScript = preload("res://addons/godot_agent_kit/script_open.gd")
+const NATIVE_EXTENSION := "res://addons/godot_agent_kit/native/editor_integration.gdextension"
+const NATIVE_LIBRARY := "res://addons/godot_agent_kit/native/libeditor_integration.macos.arm64.dylib"
 const NATIVE_MANIFEST := "res://addons/godot_agent_kit/native/build-manifest.json"
 const ENGINE_SHA256 := "c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf"
 
@@ -13,6 +14,7 @@ var _bridge: Node
 var _export_guard: EditorExportPlugin
 var _native: Dictionary = {}
 var _edit: Node
+var _open: Node
 
 
 func _load_native() -> void:
@@ -31,11 +33,14 @@ func _native_api() -> Dictionary:
 	var candidate: Variant = Engine.get_meta("godot_agent_kit_native")
 	if not (candidate is Dictionary):
 		return {}
-	for operation in ["configure", "close", "api_revision", "build_id"]:
+	for operation in ["configure", "close", "api_revision", "build_id", "edit_inspect",
+			"edit_prepare", "edit_advance", "edit_cancel", "edit_expire", "open_inspect",
+			"open_prepare", "open_advance", "open_verify", "open_recheck", "open_finish",
+			"open_abort", "open_expire"]:
 		if not candidate.has(operation) or not (candidate[operation] is Callable) \
 				or not candidate[operation].is_custom() or not candidate[operation].is_valid():
 			return {}
-	if candidate["api_revision"].call() != 1:
+	if candidate["api_revision"].call() != 2:
 		return {}
 	var build_id: Variant = candidate["build_id"].call()
 	if not (build_id is String) or build_id.length() != 64 or not build_id.is_valid_hex_number() \
@@ -44,24 +49,20 @@ func _native_api() -> Dictionary:
 	return candidate
 
 
-func _native_edit_api(candidate: Dictionary) -> Dictionary:
-	for operation in ["edit_inspect", "edit_prepare", "edit_advance", "edit_cancel", "edit_expire"]:
-		if not candidate.has(operation) or not (candidate[operation] is Callable) \
-				or not candidate[operation].is_custom() or not candidate[operation].is_valid():
-			return {}
-	return candidate
-
-
 func _enter_tree() -> void:
 	_export_guard = ExportGuardScript.new()
 	add_export_plugin(_export_guard)
 	_load_native()
-	var edit_api := _native_edit_api(_native_api())
-	if not edit_api.is_empty():
+	var family := _native_api()
+	if not family.is_empty():
 		_edit = ScriptEditScript.new()
 		_edit.name = "GodotAgentKitScriptEdit"
 		add_child(_edit)
-		_edit.configure(edit_api, null)
+		_edit.configure(family, null)
+		_open = ScriptOpenScript.new()
+		_open.name = "GodotAgentKitScriptOpen"
+		add_child(_open)
+		_open.configure(family, null)
 	if not OS.has_environment("GODOT_AGENT_KIT_REGISTRY"):
 		return
 	var registry := OS.get_environment("GODOT_AGENT_KIT_REGISTRY")
@@ -79,10 +80,11 @@ func _enter_tree() -> void:
 		if not _native.is_empty() and not _native["configure"].call(_bridge.get("_session")):
 			_native = {}
 		if _edit != null:
-			var family := _native_edit_api(_native)
-			_edit.configure(family, _bridge)
-			var build_id := _matched_build_id(family)
-			_bridge.attach_edit(_edit if not build_id.is_empty() else null, 1 if not build_id.is_empty() else 0, build_id)
+			_edit.configure(_native, _bridge)
+		if _open != null:
+			_open.configure(_native, _bridge)
+		var build_id := _matched_build_id(_native)
+		_bridge.attach_edit(_edit if not build_id.is_empty() else null, 2 if not build_id.is_empty() else 0, build_id)
 
 
 func _matched_build_id(candidate: Dictionary) -> String:
@@ -97,6 +99,10 @@ func _matched_build_id(candidate: Dictionary) -> String:
 	var manifest: Dictionary = parser.data
 	var build_id: Variant = candidate["build_id"].call()
 	if manifest.get("fixture_only") != false or manifest.get("generated_from_exact_binary") != true \
+			or manifest.get("native_api_revision") != 2 \
+			or manifest.get("native_family") != "editor_integration" \
+			or manifest.get("native_library") != "libeditor_integration.macos.arm64.dylib" \
+			or manifest.get("entry_symbol") != "editor_integration_library_init" \
 			or manifest.get("engine_version") != BridgeScript.VERSION \
 			or manifest.get("base_commit") != BridgeScript.ENGINE_HASH \
 			or manifest.get("engine_sha256") != ENGINE_SHA256 \
@@ -117,12 +123,25 @@ func _exit_tree() -> void:
 		if not entered:
 			_edit.free()
 		_edit = null
+	if _open != null:
+		var entered: bool = _open.is_active_stage()
+		remove_child(_open)
+		if not entered:
+			_open.free()
+		_open = null
 	var api := _native if not _native.is_empty() else _native_api()
 	if not api.is_empty():
 		api["close"].call()
 	_native = {}
 	if _bridge != null:
-		_bridge.free()
+		var active: Dictionary = _bridge.get("_active")
+		var owner: Variant = active.get("operation_owner")
+		if is_instance_valid(owner) and owner.call("is_active_stage"):
+			# Its returning owner releases and frees the detached bridge only
+			# after native entered-call cleanup. No replacement slot is admitted.
+			remove_child(_bridge)
+		else:
+			_bridge.free()
 		_bridge = null
 	if _export_guard != null:
 		remove_export_plugin(_export_guard)

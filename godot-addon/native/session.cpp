@@ -176,10 +176,12 @@ bool engine_binary_matches() {
 
 void close(Session &session) {
     if (session.call_state != Session::CallState::Idle) {
+        open_closing(session);
         session.call_state = Session::CallState::Closing;
         return;
     }
     edit_cleanup(session);
+    open_cleanup(session);
     if (session.project_fd >= 0) { ::close(session.project_fd); }
     session.project_fd = -1;
     session.project_path.clear();
@@ -187,13 +189,13 @@ void close(Session &session) {
 }
 
 bool configure(Session &session, const std::string &session_id) {
-    if (session.attempt || session.call_state != Session::CallState::Idle || !valid_session_id(session_id)) { return false; }
+    if (occupied(session) || session.call_state != Session::CallState::Idle || !valid_session_id(session_id)) { return false; }
     close(session);
     Name settings("ProjectSettings");
     void *project_settings = api.singleton(settings.ptr());
     if (!project_settings) { return false; }
     Value resource = string("res://");
-    Value absolute = call(project_settings, "ProjectSettings", "globalize_path", 3135753539ULL, {&resource});
+    Value absolute = call(project_settings, "ProjectSettings", "globalize_path", GAK_HASH_GLOBALIZE_PATH, {&resource});
     if (absolute.type() != GDEXTENSION_VARIANT_TYPE_STRING) { return false; }
     std::string path = bytes(absolute);
     if (path.empty() || path.size() > 1024 || path.find('\0') != path.npos) { return false; }

@@ -28,7 +28,8 @@ class NativeFinalizationMixin:
         editor = self.start_editor(project, configured=False)
         info = self.native_action(editor, "native_info")
         observation.require(info.get("edit_installed") is True and
-                            info.get("api_revision") == 1 and
+                            info.get("open_installed") is True and
+                            info.get("api_revision") == 2 and
                             info.get("build_id") == self.expected_native_build_id,
                             "actual_stock_native_edit_api_" + name)
         session = secrets.token_hex(16)
@@ -681,11 +682,11 @@ class NativeFinalizationMixin:
                             "private_addon_owner_claimed_existing_bridge_slot")
         stream, peer_id = self.authenticated_peer(descriptor)
         try:
-            stream.sendall(observation.packet([2, "observe", peer_id,
+            stream.sendall(observation.packet([3, "observe", peer_id,
                                                 descriptor["session_id"],
                                                 descriptor["project_root"], ROOT]))
             refusal, raw = observation.receive(stream)
-            observation.require(refusal == {"v": 2, "kind": "failure",
+            observation.require(refusal == {"v": 3, "kind": "failure",
                                             "request_id": peer_id,
                                             "session_id": descriptor["session_id"],
                                             "project_root": descriptor["project_root"],
@@ -719,7 +720,7 @@ class NativeFinalizationMixin:
         self.action(editor, "hold_observe")
         stream, peer_id = self.authenticated_peer(descriptor)
         try:
-            stream.sendall(observation.packet([2, "observe", peer_id,
+            stream.sendall(observation.packet([3, "observe", peer_id,
                                                 descriptor["session_id"],
                                                 descriptor["project_root"], ROOT]))
             observation.wait_for(lambda: (editor["control"] / "event.json").is_file(),

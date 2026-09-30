@@ -1,6 +1,6 @@
 # Quickstart: Verify Known-Path GDScript Opening
 
-**Status:** Planning validation guide. `open-gdscript`, bridge v3, native revision 2 and the opening runner described below are **not implemented yet**. Existing commands are identified separately from future commands. The [task list](tasks.md) has passed [granularity review](tasks.md#granularity-review); analysis and approval of one dependency-ready task remain before implementation.
+**Status:** **T001 is complete.** [Native-boundary and coordinated-cutover acceptance](#8-t001-native-boundary-and-cutover-acceptance-2026-09-30) passed on the exact selected candidate. Bridge v3, native revision 2, private current-source validation and `run_script_open.py --scenario native-boundary` are implemented. `open-gdscript`, the product opening exchange and the other opening-runner groups remain pending T002/T003 work; `open_gdscript` stays false. Feature 003 and roadmap Phase 1 remain incomplete.
 
 Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [caller](contracts/open-api.md), [bridge](contracts/bridge-protocol.md), [native](contracts/native-integration.md) contracts. A successful process exit, native return or matching pair of sources does not establish new-open success.
 
@@ -9,8 +9,8 @@ Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [calle
 - Official Godot `4.7.2.stable.official.ed1daf0bf`, full commit `ed1daf0bf001b61586d9930840f2f1394092c079`, executable SHA-256 `c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`; macOS **26.6.2 arm64** is the initial tested-candidate environment, not a new opening support claim.
 - Rust **1.98.1**, edition 2021, tracked Cargo.lock, declared rustfmt/Clippy components; C++17 Apple toolchain/SDK; Python **3.10+**; exact matching Godot export templates. No engine source checkout/patch or new dependency is selected.
 - Owned synthetic project/editor/runtime processes, an **unlocked visible desktop** and permission to capture only their windows. Getter diagnostics while the desktop is locked are research, not GUI acceptance.
-- Absolute executable paths, new empty mode-0700 artifact directories for each runner invocation, a draining stdout consumer and explicit deadlines. No real developer source/credentials in fixtures or captured artifacts.
-- Install the matched native bundle using the existing [build guide](../../godot-addon/native/README.md). At implementation cutover, that guide/build must produce `editor_integration.gdextension`, `libeditor_integration.macos.arm64.dylib` and matching revision-2 provenance; all old kit-owned installed paths must be removed. Restart the owned editor to obtain a fresh v3 descriptor; do not reuse a previous session-bound edit basis.
+- Canonical absolute executable paths, new empty mode-0700 artifact directories for each runner invocation, a draining stdout consumer and explicit deadlines. The stock validator rejects a symlink executable rather than following it; resolve the supplied Godot path before invoking these commands. No real developer source/credentials in fixtures or captured artifacts.
+- Install the matched native bundle using the [build guide](../../godot-addon/native/README.md): `editor_integration.gdextension`, `libeditor_integration.macos.arm64.dylib` and matching revision-2 provenance. The builder removes only provenance-matched obsolete kit artifacts and refuses substituted files. Restart the owned editor to obtain a fresh v3 descriptor; do not reuse a previous session-bound edit basis.
 
 Current executable identity/build entrypoints, from the repository root:
 
@@ -21,7 +21,7 @@ python3 --version
 python3 godot-addon/native/build.py --godot "$STOCK_GODOT"
 ```
 
-The current build still implements the completed edit boundary until the later cutover. A version string or generated manifest alone does not pass native compatibility. Record executable/library/source/ABI/toolchain hashes and actual exercised capabilities; never commit generated binaries, manifests or editor state.
+The current build contains both edit and private opening boundaries. A version string or generated manifest alone does not pass native compatibility. Record executable/library/source/ABI/toolchain hashes and actual exercised capabilities; never commit generated binaries, manifests or editor state.
 
 ## 2. Baseline and future build checks
 
@@ -36,6 +36,13 @@ cargo +1.98.1 doc --no-deps --locked
 
 Default tests include doctests. Do not replace them with `--all-targets` alone or introduce a root workspace/blanket feature matrix. Run applicable existing native-build and workflow checks on changed build/fixture/workflow surfaces; no new provider/runner gate is required.
 
+**T001 build command:**
+
+```sh
+cargo +1.98.1 build --locked --lib --bin observe-gdscript \
+  --bin edit-gdscript --example stock_validation_fixture
+```
+
 **Future build command, after the opening binary is implemented:**
 
 ```sh
@@ -45,7 +52,7 @@ cargo +1.98.1 build --locked --lib --bin open-gdscript \
 
 Pure/core and boundary tests must assert outcomes and plausible consumer-visible failures: dirty-equal recognition versus new-open conflict, independent evidence, no false absent R, invalidated identity/source, source/access precedence, staged known/unknown effects, terminal discard and late-message immutability. Cover strict v3 framing/authentication and actual confined file changes. Avoid forwarding/mock echoes, source-text tests or duplicate rows for the same path.
 
-## 3. Future owned opening runner
+## 3. Owned opening runner and future caller groups
 
 Reuse existing observation/edit harness setup, authentication, disk/editor/history witnesses, owned-window capture, cleanup and export checks. New opening fixture controls are private test infrastructure, never product opcodes. Cold fixtures may use an ignored directory to prove actual cache absence; that is fixture preparation, not a user installation requirement.
 
@@ -55,6 +62,21 @@ Build a separate fault-enabled artifact using the **existing** native build inte
 python3 godot-addon/native/build.py --godot "$STOCK_GODOT" \
   --fixture-faults --output-addon "$PRIVATE_FAULT_NATIVE"
 ```
+
+**Implemented T001 native-boundary command:**
+
+```sh
+python3 godot-addon/tests/run_script_open.py \
+  --godot "$STOCK_GODOT" --observer "$OBSERVER" --editor "$EDIT_CALLER" \
+  --stock-validator "$STOCK_VALIDATION_FIXTURE" \
+  --native-fault-addon "$PRIVATE_FAULT_NATIVE" \
+  --scenario native-boundary --artifacts "$OPEN_ARTIFACTS"
+```
+
+This runs the actual private addon/native owner, independent current-source
+helper and existing observation/edit consumers. It does not accept `--opener`
+or expose incomplete groups as `all`. The future interface below belongs to
+T002/T003; the native group cannot substitute for public-caller acceptance.
 
 The normal product library must contain no fault-control callable. The separate `GAK_FIXTURE` artifact may expose bounded stage barriers for owned tests only; it must not replace the normal installed library or enter exports.
 
@@ -143,3 +165,105 @@ Exercise enabled-addon, disabled-addon and export-hook-only production exports. 
 [Research](research.md#4-candidate-and-executed-evidence) records **50 fixture requests, 20 opening invocations and six clean owned-editor exits**. Two additional invocations of each existing observation/edit caller tested composition. Property assignment failed the existing dirty gate; explicit native methods preserved unedited R and produced `verified_changed` with independently matching intended D/R/B. Source-bound syntax-error/read-only/cached opening and a dirty-current native Undo/Redo control were exercised. Throwaway projects/source/binaries were removed; private evidence remains at the recorded paths/hashes.
 
 The desktop was locked. No visible-window screenshot, new product opening caller, full opening timing/race/history/durability/export campaign or new support claim follows those probes. Planning artifact checks are documentation validation; product Cargo/native/workflow suites were not rerun for this documentation-only change. Implementation completion requires the applicable evidence above on its delivery head, plus the repository's proportional implementation-shape review. Do not mark a task or feature complete merely because planning or a PR exists.
+
+## 8. T001 native-boundary and cutover acceptance (2026-09-30)
+
+T001's private native/current-validation capability and coordinated migration
+are complete. This is **not** public-opening-caller or feature acceptance.
+The commands in §2, the implemented native-boundary command in §3, and both
+unfiltered existing `--scenario all` commands in §5 were exercised serially.
+
+| Gate | Observed result |
+|---|---|
+| Native opening | **265 records passed**, including cold/cached/empty/read-only/syntax-invalid opening, exact D/R/B and clean/unedited evidence, fresh observe/edit composition, property-assignment negative control, dirty current/background history, LF whitespace preservation, bounded metadata/source profiles, current validator refusals/cleanup, namespace/cache/document/session changes, actual slot contention and terminal/entered-call ownership. |
+| Existing edit/native suite | **407 records passed**, including applicable A–E, actual prior-history Undo → Save → Redo → Save, Save/reopen/reparse/rescan/runtime durability, twenty fresh-basis sequential edits, privacy and all three production-export variants. All **114** public edit results received the runner's result-only review. Maximum recorded caller time **9.553 s**. |
+| Existing observation suite | **216 records passed** across all 13 quickstart groups, including v3 three-role cross-language proofs, seven-bit capability/native-build tampering, source-free routing, independent surface limits and repeated read-only behavior. Maximum recorded bounded operation **4.803 s**. |
+| Local Rust checks | Formatting, Clippy `--all-targets --locked -- -D warnings`, **207 tests** including the doctest phase, rustdoc and locked library/caller/example builds passed. The three authentication unit tests were rerun after removing the redundant vector-length assertion. |
+| Native/workflow checks | Normal and isolated fault native builds passed; **9** native-build tests, **22** workflow tests and Actionlint passed. These are local checks, not a claim that optional hosted GUI automation ran. |
+
+Counts are invocation/evidence records, not distinct scenarios; nested group
+totals are not added again. The opening group contains 23 owned-window captures
+and the edit suite 28. Actual cold, empty, syntax-invalid, dirty-history and
+pending-drag opening surfaces, reopened sequential-edit/runtime-durability
+surfaces, and observation session/dirty-sequence surfaces were inspected.
+The syntax-invalid target remained visibly invalid rather than being repaired;
+the dirty current/background tabs retained their dirty markers.
+
+The private helper validated actual admitted R == B rather than target D or an
+edit proposal. Wrong purpose/source/identity/settings/guard, incomplete results,
+helper loss and deadline paths released no authorization hashes. Actual native
+11-second stage stalls retained ownership/references; competing bounded callers
+did not imply a responsive editor or rollback. T001 adds no public opening
+deadline claim: that caller remains T002's responsibility.
+
+### Regressions resolved during integration
+
+- Godot's category display record carries a path hint. It is not an exported or
+  Object-valued script variable. Native/Rust gates now preserve this distinction;
+  the failing-before/passing-after Rust regression also rejects a variable
+  attempting to use display flags to bypass the property guard.
+- Opening incorrectly inherited edit-only Save-format admission. Supported LF
+  trailing whitespace/final newlines now survive opening unchanged in both
+  target and current documents; real-editor cases prove preservation. Save
+  formatting remains private to editing, with no weakened mutation gate.
+- Fixture dispatch reread a control file after deciding its operation family,
+  allowing the next request to reach the wrong handler. It now delegates the
+  already-parsed immutable request. Cold fixtures exclude script indexing while
+  explicit global-class controls remain discoverable.
+- The large-edit prefix gate retained v2 while the rest of the bridge used v3.
+  An actual **12,342-byte** edit failed before the fix and then returned
+  `verified_changed` with independent D/R/B agreement. This regression now runs
+  in the existing `clean-open` group and complete edit suite.
+- The observation proof fixture retained an obsolete transcript-length assertion.
+  That redundant assertion was removed, not repinned; all three exact HMAC
+  vectors and cross-language/tampering checks remain and passed.
+
+### Provenance, ownership and limits
+
+Exact environment: official Godot `4.7.2.stable.official.ed1daf0bf`, binary and
+commit from §1, macOS **26.6.2 arm64**, Rust **1.98.1**, Apple clang
+`21.0.0 (clang-2100.3.34.2)`, SDK **27.0**. The exact official export template
+SHA-256 was `88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`.
+
+- Production native build ID: `836fdbd72f7bb176d76d8b029f4a34dabdcbccc1c4215fb2b6360a80ba6acea2`.
+- Production library SHA-256: `9bc089277461944ef3dd22644eb134ccb062660e92fe03e0c3c9d41da722d881`.
+- Fixture native build ID: `0a9080929dd046f360f5d11824f319283548b8e2de4dde99980bf1d9a80b0a9a`.
+- Fixture library SHA-256: `b805d154f610f8f2998657b4d58178d630a33ae0ecd5237d628e74a1c70d5485`.
+
+Private evidence is retained under
+`~/.godot-agent-kit-open-T001-mn0df0wp/`; these local paths identify this run,
+not contributor prerequisites. Successful summary files and SHA-256:
+
+| Summary | SHA-256 |
+|---|---|
+| `opening-final-2/summary.json` | `82511afcd4a602c1906a83580d0132e78eb6ea0bbe646c19de6cfaae410be0e7` |
+| `edit/summary.json` | `6cb4fdf261b0efc33d6b3f8ebc9f159c2ff6b46d0462597e069c0d3d41c44f70` |
+| `observation-final/summary.json` | `99ad5c7b5665fd2d8dbaee112e95d2ee65c53c6e0dc94f4dba0a0a16a72e709a` |
+
+Earlier failed, interrupted and locked-desktop state-diagnostic runs are
+separate and are not counted as passing acceptance. After the maintainer
+unlocked the desktop, normal visible campaigns supplied the required evidence.
+The final proof-fixture correction changed no production behavior or opening/
+edit path; their completed runs remain applicable, and observation was rerun
+in full after that correction. Owned fixture processes and temporary projects
+were cleaned up; generated native artifacts and evidence remain outside version
+control. The temporary desktop-awake assertion was released.
+
+Implementation-shape review found current, cohesive consumers: `document_guard`
+owns shared descriptor/namespace/document checks; `script_document` owns edit
+formatting/writes/history/finalization; `script_open` owns opening lifecycle;
+`open_context` and the Rust typed guard/literal modules own private admission.
+One native owner variant and addon lifecycle state retain entered work safely.
+New Rust visibility is limited to the actual fixture consumer; no unused opening
+domain/reducer, generic serializer, duplicate scheduler or validation service was
+introduced. The review's large-frame finding was fixed and exercised before
+completion.
+
+Constitutional review: independent authorities and verification, preserved human
+work/history, native methods, confined read-only opening, effect-aware terminal
+facts and real GUI/export evidence satisfy applicable I–VIII/X/XII obligations.
+The same pinned dependencies/public ABI and existing supervision/slot satisfy
+XI/XIII without a new permission, service or CI boundary. The inherited local
+endpoint and already-running-malicious-plugin limitations are unchanged. No
+other engine/platform, universal callback isolation, public opening caller,
+T002/T003 completion or roadmap Phase 1 completion is claimed.

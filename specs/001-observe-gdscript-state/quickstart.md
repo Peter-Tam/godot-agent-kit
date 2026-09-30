@@ -4,6 +4,12 @@
 
 This guide covers the entire observation-only specification. It does not implement the feature, derive tasks, or claim a mutation/UndoRedo/Phase 1 exit guarantee. Use the [data model](data-model.md), [caller contract](contracts/observation-api.md), and [bridge contract](contracts/bridge-protocol.md) for normative fields and outcomes instead of inferring semantics from exit status alone.
 
+**Current private integration:** Rebuild caller/addon peers together for
+[bridge v3](../003-open-project-gdscript/contracts/bridge-protocol.md) and the
+revision-2 `editor_integration` bundle, then restart the editor for a fresh
+session. Observation remains public v1 and read-only. Historical acceptance below
+retains the private version it actually exercised; it is not new opening evidence.
+
 ## 1. Prerequisites
 
 T001's native library requires only Rust 1.98.1 with rustfmt/clippy and its tracked lockfile. The following Godot, GUI, Python, and export prerequisites apply to later live-editor tasks, not to the pure classification engine.

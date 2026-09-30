@@ -2,6 +2,12 @@
 
 **Status:** T004 completed the coordinated v2 caller/worker/addon cutover on the stock §18 T1 / §19 L1 boundary. [T005 cumulative acceptance](../quickstart.md#14-t005-cumulative-acceptance-2026-09-29) completes the feature gates without another protocol change. Observation remains public v1; private peers use v2. There is no patched-editor requirement, private-mtime fabrication, v1 mutation fallback or editor-clock parser evidence.
 
+**Current migration:** This document preserves the accepted v2 contract/evidence.
+Current peers use [private v3](../../003-open-project-gdscript/contracts/bridge-protocol.md),
+seven authenticated capability bits and native revision 2. Existing observe/edit
+semantics remain unchanged; old peers are rejected without fallback. Rebuild the
+matched shared bundle and restart the addon before obtaining fresh edit bases.
+
 ## 1. Preserve bootstrap and source-free authentication
 
 Retain owner-private registry bootstrap, random per-editor/plugin-lifetime session and 256-bit secret, private descriptor ownership/mode/type/ACL checks, canonical project directory identity, IPv4 loopback transport, bounded peer/discovery counts, source-free mutual HMAC authentication, and existing denial/ambiguity/liveness semantics. No new credential store, approval system, listener, port convention, daemon or external service.

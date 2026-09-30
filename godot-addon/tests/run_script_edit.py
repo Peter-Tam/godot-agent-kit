@@ -7,6 +7,7 @@ editor, disk, history and owned-window witnesses.
 from __future__ import annotations
 
 import argparse
+import configparser
 import hashlib
 import json
 import os
@@ -163,11 +164,19 @@ class NativeHarness(CumulativeEditAcceptanceMixin, CallerEditAcceptanceMixin,
 
     def installed_native(self, project, *, fixture_only=False):
         addon = project / "addons" / "godot_agent_kit"
-        manifest = addon / "native" / "script_edit.gdextension"
+        manifest = addon / "native" / "editor_integration.gdextension"
         binaries = list(addon.rglob("*.dylib"))
         build_manifest = addon / "native" / "build-manifest.json"
         observation.require(manifest.is_file() and build_manifest.is_file() and len(binaries) == 1,
                             "native_manifest_build_receipt_and_exactly_one_installed_library_required")
+        descriptor = configparser.ConfigParser(interpolation=None)
+        descriptor.read(manifest)
+        observation.require(
+            json.loads(descriptor["configuration"]["entry_symbol"]) == "editor_integration_library_init" and
+            json.loads(descriptor["libraries"]["macos.arm64"]) ==
+            "res://addons/godot_agent_kit/native/libeditor_integration.macos.arm64.dylib" and
+            binaries[0] == addon / "native" / "libeditor_integration.macos.arm64.dylib",
+            "installed_shared_native_descriptor_and_library_identity")
         provenance = json.loads(build_manifest.read_text())
         observation.require(
             provenance.get("base_commit") == observation.ENGINE_HASH and
@@ -175,6 +184,10 @@ class NativeHarness(CumulativeEditAcceptanceMixin, CallerEditAcceptanceMixin,
             provenance.get("engine_sha256") == observation.digest(self.args.godot) and
             provenance.get("native_library_sha256") == observation.digest(binaries[0]) and
             provenance.get("fixture_only") is fixture_only and
+            provenance.get("native_api_revision") == 2 and
+            provenance.get("native_family") == "editor_integration" and
+            provenance.get("native_library") == binaries[0].name and
+            provenance.get("entry_symbol") == "editor_integration_library_init" and
             HEX64.fullmatch(str(provenance.get("native_build_id", ""))),
             "native_binary_generated_abi_and_pinned_engine_provenance")
         if not fixture_only:
@@ -228,7 +241,7 @@ class NativeHarness(CumulativeEditAcceptanceMixin, CallerEditAcceptanceMixin,
             observation.require(not any(
                 "godot_agent_kit" in str(path.relative_to(app)) or
                 "fixture_driver" in str(path.relative_to(app)) or
-                path.name.startswith("libscript_edit") or
+                path.name.startswith("libeditor_integration") or
                 path.suffix == ".gdextension"
                 for path in app.rglob("*") if path.is_file()),
                 "native_extension_and_tooling_not_bundled_in_game_" + label)
@@ -286,13 +299,17 @@ def main():
                             args.native_fault_addon.is_absolute() and
                             (args.native_fault_addon / "build-manifest.json").is_file() and
                             (args.native_fault_addon /
-                             "libscript_edit.macos.arm64.dylib").is_file(),
+                             "libeditor_integration.macos.arm64.dylib").is_file(),
                             "separate_native_fixture_fault_artifact_required")
         fault_receipt = json.loads((args.native_fault_addon / "build-manifest.json").read_text())
         observation.require(fault_receipt.get("fixture_only") is True and
                             fault_receipt.get("engine_sha256") == STOCK_SHA256 and
+                            fault_receipt.get("native_api_revision") == 2 and
+                            fault_receipt.get("native_family") == "editor_integration" and
+                            fault_receipt.get("native_library") == "libeditor_integration.macos.arm64.dylib" and
+                            fault_receipt.get("entry_symbol") == "editor_integration_library_init" and
                             fault_receipt.get("native_library_sha256") == observation.digest(
-                                args.native_fault_addon / "libscript_edit.macos.arm64.dylib"),
+                                args.native_fault_addon / "libeditor_integration.macos.arm64.dylib"),
                             "fixture_fault_artifact_never_product_library")
     with tempfile.TemporaryDirectory(prefix=".godot-agent-kit-edit-acceptance-", dir=Path.home()) as temp:
         harness = NativeHarness(args, Path(temp))
