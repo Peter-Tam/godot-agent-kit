@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/004-discover-project-gdscript/spec.md`, including the accepted Godot project-file visibility clarification.
 
-**Status:** Design complete; initial and post-design constitutional/consistency reviews passed. No implementation task is selected, no task list is generated and no discovery capability is claimed complete.
+**Status:** Design complete; initial and post-design constitutional/consistency reviews passed. The [task list](tasks.md) now contains three pending PR-sized increments and has passed granularity/coverage review. The subsequent `/speckit.analyze` gate remains pending; no implementation task is selected and no discovery capability is claimed complete.
 
 ## Summary
 
@@ -111,12 +111,13 @@ specs/004-discover-project-gdscript/
 ├── research.md
 ├── data-model.md
 ├── quickstart.md
+├── tasks.md
 └── contracts/
     ├── discovery-api.md
     └── bridge-protocol.md
 ```
 
-`tasks.md` is deliberately absent. Subsequent task derivation must bundle directly required behavior/tests/docs into meaningful PR-sized increments, then receive granularity review and analysis before implementation.
+[tasks.md](tasks.md) derives three coherent increments: the authenticated read-only editor-scope/v4 boundary, the complete public caller with all inseparable story safety, and cumulative repeated-use/composed acceptance. Tests/docs remain bundled with their owners; US2/US3 retain independent story phases without unsafe later safety PRs. Granularity/coverage review passed; analysis and selection of one approved task still precede implementation.
 
 ### Source Code (repository root)
 
