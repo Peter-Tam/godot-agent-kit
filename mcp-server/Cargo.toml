@@ -24,3 +24,7 @@ path = "src/bin/edit-gdscript.rs"
 [[bin]]
 name = "open-gdscript"
 path = "src/bin/open-gdscript.rs"
+
+[[bin]]
+name = "discover-gdscripts"
+path = "src/bin/discover-gdscripts.rs"

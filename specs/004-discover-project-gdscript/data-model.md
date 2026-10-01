@@ -1,6 +1,6 @@
 # Data Model: Project GDScript Discovery
 
-**Status:** T001 implements the private `EditorScopeContext` producer and ownership described in §4. The public discovery model, inventory acquisition and terminal interpretation remain proposed T002/T003 work for [Feature 004](spec.md). The [caller](contracts/discovery-api.md) and [bridge](contracts/bridge-protocol.md) contracts define transport projections. This document owns semantic invariants and fixed bounds.
+**Status:** T001 implements the private `EditorScopeContext` producer and ownership described in §4. T002 implements the public discovery model, inventory acquisition and terminal interpretation for [Feature 004](spec.md); T003's cumulative acceptance remains pending. The [caller](contracts/discovery-api.md) and [bridge](contracts/bridge-protocol.md) contracts define transport projections. This document owns semantic invariants and fixed bounds; executed evidence is recorded in the [quickstart](quickstart.md).
 
 ## 1. Reused identities and current consumers
 

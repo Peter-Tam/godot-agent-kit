@@ -1,6 +1,6 @@
 # Discovery Caller Contract — Version 1
 
-**Status:** Proposed, not implemented. This is a local CLI/typed-library contract, not MCP. [Data model](../data-model.md) owns entities, bounds, evidence and terminal precedence; [private bridge](bridge-protocol.md) owns editor integration. Existing public observation/edit/open v1 remain unchanged.
+**Status:** Implemented by T002 as a local CLI/typed-library contract, not MCP. [Data model](../data-model.md) owns entities, bounds, evidence and terminal precedence; [private bridge](bridge-protocol.md) owns editor integration. Existing public observation/edit/open v1 remain unchanged. Task acceptance and verified limitations are recorded in the [quickstart](../quickstart.md); T003's cumulative feature gate remains separate.
 
 ## 1. Invocation
 
@@ -128,4 +128,4 @@ Retries are explicit new requests. The operation does not reconnect/retry automa
 
 This is the first discovery public schema, version 1. Required-field, outcome/precedence, scope-policy or identity changes are compatibility changes and need deliberate versioning/migration; additions must not silently change membership or weaken refusal. The existing three public v1 operations are unchanged by private bridge v4.
 
-The [quickstart](../quickstart.md) owns executable acceptance commands, including real positive discovery and non-interference. JSON examples and pure classification tests cannot establish authenticated acquisition, exact filesystem coverage, visible-buffer preservation or product timing. This document does not claim those gates have run.
+The [quickstart](../quickstart.md) owns executable acceptance commands and evidence, including real positive discovery and non-interference. JSON examples and pure classification tests cannot establish authenticated acquisition, exact filesystem coverage, visible-buffer preservation or product timing.

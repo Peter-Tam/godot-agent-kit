@@ -29,6 +29,7 @@ EXPECTED_SCENARIOS = {
     "edit": ("native-primitives", "clean-open", "conflicts", "routing", "interruption",
              "validation", "history", "durability", "sequential", "privacy-export"),
     "observation": ("all",),
+    "discovery": ("inventory", "routing", "coverage", "interruption", "readonly", "privacy-export"),
 }
 
 
@@ -59,13 +60,13 @@ from pathlib import Path
 import sys
 
 parser = argparse.ArgumentParser()
-for name in ("godot", "observer", "editor", "opener", "stock-validator", "native-fault-addon"):
+for name in ("godot", "observer", "editor", "opener", "discoverer", "stock-validator", "native-fault-addon"):
     parser.add_argument("--" + name)
 parser.add_argument("--scenario", required=True)
 parser.add_argument("--artifacts", required=True, type=Path)
 args = parser.parse_args()
 suite = {"run_script_open.py": "open", "run_script_edit.py": "edit",
-         "run_observation.py": "observation"}[Path(sys.argv[0]).name]
+         "run_observation.py": "observation", "run_script_discovery.py": "discovery"}[Path(sys.argv[0]).name]
 key = suite + ":" + args.scenario
 plan = json.loads(Path(os.environ["CAMPAIGN_PLAN"]).read_text()).get(key, {})
 manifest = json.loads(Path(os.environ["CAMPAIGN_MANIFEST"]).read_text())
@@ -113,7 +114,7 @@ class CampaignTests(unittest.TestCase):
         self.trace = self.root / "trace.jsonl"
         self.secret = "PRIVATE_SOURCE_AND_CREDENTIAL_9c77"
         self.inputs = {}
-        for name in ("godot", "observer", "editor", "opener", "stock_validator"):
+        for name in ("godot", "observer", "editor", "opener", "discoverer", "stock_validator"):
             path = self.root / name
             path.write_text(self.secret + name)
             path.chmod(0o700)
@@ -131,7 +132,7 @@ class CampaignTests(unittest.TestCase):
             "CAMPAIGN_SECRET": self.secret,
         }).start()
 
-    def invoke(self, suite="all", *flags, real_fingerprint=False):
+    def invoke(self, suite="discovery", *flags, real_fingerprint=False):
         argv = ["--suite", suite, "--campaign-dir", str(self.directory)]
         for name, path in self.inputs.items():
             argv.extend(["--" + name.replace("_", "-"), str(path)])
@@ -156,20 +157,17 @@ class CampaignTests(unittest.TestCase):
     def save_manifest(self, value):
         (self.directory / "manifest.json").write_text(json.dumps(value))
 
-    def expected(self, suite="all"):
-        suites = ("open", "edit", "observation") if suite == "all" else (suite,)
-        return [(selected, scenario) for selected in suites for scenario in EXPECTED_SCENARIOS[selected]]
+    def expected(self, suite="discovery"):
+        return [(suite, scenario) for scenario in EXPECTED_SCENARIOS[suite]]
 
     def outcome(self, suite, scenario, **values):
         self.plan.write_text(json.dumps({suite + ":" + scenario: values}))
 
-    def test_all_runs_in_order_with_private_empty_checkpointed_attempts(self):
+    def test_discovery_runs_in_order_with_private_empty_checkpointed_attempts(self):
         result, output = self.invoke()
         self.assertEqual(result, 0)
         records = self.records()
         self.assertEqual([(r["suite"], r["scenario"]) for r in records], self.expected())
-        self.assertEqual([(r["suite"], r["scenario"]) for r in records if r["suite"] == "observation"],
-                         [("observation", "all")])
         manifest = self.manifest()
         self.assertEqual(manifest["schema_version"], 1)
         self.assertEqual([(s["suite"], s["scenario"]) for s in manifest["steps"]], self.expected())
@@ -206,10 +204,10 @@ class CampaignTests(unittest.TestCase):
             self.assertIn(scenario, output)
 
     def test_keep_going_reports_multiple_failures_without_losing_later_passes(self):
-        failures = {("open", "routing"), ("edit", "history")}
+        failures = {("discovery", "routing"), ("discovery", "readonly")}
         self.plan.write_text(json.dumps({suite + ":" + scenario: {"exit": 8}
                                        for suite, scenario in failures}))
-        result, output = self.invoke("all", "--keep-going")
+        result, output = self.invoke("discovery", "--keep-going")
         self.assertNotEqual(result, 0)
         self.assertEqual([(r["suite"], r["scenario"]) for r in self.records()], self.expected())
         for step in self.manifest()["steps"]:
@@ -220,19 +218,19 @@ class CampaignTests(unittest.TestCase):
 
     def test_fail_fast_resume_preserves_later_passed_checkpoints(self):
         self.outcome(*self.expected()[0], exit=7)
-        self.assertNotEqual(self.invoke("all", "--keep-going")[0], 0)
+        self.assertNotEqual(self.invoke("discovery", "--keep-going")[0], 0)
         before = len(self.records())
-        self.assertNotEqual(self.invoke("all", "--resume")[0], 0)
+        self.assertNotEqual(self.invoke("discovery", "--resume")[0], 0)
         self.assertEqual(len(self.records()), before + 1)
         self.assertTrue(all(step["execution"] == "reused"
                             for step in self.manifest()["steps"][1:]))
         self.plan.write_text("{}")
-        self.assertEqual(self.invoke("all", "--resume")[0], 0)
+        self.assertEqual(self.invoke("discovery", "--resume")[0], 0)
         self.assertEqual(len(self.records()), before + 2)
 
     def test_parent_interruption_waits_for_runner_cleanup_and_never_accepts_it(self):
         self.outcome(*self.expected()[0], interrupt_parent=True)
-        self.assertNotEqual(self.invoke("all", "--keep-going")[0], 0)
+        self.assertNotEqual(self.invoke("discovery", "--keep-going")[0], 0)
         self.assertEqual(len(self.records()), 1)
         first = self.manifest()["steps"][0]
         self.assertEqual(first["status"], "interrupted")
@@ -242,7 +240,7 @@ class CampaignTests(unittest.TestCase):
 
     def test_child_interruption_stops_even_keep_going(self):
         self.outcome(*self.expected()[0], signal=15)
-        self.assertNotEqual(self.invoke("all", "--keep-going")[0], 0)
+        self.assertNotEqual(self.invoke("discovery", "--keep-going")[0], 0)
         self.assertEqual(len(self.records()), 1)
         steps = self.manifest()["steps"]
         self.assertEqual(steps[0]["status"], "interrupted")
@@ -266,7 +264,7 @@ class CampaignTests(unittest.TestCase):
         self.assertEqual(self.invoke()[0], 0)
         before = self.records()
         with mock.patch.object(campaign.subprocess, "Popen", side_effect=AssertionError("spawned reused child")):
-            result, output = self.invoke("all", "--resume")
+            result, output = self.invoke("discovery", "--resume")
         self.assertEqual(result, 0)
         self.assertEqual(self.records(), before)
         self.assertTrue(all(step["execution"] == "reused" for step in self.manifest()["steps"]))
@@ -318,6 +316,22 @@ class CampaignTests(unittest.TestCase):
         self.outcome("observation", "all", mutate=str(self.inputs["observer"]))
         self.assertNotEqual(self.invoke("observation", real_fingerprint=True)[0], 0)
         self.assertEqual(self.manifest()["steps"][0]["status"], "failed")
+
+    def test_changed_discoverer_invalidates_discovery_resume(self):
+        self.assertEqual(self.invoke(real_fingerprint=True)[0], 0)
+        previous = [step["attempt_dir"] for step in self.manifest()["steps"]]
+        self.inputs["discoverer"].write_text("different discovery executable")
+        self.assertEqual(self.invoke("discovery", "--resume", real_fingerprint=True)[0], 0)
+        steps = self.manifest()["steps"]
+        self.assertEqual([step["execution"] for step in steps], ["executed"] * len(previous))
+        self.assertTrue(all(step["attempt_dir"] != old for step, old in zip(steps, previous)))
+
+    def test_unavailable_full_campaign_refuses_before_any_execution(self):
+        with self.assertRaises(SystemExit) as rejected:
+            self.invoke("all")
+        self.assertEqual(rejected.exception.code, 2)
+        self.assertEqual(self.records(), [])
+        self.assertFalse(self.directory.exists())
 
     def test_malformed_manifest_cannot_reuse_or_execute_embedded_commands(self):
         self.assertEqual(self.invoke("observation")[0], 0)
@@ -386,11 +400,13 @@ class FingerprintTests(unittest.TestCase):
                 "godot-addon/tests/run_script_open.py",
                 "godot-addon/tests/run_script_edit.py",
                 "godot-addon/tests/run_observation.py",
+                "godot-addon/tests/run_script_discovery.py",
                 "godot-addon/tests/caller_open_acceptance.py",
                 "godot-addon/tests/fixture_bridge.gd",
                 "godot-addon/tests/fixtures/script_open/project.godot",
                 "godot-addon/tests/fixtures/script_edit/scripts/subject.gd",
                 "godot-addon/tests/fixtures/observation/project.godot",
+                "godot-addon/tests/fixtures/script_discovery/fixture_driver.gd",
                 "godot-addon/addons/godot_agent_kit/plugin.gd",
                 "godot-addon/addons/godot_agent_kit/native/editor_integration.gdextension",
                 "godot-addon/addons/godot_agent_kit/native/libeditor_integration.macos.arm64.dylib",
@@ -408,7 +424,7 @@ class FingerprintTests(unittest.TestCase):
                 path.write_text("original input")
                 paths.append(path)
             values = {}
-            for name in ("godot", "observer", "editor", "opener", "stock_validator"):
+            for name in ("godot", "observer", "editor", "opener", "discoverer", "stock_validator"):
                 path = root / name
                 path.write_text("binary input " + name)
                 path.chmod(0o700)
@@ -430,12 +446,15 @@ class FingerprintTests(unittest.TestCase):
                                    campaign_dir=root / "campaign", keep_going=False, resume=False)
             with mock.patch.object(campaign, "REPO", repo), fixed_tool_probes(root):
                 baseline = {suite: campaign.fingerprint(args, suite, scenario)
-                            for suite, scenario in (("open", "new-open"), ("edit", "clean-open"))}
+                            for suite, scenario in (("open", "new-open"), ("edit", "clean-open"),
+                                                    ("discovery", "inventory"))}
                 self.assertRegex(baseline["open"], r"^[0-9a-f]{64}$")
                 self.assertEqual(campaign.fingerprint(args, "open", "new-open"), baseline["open"])
                 for path in paths:
                     with self.subTest(input=path.relative_to(root)):
-                        suite, scenario = (("edit", "clean-open") if "script_edit" in path.parts
+                        suite, scenario = (("discovery", "inventory")
+                                           if "script_discovery" in path.parts or path.name == "discoverer"
+                                           else ("edit", "clean-open") if "script_edit" in path.parts
                                            else ("open", "new-open"))
                         original = path.read_bytes()
                         path.write_bytes(original + b" mutation")

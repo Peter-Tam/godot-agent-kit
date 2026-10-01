@@ -3089,3 +3089,6 @@ fn old_private_descriptor_cannot_negotiate_a_downgrade() {
 
 #[path = "bridge_boundary/open.rs"]
 mod script_open;
+
+#[path = "bridge_boundary/discovery.rs"]
+mod script_discovery;

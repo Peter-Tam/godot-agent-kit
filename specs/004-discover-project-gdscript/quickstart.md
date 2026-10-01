@@ -1,6 +1,6 @@
 # Quickstart: Verify Safe Project GDScript Discovery
 
-**Status:** **T001 is complete**: authenticated read-only editor scope and the coordinated private-v4 cutover passed [focused and complete affected-suite acceptance](#9-t001-scope-and-private-v4-acceptance-2026-10-01). `discover-gdscripts`, its inventory/worker and the public discovery runner remain T002/T003 work. Sections 3–5 describe those future validation surfaces, not executed discovery inventory acceptance. Feature 004 and Roadmap Phase 1 remain in progress.
+**Status:** **T001 and T002 are complete**. Authenticated scope/v4 passed [T001 acceptance](#9-t001-scope-and-private-v4-acceptance-2026-10-01); `discover-gdscripts`, its confined inventory/core/worker and six public runner groups passed [T002 acceptance](#10-t002-public-caller-acceptance-2026-10-01). T003's repeated-use/cumulative discovery matrix and full discovery campaign remain pending. Feature 004 and Roadmap Phase 1 remain in progress.
 
 Use [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md), [caller v1](contracts/discovery-api.md) and [private bridge v4](contracts/bridge-protocol.md). No successful process exit, nonempty list or editor acknowledgment proves complete discovery.
 
@@ -11,7 +11,7 @@ Use [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md), [cal
 - Unlocked visible desktop and owned synthetic project/editor processes for buffer/selection/history evidence; capture only owned windows. Headless metadata checks cannot establish non-interference with visible buffers.
 - Canonical absolute executable paths and fresh empty mode-0700 artifact directories. Resolve a symlink Godot executable before invoking the existing stock-validator/composed harness.
 - Existing matched production native revision-2 bundle for the composed opening/editing scenarios, matching export templates and a separate existing fixture-fault bundle for the affected mutation suites. Discovery itself adds no native method/ABI requirement. Follow the existing [native build/operator guide](../../godot-addon/native/README.md) and [opening prerequisites](../003-open-project-gdscript/quickstart.md#1-exact-candidate-and-prerequisites).
-- Updated v4 addon and Rust callers must be installed together after implementation; restart the owned editor to create a fresh session descriptor. Do not reuse a v3 descriptor or an earlier lifetime's edit basis.
+- Install the v4 addon and Rust callers together; restart the owned editor to create a fresh session descriptor. Do not reuse a v3 descriptor or an earlier lifetime's edit basis.
 
 From the repository root, set `STOCK_GODOT` to the actual absolute executable and `PRIVATE_FAULT_NATIVE` to the separate fixture-only addon/native output. These are local validation inputs, not new product flags or operational services.
 
@@ -68,7 +68,7 @@ cutover. The generic campaign fingerprint already includes direct Python/GDScrip
 helpers, observation fixtures and addon sources, so no discovery campaign
 registration is needed for this boundary task.
 
-**After T002 implementation**, build the additional current consumer:
+**T002 caller build**, including the existing consumers used for composition:
 
 ```sh
 cargo +1.98.1 build --locked --lib --bin discover-gdscripts \
@@ -91,7 +91,7 @@ Pure/contract tests must cover real semantic boundaries: no false empty on faile
 
 ## 3. Caller smoke after implementation
 
-**After T002 implementation:** For an explicitly owned fixture project with the updated addon installed/enabled and `GODOT_AGENT_KIT_REGISTRY` set to the same private directory, initialize the existing registry and start its editor deliberately. `PROJECT` and `REGISTRY` must be absolute paths. Discovery does not install/start the editor itself.
+For an explicitly owned fixture project with the updated addon installed/enabled and `GODOT_AGENT_KIT_REGISTRY` set to the same private directory, initialize the existing registry and start its editor deliberately. `PROJECT` and `REGISTRY` must be absolute paths. Discovery does not install/start the editor itself.
 
 ```sh
 "$OBSERVER" init-registry --registry "$REGISTRY"
@@ -112,7 +112,7 @@ This manual smoke is not the whole acceptance gate. The owned runner below prepa
 
 ## 4. Owned discovery runner after implementation
 
-**After T002/T003 implementation:** New runner `godot-addon/tests/run_script_discovery.py` must reuse the existing observation harness for owned projects, registry/authentication, real editor actions, independent D/R/B/dirty/selection/history witnesses, capture, cleanup and export checks. Its fixture controls stay private under `fixtures/script_discovery/`, never in product opcodes. It must include the current addon/fixture scripts in independently expected inventory rather than silently filtering them out of the product result.
+`godot-addon/tests/run_script_discovery.py` reuses the existing observation/open/edit harnesses for owned projects, registry/authentication, real editor actions, independent D/R/B/dirty/selection/history witnesses, capture, cleanup and export checks. Its controls stay private under `fixtures/script_discovery/`, never in product opcodes. Independently expected inventories include current visible addon/fixture scripts; they are not subtracted from product results.
 
 Focused example with a fresh private artifact directory:
 
@@ -126,7 +126,7 @@ python3 godot-addon/tests/run_script_discovery.py \
   --scenario inventory --artifacts "$DISCOVERY_ARTIFACTS"
 ```
 
-All paths are absolute. The runner owns actual public caller invocation, final result parsing, elapsed-time measurement and independent witnesses. No fixture invocation of a private walker may substitute for the new caller. T002 supplies the six first-use groups; T003 adds `sequential`, `composed` and `--scenario all`, which runs every group below exactly once. Do not register an incomplete/no-op group or count nested records twice.
+All paths are absolute. The runner owns actual public caller invocation, final result parsing, elapsed-time measurement and independent witnesses. The current six individually runnable groups are `inventory`, `routing`, `coverage`, `interruption`, `readonly`, and `privacy-export`. T003 will add `sequential`, `composed` and `--scenario all`; those names are deliberately unavailable now. The `readonly` group already includes first-use discovery → observation → opening → fresh editing, dirty refusal, history and durability smoke; it is not the additional cumulative matrix.
 
 | Group | Coverage | Observable proof |
 |---|---|---|
@@ -192,7 +192,7 @@ python3 godot-addon/tests/run_script_open.py \
   --scenario all --artifacts "$OPEN_ARTIFACTS"
 ```
 
-Each named artifact variable must be a new empty mode-0700 directory. The existing [campaign utility](../../.github/README.md#focused-validation-and-resumable-campaigns) may wrap these runs. Its planned discovery registration adds `--suite discovery` and `--discoverer` only alongside the real new runner, updates execution fingerprints for its actual inputs, and extends `--suite all` to include discovery. Until that registration exists, its current `all` does not mean discovery coverage. No separate workflow or approval service is introduced.
+Each named artifact variable must be a new empty mode-0700 directory. The existing [campaign utility](../../.github/README.md#focused-validation-and-resumable-campaigns) wraps individual suites. `--suite discovery` with `--discoverer` executes the six current groups and fingerprints their actual inputs; it does not claim the pending cumulative feature gate. `--suite all` explicitly refuses until that full discovery campaign is available. Use separate `--suite observation`, `edit`, and `open` campaigns for the existing full suites. No separate workflow or approval service is introduced.
 
 The composed workflow must independently preserve applicable A–E and Save/close-reopen/reparse/rescan/runtime behavior. Runtime launch, source preparation, Save and history interactions belong only to authorized fixtures and the existing guarantees, not new product controls. Document substantive inapplicability; missing access is not passing evidence.
 
@@ -306,3 +306,140 @@ The [shape/constitutional review](plan.md#t001-implementation-shape-and-constitu
 records the current-consumer module boundaries and unchanged native ownership.
 No inventory, public discovery timing, stronger arbitrary-writer isolation,
 untested version/platform or Feature 004/Phase 1 completion is claimed.
+
+## 10. T002 public caller acceptance (2026-10-01)
+
+**T002 is complete.** The real caller, bounded metadata core, source-free
+selector seam and six first-use groups passed their required evidence and
+[shape/constitutional review](plan.md#t002-implementation-shape-and-constitutional-review-2026-10-01).
+T003 remains pending. Neither PR state nor this first-caller gate establishes
+cumulative discovery or Phase 1 completion.
+
+### Executed task-owned and affected-boundary proof
+
+The §4 command ran separately for each of the six available scenarios, with
+fresh private artifacts. The exact §1 editor, macOS 26.6.2 arm64, Rust 1.98.1
+and Python 3.10.9 were used. All accepted discovery results use the final Rust
+caller; each affected fixture group was rerun after its correction. The §6
+unfiltered existing suites ran serially with unchanged implementation inputs.
+
+| Run | Evidence records | Public discovery results | Maximum discovery call |
+|---|---:|---:|---:|
+| `inventory` | 12 | 6 | 0.122 s |
+| `routing` | 19 | 17 | 0.188 s |
+| `coverage` | 47 | 44 | 0.236 s |
+| `interruption` | 57 | 28 | 4.508 s |
+| `readonly` | 35 | 10 | 0.109 s |
+| `privacy-export` | 10 | 4 | 0.177 s |
+| **Task-owned total** | **180** | **109** | **4.508 s** |
+
+Every public discovery result received result-only interpretation of target,
+scope, coverage, usable/earlier evidence, reasons and safe next action before
+comparison with independent witnesses. The 109 results comprise **37 complete,
+27 limited, 22 refused and 23 interrupted** outcomes. Record totals are not
+distinct user-scenario counts; failed and earlier smoke runs are not added.
+
+| Required existing suite/check | Observed result |
+|---|---|
+| Complete observation | **271 records passed**, maximum recorded operation **4.768 s** |
+| Complete edit/native | **408 records / 114 public edit results passed**, maximum **9.538 s** |
+| Complete opening | **664 records / 187 public opening results passed**, maximum **9.510 s** |
+| Rust baseline | Formatting, warnings-denied Clippy, **305 tests**, doctest phase, rustdoc and locked library/four-caller/validator-example builds passed |
+| Campaign/workflow | **17 campaign tests**, **22 workflow tests**, Actionlint and an actual CLI `--suite all` refusal before artifact creation passed |
+
+The existing suites preserve A–E, actual history, Save/reopen/reparse/rescan and
+runtime durability. No native source, ABI or build mechanism changed, so the
+unchanged normal and separate fault bundles were verified and reused rather
+than rebuilt. The optional hosted GUI workflow remains edit/observation-only;
+these local owned-editor runs, not an unexecuted CI claim, supply live evidence.
+
+### Verified boundaries and limits
+
+Stable inventories contained exactly **150 hidden-data / 149 visible-data
+paths**, including the 100-script/ten-folder catalog and all visible installed
+addon/fixture scripts. Native path/name getters independently matched them.
+Both complete-empty controls passed with their tooling explicitly outside the
+declared scope, not subtracted from results. The visible-data profile also ran
+without a native bundle; the effective getter, not an unsaved setting change,
+governed exclusion.
+
+Fresh create/rename/remove and the idle-cache-misses-new-file control passed
+without product scans. Exact/one-over entry, directory, work, depth and locator
+bounds, local access gaps, unsafe markers, diagnostic overflow and zero-entry
+partial distinctions passed. Private Rust regressions establish deterministic
+root/parent/file/marker replacements, batch/recheck invalidation, ACL and
+strict codec/serialization bounds. Live barriers additionally exercised root
+replacement before enumeration, scope/epoch loss and actual process/channel
+interruption. Checked earlier batches remained incomplete; denial/binding
+loss never became authorized current inventory.
+
+Real begin/recheck holds, SIGINT/SIGTERM, SIGSTOPed owned worker/editor,
+disconnection, expiry/disable, malformed/late replies and shared-slot exclusion
+in both directions passed. A genuinely entered native edit owner retained its
+slot and completed its original transaction after discovery's busy refusal.
+No late replay or discovery-caused source/editor effect was observed.
+
+Clean, dirty, equal-text-dirty, divergent, non-selected and genuinely unloaded
+controls retained independent D/R/B, identities, dirty/current/saved state,
+selection and real prior Undo/Redo. A returned closed locator supplied separate
+fresh observation → opening → editing; dirty discovery still led to safe edit
+refusal. Ignored/deleted-live-buffer observation semantics and later removed-path
+checks remained intact. Owned-window captures were inspected, including dirty
+human state, successful reopened revision 53 and preserved post-change edits.
+
+Selected/other-project/source/credential sentinels passed. Enabled, disabled
+and hook-only exports were inspected and executed: no kit/fixture tooling in
+the packs, runtime exit 0 and zero observed listeners in all three modes.
+
+The actual APFS fixture filesystem is case-insensitive and rejects ill-formed
+UTF-8 names with `EILSEQ`; case-distinct and on-disk non-UTF8 fixtures are
+explicitly inapplicable there, not fabricated passes. Valid Unicode/case and
+representable but unsupported control/decorated/overlength paths were tested.
+No arbitrary-writer atomicity, wider version/platform, additional discovery
+query mode or source/edit eligibility is claimed.
+
+### Corrections and retained provenance
+
+Development failures remain evidence, not acceptance. Corrected fixture issues
+were a 34-character foreign-session ID, APFS-unrepresentable filename setup,
+omitted marker-directory visit counts, an unloaded control installed before
+the editor's initial scan, inappropriate convergence waits for invalid dirty
+B, the existing observer's `not_open` exit code, the runtime helper's newly
+installed visible consumer, and missing second-document preparation for the
+entered-native witness. These fixes do not weaken product checks or deadlines.
+The first concurrent owned-worker process test measured 5.143 s externally;
+the instrumented isolated regression, final complete Rust suite and real
+interruption group passed without relaxing the five-second contract.
+
+The combined outer validation command reached its 3600-second command deadline
+after observation/edit passed and during opening. That partial `open-all`
+directory has no accepted summary and is explicitly marked interrupted. Its
+owned processes were absent after termination and its identified synthetic
+project/registry were removed. A separate unfiltered `open-all-complete` run
+passed without an outer command deadline; per-operation deadlines stayed intact.
+
+Evidence root:
+`/Users/petertam/.godot-agent-kit-discovery-T002-geboyg1d`.
+These paths identify this run, not contributor prerequisites.
+
+| Accepted summary | SHA-256 |
+|---|---|
+| `inventory-final/summary.json` | `9378e8e19052b737ee35c606addade0dfa3ad8903ddcdcede7db622b45c646b2` |
+| `routing/summary.json` | `3496d7dbad5facb77e83e0a1efe63fe4b0822e7ad9ea04ec4eb582d1078e2ca3` |
+| `coverage-fixed/summary.json` | `cfb09f60c33597216d48f672581c48294e4fdf8e77eec5a7202431adae96e8cb` |
+| `interruption-fixed/summary.json` | `00942040d1a06f184de1f6cb49e4d9717ab09266a06f63653abbc83caf2cc1f2` |
+| `readonly-runtime-inventory-fixed/summary.json` | `57f60f1b8c83bd54abdd846b9e5769d92a9532e666bf3ce33afb2d72b0035e65` |
+| `privacy-export/summary.json` | `cca2399ae008397135876c94fd2ba0905f37608fd1737093aa97993f138244b6` |
+| `observation-all/summary.json` | `dbb7fbc0e67f176171099e9d50f7d400c2fb8b274cbf07fb50a4be0790c86d4c` |
+| `edit-all/summary.json` | `d7baf8529d7422495cc3f1c2e70a92319ddfe29bb5d69ff9660555ef55f38169` |
+| `open-all-complete/summary.json` | `a02e9ae7db05bb477c79a751ed946d9b20f34801e9603d4920263db6d0d10d0a` |
+
+`build-provenance.json` records final caller/runtime input hashes, all native
+source/generated ABI/API/header/library checks and retained failures.
+`discovery-result-review.json` records interpretation of every public result.
+Final discovery caller SHA-256:
+`6985ad9da56ba92c328d2b158e5184545e935823c47303524b9f2f72cf9d1b3a`.
+Normal/fault native build IDs remain those recorded in §9. The runners cleaned
+up their owned workers/editors/runtime projects; the owned desktop-awake process
+was stopped and reaped. Evidence remains outside version control. No extension
+pre/post hooks were configured.

@@ -3,6 +3,27 @@ extends "res://addons/godot_agent_kit/bridge.gd"
 
 const FixtureCollector = preload("res://addons/fixture_driver/fixture_collector.gd")
 
+var _discovery_held: Array[Dictionary] = []
+
+func discovery_release() -> void:
+	var drivers := get_tree().get_nodes_in_group("observation_fixture_driver")
+	for held in _discovery_held:
+		if not _peers.has(held.peer): continue
+		var payload: Dictionary = held.payload
+		var fault: String = drivers[0].discovery_fault if drivers.size() == 1 else ""
+		if fault == "identity":
+			payload = payload.duplicate(true)
+			payload.request_id = "wrong-request"
+		super._queue(held.peer, payload, held.closing, held.large)
+		if fault == "malformed":
+			held.peer.output = PackedByteArray([0, 0, 0, 3, 123, 0, 125])
+			held.peer.sent = 0
+		elif fault == "oversized":
+			held.peer.output = PackedByteArray([0, 0, 16, 1])
+			held.peer.sent = 0
+	_discovery_held.clear()
+
+
 
 # Fixture-only gate: the product keeps processing other peers while a selected
 # attempt owns the slot at a named gap. No native call or source is forged.
@@ -58,6 +79,11 @@ func _queue(peer: Dictionary, payload: Dictionary, closing: bool = false, large:
 		drivers[0].scope_admission = {"request_id": payload.request_id,
 			"status": payload.status, "expiry_tick_us": payload.expiry_tick_us,
 			"started_tick_us": payload.collection.started_tick_us}
+	if drivers.size() == 1 and payload.get("kind") in ["discover_state", "discover_rechecked"] \
+			and drivers[0].has_method("discovery_barrier") and drivers[0].discovery_barrier(peer, payload):
+		_discovery_held.append({"peer": peer, "payload": payload,
+			"closing": closing, "large": large})
+		return
 	if drivers.size() != 1 or payload.get("kind") not in ["sample", "recheck"]:
 		super._queue(peer, payload, closing, large)
 		return

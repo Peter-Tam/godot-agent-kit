@@ -1,6 +1,6 @@
 # Private Editor Bridge — Version 4 and Discovery Integration
 
-**Status:** T001 implements the coordinated v4 cutover and path-free addon scope exchange (§1–§3), consumed by the existing authenticated fixtures. Its acceptance is recorded in the [quickstart](../quickstart.md). The inventory worker/events (§4) and [public discovery v1](discovery-api.md) remain T002/T003 work. Public observation/edit/open v1 and native API revision 2 are unchanged. This contract supersedes private [v3 transport](../../003-open-project-gdscript/contracts/bridge-protocol.md), not its historical acceptance record.
+**Status:** T001 implements the coordinated v4 cutover and path-free addon scope exchange (§1–§3). T002 implements the inventory worker/events (§4) and [public discovery v1](discovery-api.md). Task-owned acceptance is recorded in the [quickstart](../quickstart.md); T003's cumulative feature gate remains pending. Public observation/edit/open v1 and native API revision 2 are unchanged. This contract supersedes private [v3 transport](../../003-open-project-gdscript/contracts/bridge-protocol.md), not its historical acceptance record.
 
 ## 1. Bootstrap and authenticated capability migration
 
