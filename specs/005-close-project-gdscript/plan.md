@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/005-close-project-gdscript/spec.md`, including the accepted guarded-native-revalidation clarification.
 
-**Status:** Phase 0 research and Phase 1 design complete; integrated artifact review and the post-design Constitution Check passed. The accepted native-revalidation clarification is recorded in the specification. No implementation task is selected, no product close is implemented, and this plan does not establish feature/support acceptance. Planning stays on the existing specification branch; no task list is generated here.
+**Status:** Phase 0 research and Phase 1 design complete; integrated artifact review and the post-design Constitution Check passed. The accepted native-revalidation clarification is recorded in the specification. The [task decomposition and granularity review](tasks.md#granularity-review) are complete; `/speckit.analyze` remains separate. No implementation task is selected, no product close is implemented, and no feature/support acceptance is claimed. Planning stays on the existing specification branch.
 
 ## Summary
 
@@ -117,13 +117,14 @@ specs/005-close-project-gdscript/
 ├── research.md
 ├── data-model.md
 ├── quickstart.md
+├── tasks.md
 └── contracts/
     ├── close-api.md
     ├── bridge-protocol.md
     └── native-integration.md
 ```
 
-`tasks.md` is intentionally absent. A later `/speckit.tasks` must derive meaningful PR-sized capabilities with tests/docs bundled, receive granularity review, then undergo `/speckit.analyze` before any approved implementation task starts. A native boundary with an actual fixture consumer, the complete public caller with all inseparable safety and cumulative acceptance are coherent possible increments—not automatically selected tasks or permission to batch PRs.
+[tasks.md](tasks.md) derives three meaningful PR-sized increments with tests/docs bundled: the native boundary and real fixture/validator consumer, the complete public caller with all inseparable safety, and cumulative repeated/composed acceptance. Its granularity review passed. Run `/speckit.analyze` and resolve actual blockers before selecting any approved implementation task; generation does not select a task or authorize batching PRs.
 
 ### Source Code (repository root)
 

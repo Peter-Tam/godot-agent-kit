@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-01
 
-**Status**: Draft — quality-validated, clarified during planning and ready for task derivation; implementation is not authorized.
+**Status**: Draft — quality-validated and clarified; task decomposition and granularity review complete, ready for consistency analysis. Implementation is not authorized.
 
 **Input**: Generated feature description supplied to `/speckit.specify`:
 
