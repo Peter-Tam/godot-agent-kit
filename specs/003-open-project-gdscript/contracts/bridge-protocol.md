@@ -2,6 +2,14 @@
 
 **Status:** The coordinated v3 authentication/observation/edit cutover and authenticated opening exchange are implemented and accepted; [T003 cumulative acceptance](../quickstart.md#10-t003-cumulative-acceptance-2026-09-30) completes Feature 003 on the exact recorded environment. Matched complete families advertise `open_gdscript`. Public observation/edit v1 and opening's [v1 contract](open-api.md) are unchanged. Historical [v2 acceptance](../../002-edit-open-gdscript/contracts/bridge-protocol.md) is not relabeled as v3 acceptance.
 
+**Current migration:** This document preserves the accepted v3 contract and
+historical evidence. Current caller/addon peers use
+[private v4](../../004-discover-project-gdscript/contracts/bridge-protocol.md):
+the discovery capability is the eighth authenticated bit; existing opening
+tuples use version 4 with unchanged semantics. Native revision 2 and all public
+v1 contracts remain unchanged. Install matching peers and restart the editor;
+v3 descriptors/proofs and previous session-bound edit bases cannot be reused.
+
 ## 1. Bootstrap, authentication and migration
 
 Keep the same owner-private registry, descriptor ownership/mode/type/ACL checks, per-editor/plugin-lifetime session and 256-bit secret, canonical project identity, IPv4 loopback listener, discovery bounds and source-free mutual HMAC. No second listener, credentials, daemon, permissions or approval mechanism.

@@ -1,4 +1,4 @@
-//! Private mutually authenticated version-three editor bridge and observation wire boundary.
+//! Private mutually authenticated version-four editor bridge and observation wire boundary.
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream};
 use std::time::{Duration, Instant};
@@ -27,6 +27,7 @@ pub struct Capabilities {
     pub cached_resource_lookup: bool,
     pub edit_open_gdscript: bool,
     pub open_gdscript: bool,
+    pub discover_gdscripts: bool,
 }
 
 #[derive(Deserialize)]
@@ -45,7 +46,7 @@ pub(crate) struct Descriptor {
 impl Descriptor {
     pub(crate) fn parse(bytes: &[u8], filename: &str) -> Result<Self, RoutingFailure> {
         let descriptor: Self = serde_json::from_slice(bytes).map_err(|_| invalid_frame())?;
-        if descriptor.v != 3
+        if descriptor.v != 4
             || descriptor.session_id.len() != 32
             || !lower_hex(&descriptor.session_id, 32)
             || filename != format!("{}.json", descriptor.session_id)
@@ -166,7 +167,7 @@ fn transcript(
     server: &[u8; 32],
 ) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(512);
-    field(&mut bytes, b"godot-agent-kit/editor-bridge/v3");
+    field(&mut bytes, b"godot-agent-kit/editor-bridge/v4");
     field(&mut bytes, request.as_bytes());
     field(
         &mut bytes,
@@ -183,6 +184,7 @@ fn transcript(
         caps.cached_resource_lookup,
         caps.edit_open_gdscript,
         caps.open_gdscript,
+        caps.discover_gdscripts,
     ] {
         field(&mut bytes, &[u8::from(value)]);
     }
@@ -276,7 +278,7 @@ fn check_message(
     nonce: &str,
     kind: &str,
 ) -> Result<(), RoutingFailure> {
-    if message.v != 3
+    if message.v != 4
         || message.kind != kind
         || message.request_id != request
         || message.session_id != descriptor.session_id
@@ -318,7 +320,7 @@ pub(crate) fn authenticate(
     send(
         &mut socket,
         &(
-            3,
+            4,
             "hello",
             request,
             &descriptor.session_id,
@@ -358,7 +360,7 @@ pub(crate) fn authenticate(
     send(
         &mut socket,
         &(
-            3,
+            4,
             "authenticate",
             request,
             &descriptor.session_id,
@@ -407,7 +409,7 @@ mod tests {
     use super::*;
     #[test]
     fn agreed_proof_vectors() {
-        let descriptor = Descriptor::parse(br#"{"v":3,"session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","godot_version":"4.7.2.stable.official.ed1daf0bf","engine_hash":"ed1daf0bf001b61586d9930840f2f1394092c079","host":"127.0.0.1","port":53124,"token":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"}"#, "00112233445566778899aabbccddeeff.json").unwrap();
+        let descriptor = Descriptor::parse(br#"{"v":4,"session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","godot_version":"4.7.2.stable.official.ed1daf0bf","engine_hash":"ed1daf0bf001b61586d9930840f2f1394092c079","host":"127.0.0.1","port":53124,"token":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"}"#, "00112233445566778899aabbccddeeff.json").unwrap();
         let caps = Capabilities {
             observe_gdscript: true,
             open_enumeration: true,
@@ -416,6 +418,7 @@ mod tests {
             cached_resource_lookup: true,
             edit_open_gdscript: true,
             open_gdscript: false,
+            discover_gdscripts: true,
         };
         let client: [u8; 32] = std::array::from_fn(|i| (i + 32) as u8);
         let server: [u8; 32] = std::array::from_fn(|i| (i + 64) as u8);
@@ -435,15 +438,15 @@ mod tests {
         for (role, expected) in [
             (
                 b"server".as_slice(),
-                "551fab39e1b856768c16a9722e38c9deb8c73a027220d1209a7c2c4653709d02",
+                "59f272feb95a7ebc4c16d7ea642b0d8640bda97370abbba2a6e1a339bfaa5f02",
             ),
             (
                 b"client",
-                "c1ee473fd4f970e1c1eb2c35d2fd204c402672c865dc8182d95b2721d7517fa1",
+                "f9f5d3fd50af8e1203e01075f35ea34f60ad32f693eb1125701155482922ada3",
             ),
             (
                 b"finish",
-                "1abd54c16694a3158b96f59882fca5d16050f2fe54f49b0c07965de77b527053",
+                "afb6050649507952e255dda36690ce92982b78181dd584c25c17b92acf9d832b",
             ),
         ] {
             assert_eq!(
@@ -456,7 +459,7 @@ mod tests {
     #[test]
     fn native_metadata_cannot_advertise_an_unmatched_family() {
         let descriptor = Descriptor {
-            v: 3,
+            v: 4,
             session_id: "00112233445566778899aabbccddeeff".into(),
             project_root: "/fixture/project".into(),
             godot_version: GODOT_VERSION.into(),
@@ -466,7 +469,7 @@ mod tests {
             token: "00".repeat(32),
         };
         let mut message = ProofMessage {
-            v: 3,
+            v: 4,
             kind: "challenge".into(),
             request_id: "metadata-check".into(),
             session_id: descriptor.session_id.clone(),
@@ -481,6 +484,7 @@ mod tests {
                 cached_resource_lookup: true,
                 edit_open_gdscript: false,
                 open_gdscript: false,
+                discover_gdscripts: true,
             },
             native_api_revision: 0,
             native_build_id: String::new(),
@@ -524,18 +528,18 @@ mod tests {
             assert!(!accepted(&message));
         }
         message.native_build_id = "a".repeat(64);
-        for version in [1, 2, 4] {
+        for version in [1, 2, 3, 5] {
             message.v = version;
             assert!(!accepted(&message));
         }
     }
 
     #[test]
-    fn capability_record_requires_all_seven_exact_boolean_fields() {
+    fn capability_record_requires_all_eight_exact_boolean_fields() {
         let record = serde_json::json!({
             "observe_gdscript": true, "open_enumeration": true, "buffer_attribution": true,
             "unsaved_paths": true, "cached_resource_lookup": true,
-            "edit_open_gdscript": true, "open_gdscript": false
+            "edit_open_gdscript": true, "open_gdscript": false, "discover_gdscripts": true
         });
         for name in [
             "observe_gdscript",
@@ -545,13 +549,26 @@ mod tests {
             "cached_resource_lookup",
             "edit_open_gdscript",
             "open_gdscript",
+            "discover_gdscripts",
         ] {
             let mut missing = record.clone();
             missing.as_object_mut().unwrap().remove(name);
             assert!(serde_json::from_value::<Capabilities>(missing).is_err());
-            let mut wrong_type = record.clone();
-            wrong_type[name] = serde_json::json!(0);
-            assert!(serde_json::from_value::<Capabilities>(wrong_type).is_err());
+            for value in [
+                serde_json::json!(0),
+                serde_json::json!("true"),
+                serde_json::Value::Null,
+                serde_json::json!([]),
+                serde_json::json!({}),
+            ] {
+                let mut wrong_type = record.clone();
+                wrong_type[name] = value;
+                assert!(serde_json::from_value::<Capabilities>(wrong_type).is_err());
+            }
+            let mut duplicate = record.to_string();
+            duplicate.pop();
+            duplicate.push_str(&format!(",\"{name}\":{}}}", record[name]));
+            assert!(serde_json::from_str::<Capabilities>(&duplicate).is_err());
         }
         let mut unknown = record;
         unknown["unrecognized_operation"] = serde_json::json!(false);

@@ -3,9 +3,10 @@ extends Node
 
 const VERSION := "4.7.2.stable.official.ed1daf0bf"
 const ENGINE_HASH := "ed1daf0bf001b61586d9930840f2f1394092c079"
-const DOMAIN := "godot-agent-kit/editor-bridge/v3"
+const DOMAIN := "godot-agent-kit/editor-bridge/v4"
 const ObservationScript = preload("res://addons/godot_agent_kit/observation.gd")
 const OpeningTransportScript = preload("res://addons/godot_agent_kit/script_open_transport.gd")
+const DiscoveryScript = preload("res://addons/godot_agent_kit/script_discovery.gd")
 const MAX_FRAME := 4096
 const MAX_SELECTED_REQUEST := 4 * 1024 * 1024
 const MAX_RESPONSE := 12 * 1024 * 1024
@@ -24,6 +25,7 @@ const CAPABILITIES := {
 	"cached_resource_lookup": true,
 	"edit_open_gdscript": false,
 	"open_gdscript": false,
+	"discover_gdscripts": false,
 }
 var _crypto := Crypto.new()
 var _filesystem := DirAccess.open("/")
@@ -42,6 +44,7 @@ var _project_identity := ""
 
 var _edit_owner: Node
 var _open_owner: Node
+var _discovery_owner: Node
 var _opening_exchange := OpeningTransportScript.new()
 var _native_revision := 0
 var _native_build_id := ""
@@ -214,6 +217,10 @@ func start(registry: String) -> bool:
 	if port < 0 or not _registry_unchanged() or not _publish(port):
 		stop()
 		return false
+	_discovery_owner = DiscoveryScript.new()
+	_discovery_owner.name = "GodotAgentKitScriptDiscovery"
+	add_child(_discovery_owner)
+	_discovery_owner.configure(self)
 	set_process(true)
 	return true
 
@@ -225,7 +232,7 @@ func _publish(port: int) -> bool:
 		or _filesystem.is_link(temp_path) or DirAccess.dir_exists_absolute(temp_path) or FileAccess.file_exists(temp_path):
 		return false
 	var descriptor := {
-		"v": 3, "session_id": _session, "project_root": _project,
+		"v": 4, "session_id": _session, "project_root": _project,
 		"godot_version": VERSION, "engine_hash": ENGINE_HASH,
 		"host": "127.0.0.1", "port": port, "token": _secret.hex_encode(),
 	}
@@ -334,6 +341,7 @@ func _capabilities() -> Dictionary:
 	var capabilities := CAPABILITIES.duplicate()
 	capabilities.edit_open_gdscript = is_instance_valid(_edit_owner) and _native_revision == 2
 	capabilities.open_gdscript = is_instance_valid(_open_owner) and _native_revision == 2
+	capabilities.discover_gdscripts = is_instance_valid(_discovery_owner) and _discovery_owner.available()
 	return capabilities
 
 
@@ -342,6 +350,9 @@ func stop() -> void:
 	var operation_owner: Variant = _active.get("operation_owner")
 	if is_instance_valid(operation_owner):
 		operation_owner.call("cancel_owned")
+	if is_instance_valid(_discovery_owner):
+		_discovery_owner.free()
+	_discovery_owner = null
 	for peer in _peers:
 		peer.socket.disconnect_from_host()
 		if peer.has("collector"):
@@ -454,7 +465,7 @@ func _process(_delta: float) -> void:
 				var prefix: String = peer.input.slice(4).get_string_from_utf8()
 				for whitespace in [" ", "\t", "\r", "\n"]:
 					prefix = prefix.replace(whitespace, "")
-				if not prefix.begins_with('[3,"edit_prepare",') and not prefix.begins_with('[3,"open_prepare",'):
+				if not prefix.begins_with('[4,"edit_prepare",') and not prefix.begins_with('[4,"open_prepare",'):
 					_close_peer(peer)
 					break
 				peer.large_prefix = true
@@ -644,7 +655,7 @@ func _integral_control(value: Variant, minimum: int, maximum: int) -> bool:
 
 
 func _fixed_tuple(value: Variant, count: int, operation: String) -> bool:
-	return typeof(value) == TYPE_ARRAY and value.size() == count and _integral_control(value[0], 3, 3) \
+	return typeof(value) == TYPE_ARRAY and value.size() == count and _integral_control(value[0], 4, 4) \
 		and typeof(value[1]) == TYPE_STRING and value[1] == operation and _valid_id(value[2]) \
 		and typeof(value[3]) == TYPE_STRING and value[3] == _session \
 		and typeof(value[4]) == TYPE_STRING and value[4] == _project and value[4].to_utf8_buffer().size() <= 1024
@@ -755,6 +766,13 @@ func _handle_frame(peer: Dictionary, bytes: PackedByteArray) -> void:
 		_queue(peer, hello)
 	elif peer.state == "authenticated":
 		if typeof(value) == TYPE_ARRAY and value.size() >= 2 and typeof(value[1]) == TYPE_STRING \
+				and (value[1] as String).begins_with("discover_"):
+			if is_instance_valid(_discovery_owner):
+				_discovery_owner.handle(peer, value, bytes.size())
+			else:
+				_close_peer(peer)
+			return
+		if typeof(value) == TYPE_ARRAY and value.size() >= 2 and typeof(value[1]) == TYPE_STRING \
 				and (value[1] as String).begins_with("edit_"):
 			_handle_edit_tuple(peer, value, bytes.size())
 			return
@@ -824,7 +842,7 @@ func _editor_stamp(started: int) -> Dictionary:
 
 
 func _edit_envelope(peer: Dictionary, kind: String) -> Dictionary:
-	return {"v": 3, "kind": kind, "request_id": peer.request_id,
+	return {"v": 4, "kind": kind, "request_id": peer.request_id,
 		"session_id": _session, "project_root": _project,
 		"script_path": peer.get("edit_path", ""), "collection": _editor_stamp(Time.get_ticks_usec())}
 
@@ -915,7 +933,7 @@ func _handle_edit_tuple(peer: Dictionary, value: Array, size: int) -> void:
 
 
 func _failure(peer: Dictionary, path: String, stage: String, code: String = "out_of_project") -> Dictionary:
-	return {"v": 3, "kind": "failure", "request_id": peer.request_id,
+	return {"v": 4, "kind": "failure", "request_id": peer.request_id,
 		"session_id": _session, "project_root": _project, "script_path": path,
 		"code": code, "stage": stage}
 
@@ -1346,7 +1364,7 @@ func _collect_edit(peer: Dictionary) -> void:
 
 
 func _reply_fields(peer: Dictionary, kind: String) -> Dictionary:
-	return {"v": 3, "kind": kind, "request_id": peer.request_id,
+	return {"v": 4, "kind": kind, "request_id": peer.request_id,
 		"session_id": _session, "project_root": _project,
 		"godot_version": VERSION, "engine_hash": ENGINE_HASH,
 		"capabilities": peer.auth_capabilities, "native_api_revision": peer.auth_native_revision,
@@ -1370,7 +1388,7 @@ static func transcript_bytes(request_id: String, session_id: String, project_roo
 			or (native_api_revision == 2 and (native_build_id.length() != 64 \
 			or not native_build_id.is_valid_hex_number() or native_build_id != native_build_id.to_lower())):
 		return PackedByteArray()
-	if capabilities.size() != 7:
+	if capabilities.size() != 8:
 		return PackedByteArray()
 	for encoded in [session_id, client_nonce, server_nonce]:
 		if not encoded.is_valid_hex_number() or encoded != encoded.to_lower():
@@ -1382,7 +1400,7 @@ static func transcript_bytes(request_id: String, session_id: String, project_roo
 	for part in [project_root, godot_version, engine_hash]:
 		out.append_array(_field(part.to_utf8_buffer()))
 	for name in ["observe_gdscript", "open_enumeration", "buffer_attribution", "unsaved_paths",
-			"cached_resource_lookup", "edit_open_gdscript", "open_gdscript"]:
+			"cached_resource_lookup", "edit_open_gdscript", "open_gdscript", "discover_gdscripts"]:
 		if not capabilities.has(name) or typeof(capabilities[name]) != TYPE_BOOL:
 			return PackedByteArray()
 		out.append_array(_field(PackedByteArray([1 if capabilities[name] else 0])))

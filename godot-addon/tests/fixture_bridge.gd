@@ -53,6 +53,11 @@ func _collect_pending() -> void:
 
 func _queue(peer: Dictionary, payload: Dictionary, closing: bool = false, large: bool = false) -> void:
 	var drivers := get_tree().get_nodes_in_group("observation_fixture_driver")
+	if drivers.size() == 1 and payload.get("kind") == "discover_state":
+		# Witness real admission even when a 1ms scope expires before TCP delivery.
+		drivers[0].scope_admission = {"request_id": payload.request_id,
+			"status": payload.status, "expiry_tick_us": payload.expiry_tick_us,
+			"started_tick_us": payload.collection.started_tick_us}
 	if drivers.size() != 1 or payload.get("kind") not in ["sample", "recheck"]:
 		super._queue(peer, payload, closing, large)
 		return

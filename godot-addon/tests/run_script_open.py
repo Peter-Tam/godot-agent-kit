@@ -183,8 +183,8 @@ class OpeningHarness(CumulativeOpenAcceptanceMixin, ComposedOpenAcceptanceMixin,
             info = self.open_action(editor, "open_info")
             observation.require(info["open_installed"] and info["api_revision"] == 2 and
                                 info["build_id"] == self.expected_native_build_id and
-                                info["session_id"] == descriptor["session_id"] and descriptor["v"] == 3,
-                                "actual_native_owner_selected_v3_revision2")
+                                info["session_id"] == descriptor["session_id"] and descriptor["v"] == 4,
+                                "actual_native_owner_selected_v4_revision2")
             if faults:
                 observation.require(info["fixture_faults"], "fixture_fault_controls_separate_binary")
                 self.native_action(editor, "native_edit_fixture_activate")
@@ -776,9 +776,12 @@ class OpeningHarness(CumulativeOpenAcceptanceMixin, ComposedOpenAcceptanceMixin,
             observation.require(held[0]["slot_busy"] and held[0]["owner_matches"] and
                                 held[0]["cached_id"] and not held[0]["target"]["associated"],
                                 "actual_between_stage_owner_hold_editor_remains_responsive")
+            from discovery_scope_acceptance import assert_discovery_busy
+            assert_discovery_busy(self, descriptor)
+            self.case("scope_refused_during_real_open_owner", reason="busy", context_observed=False)
             stream, peer_id = self.authenticated_peer(descriptor)
             try:
-                stream.sendall(observation.packet([3, "observe", peer_id, descriptor["session_id"],
+                stream.sendall(observation.packet([4, "observe", peer_id, descriptor["session_id"],
                                                     descriptor["project_root"], TARGET]))
                 refusal, raw = observation.receive(stream)
                 observation.require(refusal.get("kind") == "failure" and

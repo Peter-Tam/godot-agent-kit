@@ -1,6 +1,6 @@
 # Data Model: Project GDScript Discovery
 
-**Status:** Proposed contract for [Feature 004](spec.md); not implemented. The [caller](contracts/discovery-api.md) and [bridge](contracts/bridge-protocol.md) contracts define transport projections. This document owns semantic invariants and fixed bounds.
+**Status:** T001 implements the private `EditorScopeContext` producer and ownership described in §4. The public discovery model, inventory acquisition and terminal interpretation remain proposed T002/T003 work for [Feature 004](spec.md). The [caller](contracts/discovery-api.md) and [bridge](contracts/bridge-protocol.md) contracts define transport projections. This document owns semantic invariants and fixed bounds.
 
 ## 1. Reused identities and current consumers
 

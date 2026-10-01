@@ -21,7 +21,7 @@ func _envelope(peer: Dictionary, kind: String, started: int, native: Variant = n
 		facts = {}
 		for key in NATIVE_FIELDS:
 			facts[key] = native.get(key)
-	return {"v": 3, "kind": kind, "request_id": peer.request_id,
+	return {"v": 4, "kind": kind, "request_id": peer.request_id,
 		"session_id": _bridge.get("_session"), "project_root": _bridge.get("_project"),
 		"script_path": peer.get("open_path", ""),
 		"collection": _bridge.call("_editor_stamp", started), "native": facts,
@@ -182,7 +182,7 @@ func _recheck(peer: Dictionary) -> Dictionary:
 		peer.open_collector.clear()
 		peer.erase("open_collector")
 	if result == null:
-		result = {"v": 3, "kind": "recheck", "request_id": peer.request_id,
+		result = {"v": 4, "kind": "recheck", "request_id": peer.request_id,
 			"session_id": _bridge.get("_session"), "project_root": _bridge.get("_project"),
 			"script_path": peer.open_path, "collection": _bridge.call("_editor_stamp", Time.get_ticks_usec()),
 			"checks": "unavailable", "detected_changes": [], "reason": "unavailable"}

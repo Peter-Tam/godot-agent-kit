@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/004-discover-project-gdscript/spec.md`, including the accepted Godot project-file visibility clarification.
 
-**Status:** Design complete; initial and post-design constitutional/consistency reviews passed. The [task list](tasks.md) now contains three pending PR-sized increments and has passed granularity/coverage review. The subsequent `/speckit.analyze` gate remains pending; no implementation task is selected and no discovery capability is claimed complete.
+**Status:** Design, granularity/coverage and post-task consistency analysis passed; merged [planning PR #46](https://github.com/Peter-Tam/godot-agent-kit/pull/46) records analysis of `e7fb197af058c230751e59b2f05c3373adbfbf3b`. **T001 is complete**, with [real scope/full affected-suite acceptance](quickstart.md#9-t001-scope-and-private-v4-acceptance-2026-10-01) and the shape/constitutional review below. T002/T003 remain pending; no discovery inventory or feature-completion claim follows the scope-only task.
 
 ## Summary
 
@@ -117,7 +117,7 @@ specs/004-discover-project-gdscript/
     └── bridge-protocol.md
 ```
 
-[tasks.md](tasks.md) derives three coherent increments: the authenticated read-only editor-scope/v4 boundary, the complete public caller with all inseparable story safety, and cumulative repeated-use/composed acceptance. Tests/docs remain bundled with their owners; US2/US3 retain independent story phases without unsafe later safety PRs. Granularity/coverage review passed; analysis and selection of one approved task still precede implementation.
+[tasks.md](tasks.md) derives three coherent increments: the authenticated read-only editor-scope/v4 boundary, the complete public caller with all inseparable story safety, and cumulative repeated-use/composed acceptance. Tests/docs remain bundled with their owners; US2/US3 retain independent story phases without unsafe later safety PRs. Granularity/coverage and subsequent consistency analysis passed; only T001 is selected for this implementation.
 
 ### Source Code (repository root)
 
@@ -184,3 +184,56 @@ No constitutional exception is proposed. Principle XIII's current-need review ap
 | Existing worker reuse for discovery | Blocking filesystem I/O must not defeat five seconds | Operation-specific event/state handling using already-present supervision, not a new worker service |
 
 The exact decisions, primary sources, executed research and rejected alternatives are in [research.md](research.md). Planning may not promote an untested hypothetical stronger isolation property into a product blocker; a real blocker must satisfy the repository's requirement/failure/actor/reachable-evidence test.
+
+## T001 implementation-shape and constitutional review (2026-10-01)
+
+The integrated task keeps the selected boundary and introduces no inventory,
+worker codec, public discovery model, selector refactor or caller ahead of T002.
+
+- `script_discovery.gd` owns only public editor scope facts, signal registration,
+  a session-local epoch and the read-only lease. It never receives a script
+  locator, traverses a tree, reads source, inspects documents/cache or enters
+  native mutation. Its internal getter seams are private; current bridge calls
+  consume `configure`, `available`, `handle`, `cancel_owned` and the existing
+  owner's `is_active_stage` interface.
+- The already-large `bridge.gd` retains transport/authentication/framing and
+  shared-slot ownership. Its necessary additions create/tear down the scope
+  child, authenticate the eighth bit and dispatch discovery tuples. The new
+  owner is not appended as another policy/reducer responsibility. Existing
+  `plugin.gd` start/stop/free wiring already covers that child; `script_open.gd`
+  has no private-version encoder, so neither needs a change.
+- Rust bridge/wire and existing worker-startup consumers receive the coordinated
+  version/capability migration only. `Capabilities.discover_gdscripts` is part of
+  the currently consumed authenticated record, not a speculative routing API.
+  Public observation/edit/open schema 1 and native revision 0/2 are unchanged.
+  Strict typed decoding rejects missing/extra/duplicate/non-Boolean capability
+  fields; no new recoverable-evidence panic or `unsafe` path was introduced.
+- The single `_active` slot remains authoritative. A peer's one-begin marker and
+  the exact owner/peer association prevent restart/revival; read-only cancellation
+  releases only its owner. There is no entered-native discovery stage, queue or
+  retry. Existing native entered-owner retention stays at its existing boundary.
+- `discovery_scope_acceptance.py` owns feature-specific probes, while existing
+  boundary groups retain execution, privacy, window capture and cleanup.
+  Getter-fault and deliberate scan/import preparation remain private fixtures;
+  ordinary positive contexts use actual public editor getters. Existing generic
+  export exclusions and campaign input hashing cover the new files without a
+  second export policy or campaign registration.
+
+**Principle XIII:** The present need is authenticated effective visibility context
+for a locator-free request. Reusing document observation would acquire forbidden
+source/document facts; deriving the data path from the mutable setting was
+demonstrably wrong. One small owner plus the coordinated fixed-transcript v4
+cutover satisfies the requirement using the existing listener, credentials, slot
+and runtime. Its cost is one bounded owner and directly affected regression
+coverage, justified by the current contract. No new dependency, service, native
+ABI, generic framework, permission, process gate or hosted-runner requirement is
+introduced.
+
+**Constitutional disposition:** The implementation preserves independent D/R/B
+authority, human work, native mutation semantics, local confined authentication,
+source privacy and export isolation. Context acknowledgments cannot establish an
+inventory or authorize a later edit. [Live acceptance](quickstart.md#9-t001-scope-and-private-v4-acceptance-2026-10-01)
+passed the focused scope probes and complete observation/edit/open gates on the
+unchanged integrated implementation. Together with this shape review, that
+evidence completes T001 only; discovery inventory and feature acceptance remain
+T002/T003 work.

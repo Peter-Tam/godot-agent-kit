@@ -55,7 +55,7 @@ impl Fixture {
             .mode(0o600)
             .open(name)
             .unwrap();
-        write!(file, "{}", json!({"v":3,"session_id":id,"project_root":self.project,"godot_version":VERSION,"engine_hash":HASH,"host":"127.0.0.1","port":port,"token":SECRET})).unwrap();
+        write!(file, "{}", json!({"v":4,"session_id":id,"project_root":self.project,"godot_version":VERSION,"engine_hash":HASH,"host":"127.0.0.1","port":port,"token":SECRET})).unwrap();
     }
     fn request(&self, id: Option<&str>) -> ObservationRequest {
         ObservationRequest::new(
@@ -124,7 +124,7 @@ fn field(buffer: &mut Vec<u8>, field: &[u8]) {
 fn proof(role: &[u8], hello: &Value, caps: &Value, key: &str) -> String {
     let mut bytes = Vec::new();
     field(&mut bytes, role);
-    field(&mut bytes, b"godot-agent-kit/editor-bridge/v3");
+    field(&mut bytes, b"godot-agent-kit/editor-bridge/v4");
     field(&mut bytes, hello[2].as_str().unwrap().as_bytes());
     field(&mut bytes, &hex_decode(hello[3].as_str().unwrap()));
     field(&mut bytes, hello[4].as_str().unwrap().as_bytes());
@@ -138,6 +138,7 @@ fn proof(role: &[u8], hello: &Value, caps: &Value, key: &str) -> String {
         "cached_resource_lookup",
         "edit_open_gdscript",
         "open_gdscript",
+        "discover_gdscripts",
     ] {
         field(&mut bytes, &[u8::from(caps[name].as_bool().unwrap())]);
     }
@@ -166,7 +167,7 @@ fn observation_sample(hello: &Value) -> Value {
     let resource_witness = json!({"resource_path":path,"script_instance_id":"9007199254740993","editor_instance_id":null,"buffer_instance_id":null,"disk_file_id":null,"source_version":"9007199254740994"});
     let buffer_witness = json!({"resource_path":path,"script_instance_id":"9007199254740993","editor_instance_id":"9007199254740994","buffer_instance_id":"9007199254740995","disk_file_id":null,"source_version":"9007199254740996"});
     json!({
-        "v":3,"kind":"sample","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":path,
+        "v":4,"kind":"sample","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":path,
         "collection":stamp,
         "document":{"identity":{"kind":"external_gdscript","resource_path":path,"script_instance_id":"9007199254740993","editor_instance_id":"9007199254740994","buffer_instance_id":"9007199254740995","disk_file_id":null},
             "validity":{"value":"valid","collection":stamp,"reason":null,"invalidated_evidence":null},
@@ -196,6 +197,12 @@ enum Mode {
     ValidNative,
     ChangedNativeBuild,
     ChangedCapability(&'static str),
+    MissingDiscovery,
+    ExtraCapability,
+    WrongDiscoveryType,
+    DuplicateDiscovery,
+    ChangedIdentity(&'static str),
+    ReflectedFinish,
     ChangedFinishCapability,
     OldHandshake,
     ChangedNativeRevision,
@@ -305,7 +312,7 @@ fn serve(
             .unwrap();
         let hello = read_frame(&mut socket);
         assert_eq!(hello.as_array().unwrap().len(), 6);
-        assert_eq!(hello[0], 3);
+        assert_eq!(hello[0], 4);
         assert_eq!(hello[1], "hello");
         assert_eq!(hello[5].as_str().unwrap().len(), 64);
         assert!(!hello.to_string().contains(SECRET));
@@ -324,7 +331,7 @@ fn serve(
                 | Mode::ChangedNativeRevision
                 | Mode::ChangedFinishBuild
         );
-        let caps = json!({"observe_gdscript":matches!(mode, Mode::Observation(_) | Mode::ObservationAt(_, _) | Mode::SourceCapableNoObserve),"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false,"edit_open_gdscript":native,"open_gdscript":false});
+        let caps = json!({"observe_gdscript":matches!(mode, Mode::Observation(_) | Mode::ObservationAt(_, _) | Mode::SourceCapableNoObserve),"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false,"edit_open_gdscript":native,"open_gdscript":false,"discover_gdscripts":false});
         let key = if matches!(mode, Mode::WrongSecret) {
             "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         } else {
@@ -332,7 +339,7 @@ fn serve(
         };
         let server_proof = match mode {
             Mode::Replay => {
-                "551fab39e1b856768c16a9722e38c9deb8c73a027220d1209a7c2c4653709d02".to_owned()
+                "59f272feb95a7ebc4c16d7ea642b0d8640bda97370abbba2a6e1a339bfaa5f02".to_owned()
             }
             Mode::MalformedProof => "XYZ".to_owned(),
             _ => proof(
@@ -346,14 +353,23 @@ fn serve(
                 key,
             ),
         };
-        let mut challenge = json!({"v":3,"kind":"challenge","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,"capabilities":caps,"native_api_revision":if native {2} else {0},"native_build_id":if native {NATIVE_BUILD_ID} else {""},"client_nonce":hello[5],"server_nonce":SERVER_NONCE,"server_proof":server_proof});
+        let mut challenge = json!({"v":4,"kind":"challenge","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,"capabilities":caps,"native_api_revision":if native {2} else {0},"native_build_id":if native {NATIVE_BUILD_ID} else {""},"client_nonce":hello[5],"server_nonce":SERVER_NONCE,"server_proof":server_proof});
         match mode {
             Mode::ChangedNativeBuild => challenge["native_build_id"] = json!("b".repeat(64)),
             Mode::ChangedCapability(name) => {
                 challenge["capabilities"][name] = json!(!caps[name].as_bool().unwrap());
             }
             Mode::ChangedNativeRevision => challenge["native_api_revision"] = json!(1),
-            Mode::OldHandshake => challenge["v"] = json!(2),
+            Mode::OldHandshake => challenge["v"] = json!(3),
+            Mode::MissingDiscovery => {
+                challenge["capabilities"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("discover_gdscripts");
+            }
+            Mode::ExtraCapability => challenge["capabilities"]["extra"] = json!(false),
+            Mode::WrongDiscoveryType => challenge["capabilities"]["discover_gdscripts"] = json!(0),
+            Mode::ChangedIdentity(name) => challenge[name] = json!("different-identity"),
             _ => {}
         }
         if matches!(mode, Mode::ChangedTranscript) {
@@ -362,10 +378,17 @@ fn serve(
         if matches!(mode, Mode::NullProof) {
             challenge["server_proof"] = Value::Null;
         }
-        if matches!(mode, Mode::DuplicateField) {
+        if matches!(mode, Mode::DuplicateField | Mode::DuplicateDiscovery) {
             let mut encoded = challenge.to_string();
-            encoded.pop();
-            encoded.push_str(",\"server_nonce\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"}");
+            if matches!(mode, Mode::DuplicateDiscovery) {
+                encoded = encoded.replace(
+                    "\"discover_gdscripts\":false",
+                    "\"discover_gdscripts\":false,\"discover_gdscripts\":false",
+                );
+            } else {
+                encoded.pop();
+                encoded.push_str(",\"server_nonce\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"}");
+            }
             socket
                 .write_all(&(encoded.len() as u32).to_be_bytes())
                 .unwrap();
@@ -384,6 +407,11 @@ fn serve(
                 | Mode::NullProof
                 | Mode::ChangedNativeBuild
                 | Mode::ChangedCapability(_)
+                | Mode::MissingDiscovery
+                | Mode::ExtraCapability
+                | Mode::WrongDiscoveryType
+                | Mode::DuplicateDiscovery
+                | Mode::ChangedIdentity(_)
                 | Mode::ChangedNativeRevision
                 | Mode::OldHandshake
         ) {
@@ -400,7 +428,7 @@ fn serve(
             thread::sleep(Duration::from_millis(350));
             return;
         }
-        let finish = json!({"v":3,"kind":"hello","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,"capabilities":caps,"native_api_revision":if native {2} else {0},"native_build_id":if native {NATIVE_BUILD_ID} else {""},"client_nonce":hello[5],"server_nonce":SERVER_NONCE,"finish_proof":proof(b"finish", &hello, &caps, SECRET)});
+        let finish = json!({"v":4,"kind":"hello","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,"capabilities":caps,"native_api_revision":if native {2} else {0},"native_build_id":if native {NATIVE_BUILD_ID} else {""},"client_nonce":hello[5],"server_nonce":SERVER_NONCE,"finish_proof":proof(b"finish", &hello, &caps, SECRET)});
         let mut finish = finish;
         if matches!(mode, Mode::ChangedFinish) {
             finish["capabilities"]["unsaved_paths"] = json!(true);
@@ -410,6 +438,9 @@ fn serve(
         }
         if matches!(mode, Mode::ChangedFinishCapability) {
             finish["capabilities"]["open_gdscript"] = json!(true);
+        }
+        if matches!(mode, Mode::ReflectedFinish) {
+            finish["finish_proof"] = json!(proof(b"server", &hello, &caps, SECRET));
         }
         frame(&mut socket, &finish);
         if let Mode::Observation(reply) | Mode::ObservationAt(_, reply) = mode {
@@ -421,7 +452,7 @@ fn serve(
             let observe = read_frame(&mut socket);
             assert_eq!(
                 observe,
-                json!([3, "observe", hello[2], hello[3], hello[4], path])
+                json!([4, "observe", hello[2], hello[3], hello[4], path])
             );
             match reply {
                 ObservationMode::Disconnect => return,
@@ -443,14 +474,14 @@ fn serve(
             ) {
                 frame(
                     &mut socket,
-                    &json!({"v":3,"kind":"failure","request_id":if matches!(reply, ObservationMode::WrongRequestDenial) { json!("different-request") } else { hello[2].clone() },"session_id":hello[3],"project_root":hello[4],"script_path":"res://scripts/subject.gd","code":"out_of_project","stage":"read_editor"}),
+                    &json!({"v":4,"kind":"failure","request_id":if matches!(reply, ObservationMode::WrongRequestDenial) { json!("different-request") } else { hello[2].clone() },"session_id":hello[3],"project_root":hello[4],"script_path":"res://scripts/subject.gd","code":"out_of_project","stage":"read_editor"}),
                 );
                 return;
             }
             if matches!(reply, ObservationMode::BuiltinUnknown) {
                 frame(
                     &mut socket,
-                    &json!({"v":3,"kind":"failure","request_id":hello[2],
+                    &json!({"v":4,"kind":"failure","request_id":hello[2],
                     "session_id":hello[3],"project_root":hello[4],"script_path":path,
                     "code":"unsupported_observation","stage":"read_editor"}),
                 );
@@ -758,7 +789,7 @@ fn serve(
                 let recheck = read_frame(&mut socket);
                 assert_eq!(
                     recheck,
-                    json!([3, "recheck", hello[2], hello[3], hello[4], path])
+                    json!([4, "recheck", hello[2], hello[3], hello[4], path])
                 );
                 if matches!(
                     reply,
@@ -784,7 +815,7 @@ fn serve(
                 ) {
                     frame(
                         &mut socket,
-                        &json!({"v":3,"kind":"failure","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":"res://scripts/subject.gd","code":"out_of_project","stage":"recheck"}),
+                        &json!({"v":4,"kind":"failure","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":"res://scripts/subject.gd","code":"out_of_project","stage":"recheck"}),
                     );
                     return;
                 }
@@ -851,7 +882,7 @@ fn serve(
                         "9007199254740994"
                     });
                 stamp["finished_tick_us"] = json!("9007199254740995");
-                let mut rechecked = json!({"v":3,"kind":"recheck","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":path,"collection":stamp,"checks":"performed","detected_changes":changes,"reason":null});
+                let mut rechecked = json!({"v":4,"kind":"recheck","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":path,"collection":stamp,"checks":"performed","detected_changes":changes,"reason":null});
                 if matches!(reply, ObservationMode::WrongRecheckRequest) {
                     rechecked["request_id"] = json!("another-request");
                 }
@@ -2740,7 +2771,7 @@ fn ipc_events_validate_target_identity_and_reject_claimed_success() {
         2
     )
     .is_err());
-    let failed = json!({"v":3,"request_id":request.request_id().as_str(),"kind":"failed",
+    let failed = json!({"v":4,"request_id":request.request_id().as_str(),"kind":"failed",
         "failure":{"outcome":"complete_observation","diagnostic":{"code":"invalid_frame","stage":"read_editor","surface":"session","message":"Bridge response was invalid","action":"Inspect the affected stage and authority before a new observation"},"selection":null}});
     assert!(wire::decode_event(failed.to_string().as_bytes(), &request, Some(&target), 1).is_err());
     let diagnostic = Diagnostic::new(
@@ -2863,7 +2894,7 @@ fn invalidated_worker_evidence_is_preserved_without_becoming_current_text() {
     let validity = sample["document"]["validity"].take();
     sample["document"]["validity"] = json!({"value":null,"collection":null,"reason":fact_reason,
         "invalidated_evidence":{"value":validity["value"],"collection":validity["collection"],"reason":fact_reason}});
-    let event = json!({"v":3,"request_id":request.request_id().as_str(),"kind":"sample","sample":{
+    let event = json!({"v":4,"request_id":request.request_id().as_str(),"kind":"sample","sample":{
         "collection":sample["collection"],"document":sample["document"],"R":sample["R"],"B":sample["B"],"dirty":sample["dirty"],"diagnostics":[]}});
     let decoded =
         wire::decode_event(event.to_string().as_bytes(), &request, Some(&selected), 100).unwrap();
@@ -2888,7 +2919,7 @@ fn invalidated_worker_evidence_is_preserved_without_becoming_current_text() {
 }
 
 #[test]
-fn actual_caller_completes_supported_peer_and_preserves_rechecked_partial_evidence() {
+fn false_discovery_capability_preserves_caller_observation_and_rechecked_partial_evidence() {
     // These peers test the real caller/worker pipeline, not Godot's R/B observability.
     for (mode, expected, exit) in [
         (ObservationMode::Stable, "complete_observation", 0),
@@ -2992,6 +3023,7 @@ fn native_capability_and_build_are_authenticated_before_selection() {
     let peer = attach(&fixture, ID1, Mode::ValidNative);
     let selected = fixture.resolve(Some(ID1), Duration::from_secs(2)).unwrap();
     assert!(selected.capabilities().edit_open_gdscript);
+    assert!(!selected.capabilities().discover_gdscripts);
     assert!(!selected.capabilities().open_gdscript);
     drop(selected);
     peer.join().unwrap();
@@ -3004,6 +3036,18 @@ fn native_capability_and_build_are_authenticated_before_selection() {
         Mode::ChangedCapability("cached_resource_lookup"),
         Mode::ChangedCapability("edit_open_gdscript"),
         Mode::ChangedCapability("open_gdscript"),
+        Mode::ChangedCapability("discover_gdscripts"),
+        Mode::MissingDiscovery,
+        Mode::ExtraCapability,
+        Mode::WrongDiscoveryType,
+        Mode::DuplicateDiscovery,
+        Mode::ChangedIdentity("session_id"),
+        Mode::ChangedIdentity("project_root"),
+        Mode::ChangedIdentity("godot_version"),
+        Mode::ChangedIdentity("engine_hash"),
+        Mode::ChangedIdentity("client_nonce"),
+        Mode::ChangedIdentity("server_nonce"),
+        Mode::ReflectedFinish,
         Mode::ChangedFinishCapability,
         Mode::OldHandshake,
         Mode::ChangedNativeRevision,
@@ -3030,7 +3074,7 @@ fn old_private_descriptor_cannot_negotiate_a_downgrade() {
     fixture.descriptor(ID1, socket.local_addr().unwrap().port());
     let path = fixture.registry.join(format!("{ID1}.json"));
     let mut descriptor: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-    descriptor["v"] = json!(2);
+    descriptor["v"] = json!(3);
     fs::write(path, serde_json::to_vec(&descriptor).unwrap()).unwrap();
     let failure = fixture
         .resolve(Some(ID1), Duration::from_secs(2))

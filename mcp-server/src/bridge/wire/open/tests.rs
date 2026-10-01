@@ -27,7 +27,7 @@ fn target() -> ResolvedTarget {
     .unwrap()
 }
 fn refused() -> Value {
-    json!({"v":3,"kind":"open_state","request_id":"open_boundary","session_id":"00112233445566778899aabbccddeeff","project_root":"/project","script_path":"res://subject.gd","collection":{"clock_id":"editor:00112233445566778899aabbccddeeff","started_tick_us":"1","finished_tick_us":"2","received_elapsed_us":0},"status":"refused","reason":"slot_busy","native":null,"sample":null,"cache":null,"resource_edited":null,"expiry_tick_us":null})
+    json!({"v":4,"kind":"open_state","request_id":"open_boundary","session_id":"00112233445566778899aabbccddeeff","project_root":"/project","script_path":"res://subject.gd","collection":{"clock_id":"editor:00112233445566778899aabbccddeeff","started_tick_us":"1","finished_tick_us":"2","received_elapsed_us":0},"status":"refused","reason":"slot_busy","native":null,"sample":null,"cache":null,"resource_edited":null,"expiry_tick_us":null})
 }
 fn parse(v: &Value) -> Result<Reply, RoutingFailure> {
     decode_reply(

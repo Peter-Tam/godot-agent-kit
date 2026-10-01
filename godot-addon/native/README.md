@@ -58,8 +58,12 @@ The loader checks the running engine version/full commit and executable SHA-256.
 `configure(session_id)` binds the actual project and existing 32-lowercase-hex
 bridge or owned-fixture session; `close()` and editor shutdown release state.
 Unmatched or missing binaries fail closed without changing observation.
-Bridge v3 authenticates seven capability bits and the installed native build.
-Editing and opening each require their matched complete family; public observation/edit stay v1.
+Bridge v4 authenticates eight capability bits and the installed native build.
+Editing and opening each require their matched complete family; public
+observation/edit/open stay v1. The read-only discovery scope owner does not
+require native mutation availability. Update Rust/addon peers together and
+restart the editor for v4; unchanged matched revision-2 native artifacts remain
+usable without a transport-only rebuild.
 
 The editor-local `godot_agent_kit_native` metadata exposes `configure`, `close`,
 `api_revision`, `build_id`, read-only `edit_inspect`, `edit_prepare`,
@@ -78,14 +82,15 @@ distinguish stage facts from independent verification.
 
 The native directory has `.gdignore`: the editor plugin loads its installed
 manifest explicitly through `GDExtensionManager`, while an unbuilt checkout
-remains observation-only. The existing export hook/preset exclusions prevent
+retains observation and read-only scope without native editing/opening. The
+existing export hook/preset exclusions prevent
 enabled, disabled and hook-only exports from including tooling/native artifacts
 or a dangling runtime extension dependency.
 
 ## Guarded caller integration
 
 Build `observe-gdscript` and `edit-gdscript` from `mcp-server/` with locked
-resolution. Re-enable the updated addon to create a new v3 session, obtain a
+resolution. Restart the editor with the updated addon to create a new v4 session, obtain a
 fresh observation, and submit the complete basis plus replacement source through
 stdin using the [caller contract](../../specs/002-edit-open-gdscript/contracts/edit-api.md).
 The caller owns validation supervision and a 9.5-second operation budget with
@@ -176,7 +181,7 @@ only admitted sources, checks the exact official binary and its loopback listene
 requires each URI's diagnostics before its shaped symbol response, discards all
 raw child output and owns teardown. Effective editor context must be freshly
 acquired and rechecked by the trusted integration through authenticated
-bridge-v3 ProjectSettings observations, not inferred from disk configuration.
+bridge-v4 ProjectSettings observations, not inferred from disk configuration.
 Unsupported context and incomplete evidence remain unavailable, not invalid or
 valid by omission. The stock endpoint's documented inherited limitation remains;
 private staging is context isolation, not an OS sandbox.
