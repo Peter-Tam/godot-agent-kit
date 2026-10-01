@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Six individually runnable public discovery acceptance groups (Feature 004 T002)."""
+"""Eight individually runnable public discovery acceptance groups (Feature 004 T003)."""
 from __future__ import annotations
 
 import argparse
@@ -19,7 +19,8 @@ from run_script_open import OpeningHarness
 from run_script_edit import STOCK_SHA256
 from discovery_live_cases import DiscoveryLiveCases
 
-SCENARIOS = ("inventory", "routing", "coverage", "interruption", "readonly", "privacy-export")
+SCENARIOS = ("inventory", "routing", "coverage", "interruption", "readonly",
+             "sequential", "composed", "privacy-export")
 FIXTURE = Path(__file__).parent / "fixtures/script_discovery"
 EXITS = {"complete_listing": 0, "limited_listing": 2, "refused": 3, "interrupted": 4}
 EXCLUSIONS = ["dot_names", "project_data_directory", "gdignore_subtrees", "nested_projects",
@@ -33,14 +34,15 @@ class DiscoveryHarness(DiscoveryLiveCases, OpeningHarness):
         self.discovery_requests = set()
         self.expected = {}
         self.source_markers.add(b"DISCOVERY_PRIVATE_SOURCE_BODY")
-        self.summary.update({"coverage_scope": "selected_discovery_group",
+        self.summary.update({"coverage_scope": ("complete_discovery_groups" if args.scenario == "all"
+                                               else "selected_discovery_group"),
                              "public_discover_gdscripts": True, "support_claim": False,
                              "discoverer_sha256": observation.digest(args.discoverer),
                              "driver_sha256": observation.digest(Path(__file__)),
                              "discovery_fixture_files": {str(path.relative_to(FIXTURE)): observation.digest(path)
                                                          for path in sorted(FIXTURE.rglob("*")) if path.is_file()},
                              "discovery_cases_sha256": observation.digest(Path(__file__).with_name("discovery_live_cases.py"))})
-        self.summary["product_opening_caller_acceptance"] = args.scenario in ("readonly", "interruption")
+        self.summary["product_opening_caller_acceptance"] = args.scenario in ("readonly", "interruption", "composed", "all")
         self.summary["acceptance_coverage"] = {
             "inventory": ["exact_100_scripts_10_folders", "native_visibility", "both_effective_data_modes",
                           "empty_and_hidden_only_empty", "source_independent_eligibility"],
@@ -56,6 +58,12 @@ class DiscoveryHarness(DiscoveryLiveCases, OpeningHarness):
                          "first_use_clean_fresh_observe_open_edit_and_dirty_refusal",
                          "existing_focused_history_save_reopen_reparse_rescan_runtime",
                          "ignored_deleted_known_document_observation"],
+            "sequential": ["twenty_fresh_complete_requests", "intentional_create_rename_remove_human_history",
+                           "independent_D_R_B_identity_versions_selection_unloaded",
+                           "controlled_access_limitations", "actual_prior_undo_redo", "delayed_no_effects"],
+            "composed": ["discovered_closed_locator_before_product_open",
+                         "complete_existing_A_E_dirty_different_equal_history_durability",
+                         "Save_close_reopen_reparse_rescan_runtime", "changed_removed_ended_known_documents"],
             "privacy-export": ["selected_unselected_source_credentials", "authorized_ambiguous_denied_interrupted",
                                "result_only_review", "enabled_disabled_hook_only_actual_exports"]}
 
@@ -148,6 +156,11 @@ class DiscoveryHarness(DiscoveryLiveCases, OpeningHarness):
         self.safe_log(name + ".json", stdout)
         result = json.loads(stdout)
         self.review_result(result, process.returncode, name)
+        requested_project, requested_session = process.discovery_binding
+        if result["requested_target"] is not None:
+            observation.require(result["requested_target"] ==
+                                {"project_root": requested_project, "session_id": requested_session},
+                                "independent_requested_locator_" + name)
         target = result["resolved_target"]
         if target is not None:
             requested_project, requested_session = process.discovery_binding
@@ -266,7 +279,7 @@ def main():
     for flag in ("godot", "discoverer", "observer", "opener", "editor", "stock-validator"):
         parser.add_argument("--" + flag, type=Path, required=True)
     parser.add_argument("--native-fault-addon", type=Path)
-    parser.add_argument("--scenario", choices=SCENARIOS, required=True)
+    parser.add_argument("--scenario", choices=("all",) + SCENARIOS, required=True)
     parser.add_argument("--artifacts", type=Path, required=True)
     args = parser.parse_args()
     os.umask(0o077)
@@ -282,7 +295,8 @@ def main():
         status = 0
         try:
             harness.initialize()
-            harness.group(args.scenario, getattr(harness, args.scenario.replace("-", "_")))
+            for scenario in SCENARIOS if args.scenario == "all" else (args.scenario,):
+                harness.group(scenario, getattr(harness, scenario.replace("-", "_")))
             harness.verify_incidental_redaction()
             harness.summary["status"] = "passed"
         except (observation.Failure, OSError, ValueError, KeyError, TypeError, EOFError, subprocess.SubprocessError) as error:

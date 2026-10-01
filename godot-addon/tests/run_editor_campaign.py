@@ -253,7 +253,8 @@ def _execute(command):
 
 
 def _run(args, root):
-    selected = [(args.suite, scenario) for scenario in SCENARIOS[args.suite]]
+    suites = RUNNERS if args.suite == "all" else (args.suite,)
+    selected = [(suite, scenario) for suite in suites for scenario in SCENARIOS[suite]]
     previous = _load(root) if args.resume else []
     steps = [{"suite": suite, "scenario": scenario, "status": "not_run", "exit_code": None,
               "fingerprint": None, "attempt_dir": None, "summary_path": None,
@@ -341,9 +342,7 @@ def main(argv=None):
     parser.add_argument("--keep-going", action="store_true")
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args(argv)
-    if args.suite == "all":
-        parser.error("full discovery acceptance is unavailable; select a task-owned suite explicitly")
-    for suite in (args.suite,):
+    for suite in (RUNNERS if args.suite == "all" else (args.suite,)):
         for name, path in _options(args, suite):
             if path is None or not path.is_absolute():
                 parser.error("--" + name.replace("_", "-") + " requires an absolute path")

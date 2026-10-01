@@ -1,6 +1,6 @@
 # Quickstart: Verify Safe Project GDScript Discovery
 
-**Status:** **T001 and T002 are complete**. Authenticated scope/v4 passed [T001 acceptance](#9-t001-scope-and-private-v4-acceptance-2026-10-01); `discover-gdscripts`, its confined inventory/core/worker and six public runner groups passed [T002 acceptance](#10-t002-public-caller-acceptance-2026-10-01). T003's repeated-use/cumulative discovery matrix and full discovery campaign remain pending. Feature 004 and Roadmap Phase 1 remain in progress.
+**Status:** **Feature 004 is complete: T001, T002 and T003 are complete.** Authenticated scope/v4 passed [T001 acceptance](#9-t001-scope-and-private-v4-acceptance-2026-10-01); the public caller passed [T002 acceptance](#10-t002-public-caller-acceptance-2026-10-01). [T003 cumulative acceptance](#11-t003-cumulative-acceptance-2026-10-01) passed all eight discovery groups and complete observation/edit/open suites. Completion is independent of PR state. Roadmap Phase 1 remains in progress because its separate lifecycle controls and exit gates are not delivered here.
 
 Use [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md), [caller v1](contracts/discovery-api.md) and [private bridge v4](contracts/bridge-protocol.md). No successful process exit, nonempty list or editor acknowledgment proves complete discovery.
 
@@ -126,7 +126,7 @@ python3 godot-addon/tests/run_script_discovery.py \
   --scenario inventory --artifacts "$DISCOVERY_ARTIFACTS"
 ```
 
-All paths are absolute. The runner owns actual public caller invocation, final result parsing, elapsed-time measurement and independent witnesses. The current six individually runnable groups are `inventory`, `routing`, `coverage`, `interruption`, `readonly`, and `privacy-export`. T003 will add `sequential`, `composed` and `--scenario all`; those names are deliberately unavailable now. The `readonly` group already includes first-use discovery → observation → opening → fresh editing, dirty refusal, history and durability smoke; it is not the additional cumulative matrix.
+All paths are absolute. The runner owns actual public caller invocation, final result parsing, elapsed-time measurement and independent witnesses. Its eight individually runnable groups are `inventory`, `routing`, `coverage`, `interruption`, `readonly`, `sequential`, `composed`, and `privacy-export`. `--scenario all` executes each once, serially. The `readonly` group retains first-use composition; `sequential` adds 25 fresh discoveries across five human-state profiles, and `composed` uses discovery before the complete existing opening/edit A–E matrix. Nested composed records remain owned by that group, not counted again as separate discovery groups.
 
 | Group | Coverage | Observable proof |
 |---|---|---|
@@ -173,7 +173,7 @@ For non-interference, independently witness D/R/B, buffer/resource identity, dir
 
 During development, run the affected discovery group and directly affected regressions first. For final feature acceptance, the v4 authenticated cutover affects all existing callers, so run complete discovery, observation, edit and opening suites serially on the same unchanged implementation head with separate private artifacts. Preserve failed/incomplete evidence; do not relabel focused passes as the full gate.
 
-**After implementation**, the complete discovery invocation is the command in §4 with `--scenario all` and a fresh directory. Existing full suites use:
+The complete discovery invocation is the command in §4 with `--scenario all` and a fresh directory. Existing full suites use:
 
 ```sh
 python3 godot-addon/tests/run_observation.py \
@@ -192,7 +192,7 @@ python3 godot-addon/tests/run_script_open.py \
   --scenario all --artifacts "$OPEN_ARTIFACTS"
 ```
 
-Each named artifact variable must be a new empty mode-0700 directory. The existing [campaign utility](../../.github/README.md#focused-validation-and-resumable-campaigns) wraps individual suites. `--suite discovery` with `--discoverer` executes the six current groups and fingerprints their actual inputs; it does not claim the pending cumulative feature gate. `--suite all` explicitly refuses until that full discovery campaign is available. Use separate `--suite observation`, `edit`, and `open` campaigns for the existing full suites. No separate workflow or approval service is introduced.
+Each named artifact variable must be a new empty mode-0700 directory. The existing [campaign utility](../../.github/README.md#focused-validation-and-resumable-campaigns) wraps individual groups. `--suite discovery` with `--discoverer` executes all eight groups and fingerprints their actual inputs. `--suite all` runs the complete opening, edit, observation and discovery suites serially; it requires all four callers, the stock validator and the separate fault-native bundle. `--resume` reuses only unchanged, intact passing evidence and gives rerun groups fresh artifact directories. No separate workflow or approval service is introduced.
 
 The composed workflow must independently preserve applicable A–E and Save/close-reopen/reparse/rescan/runtime behavior. Runtime launch, source preparation, Save and history interactions belong only to authorized fixtures and the existing guarantees, not new product controls. Document substantive inapplicability; missing access is not passing evidence.
 
@@ -443,3 +443,153 @@ Normal/fault native build IDs remain those recorded in §9. The runners cleaned
 up their owned workers/editors/runtime projects; the owned desktop-awake process
 was stopped and reaped. Evidence remains outside version control. No extension
 pre/post hooks were configured.
+
+## 11. T003 cumulative acceptance (2026-10-01)
+
+**T003 and Feature 004 are complete.** The unfiltered final-head runs below,
+result-only review and [implementation-shape/constitutional review](plan.md#t003-implementation-shape-and-constitutional-review-2026-10-01)
+satisfy the feature gate. Phase 1 remains in progress; no next task or feature
+is selected by this execution.
+
+### Accepted final-head gate
+
+All accepted suites ran serially using §4/§6 commands, separate fresh private
+artifact directories and unchanged implementation inputs. Each command used
+`--scenario all`; no focused subset replaced a complete suite. The final
+provenance check matched all **106 recorded runtime source inputs** and all
+four caller binaries across the accepted runs. Per-operation deadlines were
+unchanged; the outer orchestration command had no deadline.
+
+| Complete suite | Evidence records | Public results | Maximum recorded call |
+|---|---:|---|---:|
+| Discovery | **429** | **158 discovery results** | **4.507 s** |
+| Observation | **271** | Complete existing observation groups | **4.637 s** |
+| Edit/native | **408** | **114 edit results** | **9.558 s** |
+| Opening | **664** | **187 opening results** | **9.511 s** |
+
+Discovery's eight top-level groups ran exactly once: inventory **10**,
+routing **17**, coverage **45**, interruption **55**, readonly **33**,
+sequential **30**, composed **229**, privacy/export **8** records, plus two
+bootstrap records. The composed group's nested records are already included,
+not counted again. Record counts are not counts of distinct user scenarios.
+The 158 discovery invocations had distinct request IDs: **80 complete,
+32 limited, 23 refused and 23 interrupted**. Each result was interpreted for
+target, scope, coverage, usable/earlier entries, missing checks/reasons and
+safe next action before comparison with independent witnesses.
+
+The exact stable inventories were **150 hidden-data / 149 visible-data paths**,
+including all visible installed tooling and the 100-script/ten-folder catalog.
+Both complete-empty controls passed. All 17 story scenarios, FR-001–FR-017,
+SC-001–SC-006 and seven edge cases retain their mapped evidence across the
+eight groups and deterministic boundary tests. Repeated-use freshness,
+confined routing/refusal, truthful gaps/interruption and unchanged
+known-document observation passed without discovery acquiring source or
+performing editor lifecycle actions.
+
+The discovery-selected workflow passed existing A–E, dirty-different/equal
+refusals, actual Undo/Save/Redo/Save and prior-history reachability,
+close/reopen/cache-consumer persistence, reparse/rescan and owned runtime
+behavior. The complete old suites passed their same guarantees. Selected,
+other-project, source and credential sentinel checks passed. Enabled,
+disabled and hook-only exports were inspected and executed: no active kit or
+fixture tooling in packs, runtime exit **0**, and **zero observed listeners**
+in all three modes. Final-head owned-window captures were inspected.
+
+### Focused development and regression proof
+
+The new `sequential` group passed **32 records / 25 public discoveries**:
+**20 complete** listings and **five controlled access-limited** listings,
+maximum **0.107 s**. Each clean, dirty, equal-text-dirty, divergent and
+non-selected profile exercised baseline/create/rename/remove/access-gap states.
+Independent immediate and delayed witnesses preserved D/R/B, identities,
+current/saved versions, dirty state, selection, unrelated work and an unloaded
+script. Actual prior native history remained reachable.
+
+The corrected focused `composed` group passed **231 records / 24 public
+discoveries**, maximum **0.134 s**, with **21 public opening** and **55 public
+edit** results. Discovery preceded target preparation in the reused full A–E
+matrix. Owned captures showed the durable revision 23 and the sequential
+reopened revision 319, with unrelated unsaved work retained. These focused
+counts are separate development evidence, not additions to cumulative totals.
+
+Two fixture corrections were required:
+
+1. The first composed run completed its A–E groups but expected only
+   `editor_unavailable` from the final ended-session opener. The actual
+   `refused/session_ended` result is permitted by the unchanged opening
+   contract. The fixture now accepts that existing distinction; discovery
+   retains its own `editor_unavailable` reason. No product behavior changed.
+2. The first unfiltered discovery run reached the post-composition
+   known-document controls, then returned a private `discovery_oracle`
+   refusal. The discovery fixture selected a handler from one read of
+   `request.json` and delegated by reading the file again. A newer request
+   could therefore reach the lower-level handler. The opening fixture now
+   parses once; discovery overrides its private parsed-request dispatcher
+   and forwards the same snapshot, matching the existing native/base pattern.
+   No retry, delay, product opcode or second parser was added.
+
+A throwaway owned-editor probe forced the exact request-file replacement
+between handler selection and inherited dispatch. The old fixture refused
+the replacement discovery action; the corrected fixture handled it and
+returned the actual path/scan/import/settings-directory oracle fields.
+The previously failed known-document sequence then passed with uninstrumented
+current fixtures. The probe made **zero product discovery invocations** and
+is not product acceptance. Its temporary script and projects were removed;
+the before/after evidence is retained.
+
+The first concurrent Rust baseline exceeded an existing opening test's
+external ten-second assertion while campaign/workflow subprocess checks were
+also running. The same isolated test passed unchanged, followed by the full
+locked suite with `-- --test-threads=1`: **305 tests**, including the doctest
+phase, passed. The cause of the initial timing failure was not established;
+no deadline or product behavior was relaxed. Formatting, warnings-denied
+Clippy, rustdoc and locked library/four-caller/validator-example builds passed.
+**21 campaign tests** and **22 workflow tests** passed. Actual `--suite all`
+invocation without `--discoverer` refused before creating artifacts or
+executing a runner.
+
+Failed `composed-smoke` and `discovery-all` runs remain failures, not cumulative
+acceptance. The latter stopped the serial command chain before observation,
+edit or opening started. Evidence lives under
+`/Users/petertam/.godot-agent-kit-discovery-T003-rvoe_4cp`; these local paths
+identify this run, not contributor prerequisites.
+
+The first complete edit run stopped at the existing `mismatch_mtime` case's
+six-second `content_persisted` fixture barrier, before a terminal caller result
+was captured. Its cause was not established. The affected `interruption` group
+then passed unchanged: **39 records**, maximum timed call **9.547 s**. Neither
+the fixture wait nor the public deadline was relaxed. That failed `edit-all`
+run is retained separately; it did not start the following opening suite.
+
+### Provenance, support and limits
+
+| Accepted summary | SHA-256 |
+|---|---|
+| `discovery-all-final/summary.json` | `d492ad918f4d5735e6230d1097a25ba3023348fbb72df4a000cf30ddc06d6e8f` |
+| `observation-all/summary.json` | `2aa5067f910d36e1675279def7a4384ae6cebe2afee8d98f107e6c5c9a82dd57` |
+| `edit-all-final/summary.json` | `7dc9ac5eb6be24864e1822a3e8cac9524e404177666495dabcf5a07e073f9ed9` |
+| `opening-all/summary.json` | `c79ec51cb5b2f623c02dba9193231d512a2c4cbff89a9220cd742cb37b434f68` |
+
+The exact §1 official Godot 4.7.2 executable, macOS **26.6.2 arm64**,
+Rust **1.98.1** and Python **3.10.9** were exercised. Normal native build ID
+`836fdbd72f7bb176d76d8b029f4a34dabdcbccc1c4215fb2b6360a80ba6acea2`
+and separate fault build ID
+`0a9080929dd046f360f5d11824f319283548b8e2de4dde99980bf1d9a80b0a9a`
+were reused after checking every recorded source, generated API/ABI/header
+and library hash. No native source, ABI or build mechanism changed.
+`build-provenance.json` records those checks, caller/source hashes, accepted
+summaries, inspected images and retained failures; `full-acceptance-commands.json`
+records executable commands. `discovery-all-final/discovery-result-review.json`
+records all 158 result-only interpretations.
+
+The optional hosted GUI workflow remains edit/observation-only. Local owned
+real-editor runs supply this cumulative evidence; no unexecuted CI or wider
+version/platform claim is made. The case-insensitive APFS and non-UTF8
+representation limitations in §10 remain explicit, not fabricated passes.
+Discovery remains bounded interval evidence, not an atomic snapshot, source
+revision or later edit permission. Independent close/Save/history controls
+and the remaining Phase 1 exit assessment are out of scope.
+
+The runners completed owned cleanup; the temporary dispatch probe was removed,
+and the owned desktop-awake process was stopped and reaped. Evidence remains
+outside version control. No extension pre/post hooks were configured.
