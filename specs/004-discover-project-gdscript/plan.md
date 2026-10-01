@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/004-discover-project-gdscript/spec.md`, including the accepted Godot project-file visibility clarification.
 
-**Status:** Design, granularity/coverage and post-task consistency analysis passed; merged [planning PR #46](https://github.com/Peter-Tam/godot-agent-kit/pull/46) records analysis of `e7fb197af058c230751e59b2f05c3373adbfbf3b`. **T001 and T002 are complete**, with [scope acceptance](quickstart.md#9-t001-scope-and-private-v4-acceptance-2026-10-01), [public caller/full affected-suite acceptance](quickstart.md#10-t002-public-caller-acceptance-2026-10-01) and the implementation-shape/constitutional reviews below. T003's cumulative discovery gate remains pending; Feature 004 and Phase 1 are not complete.
+**Status:** Design, granularity/coverage and post-task consistency analysis passed; merged [planning PR #46](https://github.com/Peter-Tam/godot-agent-kit/pull/46) records analysis of `e7fb197af058c230751e59b2f05c3373adbfbf3b`. **T001, T002 and T003 are complete; Feature 004 is complete**, with [scope acceptance](quickstart.md#9-t001-scope-and-private-v4-acceptance-2026-10-01), [public caller acceptance](quickstart.md#10-t002-public-caller-acceptance-2026-10-01), [cumulative acceptance](quickstart.md#11-t003-cumulative-acceptance-2026-10-01) and the implementation-shape/constitutional reviews below. Phase 1 remains in progress; separate lifecycle controls and phase exit gates are not delivered here.
 
 ## Summary
 
@@ -117,7 +117,7 @@ specs/004-discover-project-gdscript/
     └── bridge-protocol.md
 ```
 
-[tasks.md](tasks.md) derives three coherent increments: the authenticated read-only editor-scope/v4 boundary, the complete public caller with all inseparable story safety, and cumulative repeated-use/composed acceptance. Tests/docs remain bundled with their owners; US2/US3 retain independent story phases without unsafe later safety PRs. Granularity/coverage and subsequent consistency analysis passed. This execution selects only T002, after T001's completed acceptance and merged PR #47; T003 is not authorized by it.
+[tasks.md](tasks.md) derives three coherent increments: the authenticated read-only editor-scope/v4 boundary, the complete public caller with all inseparable story safety, and cumulative repeated-use/composed acceptance. Tests/docs remain bundled with their owners; US2/US3 retain independent story phases without unsafe later safety PRs. Granularity/coverage and subsequent consistency analysis passed. This execution selects only T003, after T002's completed acceptance and merged PR #48; no later feature or Phase 1 lifecycle capability is authorized.
 
 ### Source Code (repository root)
 
@@ -298,3 +298,61 @@ permitted interrupted evidence remains explicitly earlier. [Runtime acceptance](
 passed all six task-owned discovery groups and complete affected existing
 suites. Together with this shape review, it completes T002 only; T003's
 cumulative discovery/feature gate remains pending.
+
+## T003 implementation-shape and constitutional review (2026-10-01)
+
+This task changes acceptance orchestration and private fixtures, not production
+semantics, public declarations, protocol versions, native ABI or dependencies.
+
+- `run_script_discovery.py` retains caller invocation, result interpretation and
+  top-level dispatch. Its eight-group tuple is the campaign's single source of
+  runnable discovery groups; `all` dispatches those groups once rather than
+  becoming a ninth group.
+- `discovery_live_cases.py` retains scenario preparation and independent
+  assertions. The repeated-use sequence changes inventory and human history
+  deliberately before each request's baseline, then compares immediate and
+  delayed source/identity/dirty/selection/unloaded witnesses. The composed
+  fixture seam selects a returned closed locator before reusing the existing
+  opening and complete edit A–E definitions. It does not copy those suites or
+  introduce a second definition of coherence.
+- The discovery `fixture_driver.gd` adds an owned human Undo/Redo control that
+  preserves tab selection. The cumulative run also exposed duplicate control-file
+  reads during inherited dispatch: a newer discovery request could reach the
+  lower-level dispatcher instead of the discovery handler. The shared opening
+  fixture now parses once and dispatches that snapshot through the private
+  override, matching the existing native/base fixture pattern. This removes
+  duplicate reading/parsing rather than adding retries or a dispatcher framework.
+  These remain fixture controls, not product methods; existing export exclusions
+  remain authoritative.
+- `run_editor_campaign.py` retains serial execution and evidence ownership.
+  Full-suite selection expands the existing runner/group mapping; discovery's
+  nested composed evidence stays with its owning runner and is not scheduled
+  or counted as additional campaign steps. Existing input fingerprints,
+  private artifact directories, interruption cleanup and resume checks are
+  reused, not replaced by another orchestration layer.
+- No production responsibility or visibility expands. The scoped composition
+  switch controls fixture preparation only; it does not model a product
+  lifecycle. No speculative variants, public hooks, recoverable-evidence
+  panics or generic framework are introduced.
+
+**Principle XIII:** US4.2/SC-004 require repeated fresh discovery amid deliberate
+inventory and human changes; US4.3/SC-005 and T003 require the full composed
+coherence matrix. Repeating an unchanged listing or relying on T002's first-use
+smoke cannot prove those transitions. Extending the current scenario owner and
+reusing the existing A–E helpers adds only task-required assertions and fixture
+controls. The existing campaign already supplies serial execution and trustworthy
+resume, so no new service, workflow, approval mechanism or operational prerequisite
+is justified.
+
+**Constitutional review:** Inventory remains location evidence, never D/R/B or
+edit authority. Human activity, Save/history and runtime launch remain explicit
+fixture/existing-operation actions. Authentication, confinement, source privacy,
+native editing semantics and export isolation are unchanged. Fresh unfiltered
+discovery, observation, edit and opening suites passed on unchanged runtime
+inputs, including actual history/durability, privacy and all three exports.
+[T003 acceptance](quickstart.md#11-t003-cumulative-acceptance-2026-10-01) records
+429 / 271 / 408 / 664 respective evidence records, the deterministic fixture
+dispatch regression, exact provenance, retained failed runs and verified limits.
+This evidence and the proportionate shape review complete T003 and Feature 004,
+independently of delivery review/merge. No Phase 1 completion or next feature
+is implied.

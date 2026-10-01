@@ -29,7 +29,8 @@ EXPECTED_SCENARIOS = {
     "edit": ("native-primitives", "clean-open", "conflicts", "routing", "interruption",
              "validation", "history", "durability", "sequential", "privacy-export"),
     "observation": ("all",),
-    "discovery": ("inventory", "routing", "coverage", "interruption", "readonly", "privacy-export"),
+    "discovery": ("inventory", "routing", "coverage", "interruption", "readonly",
+                  "sequential", "composed", "privacy-export"),
 }
 
 
@@ -80,6 +81,10 @@ with open(os.environ["CAMPAIGN_TRACE"], "a") as trace:
     trace.write(json.dumps(record) + "\n")
 summary = {"status": plan.get("status", "passed"),
            "private_source": os.environ["CAMPAIGN_SECRET"]}
+if suite == "discovery" and args.scenario == "composed":
+    # Nested evidence is retained by its owning runner, not a second campaign step.
+    summary["groups"] = {"edit": {"cases": [{"name": "clean-open", "status": "passed"}]},
+                         "open": {"cases": [{"name": "new-open", "status": "passed"}]}}
 (args.artifacts / "summary.json").write_text(json.dumps(summary))
 (args.artifacts / "retained.txt").write_text(key)
 if plan.get("mutate"):
@@ -158,7 +163,8 @@ class CampaignTests(unittest.TestCase):
         (self.directory / "manifest.json").write_text(json.dumps(value))
 
     def expected(self, suite="discovery"):
-        return [(suite, scenario) for scenario in EXPECTED_SCENARIOS[suite]]
+        suites = EXPECTED_SCENARIOS if suite == "all" else (suite,)
+        return [(name, scenario) for name in suites for scenario in EXPECTED_SCENARIOS[name]]
 
     def outcome(self, suite, scenario, **values):
         self.plan.write_text(json.dumps({suite + ":" + scenario: values}))
@@ -326,7 +332,91 @@ class CampaignTests(unittest.TestCase):
         self.assertEqual([step["execution"] for step in steps], ["executed"] * len(previous))
         self.assertTrue(all(step["attempt_dir"] != old for step, old in zip(steps, previous)))
 
-    def test_unavailable_full_campaign_refuses_before_any_execution(self):
+    def test_changed_discovery_fixture_invalidates_full_campaign_resume(self):
+        fixture = self.repo / "godot-addon/tests/fixtures/script_discovery/fixture_driver.gd"
+        fixture.parent.mkdir(parents=True)
+        fixture.write_text("original discovery fixture")
+        self.assertEqual(self.invoke("all", real_fingerprint=True)[0], 0)
+        before = self.records()
+        previous = {(step["suite"], step["scenario"]): step["attempt_dir"]
+                    for step in self.manifest()["steps"]}
+        fixture.write_text("changed discovery fixture")
+        self.assertEqual(self.invoke("all", "--resume", real_fingerprint=True)[0], 0)
+        self.assertEqual([(record["suite"], record["scenario"])
+                          for record in self.records()[len(before):]], self.expected())
+        for step in self.manifest()["steps"]:
+            key = (step["suite"], step["scenario"])
+            self.assertEqual(step["execution"], "executed" if step["suite"] == "discovery" else "reused")
+            self.assertEqual(step["attempt_dir"] == previous[key], step["suite"] != "discovery")
+
+    def test_full_campaign_executes_complete_suites_once_without_flattening_nested_evidence(self):
+        result, output = self.invoke("all")
+        self.assertEqual(result, 0)
+        expected = self.expected("all")
+        records = self.records()
+        self.assertEqual([(record["suite"], record["scenario"]) for record in records], expected)
+        steps = self.manifest()["steps"]
+        self.assertEqual([(step["suite"], step["scenario"]) for step in steps], expected)
+        self.assertEqual(output.splitlines(), [
+            f"PASS {suite}/{scenario} (passed)" for suite, scenario in expected])
+        for record in records:
+            self.assertTrue(record["empty"])
+            self.assertEqual(record["mode"], 0o700)
+        composed = next(step for step in steps
+                        if (step["suite"], step["scenario"]) == ("discovery", "composed"))
+        summary = json.loads((self.directory / composed["summary_path"]).read_text())
+        self.assertEqual(summary["groups"]["edit"]["cases"],
+                         [{"name": "clean-open", "status": "passed"}])
+        self.assertEqual(summary["groups"]["open"]["cases"],
+                         [{"name": "new-open", "status": "passed"}])
+
+    def test_full_campaign_interruption_resumes_only_unfinished_groups_in_fresh_attempts(self):
+        self.outcome("discovery", "sequential", signal=15)
+        self.assertNotEqual(self.invoke("all", "--keep-going")[0], 0)
+        expected = self.expected("all")
+        interrupted_index = expected.index(("discovery", "sequential"))
+        before = self.records()
+        self.assertEqual([(record["suite"], record["scenario"]) for record in before],
+                         expected[:interrupted_index + 1])
+        checkpoint = self.manifest()["steps"]
+        interrupted = checkpoint[interrupted_index]
+        self.assertEqual(interrupted["status"], "interrupted")
+        old_attempt = self.directory / interrupted["attempt_dir"]
+        old_summary = (old_attempt / "summary.json").read_bytes()
+        self.assertTrue(all(step["status"] == "not_run"
+                            for step in checkpoint[interrupted_index + 1:]))
+        self.plan.write_text("{}")
+        self.assertEqual(self.invoke("all", "--resume")[0], 0)
+        resumed = self.records()[len(before):]
+        self.assertEqual([(record["suite"], record["scenario"]) for record in resumed],
+                         expected[interrupted_index:])
+        self.assertNotEqual(Path(resumed[0]["attempt"]), old_attempt)
+        self.assertEqual((old_attempt / "summary.json").read_bytes(), old_summary)
+        steps = self.manifest()["steps"]
+        self.assertTrue(all(step["execution"] == "reused" for step in steps[:interrupted_index]))
+        self.assertTrue(all(step["execution"] == "executed" for step in steps[interrupted_index:]))
+        self.assertTrue(all(step["status"] == "passed" for step in steps))
+
+    def test_full_campaign_changed_discoverer_reruns_only_discovery(self):
+        self.assertEqual(self.invoke("all", real_fingerprint=True)[0], 0)
+        before = self.records()
+        previous = {(step["suite"], step["scenario"]): step["attempt_dir"]
+                    for step in self.manifest()["steps"]}
+        self.inputs["discoverer"].write_text("different discovery executable")
+        self.assertEqual(self.invoke("all", "--resume", real_fingerprint=True)[0], 0)
+        self.assertEqual([(record["suite"], record["scenario"])
+                          for record in self.records()[len(before):]], self.expected("discovery"))
+        for step in self.manifest()["steps"]:
+            key = (step["suite"], step["scenario"])
+            if step["suite"] == "discovery":
+                self.assertEqual(step["execution"], "executed")
+                self.assertNotEqual(step["attempt_dir"], previous[key])
+            else:
+                self.assertEqual(step["execution"], "reused")
+                self.assertEqual(step["attempt_dir"], previous[key])
+
+    def test_full_campaign_requires_discovery_inputs_before_execution(self):
+        self.inputs["discoverer"].unlink()
         with self.assertRaises(SystemExit) as rejected:
             self.invoke("all")
         self.assertEqual(rejected.exception.code, 2)
@@ -448,6 +538,8 @@ class FingerprintTests(unittest.TestCase):
                 baseline = {suite: campaign.fingerprint(args, suite, scenario)
                             for suite, scenario in (("open", "new-open"), ("edit", "clean-open"),
                                                     ("discovery", "inventory"))}
+                discovery_baseline = {scenario: campaign.fingerprint(args, "discovery", scenario)
+                                      for scenario in ("inventory", "sequential", "composed")}
                 self.assertRegex(baseline["open"], r"^[0-9a-f]{64}$")
                 self.assertEqual(campaign.fingerprint(args, "open", "new-open"), baseline["open"])
                 for path in paths:
@@ -459,6 +551,10 @@ class FingerprintTests(unittest.TestCase):
                         original = path.read_bytes()
                         path.write_bytes(original + b" mutation")
                         self.assertNotEqual(campaign.fingerprint(args, suite, scenario), baseline[suite])
+                        for discovery_scenario, identity in discovery_baseline.items():
+                            with self.subTest(discovery_scenario=discovery_scenario):
+                                self.assertNotEqual(campaign.fingerprint(
+                                    args, "discovery", discovery_scenario), identity)
                         path.write_bytes(original)
                 for relative in ("README.md", "docs/maintenance.md", "godot-addon/tests/README.md",
                                  "godot-addon/addons/godot_agent_kit/README.md",
@@ -467,6 +563,8 @@ class FingerprintTests(unittest.TestCase):
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_text("docs do not affect editor execution")
                 self.assertEqual(campaign.fingerprint(args, "open", "new-open"), baseline["open"])
+                for discovery_scenario, identity in discovery_baseline.items():
+                    self.assertEqual(campaign.fingerprint(args, "discovery", discovery_scenario), identity)
 
 
 if __name__ == "__main__":

@@ -774,6 +774,177 @@ class DiscoveryLiveCases:
             observation.require(self.open_state(editor, project) == (before, disks),
                                 "discovered_dirty_refusal_preserves_text_identity_history")
 
+    def sequential(self):
+        first_call = len(self.discovery_requests)
+        for mode in ("clean", "dirty", "equal_dirty", "divergent", "nonselected"):
+            with self.live("sequence-" + mode) as (project, editor, descriptor):
+                self.action(editor, "prepare_subject")
+                if mode in ("dirty", "divergent", "nonselected"):
+                    self.action(editor, "dirty_subject")
+                if mode == "equal_dirty":
+                    self.open_action(editor, "open_mutate", mutation="dirty_disk_equal", path=TARGET)
+                    history = None
+                else:
+                    history = self.action(editor, "seed_sequence_history")["history"]
+                self.action(editor, "scope_selection")
+                self.action(editor, "prepare_other")
+                self.action(editor, "dirty_other")
+                if mode != "nonselected":
+                    self.action(editor, "prepare_subject")
+                if mode in ("clean", "equal_dirty"):
+                    self.native_action(editor, "native_idle")
+                if mode == "clean":
+                    self.open_action(editor, "discovery_history_step", operation="undo")
+                    self.native_action(editor, "native_idle")
+                elif mode == "divergent":
+                    self.action(editor, "resource_subject")
+                initial = self.action(editor, "witness")
+                _, disks = self.open_state(editor, project)
+                doc = initial["subject"]
+                if mode in ("clean", "equal_dirty"):
+                    observation.require(doc["R"] == doc["B"] == disks["target"]["text"] and
+                                        doc["dirty"] == (mode == "equal_dirty"),
+                                        "sequence_independent_clean_or_equal_dirty_" + mode)
+                elif mode == "divergent":
+                    observation.require(doc["dirty"] and len({doc["R"], doc["B"], disks["target"]["text"]}) == 3,
+                                        "sequence_independent_three_authorities")
+                else:
+                    observation.require(doc["dirty"] and doc["B"] != disks["target"]["text"],
+                                        "sequence_independent_human_work_" + mode)
+                observation.require(initial["other"]["dirty"] and
+                                    (initial["current_script"] == TARGET) == (mode != "nonselected"),
+                                    "sequence_independent_nonselected_work_" + mode)
+                self.add_script(project, "scripts/sequence-never-loaded.gd")
+                unloaded_path = "res://scripts/sequence-never-loaded.gd"
+                unloaded = self.open_action(editor, "discovery_unloaded", path=unloaded_path)
+                observation.require(not unloaded["cached"] and unloaded_path not in unloaded["open_paths"],
+                                    "sequence_actual_unloaded_" + mode)
+                capture = self.screenshot(editor, "sequential-" + mode + "-before.png")
+                human_operations = (("redo", "redo", "undo") if mode == "clean" else
+                                    ("undo", "redo", "undo") if mode == "equal_dirty" else
+                                    ("redo", "undo", "redo"))
+                previous_text = initial["subject"]["B"]
+                created = project / "scripts/sequence-created.gd"
+                renamed = created.with_name("sequence-renamed.gd")
+                # Inventory and human history transitions happen before each
+                # baseline witness, never inside the discovery interval.
+                for index, activity in enumerate(("baseline", "create", "rename", "remove", "access-gap")):
+                    human_operation = None
+                    if activity == "create":
+                        self.add_script(project, "scripts/sequence-created.gd")
+                    elif activity == "rename":
+                        created.rename(renamed)
+                        self.expected[project].remove("res://scripts/sequence-created.gd")
+                        self.expected[project].add("res://scripts/sequence-renamed.gd")
+                    elif activity == "remove":
+                        renamed.unlink()
+                        self.expected[project].remove("res://scripts/sequence-renamed.gd")
+                    if 0 < index < 4:
+                        human_operation = human_operations[index - 1]
+                        changed = self.open_action(editor, "discovery_history_step", operation=human_operation)["document"]
+                        observation.require(changed["B"] != previous_text,
+                                            "sequence_real_human_buffer_transition_" + mode + "_" + activity)
+                        if mode in ("clean", "equal_dirty"):
+                            self.native_action(editor, "native_idle")
+                    previous_text = self.action(editor, "witness")["subject"]["B"]
+                    gap = project / "scripts/sequence-inaccessible.gd"
+                    if activity == "access-gap":
+                        gap.write_text("extends RefCounted\n")
+                        gap.chmod(0)
+                    try:
+                        before = self.action(editor, "witness")
+                        state, disk = self.open_state(editor, project)
+                        cold = self.open_action(editor, "discovery_unloaded", path=unloaded_path)
+                        name = "sequential_" + mode + "_" + activity
+                        result = self.discover(project, descriptor, name,
+                                               outcome="limited_listing" if activity == "access-gap" else "complete_listing",
+                                               reason="entry_unreadable" if activity == "access-gap" else None,
+                                               expected=self.expected[project])
+                        slot_free(self, editor)
+                        after = self.action(editor, "witness")
+                        now, saved = self.open_state(editor, project)
+                        observation.require(before == after and state == now and disk == saved and
+                                            cold == self.open_action(editor, "discovery_unloaded", path=unloaded_path),
+                                            "sequence_independent_immediate_no_effect_" + name)
+                        time.sleep(0.25)
+                        observation.require(self.action(editor, "witness") == before and
+                                            self.open_state(editor, project) == (state, disk) and
+                                            self.open_action(editor, "discovery_unloaded", path=unloaded_path) == cold,
+                                            "sequence_independent_delayed_no_effect_" + name)
+                        evidence = self.artifacts / (name + "-witness.json")
+                        observation.json_file(evidence, {
+                            "request_id": result["request_id"], "interval": result["interval"],
+                            "fixture_activity": activity, "human_history_operation": human_operation,
+                            "before": self.concise_open_state(state, disk),
+                            "after": self.concise_open_state(now, saved), "unloaded": cold,
+                            "expected_paths": sorted(self.expected[project])})
+                        self.cases[-1].update(witness=str(evidence.resolve()))
+                    finally:
+                        if activity == "access-gap":
+                            gap.chmod(0o600)
+                            gap.unlink()
+                if mode == "equal_dirty":
+                    # Last deliberate undo leaves the older human version.
+                    self.open_action(editor, "discovery_history_step", operation="redo")
+                    steps = []
+                    for operation in ("undo", "undo", "redo", "redo"):
+                        steps.append(self.open_action(editor, "discovery_history_step", operation=operation)["document"]["B"])
+                    observation.require(steps[0] != initial["subject"]["B"] and steps[0] == steps[2] and
+                                        steps[1] == steps[3] == initial["subject"]["B"],
+                                        "sequence_equal_dirty_prior_history_reachable")
+                else:
+                    if mode != "clean":
+                        self.open_action(editor, "discovery_history_step", operation="undo")
+                    replay = self.action(editor, "replay_sequence_history")
+                    observation.require([step["text"] for step in replay["steps"]] ==
+                                        [history["second"], history["first"], history["initial"], history["first"]],
+                                        "sequence_prior_native_history_reachable_" + mode)
+                self.case("sequential_retained_history_" + mode, actual_discoveries=5,
+                          actual_complete_discoveries=4, deliberate_fixture_transitions=True, screenshot=capture)
+        observation.require(len(self.discovery_requests) - first_call == 25, "twenty_fresh_positives_plus_five_truthful_limits")
+
+    def prepare_caller_subject(self, project, editor, descriptor, name):
+        # Opening's complete existing composed A–E suite uses this seam before
+        # any target tab preparation. Discovery supplies the only chosen locator.
+        if getattr(self, "_discovery_composition", False):
+            self.settled(editor)
+            listing = self.discover(project, descriptor, "composed_discovery_" + name,
+                                    outcome="complete_listing", expected=self.expected[project])
+            chosen = next(path for path in listing["inventory"]["entries"] if path.endswith("/subject.gd"))
+            state, _ = self.open_state(editor, project)
+            observation.require(chosen == TARGET and not state["target"]["associated"] and
+                                chosen not in state["open_paths"], "composed_discovered_closed_exact_locator_" + name)
+            self.cases[-1].update(chosen_script=chosen, next_action="fresh_observe_then_explicit_product_open")
+        return super().prepare_caller_subject(project, editor, descriptor, name)
+
+    def composed(self):
+        self._discovery_composition = True
+        try:
+            # Reuse full A–E, both dirty refusals, actual Save/history/reopen/
+            # reparse/rescan/runtime and sequential fresh-basis stress definitions.
+            super().composed()
+        finally:
+            self._discovery_composition = False
+        self.known_document_controls()
+        with self.live("composed-changed-locator") as (project, editor, descriptor):
+            listing = self.discover(project, descriptor, "composed_initial_locator",
+                                    outcome="complete_listing", expected=self.expected[project])
+            chosen = next(path for path in listing["inventory"]["entries"] if path.endswith("/subject.gd"))
+            original = project / chosen.removeprefix("res://")
+            original.rename(project / "scripts/renamed-subject.gd")
+            self.expected[project].remove(chosen)
+            self.expected[project].add("res://scripts/renamed-subject.gd")
+            self.public_open(project, descriptor, "composed_changed_locator_fresh_refusal",
+                             expected="refused", reason="missing_script", script=chosen)
+            self.discover(project, descriptor, "composed_changed_locator_fresh_inventory",
+                          outcome="complete_listing", expected=self.expected[project])
+            self.close_editor(editor)
+            # Keep the live context's owned cleanup convention; close is idempotent.
+            self.discover(project, descriptor, "composed_ended_session",
+                          outcome="refused", reason="editor_unavailable")
+            self.public_open(project, descriptor, "composed_ended_session_open",
+                             expected="refused", reason=("session_ended", "editor_unavailable"), script=chosen)
+
     def privacy_export(self):
         with self.live("privacy-selected", setup=lambda project: self.add_script(project, "SELECTED_INVENTORY_SENTINEL.gd")) as (project, editor, descriptor):
             with self.live("privacy-other", setup=lambda project: self.add_script(project, "UNSELECTED_INVENTORY_SENTINEL.gd")) as (other, other_editor, other_descriptor):

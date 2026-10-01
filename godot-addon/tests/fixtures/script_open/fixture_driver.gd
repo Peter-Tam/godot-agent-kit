@@ -368,6 +368,9 @@ func _process(delta: float) -> void:
 	if text.to_utf8_buffer() != raw: return
 	var request: Variant = JSON.parse_string(text)
 	if typeof(request) != TYPE_DICTIONARY: return
+	_dispatch_open_request(request)
+
+func _dispatch_open_request(request: Dictionary) -> void:
 	if not String(request.get("action", "")).begins_with("open_"):
 		super._dispatch_native_request(request)
 		return

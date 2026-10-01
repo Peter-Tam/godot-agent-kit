@@ -12,18 +12,11 @@ func _native_paths(directory: EditorFileSystemDirectory, paths: Array) -> void:
 	for index in directory.get_subdir_count():
 		_native_paths(directory.get_subdir(index), paths)
 
-func _process(delta: float) -> void:
-	var file := FileAccess.open(_control.path_join("request.json"), FileAccess.READ)
-	if file == null:
-		return
-	if file.get_length() > MAX_CONTROL:
-		file.close()
-		super._process(delta)
-		return
-	var request: Variant = JSON.parse_string(file.get_as_text())
-	file.close()
-	if typeof(request) != TYPE_DICTIONARY or not String(request.get("action", "")).begins_with("discovery_"):
-		super._process(delta)
+func _dispatch_open_request(request: Dictionary) -> void:
+	# Dispatch the parent's single parsed snapshot. Reopening request.json here
+	# could route a newer discovery command through a lower-level dispatcher.
+	if not String(request.get("action", "")).begins_with("discovery_"):
+		super._dispatch_open_request(request)
 		return
 	var id: Variant = request.get("id")
 	if typeof(id) != TYPE_STRING or id.is_empty() or id.length() > 64 or id == _last_id: return
@@ -55,6 +48,18 @@ func _process(delta: float) -> void:
 			if response.ok:
 				active.expiry_tick_us = Time.get_ticks_usec()
 				response.expiry_tick_us = str(active.expiry_tick_us)
+		"discovery_history_step":
+			# Deliberate human history activity without changing tab selection.
+			var doc := _document("res://scripts/subject.gd")
+			var operation: String = request.get("operation", "")
+			response.ok = doc.get("associated", false) and operation in ["undo", "redo"]
+			if response.ok:
+				var buffer := EditorInterface.get_script_editor().get_open_script_editors()[doc.index].get_base_editor() as CodeEdit
+				response.ok = buffer.has_undo() if operation == "undo" else buffer.has_redo()
+				if response.ok:
+					if operation == "undo": buffer.undo()
+					else: buffer.redo()
+					response.document = _document("res://scripts/subject.gd")
 		"discovery_unloaded":
 			response.cached = ResourceLoader.has_cached(request.get("path", ""))
 			response.loader_calls = _open_loader.calls

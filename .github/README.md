@@ -29,11 +29,13 @@ Project-script discovery uses the authenticated read-only scope boundary and
 Rebuild Rust consumers, install the matching addon and restart owned editors;
 v3 peers have no fallback. The native revision-2 family is unchanged.
 The ordinary Rust job also builds `discover-gdscripts`. Its
-[six first-caller acceptance groups](../specs/004-discover-project-gdscript/quickstart.md#4-owned-discovery-runner-after-implementation)
-run through the public caller with independent inventory and editor witnesses.
-Discovery's shared selector integration requires complete observation, edit and
-opening regressions as well. The optional GUI workflow still covers only edit
-and observation; it does not establish discovery acceptance.
+[eight-group acceptance runner](../specs/004-discover-project-gdscript/quickstart.md#4-owned-discovery-runner-after-implementation)
+runs through the public caller with independent inventory and editor witnesses,
+including repeated discovery and composed A–E/durability. Discovery's shared
+selector integration requires complete observation, edit and opening regressions
+as well. The optional GUI workflow still covers only edit and observation; it
+does not establish discovery acceptance. Use the complete serial campaign below
+for the cumulative gate.
 
 ## Focused validation and resumable campaigns
 
@@ -98,11 +100,23 @@ python3 godot-addon/tests/run_editor_campaign.py \
   --discoverer "$PWD/mcp-server/target/debug/discover-gdscripts" "$@"
 ```
 
-Discovery executes `inventory`, `routing`, `coverage`, `interruption`,
-`readonly`, and `privacy-export` exactly once. These are first-caller gates,
-not full feature acceptance. `--suite all` explicitly refuses while the
-additional cumulative discovery groups are unavailable; it never silently
-substitutes those six groups for the full gate.
+Discovery executes `inventory`, `routing`, `coverage`, `interruption`, `readonly`,
+`sequential`, `composed`, and `privacy-export` exactly once. Run the complete
+cumulative campaign on unchanged inputs with a fresh private directory:
+
+```sh
+FULL_CAMPAIGN="$(mktemp -d "$HOME/full-editor-campaign.XXXXXX")"
+python3 godot-addon/tests/run_editor_campaign.py \
+  --suite all --campaign-dir "$FULL_CAMPAIGN" --keep-going \
+  --discoverer "$PWD/mcp-server/target/debug/discover-gdscripts" "$@"
+```
+
+Resume that same campaign with `--resume`, the same `FULL_CAMPAIGN` and the
+same execution inputs. `--suite all` schedules complete opening, edit,
+observation and discovery suites in that order, once each. Nested composed
+evidence stays in its owning runner's summary; it is not scheduled again or
+flattened into extra campaign steps. Runnable commands are not proof of feature
+completion; review actual final-head results against the approved gate.
 
 Campaigns are serial, with one isolated subprocess per opening, edit or
 discovery scenario in the runner's authoritative order. Observation deliberately
