@@ -22,6 +22,17 @@ approved artifacts and the constitution**. Verification is a phase, not a presum
 Architecture-changing, mutation-semantic, and security-sensitive work must explicitly
 record constitutional compliance in planning and review.
 
+## Spec Kit workflow
+
+Before executing repository feature-design workflows involving `/project.specify-next`,
+`/speckit.specify`, `/speckit.clarify`, `/speckit.plan`, `/speckit.tasks`,
+`/speckit.analyze`, or the prerequisite portion of `/speckit.implement`, agents MUST first
+read and follow [SPECKIT_WORKFLOW.md](SPECKIT_WORKFLOW.md).
+
+That document is repository working policy delegated by `AGENTS.md`, with AGENTS.md-level
+authority only. It cannot override the constitution, approved specification, approved plan,
+or selected task. The one-task-one-PR implementation rules below remain unchanged.
+
 ## Complexity gate
 
 Before introducing a new infrastructure layer, process gate, approval mechanism, dependency,
