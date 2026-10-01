@@ -24,6 +24,15 @@ repeated opening and composed A–E/durability. At the cumulative gate, run open
 edit and observation serially on the same final delivery head with private
 artifacts. The campaign utility below retains evidence at existing scenario boundaries.
 
+Feature 004 T001 adds the authenticated read-only discovery scope boundary and
+[private bridge v4](../specs/004-discover-project-gdscript/contracts/bridge-protocol.md).
+Rebuild existing Rust consumers, install the matching addon and restart owned
+editors; v3 peers have no fallback. The native revision-2 family is unchanged.
+Scope probes run within observation's `session-boundary` and `executor-boundary`
+groups. This shared authentication/slot cutover requires complete observation,
+edit and opening suites, not a public discovery inventory campaign. No
+`discover-gdscripts` binary or campaign registration is introduced by T001.
+
 ## Focused validation and resumable campaigns
 
 During development, run the failed/affected scenario, fix it, then rerun that

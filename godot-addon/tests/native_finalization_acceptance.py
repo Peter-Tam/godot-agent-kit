@@ -680,13 +680,16 @@ class NativeFinalizationMixin:
         observation.require(owner.get("status") == "prepared" and
                             self.native_action(editor, "native_edit_private_info")["slot_busy"],
                             "private_addon_owner_claimed_existing_bridge_slot")
+        from discovery_scope_acceptance import assert_discovery_busy
+        assert_discovery_busy(self, descriptor)
+        self.case("scope_refused_during_real_edit_owner", reason="busy", context_observed=False)
         stream, peer_id = self.authenticated_peer(descriptor)
         try:
-            stream.sendall(observation.packet([3, "observe", peer_id,
+            stream.sendall(observation.packet([4, "observe", peer_id,
                                                 descriptor["session_id"],
                                                 descriptor["project_root"], ROOT]))
             refusal, raw = observation.receive(stream)
-            observation.require(refusal == {"v": 3, "kind": "failure",
+            observation.require(refusal == {"v": 4, "kind": "failure",
                                             "request_id": peer_id,
                                             "session_id": descriptor["session_id"],
                                             "project_root": descriptor["project_root"],
@@ -720,7 +723,7 @@ class NativeFinalizationMixin:
         self.action(editor, "hold_observe")
         stream, peer_id = self.authenticated_peer(descriptor)
         try:
-            stream.sendall(observation.packet([3, "observe", peer_id,
+            stream.sendall(observation.packet([4, "observe", peer_id,
                                                 descriptor["session_id"],
                                                 descriptor["project_root"], ROOT]))
             observation.wait_for(lambda: (editor["control"] / "event.json").is_file(),

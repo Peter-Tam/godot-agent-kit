@@ -20,6 +20,8 @@ var _builtin_scene: PackedScene
 var _builtin_instance: Node
 var _prepared_subject_buffer: CodeEdit
 var _sequence_history := {}
+var scope_mode := ""
+var scope_admission := {}
 
 
 func _enter_tree() -> void:
@@ -326,6 +328,30 @@ func _dispatch_request(request: Dictionary) -> void:
 			_duplicate_script.set_path_cache("res://scripts/subject.gd")
 			response.merge(_witness())
 			response.ok = response.open_paths.count("res://scripts/subject.gd") > 1
+		"scope_selection":
+			var doc := _document("res://scripts/subject.gd")
+			response.ok = doc.get("associated", false)
+			if response.ok:
+				var buffer := EditorInterface.get_script_editor().get_open_script_editors()[doc.index].get_base_editor() as CodeEdit
+				buffer.select(0, 0, 0, 3)
+				response.merge(_document("res://scripts/subject.gd"))
+		"scope_effective", "scope_unsaved_visible", "scope_unsaved_hidden":
+			if action != "scope_effective":
+				ProjectSettings.set_setting("application/config/use_hidden_project_data_directory",
+					action == "scope_unsaved_hidden")
+			response.settings_directory = EditorInterface.get_editor_paths().get_project_settings_dir()
+			response.mutable_hidden_setting = ProjectSettings.get_setting(
+				"application/config/use_hidden_project_data_directory", true)
+		"scope_epoch_change":
+			# Fixture preparation emits the public signal, never calls owner internals.
+			EditorInterface.get_resource_filesystem().emit_signal("filesystem_changed")
+		"scope_unavailable", "scope_unsupported", "scope_scanning", "scope_importing", "scope_live_scan", "scope_live_import", "scope_disabled_capability", "scope_normal":
+			scope_mode = action.trim_prefix("scope_") if action != "scope_normal" else ""
+		"scope_admission":
+			response.merge(scope_admission)
+		"scope_slot":
+			var bridges := get_tree().get_nodes_in_group("godot_agent_kit_session_bridge")
+			response.busy = bridges.size() == 1 and not bridges[0].get("_active").is_empty()
 		"disable", "enable":
 			var enabled := action == "enable"
 			EditorInterface.set_plugin_enabled(PRODUCT, enabled)
@@ -550,13 +576,13 @@ func _proof_vectors() -> Dictionary:
 	var token := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f".hex_decode()
 	var caps := {"observe_gdscript": true, "open_enumeration": true,
 		"buffer_attribution": true, "unsaved_paths": true, "cached_resource_lookup": true,
-		"edit_open_gdscript": true, "open_gdscript": false}
+		"edit_open_gdscript": true, "open_gdscript": false, "discover_gdscripts": true}
 	var transcript := Bridge.transcript_bytes("example-1", "00112233445566778899aabbccddeeff",
 		"/fixture/project", "4.7.2.stable.official.ed1daf0bf",
 		"ed1daf0bf001b61586d9930840f2f1394092c079", caps,
 		2, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
 		"404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f")
-	return {"server_matches": Bridge.role_proof(token, "server", transcript).hex_encode() == "551fab39e1b856768c16a9722e38c9deb8c73a027220d1209a7c2c4653709d02",
-		"client_matches": Bridge.role_proof(token, "client", transcript).hex_encode() == "c1ee473fd4f970e1c1eb2c35d2fd204c402672c865dc8182d95b2721d7517fa1",
-		"finish_matches": Bridge.role_proof(token, "finish", transcript).hex_encode() == "1abd54c16694a3158b96f59882fca5d16050f2fe54f49b0c07965de77b527053"}
+	return {"server_matches": Bridge.role_proof(token, "server", transcript).hex_encode() == "59f272feb95a7ebc4c16d7ea642b0d8640bda97370abbba2a6e1a339bfaa5f02",
+		"client_matches": Bridge.role_proof(token, "client", transcript).hex_encode() == "f9f5d3fd50af8e1203e01075f35ea34f60ad32f693eb1125701155482922ada3",
+		"finish_matches": Bridge.role_proof(token, "finish", transcript).hex_encode() == "afb6050649507952e255dda36690ce92982b78181dd584c25c17b92acf9d832b"}

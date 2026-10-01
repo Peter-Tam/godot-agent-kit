@@ -1,6 +1,6 @@
 # Private Editor Bridge — Version 4 and Discovery Integration
 
-**Status:** Proposed coordinated cutover, not implemented. [Public discovery v1](discovery-api.md) is new; public observation/edit/open v1 and native API revision 2 remain unchanged. This contract supersedes the private [v3 transport](../../003-open-project-gdscript/contracts/bridge-protocol.md) at implementation cutover, not its historical acceptance record.
+**Status:** T001 implements the coordinated v4 cutover and path-free addon scope exchange (§1–§3), consumed by the existing authenticated fixtures. Its acceptance is recorded in the [quickstart](../quickstart.md). The inventory worker/events (§4) and [public discovery v1](discovery-api.md) remain T002/T003 work. Public observation/edit/open v1 and native API revision 2 are unchanged. This contract supersedes private [v3 transport](../../003-open-project-gdscript/contracts/bridge-protocol.md), not its historical acceptance record.
 
 ## 1. Bootstrap and authenticated capability migration
 
@@ -72,6 +72,22 @@ Do not read source, documents, resource cache, type/class/import metadata or the
 
 `context` has exactly `policy`, `project_data_directory`, `filesystem_epoch`, `scanning`, `importing`. Policy is `godot_project_files_v1`; epoch is a nonnegative canonical decimal string. Scan/import Booleans are observed facts, not a verdict that the inventory is complete. Rust decides whether to collect or return limited/unsupported. A busy refusal has no owned expiry/context and cannot release another operation.
 
+The scope owner's closed context/admission reasons are:
+
+| Status | Reason | Context / expiry |
+|---|---|---|
+| `observed` | null | Exact observed facts; owned expiry |
+| `unavailable` | `unavailable_editor_context` | null context; owned expiry |
+| `refused` | `unsupported_visibility_policy` | null context; owned expiry |
+| `refused` | `unsupported_discovery` | Missing advertised/current scope capability; no context or owned expiry |
+| `refused` | `busy` | Another operation owns the slot; no context or owned expiry |
+
+An admitted unavailable/unsupported-context attempt stays owned until finish,
+abort, channel loss or expiry. These are private acquisition facts, not public
+inventory outcomes. The epoch increments on observed `filesystem_changed`
+signals while an attempt is registered and remains local to this owner/session;
+it is neither a count of every filesystem write nor proof of an idle current tree.
+
 ### Recheck
 
 Exact tuple: `[4, "discover_recheck", request_id, session_id, advertised_project_root]`.
@@ -85,6 +101,10 @@ This recheck is not a ping acknowledgment alone: it re-observes the effective da
 Exact tuples: `[4, "discover_finish", request_id, session_id, advertised_project_root]` and `[4, "discover_abort", request_id, session_id, advertised_project_root]`.
 
 Responses `discover_finished` / `discover_aborted` carry `v`, `kind`, request/session/project, editor collection stamp and `terminal_discard` Boolean. They release only this attempt's read-only context/slot. An acknowledgment is not inventory verification and cannot restore invalidated facts. Abort is best effort within the original time budget; terminal delivery never waits for it past cutoff.
+
+`terminal_discard` is false for finish and true for abort. Invalid, duplicate,
+wrong-owner or expired stage requests close their own peer without a context
+reply and cannot release another peer's owner.
 
 Peer closure, expiry, addon disable or owner exit cancels the same read-only attempt and cleans up its signal/registration state. No document/source/history cleanup is performed. Unexpected, repeated, wrong-owner or expired stage tuples cannot create a new owner or revive an old attempt. A late response cannot upgrade a caller result.
 

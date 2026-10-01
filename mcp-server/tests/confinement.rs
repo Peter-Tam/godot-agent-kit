@@ -73,7 +73,7 @@ impl Fixture {
         file.write_all(bytes).unwrap();
     }
     fn valid_descriptor(&self, id: &str) -> Vec<u8> {
-        serde_json::to_vec(&json!({"v":3,"session_id":id,"project_root":self.project,"godot_version":"4.7.2.stable.official.ed1daf0bf","engine_hash":"ed1daf0bf001b61586d9930840f2f1394092c079","host":"127.0.0.1","port":self.listener.local_addr().unwrap().port(),"token":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"})).unwrap()
+        serde_json::to_vec(&json!({"v":4,"session_id":id,"project_root":self.project,"godot_version":"4.7.2.stable.official.ed1daf0bf","engine_hash":"ed1daf0bf001b61586d9930840f2f1394092c079","host":"127.0.0.1","port":self.listener.local_addr().unwrap().port(),"token":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"})).unwrap()
     }
 }
 impl Drop for Fixture {
@@ -123,7 +123,7 @@ fn field(bytes: &mut Vec<u8>, value: &[u8]) {
 fn proof(role: &[u8], hello: &Value, capabilities: &Value) -> String {
     let mut transcript = Vec::new();
     field(&mut transcript, role);
-    field(&mut transcript, b"godot-agent-kit/editor-bridge/v3");
+    field(&mut transcript, b"godot-agent-kit/editor-bridge/v4");
     field(&mut transcript, hello[2].as_str().unwrap().as_bytes());
     field(&mut transcript, &decoded(hello[3].as_str().unwrap()));
     field(&mut transcript, hello[4].as_str().unwrap().as_bytes());
@@ -137,6 +137,7 @@ fn proof(role: &[u8], hello: &Value, capabilities: &Value) -> String {
         "cached_resource_lookup",
         "edit_open_gdscript",
         "open_gdscript",
+        "discover_gdscripts",
     ] {
         field(
             &mut transcript,
@@ -169,11 +170,11 @@ fn select(f: &Fixture, locator: &str) -> (target::SelectedSession, thread::JoinH
             .set_write_timeout(Some(Duration::from_secs(2)))
             .unwrap();
         let hello = receive(&mut socket);
-        let capabilities = json!({"observe_gdscript":false,"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false,"edit_open_gdscript":false,"open_gdscript":false});
+        let capabilities = json!({"observe_gdscript":false,"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false,"edit_open_gdscript":false,"open_gdscript":false,"discover_gdscripts":false});
         frame(
             &mut socket,
             &json!({
-                "v":3,"kind":"challenge","request_id":hello[2],"session_id":hello[3],
+                "v":4,"kind":"challenge","request_id":hello[2],"session_id":hello[3],
                 "project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,
                 "capabilities":capabilities,"client_nonce":hello[5],"server_nonce":SERVER_NONCE,
                 "native_api_revision":0,"native_build_id":"",
@@ -186,7 +187,7 @@ fn select(f: &Fixture, locator: &str) -> (target::SelectedSession, thread::JoinH
         frame(
             &mut socket,
             &json!({
-                "v":3,"kind":"hello","request_id":hello[2],"session_id":hello[3],
+                "v":4,"kind":"hello","request_id":hello[2],"session_id":hello[3],
                 "project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,
                 "capabilities":capabilities,"client_nonce":hello[5],"server_nonce":SERVER_NONCE,
                 "native_api_revision":0,"native_build_id":"",
@@ -405,7 +406,7 @@ fn registry_within_requested_project_is_not_private_state() {
 
 #[test]
 fn bad_descriptors_never_route_or_leak_payloads() {
-    for failure in ["symlink", "mode", "oversized", "unknown", "duplicate"] {
+    for failure in ["symlink", "mode", "oversized", "unknown", "duplicate", "v3"] {
         let f = Fixture::new();
         let path = f.registry.join(format!("{ID}.json"));
         match failure {
@@ -432,6 +433,11 @@ fn bad_descriptors_never_route_or_leak_payloads() {
                 value.push_str(",\"token\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"}");
                 f.descriptor(ID, value.as_bytes());
             }
+            "v3" => {
+                let mut value: Value = serde_json::from_slice(&f.valid_descriptor(ID)).unwrap();
+                value["v"] = json!(3);
+                f.descriptor(ID, &serde_json::to_vec(&value).unwrap());
+            }
             _ => unreachable!(),
         }
         let result = f.result("res://safe.gd").err().unwrap();
@@ -442,6 +448,11 @@ fn bad_descriptors_never_route_or_leak_payloads() {
         let diagnostic = format!("{result:?} {result}");
         assert!(!diagnostic.contains("SYNTHETIC_SOURCE_SENTINEL"));
         assert!(!diagnostic.contains("0001020304050607"));
+        f.listener.set_nonblocking(true).unwrap();
+        assert_eq!(
+            f.listener.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
     }
 }
 

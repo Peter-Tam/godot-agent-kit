@@ -26,7 +26,7 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
         editor = self.start_editor(project)
         descriptor = observation.wait_for(lambda: next(iter(self.descriptors(project)), None),
                                           "edit_native_advertisement")
-        observation.require(descriptor["v"] == 3, "edit_private_v3_descriptor")
+        observation.require(descriptor["v"] == 4, "edit_private_v4_descriptor")
         info = self.native_action(editor, "native_info")
         observation.require(info["edit_installed"] and info["open_installed"] and
                             info["api_revision"] == 2 and
@@ -251,7 +251,7 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
         fresh = self.edit_basis(project, descriptor, "caller-large-frame-basis")
         current, disk = self.state(editor, project)
         large = DESIRED + "# " + "large_frame_" * 1024 + "\n"
-        changed = self.edit(project, fresh, large, "caller_v3_large_selected_frame",
+        changed = self.edit(project, fresh, large, "caller_v4_large_selected_frame",
                             "verified_changed", 0, session=descriptor["session_id"])
         self.validated_source(changed, large, "preflight", "valid")
         self.validated_source(changed, large, "post_change", "valid")

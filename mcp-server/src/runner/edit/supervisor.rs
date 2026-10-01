@@ -628,7 +628,7 @@ pub fn run(
     let id = request.request_id().clone();
     let original = attempt.request();
     let startup = serde_json::to_vec(&(
-        3,
+        4,
         id.as_str(),
         original.project_root().as_str(),
         original.session_id().map(SessionId::as_str),

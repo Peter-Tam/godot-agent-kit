@@ -251,7 +251,7 @@ pub fn run(
     let worker = OwnedWorker(Some(worker));
     let r = attempt.request();
     let startup = serde_json::to_vec(&(
-        3,
+        4,
         r.request_id().as_str(),
         r.project_root().as_str(),
         r.session_id().map(SessionId::as_str),

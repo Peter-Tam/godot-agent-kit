@@ -641,7 +641,7 @@ pub fn worker_main() -> Option<i32> {
         type Startup = (u32, String, String, Option<String>, String, String, u64);
         let (v, id, root, session, path, registry, elapsed): Startup =
             serde_json::from_slice(&frame).map_err(|_| protocol_failure())?;
-        if v != 3
+        if v != 4
             || elapsed >= 9_500_000
             || registry.len() > 1024
             || !Path::new(&registry).is_absolute()
