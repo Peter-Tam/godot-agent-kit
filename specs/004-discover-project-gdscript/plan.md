@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/004-discover-project-gdscript/spec.md`, including the accepted Godot project-file visibility clarification.
 
-**Status:** Design, granularity/coverage and post-task consistency analysis passed; merged [planning PR #46](https://github.com/Peter-Tam/godot-agent-kit/pull/46) records analysis of `e7fb197af058c230751e59b2f05c3373adbfbf3b`. **T001 is complete**, with [real scope/full affected-suite acceptance](quickstart.md#9-t001-scope-and-private-v4-acceptance-2026-10-01) and the shape/constitutional review below. T002/T003 remain pending; no discovery inventory or feature-completion claim follows the scope-only task.
+**Status:** Design, granularity/coverage and post-task consistency analysis passed; merged [planning PR #46](https://github.com/Peter-Tam/godot-agent-kit/pull/46) records analysis of `e7fb197af058c230751e59b2f05c3373adbfbf3b`. **T001 and T002 are complete**, with [scope acceptance](quickstart.md#9-t001-scope-and-private-v4-acceptance-2026-10-01), [public caller/full affected-suite acceptance](quickstart.md#10-t002-public-caller-acceptance-2026-10-01) and the implementation-shape/constitutional reviews below. T003's cumulative discovery gate remains pending; Feature 004 and Phase 1 are not complete.
 
 ## Summary
 
@@ -117,7 +117,7 @@ specs/004-discover-project-gdscript/
     └── bridge-protocol.md
 ```
 
-[tasks.md](tasks.md) derives three coherent increments: the authenticated read-only editor-scope/v4 boundary, the complete public caller with all inseparable story safety, and cumulative repeated-use/composed acceptance. Tests/docs remain bundled with their owners; US2/US3 retain independent story phases without unsafe later safety PRs. Granularity/coverage and subsequent consistency analysis passed; only T001 is selected for this implementation.
+[tasks.md](tasks.md) derives three coherent increments: the authenticated read-only editor-scope/v4 boundary, the complete public caller with all inseparable story safety, and cumulative repeated-use/composed acceptance. Tests/docs remain bundled with their owners; US2/US3 retain independent story phases without unsafe later safety PRs. Granularity/coverage and subsequent consistency analysis passed. This execution selects only T002, after T001's completed acceptance and merged PR #47; T003 is not authorized by it.
 
 ### Source Code (repository root)
 
@@ -237,3 +237,64 @@ passed the focused scope probes and complete observation/edit/open gates on the
 unchanged integrated implementation. Together with this shape review, that
 evidence completes T001 only; discovery inventory and feature acceptance remain
 T002/T003 work.
+
+## T002 implementation-shape and constitutional review (2026-10-01)
+
+The implemented caller follows the approved adapter → protocol-independent
+semantics → editor-integration boundary. Independent Rust correctness/shape
+review found no actionable production defect. Acceptance-harness review found
+two fixture prerequisites to correct: marker-excluded directories still count
+as visited, and intentionally invalid dirty B must not be required to converge
+with R. The focused live groups exercise those corrections rather than treating
+review or authored assertions as passing evidence.
+
+- `script_discovery.rs` owns the checked request and immutable public outcome.
+  Private `events` and `attempt` modules separate bounded evidence decoding from
+  ordered acceptance, terminal precedence and sticky invalidation. Public
+  declarations are consumed by the actual CLI/library boundary; no attempt,
+  filesystem witness, generic query interface or future-task hook is public.
+- `project_fs::discovery` owns only capability-rooted metadata acquisition and
+  rechecks. Its production portion is about 656 lines; the larger file includes
+  colocated private filesystem regressions. Traversal, marker and namespace
+  witnesses form one coherent responsibility; no framework or arbitrary
+  file-size split is warranted. Handles remain depth-bounded and retained
+  witnesses/name batches have fixed limits. Source contents are never acquired.
+- `target` privately shares the existing source-free authentication algorithm,
+  while `project_fs::project_root` shares existing root validation. The genuine
+  public document resolver retains real locator validation and existing
+  observe/open/edit callers. No dummy document, optionalized old contract,
+  copied security policy or compatibility shim is introduced.
+- `bridge::wire::discovery` owns strict editor/control and worker framing.
+  `runner::discovery` owns the original cutoff, child lifetime and parent-side
+  reduction; its worker owns blocking acquisition. The existing owned-child
+  and shared addon-slot mechanisms remain authoritative. Read-only cancellation
+  does not enter native mutation or change retained native-owner rules.
+- Attempt ordering uses an enum. Independent facts such as namespace change,
+  exhausted coverage and observed scan/import state are not substituted for
+  lifecycle state or atomicity. Recoverable evidence errors use typed failures,
+  not safety-path panics; no new dependency, service, native ABI or permission
+  mechanism is added.
+- The discovery runner owns CLI/result checking; its case module owns scenario
+  preparation and independent assertions. Existing project/window/history,
+  cleanup and export helpers are reused. Private GDScript fixtures hold actual
+  scope replies and inject negative controls without exposing product hooks.
+  The existing campaign registers the six current groups, fingerprints their
+  execution inputs and rejects unavailable full-feature acceptance.
+
+**Principle XIII:** The present requirement is fresh unknown-path discovery
+without source acquisition or editor effects. The planning probe established
+that the idle cached editor inventory can miss a new file. One bounded rooted
+walker, the shared project-only selector seam and reused owned worker address
+that failure with fewer mechanisms than a parallel cache, parser, scan or
+service. Their maintenance cost is the directly required evidence/recheck code
+and regression coverage, not a speculative infrastructure layer.
+
+**Constitutional disposition:** The production shape preserves independent
+D/R/B authority, human work/history, confined authenticated selection and
+source/export privacy. Inventory entries carry no source revision, durable
+identity or later editing authority. Complete coverage requires actual
+exhaustion and rechecks; known denial/binding loss suppresses inventory, and
+permitted interrupted evidence remains explicitly earlier. [Runtime acceptance](quickstart.md#10-t002-public-caller-acceptance-2026-10-01)
+passed all six task-owned discovery groups and complete affected existing
+suites. Together with this shape review, it completes T002 only; T003's
+cumulative discovery/feature gate remains pending.

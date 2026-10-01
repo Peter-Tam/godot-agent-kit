@@ -10,6 +10,21 @@ use crate::observation::{
 };
 use crate::project_fs;
 
+/// Authenticated project-only binding, never synthesized from a document locator.
+pub(crate) struct SelectedEditor {
+    pub(crate) request_id: crate::observation::RequestId,
+    pub(crate) project_root: crate::observation::ProjectRoot,
+    pub(crate) project_file_id: crate::observation::FileIdentity,
+    pub(crate) session_id: SessionId,
+    pub(crate) godot_version: crate::observation::EngineVersion,
+    pub(crate) capabilities: Capabilities,
+    native_api_revision: u32,
+    native_build_id: String,
+    pub(crate) requested_project_root: crate::observation::ProjectRoot,
+    pub(crate) socket: std::net::TcpStream,
+    pub(crate) project_directory: cap_std::fs::Dir,
+    pub(crate) advertised_project_root: String,
+}
 pub struct SelectedSession {
     target: ResolvedTarget,
     capabilities: Capabilities,
@@ -112,6 +127,71 @@ pub fn resolve(
         return Err(fail(OutcomeKind::Timeout, DiagnosticCode::DeadlineExceeded));
     }
     let project = project_fs::project(request)?;
+    let selected = select_editor(
+        request.request_id(),
+        request.project_root(),
+        request.session_id(),
+        project,
+        registry,
+        deadline,
+    )?;
+    let normalized = ObservationRequest::new(
+        request.request_id().clone(),
+        selected.project_root.clone(),
+        request.session_id().cloned(),
+        request.script_path().clone(),
+    );
+    let target = ResolvedTarget::for_request(
+        &normalized,
+        selected.project_root,
+        selected.project_file_id,
+        selected.session_id,
+        selected.godot_version,
+    )
+    .map_err(|_| fail(OutcomeKind::ProtocolError, DiagnosticCode::InvalidFrame))?;
+    Ok(SelectedSession {
+        target,
+        capabilities: selected.capabilities,
+        native_api_revision: selected.native_api_revision,
+        native_build_id: selected.native_build_id,
+        requested_project_root: selected.requested_project_root,
+        socket: selected.socket,
+        project_directory: selected.project_directory,
+        advertised_project_root: selected.advertised_project_root,
+    })
+}
+
+pub(crate) fn resolve_project(
+    request_id: &crate::observation::RequestId,
+    project_root: &crate::observation::ProjectRoot,
+    session_id: Option<&SessionId>,
+    registry: &Path,
+    deadline: Instant,
+) -> Result<SelectedEditor, RoutingFailure> {
+    if Instant::now() >= deadline {
+        return Err(fail(OutcomeKind::Timeout, DiagnosticCode::DeadlineExceeded));
+    }
+    select_editor(
+        request_id,
+        project_root,
+        session_id,
+        project_fs::project_root(project_root)?,
+        registry,
+        deadline,
+    )
+}
+
+fn select_editor(
+    request_id: &crate::observation::RequestId,
+    requested_project_root: &crate::observation::ProjectRoot,
+    session_id: Option<&SessionId>,
+    project: project_fs::ProjectIdentity,
+    registry: &Path,
+    deadline: Instant,
+) -> Result<SelectedEditor, RoutingFailure> {
+    if Instant::now() >= deadline {
+        return Err(fail(OutcomeKind::Timeout, DiagnosticCode::DeadlineExceeded));
+    }
     let directory = project_fs::open_registry(registry)?;
     let registry_root = std::fs::canonicalize(registry)
         .map_err(|_| fail(OutcomeKind::DeniedAccess, DiagnosticCode::UnsafeRegistry))?;
@@ -164,10 +244,7 @@ pub fn resolve(
     let mut pending = false;
     let mut deferred_failure: Option<RoutingFailure> = None;
     for descriptor in &descriptors {
-        if request
-            .session_id()
-            .is_some_and(|id| id.as_str() != descriptor.session_id)
-        {
+        if session_id.is_some_and(|id| id.as_str() != descriptor.session_id) {
             continue;
         }
         if !project_fs::matching_project(&descriptor.project_root, &project)? {
@@ -191,7 +268,7 @@ pub fn resolve(
                 continue;
             }
         };
-        match bridge::authenticate(descriptor, request.request_id().as_str(), deadline) {
+        match bridge::authenticate(descriptor, request_id.as_str(), deadline) {
             Ok(authenticated) => {
                 let version = match crate::observation::EngineVersion::new(
                     &descriptor.godot_version,
@@ -250,21 +327,16 @@ pub fn resolve(
             DiagnosticCode::EditorUnavailable,
         ));
     };
-    let normalized = ObservationRequest::new(
-        request.request_id().clone(),
-        project.root.clone(),
-        request.session_id().cloned(),
-        request.script_path().clone(),
-    );
-    let target =
-        ResolvedTarget::for_request(&normalized, project.root, project.file_id, id, version)
-            .map_err(|_| fail(OutcomeKind::ProtocolError, DiagnosticCode::InvalidFrame))?;
-    Ok(SelectedSession {
-        target,
+    Ok(SelectedEditor {
+        request_id: request_id.clone(),
+        project_root: project.root,
+        project_file_id: project.file_id,
+        session_id: id,
+        godot_version: version,
         capabilities: authenticated.capabilities,
         native_api_revision: authenticated.native_api_revision,
         native_build_id: authenticated.native_build_id,
-        requested_project_root: request.project_root().clone(),
+        requested_project_root: requested_project_root.clone(),
         socket: authenticated.socket,
         project_directory: project.directory,
         advertised_project_root,

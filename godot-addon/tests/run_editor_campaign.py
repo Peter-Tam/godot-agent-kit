@@ -19,11 +19,13 @@ import tempfile
 
 from run_script_open import SCENARIOS as OPEN_SCENARIOS
 from run_script_edit import SCENARIOS as EDIT_SCENARIOS
+from run_script_discovery import SCENARIOS as DISCOVERY_SCENARIOS
 
 REPO = Path(__file__).resolve().parents[2]
 RUNNERS = {"open": "run_script_open.py", "edit": "run_script_edit.py",
-           "observation": "run_observation.py"}
-SCENARIOS = {"open": OPEN_SCENARIOS, "edit": EDIT_SCENARIOS, "observation": ("all",)}
+           "observation": "run_observation.py", "discovery": "run_script_discovery.py"}
+SCENARIOS = {"open": OPEN_SCENARIOS, "edit": EDIT_SCENARIOS, "observation": ("all",),
+             "discovery": DISCOVERY_SCENARIOS}
 ATTEMPT = re.compile(r"attempt-([0-9]{3,})\Z")
 
 
@@ -41,10 +43,12 @@ def _digest(path):
 
 def _options(args, suite):
     names = ["godot", "observer"]
-    if suite in ("open", "edit"):
+    if suite in ("open", "edit", "discovery"):
         names += ["editor", "stock_validator", "native_fault_addon"]
-    if suite == "open":
+    if suite in ("open", "discovery"):
         names.append("opener")
+    if suite == "discovery":
+        names.append("discoverer")
     return [(name, getattr(args, name)) for name in names]
 
 
@@ -99,10 +103,12 @@ def fingerprint(args, suite, scenario):
                 and not child.name.startswith("test_")):
             file(child)
     tree(tests / "fixtures" / "observation")
-    if suite in ("open", "edit"):
+    if suite in ("open", "edit", "discovery"):
         tree(tests / "fixtures" / ("script_" + suite))
-        if suite == "open":
+        if suite in ("open", "discovery"):
             tree(tests / "fixtures" / "script_edit")
+        if suite == "discovery":
+            tree(tests / "fixtures" / "script_open")
     tree(REPO / "godot-addon" / "addons" / "godot_agent_kit")
     tree(REPO / "godot-addon" / "native", {".py", ".cpp", ".hpp", ".h", ".json"})
     tree(REPO / "mcp-server" / "src", {".rs"})
@@ -247,8 +253,7 @@ def _execute(command):
 
 
 def _run(args, root):
-    suites = tuple(RUNNERS) if args.suite == "all" else (args.suite,)
-    selected = [(suite, scenario) for suite in suites for scenario in SCENARIOS[suite]]
+    selected = [(args.suite, scenario) for scenario in SCENARIOS[args.suite]]
     previous = _load(root) if args.resume else []
     steps = [{"suite": suite, "scenario": scenario, "status": "not_run", "exit_code": None,
               "fingerprint": None, "attempt_dir": None, "summary_path": None,
@@ -331,13 +336,14 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", required=True, choices=(*RUNNERS, "all"))
     parser.add_argument("--campaign-dir", required=True, type=Path)
-    for name in ("godot", "observer", "editor", "opener", "stock-validator", "native-fault-addon"):
+    for name in ("godot", "observer", "editor", "opener", "discoverer", "stock-validator", "native-fault-addon"):
         parser.add_argument("--" + name, type=Path, required=name in ("godot", "observer"))
     parser.add_argument("--keep-going", action="store_true")
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args(argv)
-    suites = tuple(RUNNERS) if args.suite == "all" else (args.suite,)
-    for suite in suites:
+    if args.suite == "all":
+        parser.error("full discovery acceptance is unavailable; select a task-owned suite explicitly")
+    for suite in (args.suite,):
         for name, path in _options(args, suite):
             if path is None or not path.is_absolute():
                 parser.error("--" + name.replace("_", "-") + " requires an absolute path")

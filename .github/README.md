@@ -24,14 +24,16 @@ repeated opening and composed A–E/durability. At the cumulative gate, run open
 edit and observation serially on the same final delivery head with private
 artifacts. The campaign utility below retains evidence at existing scenario boundaries.
 
-Feature 004 T001 adds the authenticated read-only discovery scope boundary and
+Project-script discovery uses the authenticated read-only scope boundary and
 [private bridge v4](../specs/004-discover-project-gdscript/contracts/bridge-protocol.md).
-Rebuild existing Rust consumers, install the matching addon and restart owned
-editors; v3 peers have no fallback. The native revision-2 family is unchanged.
-Scope probes run within observation's `session-boundary` and `executor-boundary`
-groups. This shared authentication/slot cutover requires complete observation,
-edit and opening suites, not a public discovery inventory campaign. No
-`discover-gdscripts` binary or campaign registration is introduced by T001.
+Rebuild Rust consumers, install the matching addon and restart owned editors;
+v3 peers have no fallback. The native revision-2 family is unchanged.
+The ordinary Rust job also builds `discover-gdscripts`. Its
+[six first-caller acceptance groups](../specs/004-discover-project-gdscript/quickstart.md#4-owned-discovery-runner-after-implementation)
+run through the public caller with independent inventory and editor witnesses.
+Discovery's shared selector integration requires complete observation, edit and
+opening regressions as well. The optional GUI workflow still covers only edit
+and observation; it does not establish discovery acceptance.
 
 ## Focused validation and resumable campaigns
 
@@ -70,28 +72,44 @@ python3 godot-addon/tests/run_script_open.py \
   --scenario interruption --artifacts "$ARTIFACTS" "$@"
 ```
 
-Cumulative campaign on stable final code:
+Run a selected suite on stable code, using a separate campaign directory per suite:
 
 ```sh
 CAMPAIGN="$(mktemp -d "$HOME/editor-campaign.XXXXXX")"
 python3 godot-addon/tests/run_editor_campaign.py \
-  --suite all --campaign-dir "$CAMPAIGN" --keep-going "$@"
+  --suite open --campaign-dir "$CAMPAIGN" --keep-going "$@"
 ```
 
 Resume the same unchanged interrupted campaign, retaining `CAMPAIGN`:
 
 ```sh
 python3 godot-addon/tests/run_editor_campaign.py \
-  --suite all --campaign-dir "$CAMPAIGN" --keep-going --resume "$@"
+  --suite open --campaign-dir "$CAMPAIGN" --keep-going --resume "$@"
 ```
 
-`--suite open`, `edit`, and `observation` select individual suites. Only opening
+`--suite open`, `edit`, and `observation` select the existing suites. Opening
 needs `--opener`; edit needs the remaining inputs above; observation needs only
-`--godot` and `--observer`. Campaigns are serial, with one isolated subprocess
-per existing opening/edit scenario, in each runner's authoritative order.
-Observation deliberately remains one `run_observation.py --scenario all` step:
-its cross-group redaction/replay/boundary assertions must stay together.
-There is no case-level resume.
+`--godot` and `--observer`. For discovery, use the same inputs plus its caller:
+
+```sh
+DISCOVERY_CAMPAIGN="$(mktemp -d "$HOME/discovery-campaign.XXXXXX")"
+python3 godot-addon/tests/run_editor_campaign.py \
+  --suite discovery --campaign-dir "$DISCOVERY_CAMPAIGN" --keep-going \
+  --discoverer "$PWD/mcp-server/target/debug/discover-gdscripts" "$@"
+```
+
+Discovery executes `inventory`, `routing`, `coverage`, `interruption`,
+`readonly`, and `privacy-export` exactly once. These are first-caller gates,
+not full feature acceptance. `--suite all` explicitly refuses while the
+additional cumulative discovery groups are unavailable; it never silently
+substitutes those six groups for the full gate.
+
+Campaigns are serial, with one isolated subprocess per opening, edit or
+discovery scenario in the runner's authoritative order. Observation deliberately
+remains one `run_observation.py --scenario all` step: its cross-group
+redaction/replay/boundary assertions must stay together. There is no case-level
+resume. Discovery fingerprints include its caller and discovery/open/edit
+fixtures as well as shared inputs.
 
 Every execution receives a fresh empty private directory such as
 `open/routing/attempt-001/`, with the runner's `summary.json`. Failed and

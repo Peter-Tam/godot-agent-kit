@@ -32,6 +32,9 @@ pub mod edit;
 #[path = "runner/open.rs"]
 pub mod open;
 
+#[path = "runner/discovery.rs"]
+pub mod discovery;
+
 /// The caller creates this before parsing flags or doing any filesystem/selection work.
 #[derive(Clone, Copy)]
 pub struct AttemptClock {
@@ -547,6 +550,13 @@ struct Frames {
 }
 impl Frames {
     fn next(&mut self, input: &mut UnixStream) -> Result<Option<Vec<u8>>, RoutingFailure> {
+        self.next_limited(input, wire::RESULT_LIMIT)
+    }
+    fn next_limited(
+        &mut self,
+        input: &mut UnixStream,
+        limit: usize,
+    ) -> Result<Option<Vec<u8>>, RoutingFailure> {
         let mut budget = 64 * 1024;
         while budget > 0 {
             let buffer = if self.header_used < 4 {
@@ -563,7 +573,7 @@ impl Frames {
                         self.header_used += count;
                         if self.header_used == 4 {
                             let length = u32::from_be_bytes(self.header) as usize;
-                            if length == 0 || length > wire::RESULT_LIMIT {
+                            if length == 0 || length > limit {
                                 return Err(protocol_failure());
                             }
                             self.body.resize(length, 0);

@@ -1,4 +1,4 @@
-//! Owner-private registry, source-free routing, and selected-session confined D reads.
+//! Owner-private registry and authenticated project-confined metadata/source acquisition.
 use crate::observation::{
     Authority, ClockId, CollectionStamp, DecimalCounter, DetectedChange, DiagnosticCode,
     FileIdentity, ObservationRequest, OutcomeKind, ProjectRoot, ResourcePath, ScriptKind,
@@ -16,6 +16,8 @@ use std::io::{self, Read};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::time::Instant;
+
+pub(crate) mod discovery;
 
 // POSIX unistd.h declares geteuid() with a uid_t return; uid_t is u32 on
 // the supported Unix targets. Keep the C ABI call inside effective_uid().
@@ -242,26 +244,62 @@ pub(crate) struct ProjectIdentity {
 }
 
 fn identity(path: &Path) -> Result<(PathBuf, u64, u64), RoutingFailure> {
-    let canonical = fs::canonicalize(path).map_err(|_| out_of_project())?;
-    check_ancestors(&canonical).map_err(|_| out_of_project())?;
-    let meta = fs::metadata(&canonical).map_err(|_| out_of_project())?;
-    if !meta.is_dir() || meta.permissions().mode() & 0o022 != 0 {
-        return Err(out_of_project());
+    root_identity(path).map_err(|_| out_of_project())
+}
+
+fn root_access_denied() -> RoutingFailure {
+    failure(OutcomeKind::DeniedAccess, DiagnosticCode::DeniedAccess)
+}
+fn invalid_project_root() -> RoutingFailure {
+    failure(OutcomeKind::InvalidTarget, DiagnosticCode::InvalidTarget)
+}
+fn root_identity(path: &Path) -> Result<(PathBuf, u64, u64), RoutingFailure> {
+    let classify = |error: io::Error| {
+        if error.kind() == io::ErrorKind::NotFound {
+            invalid_project_root()
+        } else {
+            root_access_denied()
+        }
+    };
+    let canonical = fs::canonicalize(path).map_err(classify)?;
+    let meta = fs::metadata(&canonical).map_err(classify)?;
+    if !meta.is_dir() {
+        return Err(invalid_project_root());
+    }
+    check_ancestors(&canonical).map_err(|_| root_access_denied())?;
+    if meta.permissions().mode() & 0o022 != 0 {
+        return Err(root_access_denied());
     }
     Ok((canonical, meta.dev(), meta.ino()))
 }
 
 pub(crate) fn project(request: &ObservationRequest) -> Result<ProjectIdentity, RoutingFailure> {
-    let (path, dev, ino) = identity(Path::new(request.project_root().as_str()))?;
-    let root = ProjectRoot::new(path.to_str().ok_or_else(out_of_project)?.to_owned())
-        .map_err(|_| out_of_project())?;
+    let project = project_root(request.project_root()).map_err(|_| out_of_project())?;
+    validate_locator(&project.directory, request.script_path())?;
+    Ok(project)
+}
+
+pub(crate) fn project_root(
+    requested_root: &ProjectRoot,
+) -> Result<ProjectIdentity, RoutingFailure> {
+    let (path, dev, ino) = root_identity(Path::new(requested_root.as_str()))?;
+    let root = ProjectRoot::new(path.to_str().ok_or_else(invalid_project_root)?.to_owned())
+        .map_err(|_| invalid_project_root())?;
     let directory =
-        Dir::open_ambient_dir(&path, ambient_authority()).map_err(|_| out_of_project())?;
-    let opened = directory.dir_metadata().map_err(|_| out_of_project())?;
-    if opened.dev() != dev || opened.ino() != ino || !acl::denies_only(&directory) {
-        return Err(out_of_project());
+        Dir::open_ambient_dir(&path, ambient_authority()).map_err(|_| root_access_denied())?;
+    let opened = directory.dir_metadata().map_err(|_| root_access_denied())?;
+    if opened.dev() != dev || opened.ino() != ino {
+        return Err(failure(
+            OutcomeKind::DeniedAccess,
+            DiagnosticCode::IdentityChanged,
+        ));
     }
-    validate_locator(&directory, request.script_path())?;
+    if (opened.uid() != effective_uid() && opened.uid() != 0)
+        || opened.permissions().mode() & 0o022 != 0
+        || !acl::denies_only(&directory)
+    {
+        return Err(root_access_denied());
+    }
     Ok(ProjectIdentity {
         root,
         dev,
