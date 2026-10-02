@@ -24,6 +24,16 @@ BACKGROUND = "res://scripts/close/background.gd"
 SAFE = "extends RefCounted\nfunc value() -> int:\n\treturn 47\n"
 
 
+def _close_witness(state, disk):
+    return {"documents": {path: {key: sha(value) if key in ("R", "B") and isinstance(value, str) else value
+                                  for key, value in doc.items()} for path, doc in documents(state).items()},
+            "disk": {path: {key: value for key, value in witness.items() if key != "text"}
+                     for path, witness in disk.items()}, "selection": state["selection"],
+            "cached_id": state["cached_id"], "original_target_alive": state["original_target_alive"],
+            "events": state["events"], "effective_context": state["effective_context"],
+            "trace": state.get("close_trace", [])}
+
+
 class CallerCloseAcceptanceMixin:
     def close_command(self, project, session=None, script=TARGET):
         command = [str(self.args.closer), "--registry", str(self.registry), "--project", str(project),
@@ -176,13 +186,8 @@ class CallerCloseAcceptanceMixin:
                     observation.require(any(event["event"] == "completion" and event["editor_id"] == doc["editor_id"] and
                                             int(event["tick_us"]) >= last_visit for event in events),
                                         "public_close_independent_native_completion_" + name)
-        def summary(state, disk):
-            return {"documents": {path: {key: sha(value) if key in ("R", "B") and isinstance(value, str) else value
-                                          for key, value in doc.items()} for path, doc in documents(state).items()},
-                    "disk": {path: {key: value for key, value in witness.items() if key != "text"}
-                             for path, witness in disk.items()}, "selection": state["selection"],
-                    "cached_id": state["cached_id"], "original_target_alive": state["original_target_alive"]}
-        observation.json_file(self.artifacts / (name + "-witness.json"), {"before": summary(before, disks), "after": summary(after, now)})
+        observation.json_file(self.artifacts / (name + "-witness.json"),
+                              {"before": _close_witness(before, disks), "after": _close_witness(after, now)})
         case = next(case for case in reversed(self.cases) if case["case"] == name)
         case.update(independent_evidence=name + "-witness.json", screenshot=self.screenshot(self._close_case_editor, name + ".png"))
 
@@ -206,20 +211,28 @@ class CallerCloseAcceptanceMixin:
                     ("readonly", {"read_only": True, "paths": [TARGET]}),
                     ("safe_invalid", {"source": "extends RefCounted\nfunc value(:\n", "paths": [TARGET]}),
                     ("unloaded", {"paths": [TARGET], "replacement_target": True}))
+        # Temporary private reproducer; never certifies the complete group.
+        profiles = profiles[1:2]
+        self.summary["private_case_filter"] = "public_close_nonselected"
         for profile, options in profiles:
             name = "public_close_" + profile
             with self.close_fixture(name, **options) as (project, editor, descriptor):
                 self._close_case_editor = editor
                 basis = self.close_basis(project, descriptor, name)
                 before, disks = self.state(editor, project)
-                result = self.public_close(project, descriptor, basis, name)
-                after, now = self.state(editor, project)
+                observation.json_file(self.artifacts / (name + "-before.json"), _close_witness(before, disks))
+                try:
+                    result = self.public_close(project, descriptor, basis, name)
+                finally:
+                    after, now = self.state(editor, project)
+                    observation.json_file(self.artifacts / (name + "-after.json"), _close_witness(after, now))
                 self.close_evidence(name, before, disks, after, now, result)
                 self.observe(project, "not_open", 0, session=descriptor["session_id"], name=name + "-closed-observation")
                 self.public_open(project, descriptor, name + "-intentional-reopen")
                 reopened, reopened_disk = self.state(editor, project)
                 observation.require(reopened["target"]["associated"] and reopened["target"]["B"] == disks[TARGET]["text"] and
                                     reopened_disk == disks, "public_close_separate_reopen_persisted_revision_" + profile)
+        return  # Temporary private reproducer, excluding unrelated composition.
         self.first_use_composition()
         # Reuse established A-E regressions without advertising a new close
         # matrix. These consumers use the existing subject/other oracle.
