@@ -212,8 +212,8 @@ class CallerCloseAcceptanceMixin:
                     ("safe_invalid", {"source": "extends RefCounted\nfunc value(:\n", "paths": [TARGET]}),
                     ("unloaded", {"paths": [TARGET], "replacement_target": True}))
         # Temporary private reproducer; never certifies the complete group.
-        profiles = profiles[1:2]
-        self.summary["private_case_filter"] = "public_close_nonselected"
+        profiles = profiles[:2]
+        self.summary["private_case_filter"] = "selected_retained_then_nonselected"
         for profile, options in profiles:
             name = "public_close_" + profile
             with self.close_fixture(name, **options) as (project, editor, descriptor):
