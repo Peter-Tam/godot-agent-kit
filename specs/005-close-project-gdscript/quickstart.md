@@ -468,3 +468,141 @@ helpers were cleaned up; generated binaries/evidence are not committed.
 T003's repeated/composed closing matrix, full close campaign and feature
 cumulative gate remain pending and unstarted. Independent Save/history controls
 and roadmap Phase 1 exit assessment are outside this task.
+
+## 11. VM cold-start close regression
+
+This focused regression follows merged [PR #56](https://github.com/Peter-Tam/godot-agent-kit/pull/56),
+from `main` at `9f2714a41c602b53b8d2296577867578733cb903`, before T003.
+**Classification: VM startup readiness.** Product Rust/addon/native code, approved
+close assertions, safety guards, 9.5-second work/10-second terminal bounds,
+addon lease and validator deadlines are unchanged. No new unsupported environment
+exclusion is introduced. T001/T002 completion and the pending/unstarted T003 state
+are unchanged; no close `sequential`, `composed` or `all` group was started.
+
+### Original evidence and first divergence
+
+Before launching another editor, the investigation inspected PR #56's retained
+four-CPU summary/provenance and selected-case capture, guest-private nonselected
+result/basis and logs, the earlier two-CPU refusal, and §10's accepted host
+nonselected result, independent witness and capture.
+
+The original VM `public_close_nonselected` returned `refused`,
+`unsafe_editor_context`, stage `validated`, `not_applied`, exit 3, in
+**7.934634 s**. Its matched target basis and current D/R/B agreed on 51 bytes;
+current/saved versions were 2/2, the buffer clean and Resource unedited.
+Selection was `other` before/after with no request effect. Native closing and
+verification had not started; protection was invalidated and continuation counts
+were 0/0. The failure was the **public outcome assertion**, not an independent
+postcondition mismatch.
+
+The original failed assertion prevented serialization of the independent
+before/after roster witness and failed-case capture. The public result redacted
+the exact native refusal to `context_changed` in protection evidence; raw engine
+output had deliberately been discarded. Those missing historical observations
+are not reconstructed as facts. The retained two-CPU result was a separate
+`context_validation_unavailable` refusal at `prepared` in **8.944032 s**.
+
+Accepted T002 host nonselected closure took **5.155563 s**, with the same
+three-document fixture, unchanged selected unrelated document, preserved D/R/B,
+flags/versions/history and native completion 1/1. Comparing PR #54 head
+`7385281b1cf1ff5fb0dded2588efab036746f842` to the regression base found no product
+Rust/addon/native or close runner/fixture/caller-assertion changes. Godot's exact
+executable, generated API/ABI and macOS version matched. The guest uses SDK 26.5 /
+clang-2100.1.1.101 versus the host record's SDK 27.0 / clang-2100.3.34.2;
+separately built binary hashes were not assumed equivalent. Historical host CPU
+count/display and per-child validation timings were not recorded.
+
+The single nonselected case, then its original selected-case predecessor, passed
+in the settled guest without a product change. An **unforced cold-start**
+nonselected reproduction then failed the same unchanged assertion in
+**7.859171 s**. Private instrumentation identified the exact native reason:
+`idle_parse_delay_exceeds_lease`. Preparation-to-pre-close recheck took
+**7.327175 s**; only **1.333101 s** remained in the native lease, below the
+unchanged **1.5 s** idle-parse delay. All three independent document records,
+disk witnesses and selected identity were unchanged. No close entered.
+
+Thus the first observable divergence was validation completion time, not target
+identity or callback ordering. Guest-only CPU observations showed ordinary cold
+boot services competing with validation; one measured close interval reached
+only 16.32% idle CPU. A private event-loop barrier independently reproduced the
+same late-validation refusal and preservation, then was removed. It was a
+diagnostic negative, not accepted positive coverage.
+
+### Owning fix and verification
+
+Tart readiness previously meant only that guest vsock could execute `true`.
+It now also observes five current one-second CPU intervals with >=75% idle,
+within the **unchanged 180-second readiness bound**. The initial cumulative CPU
+report does not count; the lagging one-minute load average is provenance only.
+A missing, incomplete, busy or late observation cannot admit acceptance or reuse
+an earlier failed readiness check. Normal `run`/`campaign` requires the completed
+owned readiness record; stop and artifact retrieval remain available.
+
+This uses the existing VM loop, not a new scheduler, warm-up editor, arbitrary
+startup sleep, product retry, larger VM, preference override or alternate close
+path. Later overload can still yield the existing truthful bounded outcome.
+The [VM maintainer record](../../.github/LOCAL_VM.md#cold-start-readiness-correction)
+records the Principle XIII alternatives/cost review.
+
+Test-only diagnostics remain because they close the demonstrated attribution
+gap: hashed independent before/after state is retained even when the public
+outcome assertion fails, with a bounded private stage/native-reply trace. They
+do not provide the acceptance verdict or expose protected source in public
+results. The temporary case selector and timing barrier are absent from delivery.
+
+All real execution used the normal VM wrapper. Private evidence is below
+`~/.local/state/godot-agent-kit-vm/artifacts/`:
+
+| Run / exact source | Result | Summary SHA-256 |
+| --- | --- | --- |
+| `close-nonselected-cold` / `718da33972ea08d8210d6dc0bb59d228cead32bd` | Unforced failing-before, 7.859171 s | `e92028a883190db776e9c99158862cb4cac77477b2aa860f1cf5fb072e5372a7` |
+| `close-nonselected-ready-cold` / `08af69c4068e5409a8f9d15dc4096e41d4975209` | Focused passing-after, 6.941368 s; closed observation and intentional reopen passed | `c64f5a165580203c84ef53423acc8b32f1d9e24374c5ae62100ce957f5626605` |
+| `close-clean-ready-cold` / `88940045a4feb04da8d07baa8776dcbea7825217` | Complete unchanged group: 134 records / 10 public close results; nonselected 5.890343 s; maximum close 6.278243 s | `87ffe718773fee5cb139101e8868ffe0bd0a5c25f459307f6dba5eeeeed10ddb` |
+
+The full group's retrieval is
+`close-clean-ready-cold/20261002T203311Z-b6feab5e16a1/`.
+Its startup idle observations were **97.30, 97.97, 97.51, 97.60 and 98.65%**.
+Exact original-VM Rust and production/fault native build receipts matched across
+failing-before and passing-after runs; no rebuild occurred. The profile remains
+four CPUs, 6 GiB, macOS 26.6.2 (25G83), arm64, official Godot 4.7.2 with the
+executable hash in §1. Accepted guest captures were retrieved and visually
+inspected; the nonselected capture shows the target absent and the unrelated
+document still selected.
+
+**37 focused VM orchestration tests passed**: 26 Tart lifecycle/readiness and
+11 host admission/source/evidence tests. They cover busy-to-ready admission,
+incomplete measurements, unchanged deadline expiry, retirement of prior admission,
+and refusal before acceptance when readiness is missing. Later changes are
+documentation, test strengthening and a host local-variable rename; they do not
+alter the exercised VM readiness or close execution behavior.
+
+### Isolation, evidence reuse and implementation shape
+
+The complete group recorded **1,023 host process samples**, no sampling error,
+**zero new host Godot processes**, and no host focus activation request. Both
+pre-existing host Godot processes were preserved. Passive host window metadata
+found no Godot/Tart viewer window during the fixed cold-start work; the passive
+query created no window or activation. Every test editor/runtime and focus request
+stayed inside the no-viewer guest. No guest Godot process remained after cleanup.
+No host fallback was used.
+
+PR #54 / T002's accepted evidence in §10 remains historical accepted evidence.
+The original VM `clean-close` failure was never a reusable pass; the affected
+nonselected case and full group now have fresh VM evidence. The fixture's new
+witness retention changes diagnostic availability, not setup, assertion meaning
+or observed product behavior. Startup admission does not change a production
+boundary, source selection, runner arguments, cache validation or checkpoint
+semantics. Therefore no other close groups or standalone
+observation/edit/open/discovery suites were rerun. Existing first-use composition,
+history/durability and edit stress already belonging to `clean-close` ran as part
+of that unchanged group, not as new T003 coverage. Unchanged Rust/native/product,
+campaign, export and workflow checks retain their accepted evidence; the new VM
+binaries are not a blanket recertification of every historical native path.
+
+Implementation-shape review: `vm_tart.py` still owns one backend's lifecycle and
+readiness; `run_in_vm.py` owns admission/source/evidence; the existing close fixture
+owns private diagnostics and independent witnesses. No production module,
+schema, public API, dependency, alternate close path, retry/timing framework or
+feature lifecycle changed. Constitutional human-work preservation, native
+transactions, independent verification, bounded truthful outcomes and confinement
+remain intact.

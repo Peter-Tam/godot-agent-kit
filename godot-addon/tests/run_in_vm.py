@@ -195,10 +195,10 @@ class _HostObservation:
 
 
 def _execute(tart, state, args, repo=_REPO):
-    status = tart.status()
-    if not status["running"]:
+    vm_status = tart.status()
+    if not vm_status["running"]:
         raise VMError("Owned VM is missing or stopped; use setup/start before running acceptance.")
-    if not status.get("startup_readiness"):
+    if not vm_status.get("startup_readiness"):
         raise VMError("Owned VM has not completed startup readiness; use start before running acceptance.")
     revision = _revision(repo, args.revision)
     run_id = args.run_id or _identity()
