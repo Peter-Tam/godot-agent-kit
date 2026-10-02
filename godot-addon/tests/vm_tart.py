@@ -248,9 +248,9 @@ class Tart:
             if self._inventory().get(VM_NAME, {}).get("Running"):
                 receipt = self._verify_launcher()
                 try:
-                    # A reachable guest agent can precede the boot work queue
-                    # draining. Do not spend a product request's fixed budget
-                    # competing with that work; reuse this bounded readiness wait.
+                    # Reachable vsock is not a settled test desktop. Observe
+                    # current CPU headroom, not the lagging boot load average,
+                    # within the existing readiness deadline.
                     result = self._run(["exec", VM_NAME, "/usr/sbin/sysctl", "-n", "vm.loadavg", "hw.ncpu"],
                                        timeout=min(10, max(0.1, deadline - time.monotonic())))
                     if result.returncode == 0:
@@ -260,14 +260,29 @@ class Tart:
                         load, cpus = float(fields[1]), int(fields[5])
                         if cpus <= 0 or not 0 <= load < float("inf"):
                             raise VMError("guest load/CPU observation invalid")
-                        if load <= cpus:
-                            receipt["startup_readiness"] = {"load_average_1m": load, "cpu_count": cpus}
+                        measured = self._run(["exec", VM_NAME, "/usr/bin/top", "-l", "6", "-s", "1", "-n", "0"],
+                                             timeout=min(10, max(0.1, deadline - time.monotonic())))
+                        if measured.returncode:
+                            raise VMError("guest CPU headroom observation unavailable")
+                        samples = [float(line.split()[-2].removesuffix(b"%"))
+                                   for line in measured.stdout.splitlines() if line.startswith(b"CPU usage: ")]
+                        if len(samples) != 6 or not all(0 <= value <= 100 for value in samples):
+                            raise VMError("guest CPU headroom observation invalid")
+                        # top's first report is cumulative; the next five are
+                        # measured intervals. Leave three of four CPUs available
+                        # for the editor, validator and control work.
+                        idle = samples[1:]
+                        if time.monotonic() >= deadline:
+                            raise VMError("guest readiness observation exceeded its deadline")
+                        if min(idle) >= 75:
+                            receipt["startup_readiness"] = {"load_average_1m": load, "cpu_count": cpus,
+                                                            "idle_cpu_percent": idle}
                             self._write_json(self.launcher, receipt)
                             return
-                        last_error = f"guest boot work queue remains busy (load {load}, CPUs {cpus})"
+                        last_error = f"guest boot work remains busy (idle CPU percentages {idle})"
                     else:
                         last_error = "Tart Guest Agent/vsock unavailable: " + (result.stderr or b"").decode(errors="replace").strip()
-                except (VMError, ValueError) as exc:
+                except (VMError, ValueError, IndexError) as exc:
                     # During boot, the VM lock exists before guest readiness.
                     # A connection timeout is not the end of the boot deadline.
                     last_error = str(exc)
