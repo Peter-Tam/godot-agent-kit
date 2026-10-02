@@ -105,8 +105,8 @@ def _guest_guard():
     # the existence of a launchd GUI domain. No focus or security bypass calls.
     script = ('import CoreGraphics\nimport Foundation\n'
               'guard let s = CGSessionCopyCurrentDictionary() as? [String: Any], '
-              's["kCGSessionOnConsoleKey"] as? Bool == true, '
-              's["kCGSessionLoginDoneKey"] as? Bool == true, '
+              's[kCGSessionOnConsoleKey as String] as? Bool == true, '
+              's[kCGSessionLoginDoneKey as String] as? Bool == true, '
               's["CGSSessionScreenIsLocked"] as? Bool != true else { exit(1) }\n')
     try:
         _command(['/usr/bin/xcrun', 'swift', '-e', script], env={**_environment(), 'TMPDIR': '/tmp/'})

@@ -200,6 +200,19 @@ class TartTests(unittest.TestCase):
         self.assertEqual(self.tart._json(self.tart.launcher)["network"], "host-only")
         self.assertNotIn("--net-host", self.tart._launch_argv(True))
 
+    def test_running_boot_waits_through_control_timeout_without_relaunch(self):
+        self.own()
+        self.running()
+        responses = [vm.VMError("connection timeout"), subprocess.CompletedProcess([], 0, b"", b"")]
+        with (self.inventory(), mock.patch.object(self.tart, "_backend"),
+              mock.patch.object(self.tart, "_verify_launcher", return_value={"network": "host-only"}),
+              mock.patch.object(self.tart, "_run", side_effect=responses),
+              mock.patch("vm_tart.subprocess.Popen") as launch,
+              mock.patch("vm_tart.time.monotonic", side_effect=[0, 0, 0, 1, 1]),
+              mock.patch("vm_tart.time.sleep")):
+            self.tart.start()
+        launch.assert_not_called()
+
 
     def test_transport_timeout_is_infrastructure_error(self):
         self.tart._version_checked = True

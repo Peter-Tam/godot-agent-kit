@@ -210,38 +210,43 @@ class Tart:
         self._backend()
         self._owned()
         inventory = self._inventory()
+        process = None
         if inventory.get(VM_NAME, {}).get("Running"):
             receipt = self._verify_launcher()
             if receipt["network"] != ("bootstrap-nat" if bootstrap else "host-only"):
                 raise VMError("Running VM network differs; stop before changing bootstrap mode")
-            self._require_success(self._run(["exec", VM_NAME, "/usr/bin/true"], timeout=10))
-            return
-        self._stopped(VM_NAME, inventory)
-        fd = os.open(self.log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
-        try:
-            os.fchmod(fd, 0o600)
-            process = subprocess.Popen(self._launch_argv(bootstrap), env=self.env,
-                                       stdin=subprocess.DEVNULL, stdout=fd, stderr=fd,
-                                       start_new_session=True, close_fds=True)
-        except OSError as exc:
-            raise VMError(f"Cannot launch Tart VM: {exc}") from exc
-        finally:
-            os.close(fd)
-        identity = self._process_identity(process.pid)
-        self._write_json(self.launcher, {"pid": process.pid, "identity": identity,
-                         "argv": self._launch_argv(bootstrap),
-                         "network": "bootstrap-nat" if bootstrap else "host-only"})
+        else:
+            self._stopped(VM_NAME, inventory)
+            fd = os.open(self.log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+            try:
+                os.fchmod(fd, 0o600)
+                process = subprocess.Popen(self._launch_argv(bootstrap), env=self.env,
+                                           stdin=subprocess.DEVNULL, stdout=fd, stderr=fd,
+                                           start_new_session=True, close_fds=True)
+            except OSError as exc:
+                raise VMError(f"Cannot launch Tart VM: {exc}") from exc
+            finally:
+                os.close(fd)
+            identity = self._process_identity(process.pid)
+            self._write_json(self.launcher, {"pid": process.pid, "identity": identity,
+                             "argv": self._launch_argv(bootstrap),
+                             "network": "bootstrap-nat" if bootstrap else "host-only"})
         deadline = time.monotonic() + READY_TIMEOUT
         last_error = "guest agent did not respond"
         while time.monotonic() < deadline:
-            if process.poll() is not None:
+            if process is not None and process.poll() is not None:
                 raise VMError(f"Tart launcher exited ({process.returncode}); see private log {self.log}")
             if self._inventory().get(VM_NAME, {}).get("Running"):
                 self._verify_launcher()
-                result = self._run(["exec", VM_NAME, "/usr/bin/true"], timeout=min(10, max(0.1, deadline - time.monotonic())))
-                if result.returncode == 0:
-                    return
-                last_error = (result.stderr or b"").decode(errors="replace").strip()
+                try:
+                    result = self._run(["exec", VM_NAME, "/usr/bin/true"], timeout=min(10, max(0.1, deadline - time.monotonic())))
+                    if result.returncode == 0:
+                        return
+                    last_error = (result.stderr or b"").decode(errors="replace").strip()
+                except VMError as exc:
+                    # During boot, the VM lock exists before the guest agent.
+                    # A connection timeout is not the end of the boot deadline.
+                    last_error = str(exc)
             time.sleep(1)
         raise VMError(f"VM readiness timed out: Tart Guest Agent/vsock unavailable ({last_error}); VM remains owned, use stop; log {self.log}")
 

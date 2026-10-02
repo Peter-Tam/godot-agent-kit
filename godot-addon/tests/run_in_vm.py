@@ -232,7 +232,8 @@ def _setup(tart, state, args):
     template = args.export_template.resolve(strict=True)
     if _digest(app / "Contents/MacOS/Godot") != _GODOT_SHA or _digest(template) != _TEMPLATE_SHA:
         raise VMError("Exact official Godot executable/template SHA-256 mismatch; no host Godot was executed.")
-    tart.setup(DEFAULT_IMAGE)
+    if not tart.status()["running"]:
+        tart.setup(DEFAULT_IMAGE)
     tart.start(bootstrap=True)
     # The base image contains Homebrew/CLT and the GUI guest agent, but not all images have Python.
     probe = tart.exec([GUEST_PYTHON, "-c", "import sys; sys.exit(sys.version_info < (3, 10))"],
@@ -325,6 +326,9 @@ def main(argv=None):
         return 0
     except (VMError, OSError, ValueError, tarfile.TarError, subprocess.SubprocessError) as error:
         print(f"VM execution refused: {error}\nNo host Godot fallback. See .github/LOCAL_VM.md.", file=sys.stderr)
+        if isinstance(error, subprocess.CalledProcessError) and error.stderr:
+            detail = error.stderr.decode(errors="replace") if isinstance(error.stderr, bytes) else error.stderr
+            print(detail.strip(), file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         print("VM control interrupted; guest work may still be active. Inspect status and fetch-artifacts; "
