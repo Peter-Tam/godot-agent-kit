@@ -7,8 +7,8 @@ Use [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md), [cal
 **Current reproduction:** Historical discovery acceptance below used private v4.
 The [closing cutover](../005-close-project-gdscript/contracts/bridge-protocol.md)
 migrates current peers to v5 and the shared native family to revision 3 without
-changing discovery v1. Its private close boundary keeps `close_gdscript=false`;
-earlier discovery evidence is not closing acceptance.
+changing discovery v1. Closing requires its complete matched transport/native
+family; earlier discovery evidence is not closing acceptance.
 
 ## 1. Candidate and owned prerequisites
 
@@ -198,7 +198,7 @@ python3 godot-addon/tests/run_script_open.py \
   --scenario all --artifacts "$OPEN_ARTIFACTS"
 ```
 
-Each named artifact variable must be a new empty mode-0700 directory. The existing [campaign utility](../../.github/README.md#focused-validation-and-resumable-campaigns) wraps individual groups. `--suite discovery` with `--discoverer` executes all eight groups and fingerprints their actual inputs. `--suite all` runs the complete opening, edit, observation and discovery suites serially; it requires all four callers, the stock validator and the separate fault-native bundle. `--resume` reuses only unchanged, intact passing evidence and gives rerun groups fresh artifact directories. No separate workflow or approval service is introduced.
+Each named artifact variable must be a new empty mode-0700 directory. The existing [campaign utility](../../.github/README.md#focused-validation-and-resumable-campaigns) wraps individual groups. `--suite discovery` with `--discoverer` executes all eight groups and fingerprints their actual inputs. Run complete opening, edit, observation and discovery suites separately and serially: `--suite all` now explicitly refuses until the new closing suite has its cumulative groups. `--resume` reuses only unchanged, intact passing evidence and gives rerun groups fresh artifact directories. No separate workflow or approval service is introduced.
 
 The composed workflow must independently preserve applicable A–E and Save/close-reopen/reparse/rescan/runtime behavior. Runtime launch, source preparation, Save and history interactions belong only to authorized fixtures and the existing guarantees, not new product controls. Document substantive inapplicability; missing access is not passing evidence.
 

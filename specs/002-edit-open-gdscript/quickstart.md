@@ -16,8 +16,8 @@ with nine authenticated capability bits and matched native revision 3. Rebuild
 Rust peers and the production/separate fixture-fault native bundles, install
 the updated addon and restart the editor. No old-peer/revision-2 fallback or
 portable old-session edit basis exists. Guarded editing remains unchanged;
-the new private close boundary keeps `close_gdscript=false` until its complete
-public exchange exists. Closing evidence belongs to the
+the closing capability requires its complete transport and matched native
+family. Closing evidence belongs to the
 [closing quickstart](../005-close-project-gdscript/quickstart.md).
 
 Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [caller](contracts/edit-api.md), [bridge](contracts/bridge-protocol.md), [native](contracts/native-integration.md) contracts as normative semantics. Do not infer success from process exit, a save acknowledgment or the finalizer's copied fields.

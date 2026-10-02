@@ -1,17 +1,17 @@
 # Quickstart: Verify Safe Clean-Document GDScript Closing
 
-**Status: T001 is complete.** [Task acceptance](#9-t001-native-boundary-acceptance-2026-10-02) covers the revision-3 native boundary, private owner, actual `close_context` validation, v5 cutover and complete affected suites. Public `close-gdscript`, the remaining caller groups, campaign `--suite close` and `--closer` remain T002/T003 work and are not advertised. Feature 005 and roadmap Phase 1 remain incomplete.
+**Status:** T001 and T002 are complete. The public `close-gdscript` caller, six first-use caller/safety groups and inherited `native-boundary` group have [passed task acceptance](#10-t002-public-caller-acceptance-2026-10-02). Full `sequential`/`composed`/`all` closing coverage remains T003 work; campaign `--suite close` and `--suite all` explicitly refuse rather than certify an incomplete suite. Feature 005 and roadmap Phase 1 remain incomplete.
 
 Read [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md) and [research.md](research.md). The [constitution](../../.specify/memory/constitution.md), [architecture](../../ARCHITECTURE.md) and [working agreement](../../AGENTS.md) govern acceptance. An editor/native acknowledgment, matching source pair, successful process exit or fixed sleep is not verified closure.
 
 ## 1. Exact candidate and owned prerequisites
 
-- Official Godot **`4.7.2.stable.official.ed1daf0bf`**, full commit **`ed1daf0bf001b61586d9930840f2f1394092c079`**, executable SHA-256 **`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`**; research host **macOS 26.6.2, build 25G83, arm64**. These identify the candidate to validate, not an already supported closing environment or broader platform claim.
+- Official Godot **`4.7.2.stable.official.ed1daf0bf`**, full commit **`ed1daf0bf001b61586d9930840f2f1394092c079`**, executable SHA-256 **`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`**; tested host **macOS 26.6.2, build 25G83, arm64**. Guarantees are limited to the recorded task acceptance in §§9–10; no broader version/platform support is claimed.
 - Rust **1.98.1**, edition 2021, tracked Cargo.lock and existing rustfmt/Clippy components; existing C++17 Apple compiler/SDK; Python **3.10+**. Use matching official export templates; the existing candidate template SHA-256 is `88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`. No engine patch, new dependency or package installation is selected.
 - An unlocked visible desktop, explicitly owned synthetic projects and editor/runtime processes, and permission to capture only owned windows. Inspect actual captures; headless/getter evidence alone does not prove visible buffer/history preservation.
 - Canonical absolute executable/input paths; fresh empty mode-0700 artifact directories; a draining stdout consumer; no human source or credentials in fixtures. Resolve a symlink Godot executable before supplying the existing stock validator.
 - Use the [native build/operator guide](../../godot-addon/native/README.md) and separate production versus fixture-fault bundles. Install matched **native family revision 3**, retaining `editor_integration.gdextension` and `libeditor_integration.macos.arm64.dylib`; revision 2 is not a close-compatible bundle.
-- Install all Rust/addon peers together for **private bridge v5**, whose ninth authenticated bit is `close_gdscript=false` until T002's complete exchange exists. Restart owned editors for fresh descriptors; never reuse v4 descriptors or earlier session-bound bases. Public observation/edit/open/discovery v1 and their existing limits/deadlines remain unchanged. No compatibility fallback is retained.
+- Install all Rust/addon peers together for **private bridge v5**. Its ninth authenticated `close_gdscript` bit requires the complete installed close transport and matched native family. Restart owned editors for fresh descriptors; never reuse v4 descriptors or earlier session-bound bases. Public observation/edit/open/discovery v1 and their existing limits/deadlines remain unchanged. No compatibility fallback is retained.
 
 Record actual executable, library, manifest/build ID, generated ABI/API, source, addon, fixture, caller, validator and toolchain hashes for each accepted run. Version strings/manifests alone do not establish native compatibility. Generated binaries, editor state, credentials and evidence are not committed.
 
@@ -39,7 +39,7 @@ cargo +1.98.1 test --locked
 cargo +1.98.1 doc --no-deps --locked
 cargo +1.98.1 build --locked --lib --bin observe-gdscript \
   --bin edit-gdscript --bin open-gdscript --bin discover-gdscripts \
-  --example stock_validation_fixture
+  --bin close-gdscript --example stock_validation_fixture
 ```
 
 Default tests include doctests; `--all-targets` alone is not a replacement. Apply existing native-build/workflow checks when their surfaces change, without inventing a new provider or approval prerequisite.
@@ -60,9 +60,9 @@ STOCK_VALIDATION_FIXTURE="$REPO/mcp-server/target/debug/examples/stock_validatio
 
 A command being runnable is not a statement that this planning change executed it or passed its acceptance.
 
-## 2. Proposed build and caller smoke after implementation
+## 2. Build and caller smoke
 
-**Future contract, not runnable today:** from `mcp-server/`, build the integrated consumers:
+From `mcp-server/`, build the integrated consumers:
 
 ```sh
 cargo +1.98.1 build --locked --lib --bin close-gdscript \
@@ -70,7 +70,7 @@ cargo +1.98.1 build --locked --lib --bin close-gdscript \
   --bin discover-gdscripts --example stock_validation_fixture
 ```
 
-Rebuild production and separate fault native bundles using the existing §1 commands after revision-3 sources/build contracts exist. Observe actual matched loading and capability negotiation, not just successful compilation.
+Use production and separate fault native bundles from the existing §1 commands. Unchanged bundles may be reused only after verifying their exact engine, ABI, source, manifest and library provenance. Observe actual matched loading and capability negotiation, not just successful compilation.
 
 For manual smoke, use an explicitly owned fixture project with the updated addon installed/enabled. `PROJECT`, `REGISTRY` and `STOCK_GODOT` are canonical absolute paths; set `GODOT_AGENT_KIT_REGISTRY` to the same private registry before deliberately launching its editor. Existing setup/caller syntax:
 
@@ -93,7 +93,7 @@ SMOKE_ARTIFACTS="$(mktemp -d "$HOME/close-smoke.XXXXXX")"
 
 First review the observation: it must be a usable clean, target-bound observation-v1 basis with performed consistency checks, no detected invalidation and independently agreeing D/R/B; it does not promise atomic stability. A failed/limited/closed observation is not effectful authorization. Do not Save, synchronize or discard to make the request eligible. The runner in §3 supplies controlled positive fixtures without manual tab preparation.
 
-**Proposed caller contract, not implemented:** `CLOSER` is the canonical absolute built close binary. Its selector flags reuse existing spelling; exactly one stdin JSON value plus EOF contains only `schema_version`, `request_id` and `basis`. The basis is the complete prior observation-v1 result, not a new token or an edited source override. A fresh checked request ID must differ from the observation ID.
+`CLOSER` is the canonical absolute built close binary. Its selector flags reuse existing spelling; exactly one stdin JSON value plus EOF contains only `schema_version`, `request_id` and `basis`. The basis is the complete prior observation-v1 result, not a new token or an edited source override. A fresh checked request ID must differ from the observation ID.
 
 ```sh
 CLOSER="$REPO/mcp-server/target/debug/close-gdscript"
@@ -105,7 +105,7 @@ python3 -c 'import json,sys; print(json.dumps({"schema_version":1,"request_id":"
 
 Expected positive result: schema 1, `operation: close_gdscript`, `verified_newly_closed`, attributed removal of the original document, fresh confirmed target absence, unchanged admitted D/file identity, independently unchanged retained R or observed unloaded R, completed/not-applicable required native continuation and preserved protected documents. B and document-buffer dirty state become **not applicable**, not empty/clean. A selected target may cause reported ordinary native fallback selection; a non-selected target must leave the current selection intact. No target parse-validity or write-permission prerequisite is added.
 
-Then separately use the existing observer to witness closed state. **Future no-effect recognition smoke**:
+Then separately use the existing observer to witness closed state. No-effect recognition smoke:
 
 ```sh
 printf '%s\n' '{"schema_version":1,"request_id":"close-smoke-2","basis":null}' | \
@@ -115,13 +115,13 @@ printf '%s\n' '{"schema_version":1,"request_id":"close-smoke-2","basis":null}' |
 
 Expected: `already_closed_unchanged`, no load/open/close, context validation or selection/history/source effect. A null basis must refuse if the target has become open. A valid supplied old open basis can recognize the same valid file/session as closed only with `expected.use: not_applied_to_closed_state`; it cannot transfer to a replacement file/session/buffer. Closed recognition is not proof of project-wide cleanliness or of an earlier interrupted attempt's success. Reopen only as a separate intentional existing opener call, then obtain fresh observation for any edit/close.
 
-Proposed exits: **0** for either verified new closure or already-closed recognition; **3** for proven refused/not applied; **4** for `applied_unverified` or `effects_unknown`; **2** for malformed CLI/input; **1** for unexpected host delivery failure. Inspect structured evidence, not exit code alone. Possibly applied outcomes require fresh observation of the explicit original target, never automatic retry, rollback or compensating reopen.
+Exits: **0** for either verified new closure or already-closed recognition; **3** for proven refused/not applied; **4** for `applied_unverified` or `effects_unknown`; **2** for malformed CLI/input; **1** for unexpected host delivery failure. Inspect structured evidence, not exit code alone. Possibly applied outcomes require fresh observation of the explicit original target, never automatic retry, rollback or compensating reopen.
 
-## 3. Owned native boundary and planned caller groups
+## 3. Owned native boundary and caller groups
 
-The implemented `godot-addon/tests/run_script_close.py` reuses existing harness ownership, authenticated selection, independent source/history/selection witnesses, owned-window capture, private controls, cleanup and export checks. T001 supplies **only `native-boundary`**, without a public closer or incomplete `all` shortcut. Its controls invoke the real shared-slot owner and actual Rust source validation; no primitive receipt is a public success verdict.
+The implemented `godot-addon/tests/run_script_close.py` reuses existing harness ownership, authenticated selection, independent source/history/selection witnesses, owned-window capture, private controls, cleanup and export checks. The inherited `native-boundary` controls invoke the real shared-slot owner and actual Rust source validation; no primitive receipt is a public success verdict.
 
-**Current T001 command** (new empty private artifacts for each invocation):
+Native-only command (new empty private artifacts for each invocation; no public closer required):
 
 ```sh
 CLOSE_ARTIFACTS="$(mktemp -d "$HOME/close-native-boundary.XXXXXX")"
@@ -132,7 +132,23 @@ python3 godot-addon/tests/run_script_close.py \
   --scenario native-boundary --artifacts "$CLOSE_ARTIFACTS"
 ```
 
-The remaining groups below are **planned caller acceptance**, not T001 runner options. T002 adds `clean-close`, `already-closed`, `preservation`, `routing`, `interruption` and `privacy-export` with an actual `--closer`; T003 supplies `sequential`, full `composed` and `all`. Only then may `--scenario all` execute every group once, serially. Private native controls cannot substitute for the public closer in product cases.
+T002 implements `clean-close`, `already-closed`, `preservation`, `routing`, `interruption` and `privacy-export` through the actual public caller. Supply all three public executable paths, in addition to the native command's inputs:
+
+```sh
+CLOSE_ARTIFACTS="$(mktemp -d "$HOME/close-clean.XXXXXX")"
+python3 godot-addon/tests/run_script_close.py \
+  --godot "$STOCK_GODOT" --observer "$OBSERVER" --editor "$EDIT_CALLER" \
+  --closer "$CLOSER" --opener "$OPENER" --discoverer "$DISCOVERER" \
+  --stock-validator "$STOCK_VALIDATION_FIXTURE" \
+  --native-fault-addon "$PRIVATE_FAULT_NATIVE" \
+  --scenario clean-close --artifacts "$CLOSE_ARTIFACTS"
+```
+
+Run each of the other five public groups with its own fresh private directory.
+`clean-close` includes first-use discovery/open/observe/edit/fresh-observe/close/
+reopen and inherited A–E/history/durability regressions. T003 still owns the
+new repeated-close sequence and full composed matrix. `sequential`, `composed`
+and `all` explicitly refuse today; they never skip missing cases.
 
 | Group | Specification coverage | Required observable proof |
 |---|---|---|
@@ -227,7 +243,7 @@ python3 godot-addon/tests/run_script_discovery.py \
 
 Run serially on the visible owned environment; existing observation's five-second and edit/open ten-second bounds remain. These suites alone do not prove close composition.
 
-**Future campaign contract, not implemented today:** register all nine close groups in the existing campaign utility, reuse its input fingerprints and add absolute `--closer`. `--suite close` runs close once; future `--suite all` includes complete **open, edit, observation, discovery and close** suites, each once, serially. No new runner/service/provider topology is introduced.
+**Future cumulative campaign:** T002 registers the actual close inputs and fingerprints, including absolute `--closer`, but explicitly rejects campaign `--suite close` and `--suite all` until T003 implements all nine close groups. The following command is the future complete-suite interface, not current task acceptance:
 
 ```sh
 CLOSE_CAMPAIGN="$(mktemp -d "$HOME/close-campaign.XXXXXX")"
@@ -239,7 +255,7 @@ python3 godot-addon/tests/run_editor_campaign.py \
   --native-fault-addon "$PRIVATE_FAULT_NATIVE"
 ```
 
-For the future final cumulative gate, use that command with a new campaign directory and `--suite all`. Today `--suite all` includes **only four existing suites** and cannot accept `--closer`; do not confuse it with this future gate. Future `--resume` retains the same campaign directory/arguments and reuses only intact passed summaries with unchanged execution fingerprints. Changed binaries/native/addon/fixtures/contracts/behavioral inputs require affected reruns; missing/corrupt/failed/interrupted evidence is never promoted. Each rerun receives fresh artifacts; keep failed attempts. Nested composed records belong to their runner, not extra campaign steps or duplicate scenario counts.
+For the future final cumulative gate, use that command with a new campaign directory and `--suite all`. Today both full-coverage requests explicitly refuse before execution or checkpoint changes. Run the seven implemented closing groups directly and the four existing complete suites separately. Existing `--resume` retains the same campaign directory/arguments and reuses only intact passed summaries with unchanged execution fingerprints. Changed binaries/native/addon/fixtures/behavioral inputs require affected reruns; missing/corrupt/failed/interrupted evidence is never promoted. Each rerun receives fresh artifacts; keep failed attempts. Nested composed records belong to their runner, not extra campaign steps or duplicate scenario counts.
 
 ## 7. Result-only review, privacy, cleanup and export
 
@@ -351,3 +367,94 @@ registries and throwaway diagnostic helpers were cleaned up. Close's permitted
 target-local history disposal is not an Undo-close claim; public close
 composition, result-only review and cumulative feature acceptance remain
 T002/T003 obligations, not waived gates.
+
+## 10. T002 public-caller acceptance (2026-10-02)
+
+**T002 is complete.** All seven implemented close groups passed through the real
+caller/native boundaries: **639 records, 206 public close results**, maximum
+externally measured close time **9.509884 s** with stdout drained. Every public
+result received result-only interpretation and comparison with independent
+source, identity, dirty/version, history and owned-window evidence.
+
+### Executed scope
+
+- Selected, non-selected and last-document closure; unchanged independently
+  acquired D; unchanged retained original R or genuine unloading; actual B
+  absence and required native completion passed. Empty, read-only and safe
+  syntax-invalid sources remain positive cases without repair or a target
+  parse-success gate.
+- Fresh no-effect recognition passed with null and valid old open bases.
+  Source-local limitations stay explicit; wrong-file/session and ineligible
+  bases do not become null or authorize a newer buffer.
+- Dirty/disk-equal dirty targets, stale identities, unsupported association,
+  unsafe protection contexts and all exact/one-over bounds were exercised.
+  Unrelated clean/dirty documents, selection and actual Undo/Redo were preserved.
+  Target-local history disposal is not an Undo-close claim.
+- Real routing/namespace races and cross-operation ownership passed. Timeout,
+  SIGINT/SIGTERM, stalled input/editor/native calls, malformed/lost replies,
+  worker/helper/engine loss and newer reopened work retained truthful known or
+  uncertain effects. Owned child groups/private staging were independently
+  observed gone; terminal delivery did not permit a late product close.
+- First-use discovery → open → observe → edit → fresh observe → close → reopen,
+  dirty refusal, applicable A–E/history, Save/reparse/rescan/runtime durability,
+  source/credential privacy and enabled/disabled/hook-only exports passed.
+  The complete affected observation/edit/open/discovery suites also passed.
+
+Commands were all seven §3 groups and the four unfiltered §6 `--scenario all`
+commands, run serially. Preservation and routing were refreshed after the final
+strict public-input decoder change; every accepted public close group used
+caller SHA-256
+`b890b30dc74c50ad716528feef2bf03485a43528bd436a34b3ec9c45112141e3`.
+Nested/composed records are not additional suite invocations.
+
+Private evidence root:
+`/Users/petertam/.godot-agent-kit-close-T002-3ja4t_90/`.
+These retained artifacts identify this run, not contributor prerequisites.
+
+| Accepted summary, relative to that root | Passed records | SHA-256 |
+| --- | ---: | --- |
+| [native-boundary-acceptance/summary.json](file:///Users/petertam/.godot-agent-kit-close-T002-3ja4t_90/native-boundary-acceptance/summary.json) | 123 | `4be557ccd765a58008109ef1d0bc10b1ef793533552dc6708d41ab7fc91ff078` |
+| [clean-close-accepted-head/summary.json](file:///Users/petertam/.godot-agent-kit-close-T002-3ja4t_90/clean-close-accepted-head/summary.json) | 134 | `dd45eb6dc125e56f199190cd9ad514016f26a0fec587f4149a8ae4bb0289d992` |
+| [already-closed-accepted-head/summary.json](file:///Users/petertam/.godot-agent-kit-close-T002-3ja4t_90/already-closed-accepted-head/summary.json) | 14 | `5fb93b6424c54b182ec6ac7b20ac49e18cf5845db3d168b5d4fca69aeedb9aee` |
+| [preservation-final-head/summary.json](file:///Users/petertam/.godot-agent-kit-close-T002-3ja4t_90/preservation-final-head/summary.json) | 152 | `b03b035a2eb1253d355012d97bb4b78465e35754626ae7890bccbe6d0f4f3993` |
+| [routing-final-head/summary.json](file:///Users/petertam/.godot-agent-kit-close-T002-3ja4t_90/routing-final-head/summary.json) | 56 | `3e1128b515eaed390251165224f3aa02dbff9f39967a5a3be5798f49923e2526` |
+| [interruption-acceptance/summary.json](file:///Users/petertam/.godot-agent-kit-close-T002-3ja4t_90/interruption-acceptance/summary.json) | 149 | `bbdfcc6757ab0a9656fe83e0fa2f3a23f7e7e21c9d51376e5dd676e0354a8e0a` |
+| [privacy-export/summary.json](file:///Users/petertam/.godot-agent-kit-close-T002-3ja4t_90/privacy-export/summary.json) | 11 | `09fa43ad572222c8536e898147e7edfc7668457acaf9733b149dcd7c3c90f892` |
+| [regression-observation-ready/summary.json](file:///Users/petertam/.godot-agent-kit-close-T002-3ja4t_90/regression-observation-ready/summary.json) | 273 | `93d1e2c0dd1b40a004fb88858643220586236f50f558c5ce8b81f4d71bd2805c` |
+| [regression-edit-final-head/summary.json](file:///Users/petertam/.godot-agent-kit-close-T002-3ja4t_90/regression-edit-final-head/summary.json) | 408 | `3ad2278d3ed96f2fd6cfc8111258c03acf8af89bf95ffaf1bbcace4da4a406f5` |
+| [regression-open/summary.json](file:///Users/petertam/.godot-agent-kit-close-T002-3ja4t_90/regression-open/summary.json) | 664 | `c681c7ba4f28b6597778de42114e26d382cd6c75bd4181e30398d3a00dc291d7` |
+| [regression-discovery/summary.json](file:///Users/petertam/.godot-agent-kit-close-T002-3ja4t_90/regression-discovery/summary.json) | 429 | `f7344009d6a9042cd22d193de035a66c5eeda26d94c1fe7dec4192addd20b3f8` |
+
+### Exact provenance and implementation checks
+
+Tested environment: the exact official Godot **4.7.2** commit/executable in §1,
+**macOS 26.6.2 arm64**, Rust **1.98.1**, Apple clang
+**21.0.0 (clang-2100.3.34.2)** and SDK **27.0**. Summaries retain addon/fixture,
+caller/validator, Cargo.lock, generated API/ABI and export-template fingerprints.
+
+| Native artifact | Build ID | Library SHA-256 |
+| --- | --- | --- |
+| Production revision 3 | `91c2bf88384ab35a029cecbaea2142a966871ea1a4c598ddd60fc7e5834d9b90` | `9a0865642270ff3503c21e9e1533e8f87aa2e2422000652f73fb1610f4d88fac` |
+| Separate fixture-fault revision 3 | `515fb7cdd3e3d6b585cbad56f5ebde8220badb27fd29605f81eca2d694412e55` | `703f581245260e192aee0d97e5858690c514460228c79aea20922b22e3baa4f5` |
+
+Passed: Rust formatting, Clippy, **367 default tests including doctests**,
+**2 example boundary tests**, rustdoc and locked library/caller builds; normal
+and separate fault native builds; **38 Python native/harness tests**,
+**22 workflow tests** and Actionlint. Real campaign `--suite close`/`all`
+invocations refused incomplete coverage before creating evidence directories.
+No extension hooks were configured.
+
+The [implementation-shape/constitutional review](plan.md#t002-implementation-shape-and-constitutional-review--2026-10-02)
+records checked intent, private channel/codec ownership, one-owner lifecycle,
+typed evidence failures and proportionate reuse. It also records regression
+fixes for actual observation readiness and completed-editor fixture lifetimes.
+The observation fixture change passed fresh visible controls and its complete
+suite; editor teardown changes passed focused conflict/routing checks and the
+complete 408-record suite without changing assertions or product deadlines.
+
+Earlier failed, diagnostic and pre-final decoder runs are retained but excluded
+from the accepted summaries above. Temporary projects, registries and diagnostic
+helpers were cleaned up; generated binaries/evidence are not committed.
+T003's repeated/composed closing matrix, full close campaign and feature
+cumulative gate remain pending and unstarted. Independent Save/history controls
+and roadmap Phase 1 exit assessment are outside this task.

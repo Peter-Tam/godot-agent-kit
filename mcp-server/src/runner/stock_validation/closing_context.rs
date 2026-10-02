@@ -4,6 +4,7 @@ use super::opening_context::{
     OpeningValidationBinding, Records,
 };
 use super::*;
+use crate::observation::{ResolvedTarget, SourceObservation, Witness};
 
 fn roster<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<DocumentIdentity>, D::Error> {
     bounded::<_, _, 8>(d)
@@ -37,7 +38,7 @@ struct CloseProjection {
     #[serde(deserialize_with = "protected")]
     protected: Vec<ProtectedIdentity>,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 struct CloseTarget {
     target_device: String,
@@ -399,6 +400,54 @@ impl CloseContext {
         Ok((guard.finish(), bindings))
     }
 }
+impl CloseContext {
+    pub(crate) fn protected_count(&self) -> usize {
+        self.documents.len()
+    }
+    pub(crate) fn admitted_documents(&self) -> impl Iterator<Item = (&str, &str, &str, &str)> {
+        self.projection.protected.iter().map(|p| {
+            (
+                p.path.as_str(),
+                p.script_id.as_str(),
+                p.editor_id.as_str(),
+                p.buffer_id.as_str(),
+            )
+        })
+    }
+    pub(crate) fn target_guard_matches(&self, value: &serde_json::Value) -> bool {
+        CloseTarget::deserialize(value).is_ok_and(|target| target == self.projection.target)
+    }
+    pub(crate) fn target_matches(
+        &self,
+        basis: &crate::script_edit::ExpectedRevisionBasis,
+        target: &ResolvedTarget,
+        disk: &SourceObservation,
+    ) -> bool {
+        let p = &self.projection;
+        let d = basis.document();
+        let t = &p.target;
+        p.project_device == target.project_file_id().device().as_str()
+            && p.project_inode == target.project_file_id().inode().as_str()
+            && disk
+                .witness()
+                .and_then(Witness::disk_file_id)
+                .is_some_and(|file| {
+                    t.target_device == file.device().as_str()
+                        && t.target_inode == file.inode().as_str()
+                })
+            && d.script_instance_id()
+                .is_some_and(|id| id.as_str() == t.script_id)
+            && d.editor_instance_id()
+                .is_some_and(|id| id.as_str() == t.editor_id)
+            && d.buffer_instance_id()
+                .is_some_and(|id| id.as_str() == t.buffer_id)
+            && basis.current_version().as_str() == t.version
+            && disk.text().is_some_and(|text| {
+                crate::project_fs_validation::hex_sha256(text.as_bytes()) == t.source_sha256
+                    && text.len().to_string() == t.source_length
+            })
+    }
+}
 
 /// Validate a captured protection set with actual children under one deadline.
 ///
@@ -411,7 +460,23 @@ pub fn validate_close_context(
     request: ValidationRequest,
     remaining_budget_ms: u64,
 ) -> CloseValidation {
-    let clock = AttemptClock::start();
+    validate_close_context_owned(
+        context,
+        expected_guard,
+        request,
+        remaining_budget_ms,
+        AttemptClock::start(),
+        &AtomicBool::new(false),
+    )
+}
+pub(crate) fn validate_close_context_owned(
+    context: CloseContext,
+    expected_guard: &str,
+    request: ValidationRequest,
+    remaining_budget_ms: u64,
+    clock: AttemptClock,
+    cancelled: &AtomicBool,
+) -> CloseValidation {
     let ValidationRequest {
         request_id,
         session_id,
@@ -438,7 +503,8 @@ pub fn validate_close_context(
         if !(1..=9000).contains(&remaining_budget_ms) {
             return Err("close_budget_invalid");
         }
-        let deadline_at = clock.started + Duration::from_millis(remaining_budget_ms);
+        let deadline_at = (Instant::now() + Duration::from_millis(remaining_budget_ms))
+            .min(clock.started + Duration::from_millis(9500));
         let (guard, bindings) = context.checked(&request_id, &session_id, &project, &target)?;
         if guard != expected_guard {
             return Err("close_guard_mismatch");
@@ -459,7 +525,7 @@ pub fn validate_close_context(
                 global_classes: global_classes.clone(),
                 official_binary: binary.clone(),
             };
-            let result = validate_until(input, clock, &AtomicBool::new(false), deadline_at);
+            let result = validate_until(input, clock, cancelled, deadline_at);
             let valid = binding.close_completed(&result);
             if !valid && binding.close_invalid_completed(&result) {
                 output.status = "invalid".into();

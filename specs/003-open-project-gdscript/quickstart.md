@@ -21,7 +21,7 @@ python3 --version
 python3 godot-addon/native/build.py --godot "$STOCK_GODOT"
 ```
 
-The current cutover contains edit, opening and the private native close boundary. Public closing remains unadvertised until its complete caller exchange exists. A version string or generated manifest alone does not pass native compatibility. Record executable/library/source/ABI/toolchain hashes and actual exercised capabilities; never commit generated binaries, manifests or editor state.
+The current cutover contains editing, opening and guarded closing. Each native operation requires its complete matched transport and native family. Closing acceptance is recorded separately in the [closing quickstart](../005-close-project-gdscript/quickstart.md). A version string or generated manifest alone does not pass native compatibility. Record executable/library/source/ABI/toolchain hashes and actual exercised capabilities; never commit generated binaries, manifests or editor state.
 
 ## 2. Build checks
 

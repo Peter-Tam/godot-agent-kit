@@ -1,6 +1,6 @@
 # Native Clean-Document Closing Integration
 
-**Status:** T001 is complete with [native and full affected-suite acceptance](../quickstart.md#9-t001-native-boundary-acceptance-2026-10-02) for the revision-3 family, shared-slot internal owner and real protected-source validation. Public closing and its caller/supervisor exchange remain T002 work and `close_gdscript` stays false. This contract uses public Godot APIs and the generated GDExtension ABI, not an engine patch or private editor-field access. Earlier [research](../research.md) remains historical evidence.
+**Status:** T001 is complete with [native and full affected-suite acceptance](../quickstart.md#9-t001-native-boundary-acceptance-2026-10-02) for the revision-3 family, shared-slot internal owner and real protected-source validation. T002's public closing caller and supervised exchange have [passed acceptance](../quickstart.md#10-t002-public-caller-acceptance-2026-10-02) against the same owner; `close_gdscript` requires that complete transport and matched native family. This contract uses public Godot APIs and the generated GDExtension ABI, not an engine patch or private editor-field access. Earlier [research](../research.md) remains historical evidence.
 
 ## 1. Responsibilities and matched native family
 

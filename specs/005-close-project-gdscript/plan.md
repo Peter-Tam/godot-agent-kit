@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/005-close-project-gdscript/spec.md`, including the accepted guarded-native-revalidation clarification.
 
-**Status:** Phase 0 research, Phase 1 design and selection-time granularity/consistency review passed. T001 is complete with [native-boundary and full affected-suite acceptance](quickstart.md#9-t001-native-boundary-acceptance-2026-10-02) and the implementation-shape/constitutional review below. T002/T003 remain pending and unstarted; no public closing or feature-completion claim follows this native increment.
+**Status:** Phase 0 research, Phase 1 design and selection-time granularity/consistency review passed. T001 and T002 are complete with [native acceptance](quickstart.md#9-t001-native-boundary-acceptance-2026-10-02), [public-caller and full affected-suite acceptance](quickstart.md#10-t002-public-caller-acceptance-2026-10-02), and the implementation-shape/constitutional reviews below. T003 remains pending and unstarted; Feature 005 is not complete.
 
 ## Summary
 
@@ -319,3 +319,152 @@ above is historical, not a schema-1 currentness attestation for later edited
 artifacts. Future implementation prerequisites must apply the
 [current analysis-recognition policy](../../SPECKIT_WORKFLOW.md#g-recognize-current-analysis-before-implementation);
 no pass is backfilled from remembered analysis or newly computed hashes.
+
+## T002 implementation-shape and constitutional review — 2026-10-02
+
+T002 was selected from updated `main` after T001's completed acceptance and
+merged PR #52. The requirements checklist remained 16/16 and read-only.
+No extension hooks were configured. A fresh read-only consistency analysis
+covered all 18 functional requirements, seven success criteria and 21 story
+scenarios without actionable findings; its exact clean input state is preserved
+in [analysis.md](analysis.md). This review and execution evidence do not change
+the approved remaining T003 obligations.
+
+The implementation retains the approved separation. `script_close` owns checked
+intent, source-free evidence summaries and immutable effect-sensitive reduction.
+The CLI owns selectors, bounded stdin, signals and delivery. Close wire modules
+own strict public/private representation, native-fact validation and result
+encoding. The runner owns supervised acquisition and actual one-shot validation;
+its private channel owns frame ordering, original expiry, admitted identities
+and monotonic native visit evidence. The addon transport owns fixed stage
+routing and response lifetime; the existing native/addon owner remains the
+single editor-operation owner. No Godot or JSON types enter the close core.
+
+The supervisor's initial combined channel/acquisition implementation exceeded
+1,000 lines and combined independently nameable responsibilities. Moving frame
+ordering and attributable failure evidence into its private `channel.rs` child
+keeps the existing architecture without a new service, trait or public API.
+Only current supervisor consumers receive parent-visible methods/fields.
+The RPC helper derives its cutoff from the original start instead of accepting
+a redundant deadline at every call; best-effort abort retains its shorter bound.
+
+Reusing live-frame decoding for a prior public observation replaced historical
+receipt times and rejected legitimate caller-clock validity. The private
+`basis.rs` decoder now preserves actual public-v1 provenance while continuing to
+use the existing checked `ExpectedRevisionBasis` eligibility conversion once.
+This is representation decoding, not another closing or editing policy.
+Closed typed fields, required nulls and ordinary observation validation remain
+mandatory; an unusable valid observation is not relabeled malformed input.
+
+Independent review and integration found concrete evidence-path defects:
+required nullable keys could be omitted; callback stamps lacked enclosing
+native-entry bounds; fresh survivor selection was conflated with historical
+native selection; preparation omitted independently acquired D identity; and
+repeated historical native facts replaced their first actual receipt times.
+These paths now preserve exact authority, ordering and causal failure. The
+preparation/survivor snapshot uses the existing ordinary collector's disk
+identity binding. Authorization invalidates current-state summaries rather
+than presenting pre-effect Resource/selection/history as a known post-state.
+Failure-only survivor acquisition cannot authorize a second close or renew the
+original lease. Repeated native events retain their first observed receipt;
+new completion events remain distinct.
+
+The lifecycle and application knowledge use separate small enums: accepted
+through verification is not the same concept as possible, discarded, selection
+or removal effects. Channel entry/removal/invalidation fields are independent
+sticky facts, not interchangeable lifecycle flags. No future-only variant,
+extension hook, arbitrary dispatcher, public native receipt, dependency,
+compatibility shim, Save/discard/retry/rollback route or additional approval/
+provider requirement was introduced.
+
+Principles I–IV remain the correctness boundary: independent clean target
+D/R/B before entry, preserved human work and exact identities, one native close,
+and fresh postconditions plus actual continuation evidence before success.
+V, VII–XI retain local authenticated confinement, protocol-independent reduction,
+minimal public surface, private protected-source validation, source-free
+diagnostics and production-export isolation. VI/XII still require the task-owned
+real-editor groups and full affected existing suites; a positive smoke or
+passing unit tests alone cannot complete T002. Principle XIII is satisfied by
+reusing the existing owner, validator, confinement and harness; the narrow
+decoding/channel splits address demonstrated current correctness and cohesion
+problems rather than speculative reuse. Actual acceptance and limitations are
+recorded separately in the quickstart.
+
+The source-limited already-closed case exposed a shared file-pin assumption:
+`pin_file` applied a source-size admission limit even when no source was needed.
+Its explicit `bounded_source` argument now remains true for every existing
+edit/open/context caller; close inspection disables only that size admission
+when it has independently found no open document. Ownership, regular-file,
+no-follow, namespace and retained-descriptor checks are unchanged. A closed
+attempt cannot prepare or advance, and effectful preparation still enforces
+all source limits. Duplicating metadata pinning would duplicate confinement
+logic; one explicit current-use argument avoids that cost without allocation,
+a new service, or a wider mutation capability. Both matched native artifacts
+were rebuilt; the changed shared family requires the complete existing suites.
+
+Recognition also uses the ordinary collector's independent D validity rather
+than requiring a nonexistent loaded Script to establish file validity.
+Historical public observations are decoded against their own target/session
+before checking current request binding: valid old-session evidence is a
+`session_changed` refusal, not malformed JSON. Close input reason mapping now
+lives once at that adapter; the CLI only delivers it and drops the raw stdin
+allocation before starting acquisition.
+
+A failing-before/passing-after regression exposed late scope-denial disclosure
+after a known removal. A private sticky scope-invalidation fact now removes
+expected/preparation/survivor source-derived summaries at terminal reduction,
+including after a different first causal error or later acquired envelope.
+It does not erase the known removal or replace the original failure. This
+fact is orthogonal to lifecycle/application knowledge, not another lifecycle
+flag. The ordinary Save fixture was also corrected to accept an actual
+dirty-to-saved transition when human edits left bytes equal to disk; dirty
+does not imply different text. The first-use public scenario independently
+asserts that distinction before refusal and ordinary Save.
+
+The public-basis decoder now requires the nested nullable fields that ordinary
+observation v1 actually emits. A CLI smoke previously accepted an omitted D
+`reason` and reached routing (exit 3); the corrected caller refuses it as
+`invalid_request` (exit 2). The existing bounded duplicate-key scan checks
+presence without a second source-bearing DTO/tree or changes to shared live
+decoders. Observation v1's intentional omission of unavailable source
+`text`/`collection` and unknown-staleness evidence remains valid. The regression
+removes each emitted nullable field independently, alongside real partial-
+observation compatibility cases.
+
+Acceptance reuse was corrected at actual boundaries: the mixed-document case
+makes its text asset visible to FileSystemDock and uses the existing
+`prepared_subject_buffer` witness; ambiguous-session checks compare source,
+identity, history, selection and configuration, not ordinary startup visits
+or unrelated loader activity. Native entered-call barriers publish entry
+before deliberate connection loss can terminalize the caller.
+Closing's validator controls now record the actual pre-interruption process
+group and private-directory ownership/mode before using the existing cleanup
+assertion. Those now-shared inspection/cleanup helpers and evidence fields use
+operation-neutral names; both consumers migrated without aliases. Existing
+harness inheritance remains, rather than introducing a second process harness.
+
+The inherited duplicate-wait check now observes that the first waiter really
+is pending, rejects a second waiter, excludes a completion claim without the
+required event, and measures return against the original remaining lease.
+It no longer pins an incidental subset of terminal status labels. The
+accepted native witness returned in 6.994712 seconds with 6.995177 seconds
+remaining and the original expiry unchanged. The full 123-record native group
+passed.
+
+The affected observation suite exposed another fixture synchronization
+assumption: documentation/text-tab activation was checked after one frame.
+The existing action now waits for the actual help selection, FileSystemDock
+item and extra text editor under one five-second preparation deadline.
+Three fresh visible mixed-document controls and the complete 273-record
+observation suite passed. No product retry, source repair or new readiness
+infrastructure was added.
+
+Full edit validation stalled near independent cases while its conflict
+and routing groups retained up to thirteen completed editors. The isolated
+oversized-buffer case and focused groups passed. Those groups, and the same
+retention pattern in interruption/post-change cases, now close each owned
+editor after its final evidence assertion. Intentional overlapping/two-project
+cases retain both editors until their comparisons finish. This reuses existing
+teardown, changes no product deadline/assertion and introduces no lifetime
+framework. Focused conflicts (38 records), focused routing (36) and the complete
+408-record edit suite passed with bounded fixture lifetimes.

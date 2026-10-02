@@ -5,8 +5,8 @@
 **Current migration:** This document preserves Feature 004's accepted v4 contract
 and historical evidence. Current peers use
 [private v5](../../005-close-project-gdscript/contracts/bridge-protocol.md),
-with the ninth authenticated `close_gdscript` bit false until the complete
-closing caller exchange exists. Discovery tuples now use version 5 with
+with the ninth authenticated `close_gdscript` bit gated by the complete matched
+closing transport/native family. Discovery tuples now use version 5 with
 unchanged semantics. Rebuild/install caller, addon and matched revision-3 native
 bundle together; restart for a new session. No v4/revision-2 fallback is retained.
 Discovery and observation remain available without native mutation support.

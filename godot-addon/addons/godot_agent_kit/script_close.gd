@@ -1,8 +1,8 @@
 @tool
 extends Node
 
-# One private fixture/native owner. Public closing stays unavailable until the
-# complete caller exchange exists; no stage here supplies a success verdict.
+# The single private/native owner is shared by fixture and product consumers.
+# No stage here supplies a public success verdict.
 const ObservationScript = preload("res://addons/godot_agent_kit/observation.gd")
 signal completion_ready(result: Dictionary)
 
@@ -74,7 +74,9 @@ func inspect(path: String, correlation: Dictionary) -> Dictionary:
 	if not _bridge.call("_valid_decimal", expiry) or expiry.length() > 19 \
 			or not expiry.is_valid_int() or expiry.to_int() <= now or expiry.to_int() - now > 9000000:
 		return {"status": "refused", "reason": "invalid_expiry"}
-	if not _bridge.call("_claim_operation", self):
+	var active: Dictionary = _bridge.get("_active")
+	var reserved: bool = active.get("operation_owner") == self and active.get("request_id") == request_id
+	if not reserved and not _bridge.call("_claim_operation", self):
 		return {"status": "refused", "reason": "busy"}
 	_request = request_id
 	_session = session_id
@@ -82,11 +84,11 @@ func inspect(path: String, correlation: Dictionary) -> Dictionary:
 	_expiry = expiry.to_int()
 	_wait_state = WaitState.UNUSED
 	_state = Lifecycle.OWNED
-	var active: Dictionary = _bridge.get("_active")
+	active = _bridge.get("_active")
 	active.request_id = _request
 	active.expiry_tick_us = _expiry
 	var result := _call_owned(_request, "close_inspect", [path, correlation])
-	result.sample = _sample(false)
+	result.sample = _sample(true)
 	if _state == Lifecycle.OWNED and result.get("status") != "inspected":
 		cancel(_request)
 	return result
@@ -154,7 +156,7 @@ func prepare(request_id: String, source: String, capture: Dictionary) -> Diction
 	if _state != Lifecycle.OWNED or _request != request_id:
 		return {"status": "refused", "reason": "wrong_attempt"}
 	var result := _call_owned(request_id, "close_prepare", [request_id, source, _native_length(capture)])
-	result.sample = _sample(false)
+	result.sample = _sample(true)
 	result.validation = _validation(result.get("context"))
 	return result
 
@@ -239,7 +241,8 @@ func _continuation(result: Dictionary) -> Dictionary:
 
 func _wait_reply(result: Dictionary, outcome: String) -> Dictionary:
 	return {"status": outcome, "reason": result.get("reason"), "native": result.get("native"),
-		"continuation": _continuation(result), "protection": result.get("protection")}
+		"expiry_tick_us": result.get("expiry_tick_us"), "continuation": _continuation(result),
+		"protection": result.native.get("protection") if result.get("native") is Dictionary else result.get("protection")}
 
 
 func _resolve_wait(result: Dictionary, outcome: String) -> void:

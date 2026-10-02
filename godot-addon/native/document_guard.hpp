@@ -29,7 +29,8 @@ bool path_ok(const std::string &path);
 bool same(const struct stat &a, const struct stat &b);
 bool attached_project(const Session &session);
 bool file_attached(const Session &session, const FileBinding &file);
-const char *pin_file(const Session &session, const std::string &path, FileBinding &out, int access);
+// Metadata-only recognition still pins the same confined, owned regular file.
+const char *pin_file(const Session &session, const std::string &path, FileBinding &out, int access, bool bounded_source);
 bool content(int fd, std::string_view expected);
 struct Binding {
     Value script, editor, buffer;

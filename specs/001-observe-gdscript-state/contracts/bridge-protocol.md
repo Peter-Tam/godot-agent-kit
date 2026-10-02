@@ -4,8 +4,8 @@
 The current caller/addon cutover uses
 [private bridge v5](../../005-close-project-gdscript/contracts/bridge-protocol.md)
 with nine authenticated capability bits and matched native revision 3. Public
-observation remains schema v1 and read-only; `close_gdscript` remains false
-until the complete closing caller exchange exists. Rebuild/install private
+observation remains schema v1 and read-only. `close_gdscript` requires the
+complete closing transport and matched native family. Rebuild/install private
 peers and the shared native bundle together, then restart for a fresh session;
 older private versions and native revision 2 have no fallback.
 

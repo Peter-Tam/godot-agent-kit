@@ -1,10 +1,10 @@
-# Close Project GDScript — Proposed Caller Contract v1
+# Close Project GDScript — Caller Contract v1
 
-**Status:** Phase 1 planning contract; the command, types and behavior below are **proposed, not implemented or accepted**. Governed by the [specification](../spec.md), [data model](../data-model.md), [private bridge](bridge-protocol.md) and [native integration](native-integration.md). [Research](../research.md) exercised seven stock native calls (six positive controls and one unsafe negative) in four owned visible editors, all exiting 0; it did not exercise this guarded product contract or establish support. The candidate is the exact recorded official Godot 4.7.2 executable/commit on macOS arm64, not a general version range.
+**Status:** Implemented and [accepted for T002](../quickstart.md#10-t002-public-caller-acceptance-2026-10-02) by the `close-gdscript` caller and protocol-independent core. T003 cumulative acceptance remains pending; Feature 005 is not complete. Governed by the [specification](../spec.md), [data model](../data-model.md), [private bridge](bridge-protocol.md) and [native integration](native-integration.md). Earlier [research](../research.md) remains native planning evidence, not public caller acceptance. The tested environment is the exact recorded official Godot 4.7.2 executable/commit on macOS arm64, not a general version range.
 
 ## 1. Invocation and strict input
 
-Proposed invocation, not an executed command:
+Invocation:
 
 ```sh
 printf '%s\n' '{"schema_version":1,"request_id":"close-recognition-1","basis":null}' |
@@ -24,7 +24,7 @@ Stdin must contain exactly one UTF-8 JSON object followed by EOF; JSON whitespac
 
 The example is a valid illustrative recognition input, not an example success output. Missing, unknown or duplicate keys, duplicate nested observation keys, wrong types, invalid UTF-8, trailing non-whitespace/second values, premature EOF and more than 12 MiB refuse as malformed input. Depth is at most 32. A blocked stdin reader shares the original operation deadline; it cannot postpone starting that deadline. Reject excess before unbounded allocation, never truncate or normalize. No hash-token shortcut, arbitrary source filename, replacement text, expected-source override, permission token or caller-supplied validation receipt is accepted. A prior observation may itself contain its observed source; that is evidence in the existing schema, not source to apply. There is no new source-file input flag.
 
-Normal delivery is exactly one bounded UTF-8 JSON result plus newline on stdout. Stderr is source-free; raw OS/editor/compiler messages are not an alternative result. The proposed library surface is checked `CloseRequest::new(..., Option<&ObservationOutcome>)`, immutable `ClosingOutcome` and the real close runner. The borrowed prior outcome is converted once through existing `ExpectedRevisionBasis::from_observation` internally; there is no new public alias, copied eligibility algorithm, `EditAttempt` reuse or edit-policy parameter. Checked retained intent contains identity/revision/provenance summaries, not retained prior source bodies.
+Normal delivery is exactly one bounded UTF-8 JSON result plus newline on stdout. Stderr is source-free; raw OS/editor/compiler messages are not an alternative result. The library surface is checked `CloseRequest::new(..., Option<&ObservationOutcome>)`, immutable `ClosingOutcome` and the real close runner. The borrowed prior outcome is converted once through existing `ExpectedRevisionBasis::from_observation` internally; there is no new public alias, copied eligibility algorithm, `EditAttempt` reuse or edit-policy parameter. Checked retained intent contains identity/revision/provenance summaries, not retained prior source bodies.
 
 ## 2. Basis, recognition and effect eligibility
 
@@ -80,7 +80,7 @@ Exit 0 does not mean parse-valid, all project work clean, Resource unloaded, saf
 
 ## 5. Reasons, stages and precedence
 
-Proposed bounded machine reasons (native/system codes refine but do not replace them):
+Bounded machine reasons (native/system codes refine but do not replace them):
 
 - Positive: `complete`, `already_closed`.
 - Input/basis: `invalid_request`, `missing_basis`, `invalid_basis` (missing completeness/provenance/version), `revision_changed`, `identity_changed`.
@@ -120,4 +120,4 @@ Only uniquely authenticated explicitly authorized target summaries may be public
 
 Close is not unconditionally idempotent across reopening/session/file replacement. Request IDs are correlation, not replay-cache keys. After possible application, fixed guidance requires a **fresh ordinary observation of the explicit original target before another intentional action**, not automatic retry/reopen/rollback. A new request with null may recognize a still-closed target; it cannot close a subsequently reopened one. A later effectful close requires fresh eligible observation and a new request ID.
 
-Existing public discovery/observe/edit/open v1 schemas, meanings, limits and deadlines stay unchanged: editing refuses closed documents and existing operations never implicitly close. Private peers migrate together to [bridge v5](bridge-protocol.md) and native family revision 3 using the existing `editor_integration` artifacts, with fresh editor lifetime/session. Historical acceptance is not relabeled; exact closing support requires its own future [acceptance](../quickstart.md).
+Existing public discovery/observe/edit/open v1 schemas, meanings, limits and deadlines stay unchanged: editing refuses closed documents and existing operations never implicitly close. Private peers migrate together to [bridge v5](bridge-protocol.md) and native family revision 3 using the existing `editor_integration` artifacts, with fresh editor lifetime/session. Historical acceptance is not relabeled; exact closing guarantees are limited to the [recorded task acceptance](../quickstart.md#10-t002-public-caller-acceptance-2026-10-02), with T003 cumulative acceptance still pending.

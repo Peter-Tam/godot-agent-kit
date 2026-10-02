@@ -278,35 +278,39 @@ func _dispatch_request(request: Dictionary) -> void:
 			response.merge({"transition": transition, "record": _transition_record,
 				"document": _document("res://scripts/subject.gd")})
 		"mixed_tabs":
-			# Open documentation, then activate the selected plain-text file
-			# through the owned FileSystemDock's real item-activation signal.
+			# Wait for actual GUI state, not a single layout/scan frame.
+			var deadline := Time.get_ticks_usec() + 5000000
 			var script_editor := EditorInterface.get_script_editor()
 			script_editor.goto_help("class_name:Node")
-			await get_tree().process_frame
+			while script_editor.get_current_script() != null and Time.get_ticks_usec() < deadline:
+				await get_tree().process_frame
 			response.documentation_selected = script_editor.get_current_script() == null
 			var text_path := "res://scripts/note.txt"
 			var dock := EditorInterface.get_file_system_dock()
 			dock.navigate_to_path(text_path)
-			await get_tree().process_frame
 			var activated := false
-			if EditorInterface.get_selected_paths().has(text_path):
-				for tree in dock.find_children("*", "Tree", true, false):
-					var file_tree := tree as Tree
-					if file_tree != null and file_tree.get_selected() != null \
-						and file_tree.get_selected().get_text(0) == "note.txt":
-						file_tree.item_activated.emit()
-						activated = true
-						break
-				if not activated:
-					for list in dock.find_children("*", "ItemList", true, false):
-						var file_list := list as ItemList
-						if file_list != null:
-							for item in file_list.get_selected_items():
-								if file_list.get_item_text(item) == "note.txt":
-									file_list.item_activated.emit(item)
-									activated = true
-									break
-			await get_tree().process_frame
+			while not activated and Time.get_ticks_usec() < deadline:
+				if EditorInterface.get_selected_paths().has(text_path):
+					for tree in dock.find_children("*", "Tree", true, false):
+						var file_tree := tree as Tree
+						if file_tree != null and file_tree.get_selected() != null \
+								and file_tree.get_selected().get_text(0) == "note.txt":
+							file_tree.item_activated.emit()
+							activated = true
+							break
+					if not activated:
+						for list in dock.find_children("*", "ItemList", true, false):
+							var file_list := list as ItemList
+							if file_list != null:
+								for item in file_list.get_selected_items():
+									if file_list.get_item_text(item) == "note.txt":
+										file_list.item_activated.emit(item)
+										activated = true
+										break
+				if not activated: await get_tree().process_frame
+			while script_editor.get_open_script_editors().size() <= script_editor.get_open_scripts().size() \
+					and Time.get_ticks_usec() < deadline:
+				await get_tree().process_frame
 			response.merge(_witness())
 			response.text_selected = EditorInterface.get_selected_paths().has(text_path)
 			response.ok = response.documentation_selected and response.text_selected \

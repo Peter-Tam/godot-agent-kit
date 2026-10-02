@@ -697,35 +697,35 @@ class CallerOpenAcceptanceMixin:
                                 not later["slot_busy"] and survivor == later and disk == later_disk,
                                 "public_busy_refusal_irrevocable_after_other_owner_release")
 
-    def _opening_process_info(self, pid):
+    def _owned_process_info(self, pid):
         inspected = observation.run(
             ["/bin/ps", "-ww", "-p", pid, "-o", "pid=,ppid=,pgid=,command="], timeout=1)
-        observation.require(inspected.returncode in (0, 1), "owned_opening_process_inspection")
+        observation.require(inspected.returncode in (0, 1), "owned_process_inspection")
         rows = inspected.stdout.decode().splitlines()
         if not rows:
             return None
-        observation.require(len(rows) == 1, "unique_owned_opening_process")
+        observation.require(len(rows) == 1, "unique_owned_process")
         values = rows[0].split(None, 3)
         observation.require(len(values) == 4 and int(values[0]) == pid,
-                            "attributable_owned_opening_process_identity")
+                            "attributable_owned_process_identity")
         return {"pid": pid, "parent": int(values[1]), "group": int(values[2]),
                 "command": values[3]}
 
-    def _opening_children(self, parent):
+    def _owned_children(self, parent):
         inspected = observation.run(["/usr/bin/pgrep", "-P", parent], timeout=1)
-        observation.require(inspected.returncode in (0, 1), "owned_opening_descendant_inspection")
+        observation.require(inspected.returncode in (0, 1), "owned_descendant_inspection")
         return [int(value) for value in inspected.stdout.split()]
 
     def _owned_opening_worker(self, process):
         matches = []
-        for pid in self._opening_children(process.pid):
-            child = self._opening_process_info(pid)
+        for pid in self._owned_children(process.pid):
+            child = self._owned_process_info(pid)
             if child is not None and child["command"].endswith(" --internal-open-worker"):
                 matches.append(child)
         observation.require(len(matches) <= 1, "one_actual_owned_opening_worker")
         return matches[0] if matches else None
 
-    def _opening_group_members(self, group):
+    def _owned_group_members(self, group):
         inspected = observation.run(["/bin/ps", "-ax", "-o", "pid=,ppid=,pgid=,stat="], timeout=1)
         observation.require(inspected.returncode == 0, "owned_validation_process_group_inspection")
         members = []
@@ -745,13 +745,13 @@ class CallerOpenAcceptanceMixin:
 
         def helper_and_engine():
             observation.require(process.poll() is None, "public_caller_live_during_open_context_helper")
-            for pid in self._opening_children(process.pid):
-                helper = self._opening_process_info(pid)
+            for pid in self._owned_children(process.pid):
+                helper = self._owned_process_info(pid)
                 if helper is None or not helper["command"].endswith(" --internal-stock-validation-worker"):
                     continue
                 owned["helper"] = helper
-                for child in self._opening_children(pid):
-                    engine = self._opening_process_info(child)
+                for child in self._owned_children(pid):
+                    engine = self._owned_process_info(child)
                     if engine is not None:
                         executable = observation.run(["/bin/ps", "-p", child, "-o", "comm="], timeout=1)
                         if Path(executable.stdout.decode().strip()).name == self.args.godot.name:
@@ -769,7 +769,7 @@ class CallerOpenAcceptanceMixin:
                             engine["parent"] == helper["pid"] and
                             helper["group"] == engine["group"] == helper["pid"] and
                             helper["group"] not in (os.getpgrp(), process.pid, editor["process"].pid) and
-                            self._opening_process_info(owned["worker"]["pid"]) is not None,
+                            self._owned_process_info(owned["worker"]["pid"]) is not None,
                             "helper_is_parent_owned_sibling_not_owned_by_killable_opening_worker")
         working = observation.run(
             ["/usr/sbin/lsof", "-a", "-p", engine["pid"], "-d", "cwd", "-Fn"], timeout=1)
@@ -792,32 +792,32 @@ class CallerOpenAcceptanceMixin:
                             state["current"]["R"] == state["current"]["B"] == current["text"] and
                             not state["target"]["associated"] and not state["cached_id"],
                             "real_open_context_uses_admitted_private_current_before_any_effect")
-        members = self._opening_group_members(helper["group"])
+        members = self._owned_group_members(helper["group"])
         observation.require({helper["pid"], engine["pid"]} <= {row["pid"] for row in members},
                             "actual_helper_and_stock_descendant_belong_to_owned_cleanup_group")
         owned["group_before"] = members
         return state, disks
 
-    def _assert_open_context_cleanup(self, owned, name):
+    def _assert_validation_cleanup(self, owned, name):
         group = owned["helper"]["group"]
         observation.wait_for(
-            lambda: all(self._opening_process_info(owned[key]["pid"]) is None
+            lambda: all(self._owned_process_info(owned[key]["pid"]) is None
                         for key in ("worker", "helper", "engine")) and
-                    not self._opening_group_members(group),
-            "public_opening_worker_helper_descendants_and_group_gone_" + name, timeout=2)
+                    not self._owned_group_members(group),
+            "caller_worker_helper_descendants_and_group_gone_" + name, timeout=2)
         observation.wait_for(lambda: not owned["private"].exists(),
-                             "public_open_context_private_staging_removed_" + name, timeout=2)
+                             "validation_private_staging_removed_" + name, timeout=2)
         return {"public_parent_pid": owned["process"].pid,
-                "opening_worker_pid": owned["worker"]["pid"],
+                "worker_pid": owned["worker"]["pid"],
                 "helper_pid": owned["helper"]["pid"], "stock_descendant_pid": owned["engine"]["pid"],
                 "helper_process_group": group, "group_before": owned["group_before"],
-                "group_after": self._opening_group_members(group),
+                "group_after": self._owned_group_members(group),
                 "private_root": str(owned["private"]), "private_root_identity": owned["private_identity"],
-                "opening_worker_gone": True, "helper_gone": True, "stock_descendant_gone": True,
+                "worker_gone": True, "helper_gone": True, "stock_descendant_gone": True,
                 "private_staging_removed": True,
                 "witness": "independent_ps_pgrep_lsof_and_filesystem_after_public_result"}
 
-    def _cleanup_open_context_control(self, owned):
+    def _cleanup_validation_control(self, owned):
         # Failure-only fallback runs after the acceptance assertions, never creates
         # their proof. Restrict every signal/removal to captured owned identities.
         process = owned.get("process")
@@ -834,7 +834,7 @@ class CallerOpenAcceptanceMixin:
         helper = owned.get("helper")
         if helper is not None:
             captured = [value for key in ("helper", "engine") if (value := owned.get(key)) is not None]
-            if any((live := self._opening_process_info(value["pid"])) is not None and
+            if any((live := self._owned_process_info(value["pid"])) is not None and
                    live["group"] == helper["group"] and live["command"] == value["command"]
                    for value in captured):
                 try:
@@ -887,7 +887,7 @@ class CallerOpenAcceptanceMixin:
                                         all(result["progress"][stage]["state"] in ("not_started", "not_applicable")
                                             for stage in ("resource_binding", "initial_compilation", "document_open")),
                                         "public_helper_failure_cannot_release_lifecycle_authorization")
-                    cleanup = self._assert_open_context_cleanup(owned, name)
+                    cleanup = self._assert_validation_cleanup(owned, name)
                     after, now = self.assert_no_effect(editor, project, before, disks, name)
                     self.open_action(editor, "open_idle")
                     late, late_disk = self.open_state(editor, project)
@@ -900,7 +900,7 @@ class CallerOpenAcceptanceMixin:
                     self.cases[-1].update(process_cleanup=cleanup, boundary_event=owned["event"],
                                          at_helper_interruption=self.concise_open_state(held, held_disk))
                 finally:
-                    self._cleanup_open_context_control(owned)
+                    self._cleanup_validation_control(owned)
 
     def interruption(self):
         self.compile_window_probe()
@@ -964,8 +964,8 @@ class CallerOpenAcceptanceMixin:
                     self.cases[-1]["boundary_event"] = event
                     self.cases[-1]["at_interruption"] = self.concise_open_state(at_boundary, boundary_disk)
                     if kind == "worker_loss":
-                        observation.require(self._opening_process_info(worker["pid"]) is None and
-                                            not self._opening_children(process.pid),
+                        observation.require(self._owned_process_info(worker["pid"]) is None and
+                                            not self._owned_children(process.pid),
                                             "actual_killed_opening_worker_reaped_and_no_parent_descendant")
                         self.cases[-1]["killed_opening_worker_pid"] = worker["pid"]
                     if kind == "disable":
@@ -1030,7 +1030,7 @@ class CallerOpenAcceptanceMixin:
                                                           "retained_slot_busy", "retained_owner_matches",
                                                           "current_reference_alive")}
                     if kind == "worker_loss":
-                        observation.require(self._opening_process_info(worker["pid"]) is None,
+                        observation.require(self._owned_process_info(worker["pid"]) is None,
                                             "actual_entered_opening_worker_kill_reaped")
                         self.cases[-1]["killed_opening_worker_pid"] = worker["pid"]
 
