@@ -1,5 +1,6 @@
 """Host orchestration contracts, not virtualization or Godot acceptance."""
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -64,6 +65,22 @@ class SourceAndEvidenceTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(vm.VMError):
                 vm._revision(self.repo, value)
         self.assertFalse((self.repo / "injected").exists())
+
+    def test_worker_upload_pins_bytes_when_local_helper_changes(self):
+        source = self.root / "vm_guest.py"
+        original = b"original guest control version\n"
+        source.write_bytes(original)
+        copied = {}
+        def transfer(snapshot, destination):
+            source.write_bytes(b"next guest control version\n")
+            copied[destination] = Path(snapshot).read_bytes()
+        tart = mock.Mock()
+        tart.upload.side_effect = transfer
+        with mock.patch.object(vm, "__file__", str(self.root / "run_in_vm.py")):
+            destination, identity = vm._install_worker(tart)
+        self.assertEqual(identity, hashlib.sha256(original).hexdigest())
+        self.assertEqual(Path(destination).name, identity + ".py")
+        self.assertEqual(copied[destination], original)
 
     def test_evidence_mapping_is_private_and_never_overwrites_prior_fetch(self):
         data = b'{"status":"failed"}\n'

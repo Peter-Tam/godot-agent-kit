@@ -26,7 +26,6 @@ _STATE = Path.home() / ".local/state/godot-agent-kit-vm"
 _SUITES = ("observation", "edit", "open", "discovery", "close")
 _GODOT_SHA = "c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf"
 _TEMPLATE_SHA = "88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792"
-_WORKER = GUEST_ROOT + "/vm_guest.py"
 _RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,79}\Z")
 
 
@@ -79,18 +78,30 @@ def _locked(state):
         yield
 
 
-def _worker(tart, *args, **kwargs):
-    return tart.exec([GUEST_PYTHON, _WORKER, *args], **kwargs)
+def _install_worker(tart):
+    # A restored base may carry an old helper. Pin each operation to immutable
+    # bytes so upgrades/interruptions never rewrite another active worker.
+    payload = Path(__file__).with_name("vm_guest.py").read_bytes()
+    identity = hashlib.sha256(payload).hexdigest()
+    destination = GUEST_ROOT + "/workers/" + identity + ".py"
+    with tempfile.NamedTemporaryFile(prefix="gak-vm-worker-") as snapshot:
+        snapshot.write(payload)
+        snapshot.flush()
+        tart.upload(Path(snapshot.name), destination)
+    return destination, identity
 
 
-def _sync(tart, repo, revision):
+def _worker(tart, worker, *args, **kwargs):
+    return tart.exec([GUEST_PYTHON, worker, *args], **kwargs)
+
+
+def _sync(tart, repo, revision, worker):
     # Archive uses committed tracked files only, excluding host binaries, secrets and projects.
     with tempfile.TemporaryDirectory(prefix="gak-vm-source-") as temporary:
         archive = Path(temporary) / "source.tar"
         _git(repo, "archive", "--format=tar", "--output=" + str(archive), revision)
-        tart.upload(Path(__file__).with_name("vm_guest.py"), _WORKER)
         with archive.open("rb") as stream:
-            result = _worker(tart, "sync", "--revision", revision,
+            result = _worker(tart, worker, "sync", "--revision", revision,
                              "--archive-sha256", _digest(archive), stdin=stream, timeout=180)
         if result.stdout:
             print(result.stdout.decode(errors="replace").strip())
@@ -117,7 +128,7 @@ def _extract(archive, destination):
             target.chmod(0o600)
 
 
-def _fetch(tart, state, run_id, captures):
+def _fetch(tart, state, run_id, captures, worker):
     # Every retrieval is immutable; do not overwrite a previous failure or partial copy.
     root = state / "artifacts" / run_id
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -125,7 +136,7 @@ def _fetch(tart, state, run_id, captures):
     with tempfile.TemporaryDirectory(prefix=".fetch-", dir=root) as temporary:
         archive = Path(temporary) / "evidence.tar"
         with archive.open("wb") as stream:
-            _worker(tart, "export", "--run-id", run_id,
+            _worker(tart, worker, "export", "--run-id", run_id,
                     *(["--captures"] if captures else []), stdout=stream, timeout=180)
         _extract(archive, destination)
     print("VM evidence: " + str(destination))
@@ -176,6 +187,7 @@ class _HostObservation:
 
     def evidence(self):
         return {"host_godot_processes": sorted(self.matches), "baseline_host_godot_processes": self.baseline,
+                "new_host_godot_processes": sorted(self.matches.difference(self.baseline)),
                 "process_samples": self.samples,
                 "sampling_error": self.error, "sampling_is_not_focus_proof": True,
                 "execution_boundary": "Tart macOS guest, no viewer or shared directories",
@@ -188,11 +200,9 @@ def _execute(tart, state, args, repo=_REPO):
     revision = _revision(repo, args.revision)
     run_id = args.run_id or _identity()
     wrapper_hash = _digest(__file__)
-    worker_hash = _digest(Path(__file__).with_name("vm_guest.py"))
+    worker, worker_hash = _install_worker(tart)
     print(f"VM run {run_id}; exact source {revision}", flush=True)
-    _sync(tart, repo, revision)
-    if worker_hash != _digest(Path(__file__).with_name("vm_guest.py")):
-        raise VMError("Guest worker changed during upload; no acceptance command was started.")
+    _sync(tart, repo, revision, worker)
     command = [args.operation, "--revision", revision, "--run-id", run_id, "--suite", args.suite]
     if args.operation == "run":
         command += ["--scenario", args.scenario]
@@ -207,7 +217,7 @@ def _execute(tart, state, args, repo=_REPO):
     status = 1
     with _HostObservation() as observation:
         with (host_run / (invocation + ".stdout")).open("wb") as stream:
-            result = _worker(tart, *command, stdout=stream, check=False)
+            result = _worker(tart, worker, *command, stdout=stream, check=False)
         status = result.returncode
         if result.stderr:
             print(result.stderr.decode(errors="replace"), file=sys.stderr, end="")
@@ -217,15 +227,15 @@ def _execute(tart, state, args, repo=_REPO):
                 "vm": tart.status(), **observation.evidence()}
     (host_run / (invocation + ".host.json")).write_text(json.dumps(evidence, indent=2) + "\n")
     try:
-        _fetch(tart, state, run_id, args.captures)
+        _fetch(tart, state, run_id, args.captures, worker)
     except (VMError, OSError, tarfile.TarError, subprocess.SubprocessError) as error:
         print(f"Evidence retrieval failed: {error}; retained in guest as {run_id}. "
               "Use fetch-artifacts after restoring control.", file=sys.stderr)
         if status == 0:
             status = 1
-    if observation.matches or observation.baseline or observation.error:
-        print("Host process samples do not establish absence; inspect the isolation record. "
-              "Existing host applications were not controlled or terminated.", file=sys.stderr)
+    if observation.matches.difference(observation.baseline) or observation.error:
+        print("Host process observation needs attribution; inspect the isolation record. "
+              "Independent host applications were not controlled or terminated.", file=sys.stderr)
     return status if status >= 0 else 128 - status
 
 
@@ -255,10 +265,10 @@ def _setup(tart, state, args):
     template_dir = "/Users/admin/Library/Application Support/Godot/export_templates/4.7.2.stable"
     tart.exec(["/bin/mkdir", "-p", template_dir], timeout=30)
     tart.upload(template, template_dir + "/macos.zip")
-    tart.upload(Path(__file__).with_name("vm_guest.py"), _WORKER)
-    result = _worker(tart, "provision", "--generation", uuid.uuid4().hex, timeout=1800)
+    worker, _ = _install_worker(tart)
+    result = _worker(tart, worker, "provision", "--generation", uuid.uuid4().hex, timeout=1800)
     print(result.stdout.decode(errors="replace"))
-    _sync(tart, _REPO, revision)
+    _sync(tart, _REPO, revision, worker)
     tart.exec(["/usr/bin/env", "-i", "HOME=/Users/admin", "RUSTUP_AUTO_INSTALL=0",
                "PATH=/Users/admin/.cargo/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
                "/Users/admin/.cargo/bin/cargo", "+1.98.1", "fetch", "--locked",
@@ -323,7 +333,8 @@ def main(argv=None):
             elif args.operation == "reset":
                 tart.reset()
             elif args.operation == "fetch-artifacts":
-                _fetch(tart, state, args.run_id, args.captures)
+                worker, _ = _install_worker(tart)
+                _fetch(tart, state, args.run_id, args.captures, worker)
             else:
                 return _execute(tart, state, args)
         return 0

@@ -54,10 +54,12 @@ retain scenario selection, deadlines, independent witnesses, result schemas,
 cleanup and all assertions; the VM changes where they execute, not what they prove.
 
 Infrastructure acceptance requires a real focused guest GUI run and retrieved
-artifacts, with no host Godot Editor/runtime process, test-created application
-window, or host foreground-activation request. Guest process/window evidence and
-Tart's no-viewer boundary establish isolation; merely backgrounding a host process
-does not. A second focused run should demonstrate workspace/build reuse.
+artifacts, with no **test-created** host Godot Editor/runtime process, application
+window, or foreground-activation request. Independently running human host editors
+are recorded as a baseline and left untouched; the maintainer explicitly chose
+this baseline-aware criterion during implementation. Guest process/window evidence
+and Tart's no-viewer boundary establish isolation; merely backgrounding a host
+process does not. A second focused run should demonstrate workspace/build reuse.
 
 The currently recorded candidate is macOS **26.6.2 (25G83), arm64**, official Godot
 `4.7.2.stable.official.ed1daf0bf`, full commit
@@ -192,7 +194,10 @@ Host state, backend and VM disks are under `~/.local/state/godot-agent-kit-vm/`:
   and sampled host process observations. Launcher output stays in a private log.
 
 Guest state is `/Users/admin/.godot-agent-kit-vm/`: `inputs/`, `workspace/repo/`,
-`cache/`, separate `build/fixture-native/`, and `runs/<run-id>/`.
+`workers/<sha256>.py`, `cache/`, separate `build/fixture-native/`, and `runs/<run-id>/`.
+The host pins helper bytes for each operation and uploads that exact helper even
+for standalone artifact retrieval. A restored base cannot silently select an old
+helper, and a new version cannot overwrite an interrupted worker's executable.
 Each focused run creates a fresh private artifact directory. Campaigns retain
 their existing fresh-per-attempt directories, failure retention, fingerprints,
 summary validation and resume behavior. No checkpoint is imported from the host.
@@ -242,8 +247,11 @@ python3 godot-addon/tests/run_in_vm.py reset --discard-guest-runs
 python3 godot-addon/tests/run_in_vm.py start
 ```
 
-Reset explicitly discards the owned guest workspace/evidence and clones the
-saved base; host evidence remains. It is recovery, not the inner loop. Existing
+Reset discards changes since the saved base and restores that complete image,
+including its saved workspace state; host evidence remains. It is recovery, not
+the inner loop. Normal stop synchronizes the guest filesystem before stopping Tart;
+unavailable sync is reported as failure even if the owned VM was stopped, and setup
+must not save a supposedly durable base afterward. Existing
 base images are not silently overwritten. To recreate from scratch, stop the VM,
 retain any needed host evidence, and explicitly remove **only this dedicated
 state directory**, then repeat installation/setup. No VM images are committed.
@@ -253,3 +261,89 @@ No host fallback exists. Missing/stopped VM, an unowned viewer launch, unavailab
 guest agent, missing exact input, stale source, invalid artifacts or a lost GUI
 session produces a nonzero result with guidance. Host GUI execution is not an
 alternative merely because guest setup is inconvenient.
+
+## Implementation evidence and limitations
+
+On 2026-10-02 the pinned image was installed, provisioned, stopped, cloned as a
+base, reset from that base and restarted **host-only, without a viewer**. Observed:
+`VirtualMac2,1`, macOS **26.6.2 (25G83)**, arm64, 4 CPUs, 6 GiB RAM,
+1024×768 reported guest display pixels, Python **3.14.7**, Rust **1.98.1**
+(`48a229cea`), Apple clang **21.0.0**, Swift **6.3.3**, SDK **26.5**.
+The exact engine/commit/executable/template hashes above matched. The OS matches
+the existing candidate; this is not a claim that all historical acceptance has
+been recertified for the VM or for rebuilt native artifacts.
+
+Validation:
+
+- **47 deterministic orchestration tests passed**: 10 host orchestration, 14 guest
+  worker, and 23 Tart lifecycle tests; the **20 existing campaign tests passed**.
+- Existing `run_script_edit.py --scenario clean-open`: **passed**, 10 group cases
+  plus bootstrap, at `949919e2f2d90dae53fa66387194fbe5d8d11f09`.
+  After immutable helper deployment was added, the unchanged group passed again
+  against `2e64e4088bb72c06b51fd95193c1e5295683bb56`, using the current host wrapper
+  and the recorded unchanged guest helper bytes; no native/Rust rebuild occurred.
+- Existing `run_script_edit.py --scenario durability`: **passed**, 9 group cases
+  plus bootstrap, at `2e64e4088bb72c06b51fd95193c1e5295683bb56`.
+  This exercised ordinary Save, close/reopen, reparse, rescan, and its existing
+  headless runtime-value witness without changing that witness or the GUI editor.
+- A separate throwaway **non-headless runtime** displayed an independently
+  observed guest window, produced a capture, and exited normally. This is
+  infrastructure window evidence, not another semantic acceptance suite.
+- The initial two passing groups yielded seven retrieved editor captures;
+  representative editor and runtime images were visually inspected. A failed
+  close group's completed-case capture was also retrieved and inspected without
+  promoting the group to passed.
+- Normalized host observations recorded **no new host Godot processes**, and
+  passive host window observations found no Godot/Tart viewer windows during the
+  observed runs. Independent baseline host processes were left untouched as
+  explicitly requested. Guest provenance recorded the engine PIDs, graphical
+  session and VM hardware; after the smokes no guest Godot process remained.
+  Host terminal commands remained usable. No host focus API or viewer launch
+  was invoked by automated execution.
+- Native production/fault and Rust output hashes were unchanged between the
+  focused runs; build receipts retained their original 17:59 UTC modification
+  times. No VM recreation, tool reinstall or native/Rust rebuild occurred between
+  the passing groups.
+- `campaign close --keep-going` retained the existing unsupported-complete-close
+  refusal and exit **2**, before GUI execution. No historical campaign was run.
+- The VM was stopped after validation. Temporary runtime projects/control scripts
+  and host observation binaries were removed; private evidence and the reusable
+  VM/base remain.
+
+The final helper-deployment change received its own focused GUI smoke and artifact
+retrieval check with the obsolete mutable helper removed. Subsequent documentation
+does not invalidate those executed inputs under the existing evidence-reuse policy.
+
+Private evidence is under `~/.local/state/godot-agent-kit-vm/`:
+`artifacts/vm-smoke-edit/`, `artifacts/vm-smoke-durability/`,
+`artifacts/vm-smoke-close-4cpu/`, `artifacts/vm-campaign-refusal/`,
+`artifacts/vm-smoke-worker-pinned/`, and `validation/runtime-window/`.
+Raw project-bearing evidence is not committed or
+uploaded with the PR.
+
+**Known product/environment result, not waived:** `close --scenario clean-close`
+did not pass as a complete group. At four CPUs the selected-close,
+closed-observation and intentional-reopen cases passed, but the next nonselected
+close failed the unchanged
+`public_close_expected_outcome_public_close_nonselected` assertion. Its complete
+result remains guest-private with the failed summary and capture retrieved.
+The two-CPU attempt had refused `context_validation_unavailable` after 8.9 seconds.
+The cause of the remaining failure is not established here. No close requirement,
+native behavior, ten-second operation deadline or assertion was relaxed; this
+infrastructure PR does not certify close acceptance or complete Feature 005.
+Retain that failure and use the existing focused/relevant-input policy, not a
+host fallback or a claim of equivalent historical evidence.
+
+Bootstrap also exposed a concrete lifecycle bug: stopping Tart immediately after
+dependency downloads left an incomplete cache after reboot. Guest filesystem
+sync before stop corrected the observed recovery path; all 59 cached crates,
+including `ring`, survived restoring the updated base and offline builds passed.
+The image's unnecessary SSH and Screen Sharing services were disabled through
+guest launchd. No host sharing, credential forwarding, Metal shim, GPU preference
+override, hosted provider or CI requirement was added.
+
+Implementation-shape review: `run_in_vm.py` owns the host CLI/source/evidence
+boundary, `vm_tart.py` owns this one backend's lifecycle and vsock transport, and
+`vm_guest.py` owns guest preflight/build/run/export. Existing runners own all
+acceptance semantics. Helpers remain internal to test tooling, with no product
+API, duplicated suite, generic executor interface or speculative backend.
