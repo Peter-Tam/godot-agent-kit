@@ -114,7 +114,7 @@ class SourceAndEvidenceTests(unittest.TestCase):
         tart.status.return_value = {"state": "running", "running": True}
         with (mock.patch.object(vm, "_sync"),
               mock.patch.object(vm, "_worker", return_value=subprocess.CompletedProcess([], 37, b"", b"")),
-              mock.patch.object(vm, "_fetch", side_effect=vm.VMError("control disconnected")),
+              mock.patch.object(vm, "_fetch", side_effect=subprocess.CalledProcessError(70, ["tart", "exec"])),
               mock.patch.object(vm, "_host_godot_processes", return_value=[]),
               contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO())):
             status = vm._execute(tart, state, args, repo=self.repo)

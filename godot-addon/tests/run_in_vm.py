@@ -218,7 +218,7 @@ def _execute(tart, state, args, repo=_REPO):
     (host_run / (invocation + ".host.json")).write_text(json.dumps(evidence, indent=2) + "\n")
     try:
         _fetch(tart, state, run_id, args.captures)
-    except (VMError, OSError, tarfile.TarError) as error:
+    except (VMError, OSError, tarfile.TarError, subprocess.SubprocessError) as error:
         print(f"Evidence retrieval failed: {error}; retained in guest as {run_id}. "
               "Use fetch-artifacts after restoring control.", file=sys.stderr)
         if status == 0:

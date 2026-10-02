@@ -179,6 +179,15 @@ class GuestTests(unittest.TestCase):
             for entry in archive:
                 self.assertNotIn(b'never-export', archive.extractfile(entry).read())
 
+    def test_failed_group_captures_survive_without_completed_group_entry(self):
+        run = self.make_run()
+        (run / 'artifacts/summary.json').write_text(json.dumps({
+            'status': 'failed', 'groups': {},
+            'cases': [{'artifact_directory': 'clean-open', 'screenshot': 'view.png'}]}))
+        captures = {path.relative_to(run).as_posix() for path in guest._export_paths(run, True)}
+        self.assertIn('artifacts/clean-open/view.png', captures)
+        self.assertNotIn('artifacts/clean-open/private.json', captures)
+
     def test_export_rejects_symlink_in_evidence_tree(self):
         run = self.make_run()
         (run / 'artifacts/sneaky.json').symlink_to(run / 'provenance.json')

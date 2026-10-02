@@ -472,8 +472,11 @@ def _export_paths(run, captures=False):
             capture_directories.add(base)
             summary = base / 'summary.json'
             if _regular(summary):
-                for group in _json(summary).get('groups', {}).values():
-                    relative_group = group.get('artifact_directory')
+                report = _json(summary)
+                # Failed groups do not get a groups entry, but their completed
+                # cases still identify captured evidence. Preserve those too.
+                for record in (*report.get('groups', {}).values(), *report.get('cases', [])):
+                    relative_group = record.get('artifact_directory')
                     if relative_group:
                         parts = _safe_relative(relative_group).parts
                         if any(part in ('registry', 'workspace', 'control') for part in parts):
