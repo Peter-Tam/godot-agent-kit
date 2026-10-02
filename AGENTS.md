@@ -33,6 +33,16 @@ That document is repository working policy delegated by `AGENTS.md`, with AGENTS
 authority only. It cannot override the constitution, approved specification, approved plan,
 or selected task. The one-task-one-PR implementation rules below remain unchanged.
 
+## Testing and validation policy
+
+Before planning verification, selecting test scope, validating implementation, or deciding
+whether evidence must be repeated, agents MUST read and follow
+[TEST_POLICY.md](TEST_POLICY.md). It owns repository testing rules with AGENTS.md-level
+authority only, below the constitution, approved specification, approved plan, and selected
+task. It cannot silently override conflicting approved artifacts: obtain an explicit
+design correction before dependent execution. Apply its evidence-validity rules, not a
+blanket requirement to reexecute every check at the literal final commit.
+
 ## Complexity gate
 
 Before introducing a new infrastructure layer, process gate, approval mechanism, dependency,
@@ -114,8 +124,9 @@ Task and feature completion MUST be determined by their approved acceptance crit
 required evidence, not by GitHub review or merge state.
 
 When a task satisfies its specification, plan, task acceptance criteria, required
-validation, the implementation-shape completion gate below, and applicable constitutional
-gates on its current delivery head, it MUST be marked complete (`[X]`) even if its pull
+validation (including still-valid reusable evidence under [TEST_POLICY.md](TEST_POLICY.md)),
+the implementation-shape completion gate below, and applicable constitutional gates for
+its current delivery head, it MUST be marked complete (`[X]`) even if its pull
 request is still open or unmerged. If that task completes the feature, the feature MUST
 likewise be recorded as complete.
 
@@ -276,6 +287,8 @@ The review MUST check:
 - a reasonable number of serial PRs before the first useful vertical slice;
 - preserved requirement and acceptance-scenario coverage;
 - clear dependency ordering.
+- test scope justified under [TEST_POLICY.md](TEST_POLICY.md), rejecting unjustified broad
+  execution requirements before `/speckit.analyze` rather than carrying them into implementation.
 
 If granularity is poor, refine `tasks.md` before continuing. This planning gate does not
 authorize batching approved tasks into a PR, bypassing dependencies, or weakening the
@@ -363,32 +376,6 @@ of inventing guarantees; timeout/cancellation does not imply rollback, and retri
 be safe or explicitly documented as non-idempotent. Success must survive Save,
 close/reopen, reparse, rescan, and runtime launch wherever applicable.
 
-## Verification and release gates
-
-Layer deterministic, isolated tests: unit tests for pure logic, integration tests for protocol/editor boundaries and changed state transitions, **real-Godot live-editor tests** for coherence. Use explicit deadlines and event-based synchronization, record regression cases for discovered failures, and make diagnostic evidence identify the actual transaction stage and observed D/R/B surfaces. Disk-only checks, headless runtime, and mocks cannot establish visible-buffer coherence.
-
-Real-editor validation MUST use the narrowest evidence set that proves the selected
-task: task-owned scenarios and directly affected regressions. During development,
-rerun the failed/affected scenario before broader cumulative validation. A complete
-unfiltered suite is REQUIRED when the approved task acceptance inherently requires
-whole-suite interaction, a changed shared boundary can invalidate that complete
-suite (for example authenticated bridge compatibility, native ABI/family loading,
-or shared editor-operation ownership), or the task is the feature cumulative/release
-gate. Do not invent wider reruns without a concrete affected obligation: an existing
-suite or generic regression caution is not justification. A–E, feature-completion,
-and release requirements remain unchanged; focused passes cannot establish feature
-completion where the approved cumulative gate requires complete final-head evidence.
-
-Mutation-related functionality MUST maintain real-Godot live-editor regression coverage for scenarios A–E, and all applicable gates MUST pass before a mutation feature is complete or released; C applies whenever UndoRedo is claimed:
-
-- **A — Clean open-buffer edit:** D, R, and B converge without human reconciliation.
-- **B — Dirty human-buffer conflict:** preserve the unsaved edit; refuse safely or use an explicitly designed resolution workflow, never silently lose it.
-- **C — Real Undo/Redo:** verify apply → Undo → Redo transitions across applicable surfaces through Godot's editing history.
-- **D — Close/reopen persistence:** reported successful edits survive reopening without stale/reverted state.
-- **E — Sequential edit stress:** repeated edits do not disappear, diverge, conceal conflicts, or revert on Save.
-
-Also verify Save/reparse/rescan/runtime durability wherever applicable. Record a justification for an inapplicable surface/scenario; lack of observability is not proof. Document verified guarantees and limitations, not aspirations. State exact supported Godot versions and cover them in CI and real-editor testing before claiming support; do not claim untested versions.
-
 ## Conditional implementation guidance
 
 Apply these only when the relevant implementation exists under an approved plan; do not infer a runnable Cargo/Godot project or select crates, SDKs, ports, transport, wire format, package topology, test framework, license, versions, MSRV, bots, or release infrastructure here.
@@ -400,7 +387,7 @@ Apply these only when the relevant implementation exists under an approved plan;
   If a GDScript EditorPlugin is selected, use conventional `addons/<name>/plugin.cfg` and
   `@tool`, clean up registrations/signals/nodes on disable/exit, and keep editor tooling
   out of gameplay authority. Neither `addons/` nor `@tool` excludes tooling from
-  production exports: explicitly test the development/export boundary.
+  production exports; keep the development/export boundary explicit.
 - **Rust:** The server should be primarily Rust; a thin GDScript EditorPlugin is the
   expected start, but an alternative MAY be selected only when evidence favors its fit
   to Godot Editor APIs and it preserves the same guarantees. Follow approved package
@@ -418,16 +405,10 @@ Apply these only when the relevant implementation exists under an approved plan;
   For stdio, reserve stdout for protocol and send logs to stderr. If HTTP is selected,
   follow the selected specification's Origin/auth requirements.
 
-Once a Cargo application exists, track `Cargo.lock` and use locked dependency resolution in CI; document any toolchain/edition/MSRV claim, test any promised MSRV, and test valid approved feature combinations, not blanket `--all-features`. Run applicable baseline checks (add `--workspace` when coverage of actual workspace members requires it):
-
-```sh
-cargo fmt --all -- --check
-cargo clippy --all-targets --locked -- -D warnings
-cargo test --locked
-cargo doc --no-deps --locked
-```
-
-Default `cargo test` includes doctests; `cargo test --all-targets` alone does **not**. If using `--all-targets`, run documentation tests separately with `--doc`. Commands are conditional on the later planned Cargo setup, not claims of currently configured checks.
+Once a Cargo application exists, track `Cargo.lock` and use locked dependency resolution
+in CI. Document toolchain/edition/MSRV claims and preserve the applicable Rust validation,
+approved feature-combination, workspace, and doctest rules in
+[TEST_POLICY.md#rust](TEST_POLICY.md#rust).
 
 ### Rust LSP development tooling
 
@@ -442,7 +423,8 @@ in both `initOptions` and `settings.rust-analyzer`: the later `workspace/configu
 response replaces initialization settings rather than merging them. Omitting it from
 runtime settings causes workspace-discovery errors despite an initially loaded project.
 No root Cargo workspace is needed. After changing LSP configuration, use OMP's LSP
-`reload` action with `file: "*"`. Run the Cargo baseline commands above from `mcp-server/`.
+`reload` action with `file: "*"`. Run applicable Cargo commands from `mcp-server/` as
+specified in [TEST_POLICY.md#rust](TEST_POLICY.md#rust).
 
 ## Dependencies, security, compatibility
 
