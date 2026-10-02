@@ -6,10 +6,10 @@ checks. [live-editor.yml](workflows/live-editor.yml) is **optional** automation
 for the real-editor suites, not a separate Feature 001 or Feature 002
 completion prerequisite.
 
-**Real-editor acceptance is mandatory; dedicated GUI CI is optional.** A
-maintainer-operated real Mac with the pinned stock Godot candidate, the
-complete suites required by the approved feature cumulative/release gate, and
-honestly recorded evidence can satisfy the GUI requirements alongside ordinary CI. An
+**Real-editor acceptance is mandatory; dedicated GUI CI is optional.** Local
+maintainer runs use the [isolated macOS VM](LOCAL_VM.md), with the pinned stock
+Godot candidate, the acceptance scope required by approved artifacts and
+[TEST_POLICY.md](../TEST_POLICY.md), and honestly recorded evidence alongside ordinary CI. An
 observation run alone does not prove guarded mutation A–E, runtime durability,
 or caller completion. See the [Feature 002 acceptance
 runner](../specs/002-edit-open-gdscript/quickstart.md#3-owned-real-editor-runner)
@@ -20,9 +20,10 @@ Known-path opening has its own [Feature 003 caller acceptance](../specs/003-open
 The ordinary Rust job builds `open-gdscript` alongside the observer and editor.
 The optional GUI workflow below still runs the existing edit and observation
 suites; those runs do not substitute for complete opening acceptance, including
-repeated opening and composed A–E/durability. At the cumulative gate, run opening,
-edit and observation serially on the same final delivery head with private
-artifacts. The campaign utility below retains evidence at existing scenario boundaries.
+repeated opening and composed A–E/durability. At a cumulative gate, assemble valid
+coverage under [TEST_POLICY.md](../TEST_POLICY.md); execute newly required guest
+portions serially with private artifacts. The campaign utility below retains
+evidence at existing scenario boundaries.
 
 Project-script discovery retains its authenticated read-only scope boundary.
 Current peers use [private bridge v5](../specs/005-close-project-gdscript/contracts/bridge-protocol.md).
@@ -41,21 +42,35 @@ discovery or closing acceptance. Run the required suites serially.
 
 ## Focused validation and resumable campaigns
 
+Normal host commands use the VM wrapper; no Godot window is launched on the
+maintainer desktop and VM failure never falls back to host GUI execution:
+
+```sh
+python3 godot-addon/tests/run_in_vm.py start
+python3 godot-addon/tests/run_in_vm.py run close --scenario preservation
+```
+
+See [LOCAL_VM.md](LOCAL_VM.md) for setup, exact source selection, artifacts,
+campaign resume, optional guest viewer inspection and recovery. Existing
+runners below remain the semantic owners; their direct commands are **guest-side
+examples**, not the normal host entry point.
+
 During development, run the failed/affected scenario, fix it, then rerun that
 scenario. Task completion needs task-owned scenarios plus directly affected
 regressions, not the entire historical GUI universe. Use a complete unfiltered
 suite when approved acceptance requires whole-suite interaction, a changed
-shared boundary can invalidate the suite (authenticated bridge compatibility,
-native ABI/family loading, shared editor-operation ownership), or the task is
-the feature cumulative/release gate. The existence of a suite or generic
-regression caution does not establish an affected obligation.
+shared boundary invalidates evidence across the suite (authenticated bridge
+compatibility, native ABI/family loading, shared editor-operation ownership), or
+an independently justified whole-suite/release requirement applies. A cumulative
+label, the existence of a suite, or generic caution does not establish that obligation.
 
 The [campaign utility](../godot-addon/tests/run_editor_campaign.py) invokes the
 existing runners; they retain ownership of all product, D/R/B, history, privacy
 and export assertions. Build the existing acceptance inputs first, including
 the library used by observation probes and separate production/fault native
 artifacts; see the [opening runner prerequisites](../specs/003-open-project-gdscript/quickstart.md#3-owned-opening-runner-and-caller-groups).
-From the repository root, set the same absolute inputs for these examples:
+Inside the guest repository (or the explicitly provisioned dedicated GUI-CI
+environment), set the same absolute **guest** inputs for these examples:
 
 ```sh
 GODOT=/absolute/path/to/Godot
@@ -154,13 +169,13 @@ runner/helpers, fixtures, addon/runtime inputs and behavioral arguments;
 documentation edits and commit IDs are not execution identity. Missing, corrupt,
 failed or interrupted evidence is rerun, never promoted to passing.
 
-Focused scenario passes are development evidence, not a substitute for an
-approved final-head cumulative gate. After a code/build/runtime change, old-build
-passes cannot silently prove the new head: rerun the affected scenario during
-development, then run the complete required cumulative campaign once the final
-inputs are stable. Resume avoids restarting unchanged completed work, not the
-acceptance required by a new execution identity. A–E, feature-completion and
-release obligations are unchanged.
+Focused passes establish their owned obligations, not unobserved composition or
+release behavior. Cumulative acceptance requires complete **valid evidence
+coverage**, not automatic replay at a literal final commit. After a relevant
+code/build/runtime change, rerun the affected obligations and reuse unchanged
+accepted evidence under [TEST_POLICY.md](../TEST_POLICY.md). Existing campaign
+fingerprints still govern checkpoint reuse; invalid checkpoints are never promoted.
+A–E, feature-completion and independently justified release obligations are unchanged.
 
 The remaining sections describe conditions **only for choosing the optional
 self-hosted workflow**. It is sourced from `main` even when the tested
@@ -303,8 +318,8 @@ The GUI job also builds the official-stock production GDExtension and a separate
 normal artifact remains installed for fixture projects and export checks;
 fixture-only hooks remain in their distinct test directory. This native
 baseline is additional to ordinary hosted CI, not replaced by it.
-No new provider, runner, environment or dependency is required for a
-maintainer-operated acceptance run.
+No hosted provider or dedicated CI runner is required for maintainer-operated
+acceptance. Local GUI execution uses the [owned VM profile](LOCAL_VM.md).
 
 ## Operate and verify
 

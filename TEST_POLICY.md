@@ -7,8 +7,8 @@ implementation, or deciding whether to repeat evidence. [AGENTS.md](AGENTS.md) d
 AGENTS.md-level authority only: the [constitution](.specify/memory/constitution.md), approved
 specification, approved plan, and selected task take precedence, in that order. Conflicting
 approved artifacts require an explicit design correction before dependent execution; this
-policy does not silently waive an approved obligation. It introduces no tooling, evidence
-database, approval mechanism, or additional workflow gate.
+policy does not silently waive an approved obligation. It defines verification scope and
+local GUI execution location, not a new evidence database, approval mechanism, or CI gate.
 
 Verification establishes behavior and acceptance, not ritual command completion. Select
 task-owned acceptance, directly affected regressions, and applicable static/build checks.
@@ -88,6 +88,39 @@ below. Tests must use deterministic, isolated fixtures, explicit deadlines, and 
 synchronization; arbitrary sleeps or process success are not correctness evidence. Record
 regression cases for discovered failures and diagnostics identifying transaction stages and
 actually observed D/R/B surfaces.
+
+### Local graphical execution boundary
+
+Local real-editor acceptance MUST use the dedicated **macOS arm64 VM** through
+[`godot-addon/tests/run_in_vm.py`](godot-addon/tests/run_in_vm.py). Follow the
+[one-time setup and maintainer workflow](.github/LOCAL_VM.md). The VM is the test
+desktop: Godot Editors, owned runtimes, window capture and focus requests remain in its
+logged-in graphical session. The host supplies committed source and command/control only;
+no shared human projects or mutable host working tree. `--no-graphics` hides the VM viewer,
+not Godot's GUI; headless Godot is not a replacement for real-editor acceptance.
+
+- **Normal development:** the failed/affected scenario and smallest affected real-editor
+  group run inside the VM.
+- **Task completion:** task-owned plus directly affected real-editor regressions run
+  inside the VM, alongside the same applicable static/build checks.
+- **Cumulative/release:** required expensive campaign portions run inside the VM, using
+  existing checkpoints and cumulative valid evidence rather than automatic full replay.
+- **Host GUI:** not the default, and MUST NOT be used merely because VM setup is
+  inconvenient. The wrapper has no host fallback. A specifically chosen host-only
+  debugging experiment must be explicit; it is not automatic acceptance substitution.
+
+This changes **where**, not **which**, tests execute. Do not add historical GUI reruns
+because an isolated desktop is now available. Existing hosted CI and optional dedicated
+live-editor CI remain unchanged; no hosted provider or new CI gate is required.
+
+Missing/stopped VM, failed control, stale source, mismatched engine/native inputs or a lost
+graphical session MUST fail before acceptance can be claimed. Preserve failure evidence.
+Record VM/guest identity, exact tested source and observed engine/tool/native provenance.
+If guest macOS differs from the recorded supported candidate, label results isolated
+development/regression evidence until support equivalence is deliberately approved;
+do not broaden a product support claim. The infrastructure's own acceptance requires
+a focused real guest GUI run, retrieved artifacts, and process/window evidence supporting
+the VM boundary with no test-launched host Godot/window/focus requests.
 
 ## Completion scope and justified broadening
 
@@ -183,7 +216,9 @@ checkpoints and those whose relevant inputs changed. A late failure does not inv
 unchanged passes or make the whole suite atomic. Existing resume identity/fingerprint rules
 remain mandatory: never promote an invalid checkpoint. Acceptance-evidence validity is a
 separate review of the accepted run's relevant inputs, not permission to bypass campaign checks.
-No new runner or checkpoint tooling is imposed by this policy.
+The VM wrapper preserves the existing runner and checkpoint semantics. Its stable guest
+execution identity participates in the campaign environment fingerprint; moving execution
+into a guest must not authorize stale host checkpoints or weaken relevant-input review.
 
 For Feature 005 T003, newly execute sequential and full composed groups, directly affected
 regressions, and applicable cheap/build/campaign checks for the actual changes. The seven
