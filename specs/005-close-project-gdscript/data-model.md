@@ -1,6 +1,6 @@
 # Data Model: Safe Clean-Document Closing
 
-**Status:** Approved staged design for the clarified [specification](spec.md). T001's native records/fact producers and T002's checked public close intent/outcome and caller exchange have [passed task acceptance](quickstart.md#10-t002-public-caller-acceptance-2026-10-02). T003 cumulative acceptance remains pending. Rust owns checked intent and outcome reduction; the addon/native boundary supplies facts. JSON, sockets and Godot object handles are not core-domain types.
+**Status:** Implemented under the clarified [specification](spec.md); Feature 005 is complete with [public-caller acceptance](quickstart.md#10-t002-public-caller-acceptance-2026-10-02) and [T003 cumulative acceptance](quickstart.md#12-t003-cumulative-acceptance-2026-10-02). Rust owns checked intent and outcome reduction; the addon/native boundary supplies facts. JSON, sockets and Godot object handles are not core-domain types. T003 changes no model semantics.
 
 ## 1. Reused values and ownership
 

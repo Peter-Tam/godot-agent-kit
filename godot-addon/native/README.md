@@ -156,11 +156,16 @@ before any later effectful operation, especially after possible application.
 
 The [closing runner](../../specs/005-close-project-gdscript/quickstart.md#3-owned-native-boundary-and-caller-groups)
 provides `native-boundary`, `clean-close`, `already-closed`, `preservation`,
-`routing`, `interruption` and `privacy-export`. Public groups require the real
-`--closer`, `--opener` and `--discoverer` in addition to observer/editor/validator
-and separate fixture-fault inputs. Native-only execution does not need these
-three callers. Full close `all`/`sequential`/`composed` and campaign `--suite close`
-or `--suite all` remain unavailable until cumulative closing acceptance exists.
+`routing`, `interruption`, `sequential`, `composed` and `privacy-export`. Public
+groups require the real `--closer`, `--opener` and `--discoverer` in addition to
+observer/editor/validator and separate fixture-fault inputs. Native-only
+execution does not need these three callers. Close `all` runs all nine groups
+once; complete campaign `--suite close` and `--suite all` are available.
+[Cumulative acceptance](../../specs/005-close-project-gdscript/quickstart.md#12-t003-cumulative-acceptance-2026-10-02)
+completes Feature 005 on the recorded candidate without a native change.
+Local real-editor runs use the [owned VM](../../.github/LOCAL_VM.md), and
+historical evidence reuse follows the explicit feature review rather than
+unconditional full replay.
 
 
 ## Official-stock boundary and verification

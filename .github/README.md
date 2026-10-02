@@ -120,37 +120,49 @@ python3 godot-addon/tests/run_editor_campaign.py \
 Discovery executes `inventory`, `routing`, `coverage`, `interruption`, `readonly`,
 `sequential`, `composed`, and `privacy-export` exactly once.
 
-Closing has seven implemented task-owned groups. Run them directly and serially
-with fresh private evidence directories and the real close/discovery callers:
+Closing executes `native-boundary`, `clean-close`, `already-closed`, `preservation`,
+`routing`, `interruption`, `sequential`, `composed`, and `privacy-export` exactly
+once, in that order. Its complete campaign needs the real close and discovery
+callers in addition to the shared inputs:
 
 ```sh
-(
-for GROUP in native-boundary clean-close already-closed preservation routing interruption privacy-export; do
-  CLOSE_ARTIFACTS="$(mktemp -d "$HOME/close-$GROUP.XXXXXX")"
-  python3 godot-addon/tests/run_script_close.py \
-    --scenario "$GROUP" --artifacts "$CLOSE_ARTIFACTS" \
-    --closer "$PWD/mcp-server/target/debug/close-gdscript" \
-    --discoverer "$PWD/mcp-server/target/debug/discover-gdscripts" "$@" || exit
-done
-)
+CLOSE_CAMPAIGN="$(mktemp -d "$HOME/close-campaign.XXXXXX")"
+python3 godot-addon/tests/run_editor_campaign.py \
+  --suite close --campaign-dir "$CLOSE_CAMPAIGN" --keep-going \
+  --closer "$PWD/mcp-server/target/debug/close-gdscript" \
+  --discoverer "$PWD/mcp-server/target/debug/discover-gdscripts" "$@"
 ```
 
-The close runner's `sequential`, full `composed`, and `all` groups remain T003
-work. Campaign `--suite close` and `--suite all` explicitly refuse before
-execution or checkpoint changes; neither may certify incomplete close coverage.
-Run existing `open`, `edit`, `observation`, and `discovery` campaigns separately
-on unchanged inputs for the affected-boundary gate. Their `--resume` behavior
-is unchanged. Nested composed evidence stays in its owning runner's summary,
-not extra campaign steps. See the [closing quickstart](../specs/005-close-project-gdscript/quickstart.md)
-for exact scope and acceptance evidence.
+These direct examples remain guest-side only. Normal local commands use the
+existing VM boundary and committed source:
 
-Campaigns are serial, with one isolated subprocess per opening, edit or
-discovery scenario in the runner's authoritative order. Observation deliberately
+```sh
+python3 godot-addon/tests/run_in_vm.py run close --scenario sequential
+python3 godot-addon/tests/run_in_vm.py run close --scenario composed
+python3 godot-addon/tests/run_in_vm.py campaign close --run-id close-cumulative --keep-going
+python3 godot-addon/tests/run_in_vm.py campaign close --run-id close-cumulative --keep-going --resume
+```
+
+`--suite all` is a convenience dispatcher: it runs `open`, `edit`, `observation`,
+`discovery`, then `close`, with each runner's scenarios once. It requires the
+union of their absolute executable inputs and both actual native bundles before
+any child execution or checkpoint change. Locally, use
+`python3 godot-addon/tests/run_in_vm.py campaign all --keep-going` rather than
+launching the campaign on the host desktop. Availability of `all` does **not**
+require historical GUI replay: T003 requires newly executed `sequential` and full
+`composed` acceptance plus directly affected regressions and reviewed cumulative
+valid evidence. See the [closing quickstart](../specs/005-close-project-gdscript/quickstart.md)
+for exact obligations and evidence.
+
+Campaigns are serial, with one isolated subprocess per opening, edit, discovery
+or close scenario in the runner's authoritative order. Observation deliberately
 remains one `run_observation.py --scenario all` step: its cross-group
 redaction/replay/boundary assertions must stay together. There is no case-level
-resume. Close execution fingerprints include its caller and close/discovery/
-open/edit fixtures as well as shared inputs; registration does not imply that
-the still-incomplete full close campaign is runnable.
+resume. Nested history, durability and stress evidence stays in the owning
+runner's summary, never extra campaign steps. Close fingerprints include its
+caller, cumulative acceptance module, close/discovery/open/edit fixtures and
+actual native/addon bytes as well as shared execution inputs; documentation
+remains non-execution metadata.
 
 Every execution receives a fresh empty private directory such as
 `open/routing/attempt-001/`, with the runner's `summary.json`. Failed and

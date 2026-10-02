@@ -31,6 +31,8 @@ EXPECTED_SCENARIOS = {
     "observation": ("all",),
     "discovery": ("inventory", "routing", "coverage", "interruption", "readonly",
                   "sequential", "composed", "privacy-export"),
+    "close": ("native-boundary", "clean-close", "already-closed", "preservation",
+              "routing", "interruption", "sequential", "composed", "privacy-export"),
 }
 
 
@@ -77,12 +79,13 @@ step = next(step for step in manifest["steps"]
 record = {"suite": suite, "scenario": args.scenario, "attempt": str(args.artifacts),
           "empty": not any(args.artifacts.iterdir()),
           "mode": args.artifacts.stat().st_mode & 0o777,
-          "checkpoint": step}
+          "checkpoint": step, "inputs": {name: value for name, value in vars(args).items()
+                                         if name not in ("scenario", "artifacts")}}
 with open(os.environ["CAMPAIGN_TRACE"], "a") as trace:
     trace.write(json.dumps(record) + "\n")
 summary = {"status": plan.get("status", "passed"),
            "private_source": os.environ["CAMPAIGN_SECRET"]}
-if suite == "discovery" and args.scenario == "composed":
+if suite in ("discovery", "close") and args.scenario == "composed":
     # Nested evidence is retained by its owning runner, not a second campaign step.
     summary["groups"] = {"edit": {"cases": [{"name": "clean-open", "status": "passed"}]},
                          "open": {"cases": [{"name": "new-open", "status": "passed"}]}}
@@ -126,9 +129,12 @@ class CampaignTests(unittest.TestCase):
             path.chmod(0o700)
             self.inputs[name] = path
         fault = self.root / "fault"
-        fault.mkdir()
-        (fault / "library.dylib").write_text(self.secret)
-        (fault / "build-manifest.json").write_text('{"fixture_only": true}')
+        product = self.repo / "godot-addon/addons/godot_agent_kit/native"
+        for native in (fault, product):
+            native.mkdir(parents=True)
+            for filename in ("editor_integration.gdextension",
+                             "libeditor_integration.macos.arm64.dylib", "build-manifest.json"):
+                (native / filename).write_text(self.secret + filename)
         self.inputs["native_fault_addon"] = fault
         self.addCleanup(mock.patch.stopall)
         mock.patch.object(campaign, "REPO", self.repo).start()
@@ -141,7 +147,8 @@ class CampaignTests(unittest.TestCase):
     def invoke(self, suite="discovery", *flags, real_fingerprint=False):
         argv = ["--suite", suite, "--campaign-dir", str(self.directory)]
         for name, path in self.inputs.items():
-            argv.extend(["--" + name.replace("_", "-"), str(path)])
+            if path is not None:
+                argv.extend(["--" + name.replace("_", "-"), str(path)])
         argv.extend(flags)
         output = io.StringIO()
         with contextlib.ExitStack() as stack:
@@ -348,18 +355,118 @@ class CampaignTests(unittest.TestCase):
             self.assertEqual(step["execution"], "executed")
             self.assertNotEqual(step["attempt_dir"], old)
 
-    def test_incomplete_close_and_all_refuse_without_touching_evidence(self):
-        self.assertEqual(self.invoke("observation")[0], 0)
-        before = self.records()
-        checkpoint = (self.directory / "manifest.json").read_bytes()
+    def test_close_and_all_run_each_group_once_with_exact_child_inputs(self):
         for suite in ("close", "all"):
-            for flags in ((), ("--resume", "--keep-going")):
-                with self.subTest(suite=suite, flags=flags):
+            with self.subTest(suite=suite):
+                self.directory = self.root / suite
+                os.environ["CAMPAIGN_MANIFEST"] = str(self.directory / "manifest.json")
+                before = len(self.records())
+                self.assertEqual(self.invoke(suite)[0], 0)
+                records = self.records()[before:]
+                self.assertEqual([(r["suite"], r["scenario"]) for r in records], self.expected(suite))
+                self.assertEqual([(s["suite"], s["scenario"]) for s in self.manifest()["steps"]],
+                                 self.expected(suite))
+                for record in records:
+                    expected = {name: str(path) for name, path in self.inputs.items()
+                                if name in ("godot", "observer") or
+                                record["suite"] != "observation" and (
+                                    name in ("editor", "stock_validator", "native_fault_addon") or
+                                    name == "opener" and record["suite"] in ("open", "discovery", "close") or
+                                    name == "discoverer" and record["suite"] in ("discovery", "close") or
+                                    name == "closer" and record["suite"] == "close")}
+                    actual = {name: path for name, path in record["inputs"].items() if path is not None}
+                    self.assertEqual(actual, expected)
+                self.assertEqual(self.invoke(suite, "--resume")[0], 0)
+                self.assertEqual(len(self.records()), before + len(records))
+
+    def test_close_partial_failure_resumes_without_repeating_passes_or_erasing_failure(self):
+        self.outcome("close", "sequential", exit=7)
+        self.assertNotEqual(self.invoke("close")[0], 0)
+        before = self.records()
+        self.assertEqual([(r["suite"], r["scenario"]) for r in before], self.expected("close")[:7])
+        failed = self.manifest()["steps"][6]
+        old_summary = (self.directory / failed["summary_path"]).read_bytes()
+        self.plan.write_text("{}")
+        self.assertEqual(self.invoke("close", "--resume")[0], 0)
+        self.assertEqual([(r["suite"], r["scenario"]) for r in self.records()[len(before):]],
+                         self.expected("close")[6:])
+        steps = self.manifest()["steps"]
+        self.assertEqual([step["execution"] for step in steps],
+                         ["reused"] * 6 + ["executed"] * 3)
+        self.assertNotEqual(steps[6]["attempt_dir"], failed["attempt_dir"])
+        self.assertEqual((self.directory / failed["summary_path"]).read_bytes(), old_summary)
+
+    def test_close_and_all_invalid_inputs_leave_existing_checkpoint_untouched(self):
+        self.assertEqual(self.invoke("observation")[0], 0)
+        checkpoint = (self.directory / "manifest.json").read_bytes()
+        before = self.records()
+        product = self.repo / "godot-addon/addons/godot_agent_kit/native"
+        for suite in ("close", "all"):
+            for name, original in self.inputs.items():
+                for invalid in (None, Path("relative-input"), self.root / "missing"):
+                    with self.subTest(suite=suite, name=name, invalid=invalid):
+                        self.inputs[name] = invalid
+                        with self.assertRaises(SystemExit) as rejected:
+                            self.invoke(suite, "--resume")
+                        self.assertEqual(rejected.exception.code, 2)
+                        self.inputs[name] = original
+                        self.assertEqual(self.records(), before)
+                        self.assertEqual((self.directory / "manifest.json").read_bytes(), checkpoint)
+            for native in (self.inputs["native_fault_addon"], product):
+                for filename in ("editor_integration.gdextension",
+                                 "libeditor_integration.macos.arm64.dylib", "build-manifest.json"):
+                    path = native / filename
+                    contents = path.read_bytes()
+                    path.unlink()
+                    with self.subTest(suite=suite, artifact=path):
+                        with self.assertRaises(SystemExit) as rejected:
+                            self.invoke(suite, "--resume")
+                        self.assertEqual(rejected.exception.code, 2)
+                        self.assertEqual(self.records(), before)
+                        self.assertEqual((self.directory / "manifest.json").read_bytes(), checkpoint)
+                    path.write_bytes(contents)
+            for name, path in self.inputs.items():
+                if name == "native_fault_addon":
+                    continue
+                path.chmod(0o600)
+                with self.subTest(suite=suite, nonexecutable=name):
                     with self.assertRaises(SystemExit) as rejected:
-                        self.invoke(suite, *flags)
+                        self.invoke(suite, "--resume")
                     self.assertEqual(rejected.exception.code, 2)
                     self.assertEqual(self.records(), before)
                     self.assertEqual((self.directory / "manifest.json").read_bytes(), checkpoint)
+                path.chmod(0o700)
+
+    def test_all_rejects_missing_late_close_input_before_creating_campaign(self):
+        self.inputs["closer"].unlink()
+        with self.assertRaises(SystemExit) as rejected:
+            self.invoke("all")
+        self.assertEqual(rejected.exception.code, 2)
+        self.assertEqual(self.records(), [])
+        self.assertFalse(self.directory.exists())
+
+    def test_actual_changed_close_inputs_invalidate_passed_resume(self):
+        paths = [self.inputs["closer"],
+                 self.repo / "godot-addon/addons/godot_agent_kit/native/libeditor_integration.macos.arm64.dylib",
+                 self.repo / "godot-addon/tests/close_cumulative_acceptance.py",
+                 self.repo / "godot-addon/tests/fixtures/script_close/fixture_driver.gd"]
+        for index, path in enumerate(paths):
+            with self.subTest(input=path):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                if not path.exists():
+                    path.write_text("original execution input")
+                self.directory = self.root / f"changed-close-{index}"
+                os.environ["CAMPAIGN_MANIFEST"] = str(self.directory / "manifest.json")
+                self.assertEqual(self.invoke("close", real_fingerprint=True)[0], 0)
+                before = len(self.records())
+                previous = [step["attempt_dir"] for step in self.manifest()["steps"]]
+                path.write_bytes(path.read_bytes() + b" actual changed bytes")
+                self.assertEqual(self.invoke("close", "--resume", real_fingerprint=True)[0], 0)
+                self.assertEqual([(r["suite"], r["scenario"]) for r in self.records()[before:]],
+                                 self.expected("close"))
+                for step, old in zip(self.manifest()["steps"], previous):
+                    self.assertEqual(step["execution"], "executed")
+                    self.assertNotEqual(step["attempt_dir"], old)
 
     def test_discovery_requires_its_caller_before_execution(self):
         self.inputs["discoverer"].unlink()

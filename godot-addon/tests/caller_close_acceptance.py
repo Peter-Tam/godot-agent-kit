@@ -234,8 +234,9 @@ class CallerCloseAcceptanceMixin:
         # matrix. These consumers use the existing subject/other oracle.
         self.state = self.snapshot
         try:
-            self.group("existing-history-and-durability", self.history_edit)
-            self.group("existing-twenty-edit-stress", self.sequential_edit)
+            self.history_edit()
+            self.sequential_edit()
+            self.summary["existing_twenty_edit_stress_executed"] = True
         finally:
             del self.state
 
