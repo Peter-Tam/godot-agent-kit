@@ -119,6 +119,10 @@ gates on its current delivery head, it MUST be marked complete (`[X]`) even if i
 request is still open or unmerged. If that task completes the feature, the feature MUST
 likewise be recorded as complete.
 
+Task completion evidence is not itself a task-definition change. Apply the delegated
+[analysis-currentness policy](SPECKIT_WORKFLOW.md#g-recognize-current-analysis-before-implementation)
+to distinguish delivery-only updates from changes to approved remaining obligations.
+
 `Awaiting review`, `awaiting merge`, `in review`, `PR open`, and similar GitHub states
 MUST NOT be used as task or feature lifecycle states and MUST NOT keep otherwise-complete
 work marked pending or in implementation.
