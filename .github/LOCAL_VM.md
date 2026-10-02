@@ -21,9 +21,13 @@ interface, remote-execution service or product API. No VM disks enter Git.
 Initial machine inspection found no Tart, Lume, Parallels CLI, UTM CLI or vfkit
 installation, and no existing VM in the Tart/Parallels storage directories. The
 host has hardware virtualization, arm64, 16 GiB RAM and approximately 75 GiB free
-space. Initial profile sizing is 2 virtual CPUs and 6 GiB RAM to leave capacity
-for host work. Resource contention is still possible: desktop isolation does not
-promise zero CPU, memory or disk impact.
+space. The profile uses 4 virtual CPUs and 6 GiB RAM, requests a 1280×800 display
+with viewer refitting disabled, and records the actual guest display dimensions.
+An initial 2-CPU run (1440×900 requested) had a close operation refuse with
+`context_validation_unavailable` after 8.9 seconds; no product deadline or assertion
+was changed. CPU, memory and display
+observations participate in guest execution identity. Resource contention is still
+possible: desktop isolation does not promise zero CPU, memory or disk impact.
 
 [Tart's CLI](https://tart.run/quick-start/) supports macOS guests, clone/start/stop,
 terminal control and copy-on-write local clones. `run --no-graphics` suppresses the

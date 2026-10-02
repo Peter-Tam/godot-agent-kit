@@ -20,6 +20,7 @@ DEFAULT_IMAGE = "ghcr.io/cirruslabs/macos-tahoe-base@sha256:1b093499716409d29e8b
 BACKEND_VERSION = "2.40.1"
 DEFAULT_STATE = Path.home() / ".local/state/godot-agent-kit-vm"
 READY_TIMEOUT = 180.0
+_PROFILE = {"cpu": 4, "memory_mib": 6144, "display": "1280x800"}
 
 
 class VMError(RuntimeError):
@@ -150,9 +151,12 @@ class Tart:
         else:
             self._require_success(self._run(["clone", image, VM_NAME], timeout=None))
             receipt["configured"] = False
-        if not receipt.get("configured"):
-            self._require_success(self._run(["set", VM_NAME, "--cpu", "2", "--memory", "6144", "--display", "1440x900", "--no-display-refit"]))
+        if not receipt.get("configured") or receipt.get("configuration") != _PROFILE:
+            self._require_success(self._run(["set", VM_NAME, "--cpu", str(_PROFILE["cpu"]),
+                                           "--memory", str(_PROFILE["memory_mib"]),
+                                           "--display", _PROFILE["display"], "--no-display-refit"]))
             receipt["configured"] = True
+            receipt["configuration"] = _PROFILE
             self._write_json(self.receipt, receipt)
 
     def _launch_argv(self, bootstrap):

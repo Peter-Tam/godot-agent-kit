@@ -107,12 +107,17 @@ def _guest_guard():
               'guard let s = CGSessionCopyCurrentDictionary() as? [String: Any], '
               's[kCGSessionOnConsoleKey as String] as? Bool == true, '
               's[kCGSessionLoginDoneKey as String] as? Bool == true, '
-              's["CGSSessionScreenIsLocked"] as? Bool != true else { exit(1) }\n')
+              's["CGSSessionScreenIsLocked"] as? Bool != true else { exit(1) }\n'
+              'print(CGDisplayPixelsWide(CGMainDisplayID()), CGDisplayPixelsHigh(CGMainDisplayID()))\n')
     try:
-        _command(['/usr/bin/xcrun', 'swift', '-e', script], env={**_environment(), 'TMPDIR': '/tmp/'})
-    except (OSError, GuestError) as exc:
+        result = _command(['/usr/bin/xcrun', 'swift', '-e', script], env={**_environment(), 'TMPDIR': '/tmp/'})
+        display = [int(value) for value in result.stdout.split()]
+        if len(display) != 2 or min(display) <= 0:
+            raise GuestError('graphical desktop dimensions unavailable')
+    except (OSError, ValueError, GuestError) as exc:
         raise GuestError('Apple CLT Swift and an unlocked logged-in admin GUI session are required: ' + str(exc)) from exc
-    return {'hardware_model': model, 'hypervisor_guest': True, 'console_uid': os.getuid(), 'uid': os.getuid()}
+    return {'hardware_model': model, 'hypervisor_guest': True, 'console_uid': os.getuid(),
+            'uid': os.getuid(), 'display_pixels': display}
 
 
 def _tools():
@@ -169,7 +174,9 @@ def _snapshot(root):
     guard = _guest_guard()
     return {**guard, **_pinned_inputs(root), 'os': _probe(['/usr/bin/sw_vers', '-productVersion']),
             'os_build': _probe(['/usr/bin/sw_vers', '-buildVersion']), 'arch': platform.machine(),
-            'kernel': platform.release(), 'python': sys.version, 'tools': _tools()}
+            'kernel': platform.release(), 'python': sys.version, 'tools': _tools(),
+            'cpu_count': int(_probe(['/usr/sbin/sysctl', '-n', 'hw.ncpu'])),
+            'memory_bytes': int(_probe(['/usr/sbin/sysctl', '-n', 'hw.memsize']))}
 
 
 def _provision(root, generation):
