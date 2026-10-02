@@ -3,17 +3,17 @@
 **Schema:** 1
 **Result:** pass
 **Blocking findings:** 0
-**Analysis commit/input state:** d1cf6ba3d06e5a50e026e6223ead962233a0fe02; clean
+**Analysis commit/input state:** a02deba67ac1593a792202859c1f017477afc4ad; clean
 
 ## Input fingerprints
 
 | Input | SHA-256 |
 | --- | --- |
-| spec.md | 9918a621d55dc7dea97138bd726689df5fd9ea9a90a7670c07965f6eee506787 |
-| plan.md | c85a7813708a6431289dbdd5804a680d0bffc9370d318abcb398fcf996a6baee |
-| tasks.md | c09f6bff926df65164a4ce9724cb0ce344fa0ffb8c150dea61e268e6e3d2b504 |
+| spec.md | c1e622ce831d43f30dc285bf3f47b20ddd307035cadcf24e335af9be415ead23 |
+| plan.md | e0936f030589c4660b820b819c71efe94cb68454dd3e7916217f14adf4cbc088 |
+| tasks.md | 46ec109ce2709ca66d1a76d9edd1bfba0916e08f323f4f1ea04b0fb1247e43d2 |
 | .specify/memory/constitution.md | 320201f5568a90e51e0198a6f4d9db03935afb313eeab8acf68cb5dd2dd68c21 |
-| AGENTS.md | 085dd142e27f60b4421fb42acb3465a746a85810cfc8aac6944c55f2aba7d20e |
+| AGENTS.md | af895671f222fa7d7a488088604353a731fd445becffe1eb1a2ca5501c7c392e |
 | SPECKIT_WORKFLOW.md | 9ecae6fa373ddbacc194dcb78ad58d30f9f8287b5c153c7dbf6c4eb82a9f1df6 |
 
 ## Findings summary

@@ -210,9 +210,9 @@ Ordinary Save, human history interactions, explicit fixture reparse/rescan and p
 
 ## 6. Focused development versus cumulative acceptance
 
-Follow the existing [focused/campaign policy](../../.github/README.md#focused-validation-and-resumable-campaigns). During development, run the changed/failing close group and directly affected regressions first. Do not rerun all historical GUI suites merely because they exist. However, the actual **v5 authenticated cutover, native revision-3 family loading and shared edit/open/close slot/lifetime changes** can invalidate existing callers: their cutover gate requires complete affected existing observation/edit/open/discovery suites. Final feature acceptance additionally requires **all nine close groups** and composed/privacy/export evidence on stable unchanged runtime inputs.
+Follow [TEST_POLICY.md](../../TEST_POLICY.md) and the existing [focused/campaign interfaces](../../.github/README.md#focused-validation-and-resumable-campaigns). During development, run the failed/affected scenario first, broadening only to the smallest affected close group when necessary. T001's actual v5 authenticated cutover, native revision-3 family loading and shared owner/context changes justified broad observation/edit/open/discovery evidence; preserve that evidence and all completed T002 acceptance facts. Feature completion means complete **VALID** evidence for all nine close groups, composed A–E/durability/privacy/export and every acceptance requirement, not historical reexecution at the literal final commit.
 
-Existing complete-suite interfaces below are runnable today with built baseline inputs; on the eventual cutover head they are required regression evidence. Every artifact variable is a distinct fresh empty private directory:
+Existing complete-suite interfaces below reproduce historical acceptance or run when an exact changed shared behavior/boundary, exact suite(s) and concrete failure mode justify affected full-suite execution. Their existence, shared integration, final-head or cumulative confidence does not mandate execution. For each new execution, every artifact variable is a distinct fresh empty private directory:
 
 ```sh
 OBSERVATION_ARTIFACTS="$(mktemp -d "$HOME/close-regression-observation.XXXXXX")"
@@ -243,7 +243,7 @@ python3 godot-addon/tests/run_script_discovery.py \
 
 Run serially on the visible owned environment; existing observation's five-second and edit/open ten-second bounds remain. These suites alone do not prove close composition.
 
-**Future cumulative campaign:** T002 registers the actual close inputs and fingerprints, including absolute `--closer`, but explicitly rejects campaign `--suite close` and `--suite all` until T003 implements all nine close groups. The following command is the future complete-suite interface, not current task acceptance:
+**Future cumulative campaign interface:** T002 registers the actual close inputs and fingerprints, including absolute `--closer`, but explicitly rejects campaign `--suite close` and `--suite all` until T003 implements all nine close groups. T003 must implement and orchestration-test complete interfaces; this future convenience command is not itself mandatory task acceptance:
 
 ```sh
 CLOSE_CAMPAIGN="$(mktemp -d "$HOME/close-campaign.XXXXXX")"
@@ -255,9 +255,19 @@ python3 godot-addon/tests/run_editor_campaign.py \
   --native-fault-addon "$PRIVATE_FAULT_NATIVE"
 ```
 
-For the future final cumulative gate, use that command with a new campaign directory and `--suite all`. Today both full-coverage requests explicitly refuse before execution or checkpoint changes. Run the seven implemented closing groups directly and the four existing complete suites separately. Existing `--resume` retains the same campaign directory/arguments and reuses only intact passed summaries with unchanged execution fingerprints. Changed binaries/native/addon/fixtures/behavioral inputs require affected reruns; missing/corrupt/failed/interrupted evidence is never promoted. Each rerun receives fresh artifacts; keep failed attempts. Nested composed records belong to their runner, not extra campaign steps or duplicate scenario counts.
+After T003 implements complete coverage, the command may also use `--suite all` for convenience or an independently justified release execution; no full multi-hour campaign is mandatory merely because the interface or cumulative label exists. Today both full-coverage requests explicitly refuse before execution or checkpoint changes. Existing `--resume` retains the same campaign directory/arguments and reuses only intact passed summaries with unchanged execution fingerprints. Preserve those checkpoint identity/invalidation rules: independent semantic reuse of accepted evidence does not turn an invalid checkpoint into a pass. Missing/corrupt/failed/interrupted summaries are never promoted; each required rerun uses fresh artifacts and retains failed attempts. Nested composed records belong to their runner, not extra campaign steps or duplicate scenario counts.
+
+### T003 execution decision and evidence review
+
+T003 remains pending and unstarted. Newly execute `sequential` and full `composed`, directly affected regressions and static/build/campaign checks applicable to actual changed surfaces. A production fix requires affected close groups and regressions; broader runs require the exact changed shared behavior/boundary, exact suite(s) and concrete failure mode. Fixture/sequential/composed code, campaign registration/fingerprint/resume tests or docs-only changes require no unchanged observation/edit/open/discovery GUI reruns.
+
+Reuse the seven accepted prerequisite close groups and historical observation/edit/open/discovery evidence only after establishing relevant unchanged inputs since their accepted runs. Review the exact Git diff and accepted provenance for relevant production paths, addon/native/Rust binary behavior and provenance, protocol/ABI, fixture/witness semantics, supported environment and acceptance requirements. Rebuilt/relinked artifacts need demonstrable relevant equivalence, not mere matching version claims. Changed relevant inputs invalidate only affected evidence; rerun it and review validity again after any fix. No failed or incomplete run is reusable.
+
+Record the T003 evidence review **here in §6**, when T003 is actually executed, alongside links to new accepted summaries and §§9–10's immutable accepted run/provenance records. For each required scenario/FR/SC and applicable constitutional obligation, identify **newly executed**, **reused**, **rerun after invalidation**, or **substantively inapplicable**; cite the accepted run/provenance, exact reviewed diff/base-to-delivery inputs and why those inputs preserve or invalidate that evidence. State exact affected suites/failure modes for broadening and substantive reasons for inapplicability. Cover all nine groups, A–E, durability, independent real-Godot D/R/B and privacy/three export modes without fake acceptance entries or a new evidence framework. This instruction is not an executed review or a T003 pass.
 
 ## 7. Result-only review, privacy, cleanup and export
+
+This section defines required behavioral evidence. Use §6 to decide what must run and what accepted evidence remains valid; it does not require repeating unchanged export/privacy suites. Review all newly executed results, and rerun evidence affected by new fixture/export/witness semantics.
 
 For **every public close result**, first review only the result: intended/resolved target or refusal; new/already-satisfied/refused/applied-unverified/unknown classification; expected-basis use; reached versus completed close/revalidation/verification stages; known selection and history effects; applicable/unavailable/earlier D/R/B and dirty facts; retained/unloaded/unobservable R; preservation/continuation status; interval/invalidation; and safe next action. Then compare with independent disk/editor/history witnesses, owned-window evidence and elapsed time. Do not derive fresh state from an earlier preparation sample or infer no effect from process failure.
 
@@ -267,7 +277,7 @@ Inspect actual owned validator staging and process-group cleanup after success, 
 
 Exercise **enabled-addon, disabled-addon and export-hook-only** production exports. Inspect actual packs for close/shared addon scripts, bridge, normal/fault native libraries/registration/manifests, fixtures, staging and credentials; then run each exported game and establish no active tooling listener, native tooling registration or gameplay dependency. A preset or hook assertion alone is insufficient. Preserve the existing export boundary and optional automation trust model; no close-specific CI environment/approval service is required.
 
-Record actual coverage, exact provenance, measured deadlines and substantive limitations. Before implementation completion, perform the existing proportional implementation-shape/visibility/state/evidence-error review and applicable constitutional assessment. Support and feature completion require positive useful behavior, every required refusal/interruption/preservation/composed/privacy/export case and the final affected cumulative evidence—not a build, planning document, native acknowledgment or PR state.
+Record actual coverage, exact provenance, measured deadlines and substantive limitations. Before implementation completion, perform the existing proportional implementation-shape/visibility/state/evidence-error review and applicable constitutional assessment. Support and feature completion require positive useful behavior and complete VALID coverage of every required refusal/interruption/preservation/composed/privacy/export case through new execution or relevant-input-reviewed accepted evidence—not a build, planning document, native acknowledgment or PR state.
 
 ## 8. Planning evidence actually executed
 
