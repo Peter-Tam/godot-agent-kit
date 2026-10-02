@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-01
 
-**Status**: Quality-validated and clarified; selection-time granularity and consistency review passed. T001 and T002 are complete against their native/caller and full affected-suite acceptance; see the [public-caller evidence](quickstart.md#10-t002-public-caller-acceptance-2026-10-02). T003 cumulative acceptance and Feature 005 completion remain pending.
+**Status**: **Complete.** Quality, clarification, design, granularity and consistency gates passed. T001/T002 retain their accepted native/public-caller evidence; T003 passed [cumulative acceptance](quickstart.md#12-t003-cumulative-acceptance-2026-10-02) with [reviewed evidence coverage](quickstart.md#t003-execution-decision-and-evidence-review) for all scenarios, requirements and success criteria. Completion is independent of PR state. Roadmap Phase 1 remains in progress.
 
 **Input**: Generated feature description supplied to `/speckit.specify`:
 

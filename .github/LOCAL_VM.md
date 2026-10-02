@@ -151,8 +151,10 @@ python3 godot-addon/tests/run_in_vm.py stop
 
 Use `run observation`, `edit`, `open`, `discovery` or `close` with the existing
 `--scenario` name. This is a fixed runner allowlist, not an arbitrary shell
-executor. Existing restrictions still apply: close `all`, `sequential`, `composed`
-and complete close/all campaigns are not implemented merely by adding a VM.
+executor. Close `sequential`, `composed`, `all` and complete close/all campaigns
+are now implemented; [Feature 005 acceptance](../specs/005-close-project-gdscript/quickstart.md#12-t003-cumulative-acceptance-2026-10-02)
+records the focused runs and reviewed historical evidence. Complete campaign
+availability is not a requirement to replay unchanged historical GUI suites.
 The host terminal remains available; the Tart process is detached and has no
 viewer. Foreground activation by the inner harness targets guest WindowServer.
 

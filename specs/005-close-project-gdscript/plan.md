@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/005-close-project-gdscript/spec.md`, including the accepted guarded-native-revalidation clarification.
 
-**Status:** Phase 0 research, Phase 1 design and selection-time granularity/consistency review passed. T001 and T002 are complete with [native acceptance](quickstart.md#9-t001-native-boundary-acceptance-2026-10-02), [public-caller and full affected-suite acceptance](quickstart.md#10-t002-public-caller-acceptance-2026-10-02), and the implementation-shape/constitutional reviews below. T003 remains pending and unstarted; Feature 005 is not complete.
+**Status:** **Feature 005 is complete; T001–T003 are complete.** Approved design, granularity and consistency gates passed. [Native acceptance](quickstart.md#9-t001-native-boundary-acceptance-2026-10-02), [public-caller acceptance](quickstart.md#10-t002-public-caller-acceptance-2026-10-02), [T003 cumulative acceptance and evidence reuse](quickstart.md#t003-execution-decision-and-evidence-review), and the implementation-shape/constitutional reviews below establish completion independently of PR state. Roadmap Phase 1 remains in progress.
 
 ## Summary
 
@@ -508,3 +508,55 @@ human-work/history preservation, VI/XII real composed A–E and durability,
 V/VIII/X privacy/confinement/export and truthful outcomes, and XIII reuse of
 consumed harness responsibilities. This selection is not acceptance or feature
 completion; Phase 1's separate Save/history controls remain outside T003.
+
+## T003 implementation-shape and constitutional review — 2026-10-02
+
+**Passed.** No production module, product contract, protocol version, dependency
+or native build input changed. `close_cumulative_acceptance.py` owns the actual
+stateful repeated-close and composed workflow, consuming existing caller,
+independent D/R/B, history, runtime and owned-window helpers. Its 235 lines
+avoid adding another scenario responsibility to the existing 1,200-line
+first-caller module. The latter changes only same-invocation nested evidence
+aggregation; its affected 134-record `clean-close` group passed again.
+
+`run_script_close.py` owns the fixed nine-group dispatch and provenance.
+`run_editor_campaign.py` retains serial selection, input admission and existing
+checkpoint/resume ownership. The only new evidence Boolean records that this
+invocation already executed the inherited twenty-edit stress; it grants no
+product authority and avoids duplicate execution/counts in `all`. Scenario
+methods are consumed test helpers, not new public product APIs. No speculative
+extension point, generic lifecycle layer, additional manifest schema or
+recoverable-evidence panic was introduced.
+
+Complete-campaign admission validates the required existing executable/native
+files before touching checkpoints, including close inputs selected late in
+`all`. This prevents a knowingly incomplete invocation from replacing valid
+checkpoint state before it discovers missing prerequisites. Existing file
+checks are sufficient: no additional approval, service or provenance system.
+The cost is a small extension of the current parser/admission responsibility,
+with real-child failure/resume tests rather than a new process gate.
+
+The new sequence and composed groups passed 45 and 121 records respectively;
+all 33 new cumulative close results received result-only interpretation,
+independent witnesses and captures. The refreshed existing group adds ten
+reviewed close results. The sequence includes actual newer-buffer preservation
+after cancellation/late release; the matrix exercises actual
+apply → Undo → Save → Redo → Save, dirty conflicts, product close/separate
+reopen, reparse/rescan/runtime and twenty fresh-basis edits. No product fix,
+weakened assertion, longer deadline, forced convergence or retry was needed.
+
+Principles I–IV and VI/XII are established by these new live-editor transitions
+plus the [explicit cumulative validity review](quickstart.md#t003-execution-decision-and-evidence-review).
+V/VIII/X retain unchanged confinement, truthful outcomes, privacy and all three
+accepted export modes; new results and cleanup preserve those boundaries.
+VII/IX/XI retain protocol-independent product ownership and the same small
+public surface. XIII is satisfied by consumed, responsibility-specific harness
+reuse and scoped execution: historical passes were not replayed merely because
+the delivery head changed. Host processes were untouched, all new GUI work ran
+in the existing VM, and its native/Rust build receipts were unchanged.
+
+Campaign selection/resume/invalidation passed 24 tests, Python compilation and
+CLI/dispatch smoke passed, and representative owned images were reviewed.
+Unchanged Rust/native/workflow validation remains valid under TEST_POLICY.md.
+T003 completes Feature 005, not Phase 1's separate Save/history controls or
+remaining exit assessment. Delivery remains one task PR, without auto-merge.

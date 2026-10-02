@@ -1,12 +1,12 @@
 # Quickstart: Verify Safe Clean-Document GDScript Closing
 
-**Status:** T001 and T002 are complete. The public `close-gdscript` caller, six first-use caller/safety groups and inherited `native-boundary` group have [passed task acceptance](#10-t002-public-caller-acceptance-2026-10-02). Full `sequential`/`composed`/`all` closing coverage remains T003 work; campaign `--suite close` and `--suite all` explicitly refuse rather than certify an incomplete suite. Feature 005 and roadmap Phase 1 remain incomplete.
+**Status:** **Feature 005 is complete; T001–T003 are complete.** All nine close groups have valid cumulative acceptance through [new T003 execution](#12-t003-cumulative-acceptance-2026-10-02) and [reviewed prerequisite evidence](#t003-execution-decision-and-evidence-review). `sequential`, `composed`, `--scenario all`, campaign `--suite close` and `--suite all` are implemented. Roadmap Phase 1 remains in progress; independent Save/history controls and its exit assessment are not delivered here.
 
 Read [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md) and [research.md](research.md). The [constitution](../../.specify/memory/constitution.md), [architecture](../../ARCHITECTURE.md) and [working agreement](../../AGENTS.md) govern acceptance. An editor/native acknowledgment, matching source pair, successful process exit or fixed sleep is not verified closure.
 
 ## 1. Exact candidate and owned prerequisites
 
-- Official Godot **`4.7.2.stable.official.ed1daf0bf`**, full commit **`ed1daf0bf001b61586d9930840f2f1394092c079`**, executable SHA-256 **`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`**; tested host **macOS 26.6.2, build 25G83, arm64**. Guarantees are limited to the recorded task acceptance in §§9–10; no broader version/platform support is claimed.
+- Official Godot **`4.7.2.stable.official.ed1daf0bf`**, full commit **`ed1daf0bf001b61586d9930840f2f1394092c079`**, executable SHA-256 **`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`**; tested host/guest **macOS 26.6.2, build 25G83, arm64**. Guarantees are limited to the recorded acceptance in §§9–12; no broader version/platform support is claimed.
 - Rust **1.98.1**, edition 2021, tracked Cargo.lock and existing rustfmt/Clippy components; existing C++17 Apple compiler/SDK; Python **3.10+**. Use matching official export templates; the existing candidate template SHA-256 is `88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`. No engine patch, new dependency or package installation is selected.
 - An unlocked visible desktop, explicitly owned synthetic projects and editor/runtime processes, and permission to capture only owned windows. Inspect actual captures; headless/getter evidence alone does not prove visible buffer/history preservation.
 - Canonical absolute executable/input paths; fresh empty mode-0700 artifact directories; a draining stdout consumer; no human source or credentials in fixtures. Resolve a symlink Godot executable before supplying the existing stock validator.
@@ -14,6 +14,12 @@ Read [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md) and 
 - Install all Rust/addon peers together for **private bridge v5**. Its ninth authenticated `close_gdscript` bit requires the complete installed close transport and matched native family. Restart owned editors for fresh descriptors; never reuse v4 descriptors or earlier session-bound bases. Public observation/edit/open/discovery v1 and their existing limits/deadlines remain unchanged. No compatibility fallback is retained.
 
 Record actual executable, library, manifest/build ID, generated ABI/API, source, addon, fixture, caller, validator and toolchain hashes for each accepted run. Version strings/manifests alone do not establish native compatibility. Generated binaries, editor state, credentials and evidence are not committed.
+
+Local graphical execution uses the [owned macOS VM](../../.github/LOCAL_VM.md)
+and committed source through `run_in_vm.py`; it never falls back to host Godot.
+Direct Godot/harness shell examples below describe guest-side or the existing
+explicitly configured live-editor environment, not permission to launch local
+acceptance on the maintainer desktop.
 
 ### Existing runnable baseline commands
 
@@ -144,11 +150,24 @@ python3 godot-addon/tests/run_script_close.py \
   --scenario clean-close --artifacts "$CLOSE_ARTIFACTS"
 ```
 
-Run each of the other five public groups with its own fresh private directory.
-`clean-close` includes first-use discovery/open/observe/edit/fresh-observe/close/
-reopen and inherited A–E/history/durability regressions. T003 still owns the
-new repeated-close sequence and full composed matrix. `sequential`, `composed`
-and `all` explicitly refuse today; they never skip missing cases.
+Each group uses a fresh private directory. `clean-close` retains its first-use
+composition and inherited history/durability/edit-stress checks; `sequential`
+and `composed` provide the complete repeated-close and composed matrix. Local
+T003 reproduction uses the existing VM wrapper, serially:
+
+```sh
+python3 godot-addon/tests/run_in_vm.py start
+python3 godot-addon/tests/run_in_vm.py run close --scenario sequential --captures
+python3 godot-addon/tests/run_in_vm.py run close --scenario composed --captures
+python3 godot-addon/tests/run_in_vm.py run close --scenario clean-close --captures
+python3 godot-addon/tests/run_in_vm.py stop
+```
+
+The third command group refreshes T003's affected `clean-close` aggregation.
+`--scenario all` executes the nine groups below once, in table order. Nested
+history/durability records are not additional groups; the twenty-edit stress
+executes once per invocation, with `composed` reusing its same-run execution
+from `clean-close` when present.
 
 | Group | Specification coverage | Required observable proof |
 |---|---|---|
@@ -243,7 +262,7 @@ python3 godot-addon/tests/run_script_discovery.py \
 
 Run serially on the visible owned environment; existing observation's five-second and edit/open ten-second bounds remain. These suites alone do not prove close composition.
 
-**Future cumulative campaign interface:** T002 registers the actual close inputs and fingerprints, including absolute `--closer`, but explicitly rejects campaign `--suite close` and `--suite all` until T003 implements all nine close groups. T003 must implement and orchestration-test complete interfaces; this future convenience command is not itself mandatory task acceptance:
+**Complete cumulative campaign interface:** All nine close groups are implemented. The campaign admits the selected suites' required executable and native inputs before changing checkpoints. This guest-side convenience command is available; its existence does not make a complete historical replay mandatory:
 
 ```sh
 CLOSE_CAMPAIGN="$(mktemp -d "$HOME/close-campaign.XXXXXX")"
@@ -255,15 +274,75 @@ python3 godot-addon/tests/run_editor_campaign.py \
   --native-fault-addon "$PRIVATE_FAULT_NATIVE"
 ```
 
-After T003 implements complete coverage, the command may also use `--suite all` for convenience or an independently justified release execution; no full multi-hour campaign is mandatory merely because the interface or cumulative label exists. Today both full-coverage requests explicitly refuse before execution or checkpoint changes. Existing `--resume` retains the same campaign directory/arguments and reuses only intact passed summaries with unchanged execution fingerprints. Preserve those checkpoint identity/invalidation rules: independent semantic reuse of accepted evidence does not turn an invalid checkpoint into a pass. Missing/corrupt/failed/interrupted summaries are never promoted; each required rerun uses fresh artifacts and retains failed attempts. Nested composed records belong to their runner, not extra campaign steps or duplicate scenario counts.
+The command may also use `--suite all` for convenience or an independently justified release execution; no full multi-hour campaign is mandatory merely because the interface or cumulative label exists. It selects opening, editing, observation, discovery and closing in that order, with each suite's groups once. Existing `--resume` retains the same campaign directory/arguments and reuses only intact passed summaries with unchanged execution fingerprints. Independent semantic reuse of accepted evidence does not turn an invalid checkpoint into a pass. Missing/corrupt/failed/interrupted summaries are never promoted; each required rerun uses fresh artifacts and retains failed attempts. Nested composed records belong to their runner, not extra campaign steps or duplicate scenario counts. Normal local campaigns use `run_in_vm.py campaign close` or `campaign all`.
 
 ### T003 execution decision and evidence review
 
-T003 remains pending and unstarted. Newly execute `sequential` and full `composed`, directly affected regressions and static/build/campaign checks applicable to actual changed surfaces. A production fix requires affected close groups and regressions; broader runs require the exact changed shared behavior/boundary, exact suite(s) and concrete failure mode. Fixture/sequential/composed code, campaign registration/fingerprint/resume tests or docs-only changes require no unchanged observation/edit/open/discovery GUI reruns.
+**Review passed for T003.** Newly executed `sequential` and full `composed`;
+reran `clean-close` because replacing nested group registration with direct
+history/stress execution changes artifact layout and fixture cleanup grouping.
+That concrete aggregation change could lose evidence or retain an editor across
+subcases, so this group received fresh real-editor proof. No production fix or
+shared product-boundary change required wider execution.
 
-Reuse the seven accepted prerequisite close groups and historical observation/edit/open/discovery evidence only after establishing relevant unchanged inputs since their accepted runs. Review the exact Git diff and accepted provenance for relevant production paths, addon/native/Rust binary behavior and provenance, protocol/ABI, fixture/witness semantics, supported environment and acceptance requirements. Rebuilt/relinked artifacts need demonstrable relevant equivalence, not mere matching version claims. Changed relevant inputs invalidate only affected evidence; rerun it and review validity again after any fix. No failed or incomplete run is reusable.
+Reviewed T002 delivery source `7385281b1cf1ff5fb0dded2588efab036746f842`
+through the current implementation source
+`0790385c000e9d95aa05ea2a6cb59bbf8e27a947`, including the intervening VM
+diagnostic-only fixture changes described in §11 and this task's complete
+implementation delta. Rust production/consumer sources, addon/native behavior,
+protocol/ABI, source/effect guards, result interpretation, export setup and
+acceptance requirements are unchanged. New code adds cumulative scenarios,
+source-hash reporting, complete dispatch and campaign admission/resume tests.
+The existing close fixture changed only to retain diagnostic observations before
+T003; no setup, native witness or assertion semantics changed.
 
-Record the T003 evidence review **here in §6**, when T003 is actually executed, alongside links to new accepted summaries and §§9–10's immutable accepted run/provenance records. For each required scenario/FR/SC and applicable constitutional obligation, identify **newly executed**, **reused**, **rerun after invalidation**, or **substantively inapplicable**; cite the accepted run/provenance, exact reviewed diff/base-to-delivery inputs and why those inputs preserve or invalidate that evidence. State exact affected suites/failure modes for broadening and substantive reasons for inapplicability. Cover all nine groups, A–E, durability, independent real-Godot D/R/B and privacy/three export modes without fake acceptance entries or a new evidence framework. This instruction is not an executed review or a T003 pass.
+Recomputed the retained §10 summary hashes and checked passed status and exact
+record counts. Historical evidence retains its original recorded host binaries,
+compiler and SDK; it is not relabeled as guest evidence or proof of arbitrary
+relinked-artifact equivalence. T003 rebuilt neither those artifacts nor the
+guest artifacts: all three new runs reused byte-identical native/Rust build
+receipts from §11. Generated API/ABI and exact engine/OS also match. The guest's
+separate compiler/SDK/library identities remain explicit in §12.
+
+The §3 scenario/FR/SC mapping applies to each group below. Together these rows
+cover every one of the 21 story scenarios, FR-001–FR-018 and SC-001–SC-007:
+
+| Evidence | Classification | Accepted coverage and provenance |
+| --- | --- | --- |
+| `native-boundary` | Reused | §10's 123-record exact native/guard/continuation/lifetime proof; unchanged native, validator and fixture semantics. |
+| `clean-close` | Rerun after aggregation change | §12's 134 records / 10 results refresh US1 positives, retained/unloaded R, selection, representation limits and first-use composition. |
+| `already-closed` | Reused, supplemented | §10's 14 records establish cached/unloaded/source-limited and basis-binding recognition; §12 adds five repeated no-effect recognitions. |
+| `preservation` | Reused, supplemented | §10's 152 records retain all US2 safety/boundary coverage; new sequence/matrix exercises dirty-different/equal work, identities and real unrelated history. |
+| `routing` | Reused | §10's 56 records retain authenticated/confinement/namespace/overlap coverage; no routing or owner changes. |
+| `interruption` | Reused, supplemented | §10's 149 records retain all US3 branches, deadlines, child loss and post-entry newer-work protection; new pre-entry cancellation releases a late barrier without closing the newer buffer. |
+| `sequential` | Newly executed | §12's 27 public requests meet US4.2 / SC-004 with five real closes, five recognitions and five dirty refusals; 45 records. |
+| `composed` | Newly executed | §12's four full workflow profiles and twenty fresh-basis edits cover US4.1/US4.3, FR-015/017/018 and SC-005/006; 121 records. |
+| `privacy-export` | Reused, supplemented | §10's 11 records retain US4.5, FR-016 and SC-007, including all three inspected/executed exports. Every new close result also passes unchanged result-only/privacy/witness checks. |
+| Existing-operation compatibility | Reused, supplemented | §10's observation 273, edit 408, opening 664 and discovery 429 records retain US4.4 / FR-015/018 / SC-006. New composed executions consume each unchanged caller. |
+
+All nine specified edge cases retain valid coverage: same-text identity and
+post-close human races, native target/unrelated history, retained/unloaded R,
+namespace replacement, source representation, selection, unsupported effects
+and native continuation. Their exhaustive prerequisite cases are not inferred
+from the smaller new sequence.
+
+Constitutional A–E are newly exercised in the full composed/sequence coverage,
+with the affected existing history/durability group refreshed too. Actual
+apply → Undo → ordinary Save → Redo → Save occurs while the target buffer exists;
+unrelated history remains reachable through closing. Independent D/R/B,
+ordinary Save, separate product close/reopen, reparse/rescan and owned runtime
+durability passed. Existing export/privacy/interruption cleanup evidence is
+reused on unchanged relevant inputs. No required scenario is waived:
+post-close B/dirty is inapplicable only after observed absence, naturally
+unloaded R is reported as such, and native target-buffer disposal does not
+promise Undo-close or persistent history after reopening.
+
+Full GUI `all` modes were not executed: they add no uniquely required interaction
+beyond this valid coverage. The actual campaign ran 24 deterministic orchestration
+tests with real stand-in children; the close CLI `all` dispatcher received a
+throwaway ordering/cleanup smoke. Those checks prove orchestration, not Godot
+behavior. Unchanged Rust/native/workflow checks retain §10 evidence rather than
+being rerun for Python acceptance and documentation changes.
 
 ## 7. Result-only review, privacy, cleanup and export
 
@@ -606,3 +685,97 @@ schema, public API, dependency, alternate close path, retry/timing framework or
 feature lifecycle changed. Constitutional human-work preservation, native
 transactions, independent verification, bounded truthful outcomes and confinement
 remain intact.
+
+## 12. T003 cumulative acceptance (2026-10-02)
+
+**T003 and Feature 005 are complete**, independently of PR review/merge state.
+Only T003 changed from pending to complete. Phase 1 remains in progress:
+independent Save/history controls and its exit assessment are separate scope.
+The [cumulative validity review](#t003-execution-decision-and-evidence-review)
+and [shape/constitutional review](plan.md#t003-implementation-shape-and-constitutional-review--2026-10-02)
+are part of this acceptance, not deferred follow-up.
+
+### New and affected real-editor execution
+
+All three groups ran serially through `run_in_vm.py`, with drained stdout, fresh
+private artifacts and captures, on exact source
+`0790385c000e9d95aa05ea2a6cb59bbf8e27a947`. Each returned exit 0 with passed
+summary and no cleanup error:
+
+| VM run ID | Records / public close results | Maximum close | Summary SHA-256 |
+| --- | ---: | ---: | --- |
+| `t003-close-sequential` | 45 / 27 | 4.653102 s | `835c1f6eca520b8215438f06902cbd9dc4b58700232e066a1ad33de391a6f350` |
+| `t003-close-composed` | 121 / 6 | 5.354960 s | `04944f8845b154523e3be6b393bdc4478136ba43f07c991622d1ee487d1244cf` |
+| `t003-close-clean-regression` | 134 / 10 | 6.007023 s | `c0883a162700a427dad2b1e9b30c74650d89d9423c7e2c37512e37fb85fddddd` |
+
+Private retrievals under `~/.local/state/godot-agent-kit-vm/artifacts/`:
+
+- `t003-close-sequential/20261002T211505Z-3321f4b035c6/`
+- `t003-close-composed/20261002T212017Z-6d8c6d0c9f32/`
+- `t003-close-clean-regression/20261002T212613Z-f3c75da3334e/`
+
+Each contains `artifacts/summary.json`, owned captures and `provenance.json`;
+the parent run directory retains its host isolation receipt. These private
+paths identify executed evidence, not contributor prerequisites or committed
+source-bearing artifacts.
+
+The 27-request sequence produced five verified new closures, five already-closed
+recognitions and 17 refusals. Five refusals protect dirty work (three equal-text,
+two different-text), five reject stale intent, five reject missing basis, one
+preserves a newer same-text buffer after cancellation/late barrier release, and
+one refuses unsafe unrelated R/B. Deliberate human Save/reopening separates
+requests; real unrelated Undo/Redo is exercised after every result.
+
+The composed profiles are clean, dirty-different, equal-text-dirty and native
+history. Each starts with product discovery, then opening/observation/editing,
+fresh observation, product close and separately requested reopening. Actual
+Undo/Save/Redo/Save, dirty edit/close refusals, closed-edit refusal, unchanged
+persisted source/new buffer identity and Save/reparse/rescan/runtime all passed.
+The inherited stress produced twenty distinct `verified_changed` edits, each
+with fresh ordinary basis; the final reopened buffer displayed revision 319.
+The affected `clean-close` group retained all 134 records with only one
+top-level group, including safe invalid/read-only/empty and genuine unloaded-R
+positives, first-use composition and existing history/stress coverage.
+
+All 43 new close results have result-only interpretation, independent state
+witnesses and retrieved captures; the cumulative profiles also record actual
+unrelated-history witness files. Representative dirty-preservation, closed-tab,
+newer-buffer, history and reopened-revision images were visually inspected.
+No new result exceeded the original ten-second bound or required a product fix.
+
+### Exact execution identity, isolation and static evidence
+
+The guest is `godot-agent-kit-live-editor`, `VirtualMac2,1`, macOS **26.6.2
+(25G83)** arm64, four CPUs, 6 GiB RAM and a recorded 1024×768 display. Exact
+Godot/commit/template hashes are §1's candidate. Guest Python is **3.14.7**,
+Rust **1.98.1**, Apple clang **21.0.0 (clang-2100.1.1.101)**, SDK **26.5**.
+This does not expand support beyond the recorded candidate.
+
+The native/Rust receipts, including all output hashes, were byte-identical to
+§11's accepted guest baseline in every run; no rebuild occurred. Production
+native revision 3 build ID:
+`a3f21caad4d51896dcc87a6344993b7ab851dc88b38bd6c2cd22952716932526`;
+library SHA-256:
+`fec9f868617b9dbbe4a659484a071e673c817cfef2ece095548697c5745daaf9`.
+The caller SHA-256 is
+`1e56c6de350b86475f01bd6b1536d273ec29240a3f32062d91abaf3f981fd2b8`;
+stock validator:
+`bf2db2d76de6b13fefdbb4b9075c090d87ac1c5c9e671067648cfe7b713590bd`.
+The generated ABI/API hashes match §10. Historical host and separate guest
+binaries are not conflated; §6 states exactly which evidence is reused.
+
+Host receipts recorded **382 / 980 / 1,112 process samples** for sequential,
+composed and clean-close, with zero new host Godot processes, no sampling error
+and no host focus request. Existing human host processes were untouched.
+Every test editor and owned runtime remained in the no-viewer, host-only-network
+guest. After all runs, an actual guest process query found no Godot or kit
+caller/validator process. The owned VM was synchronized and stopped.
+
+**24 campaign tests passed**, covering close/all order and inputs, failed and
+corrupt evidence, partial resume, unchanged checkpoint preservation on invalid
+inputs, and closer/native/cumulative-module/fixture byte-change invalidation.
+Changed Python files passed compilation. Both real CLI help commands and the
+throwaway nine-group dispatch/cleanup smoke passed; the throwaway was removed.
+Existing workflows and their execution tests are unchanged: no CI command or
+trust boundary changed. No extension hooks were configured, and no full GUI
+historical campaign was repeated.

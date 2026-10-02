@@ -2,6 +2,11 @@
 
 **Status:** T001 is complete with [native and full affected-suite acceptance](../quickstart.md#9-t001-native-boundary-acceptance-2026-10-02) for the revision-3 family, shared-slot internal owner and real protected-source validation. T002's public closing caller and supervised exchange have [passed acceptance](../quickstart.md#10-t002-public-caller-acceptance-2026-10-02) against the same owner; `close_gdscript` requires that complete transport and matched native family. This contract uses public Godot APIs and the generated GDExtension ABI, not an engine patch or private editor-field access. Earlier [research](../research.md) remains historical evidence.
 
+[T003 cumulative acceptance](../quickstart.md#12-t003-cumulative-acceptance-2026-10-02)
+completes Feature 005 without changing native source, ABI or build inputs.
+Historical host and newly exercised guest artifact provenance remain distinct
+under the [evidence-validity review](../quickstart.md#t003-execution-decision-and-evidence-review).
+
 ## 1. Responsibilities and matched native family
 
 Rust owns checked intent, fresh target selection, expected-basis comparison, source-only validation children, one-shot authorization, caller deadline and public terminal reduction. The addon owns authenticated transport, the existing operation slot and response lifetime. Native C++ owns exact document/file/effect guards, one stock close call, attempt-local continuation witnesses and attributable native facts. Neither native nor addon returns a product success verdict.
