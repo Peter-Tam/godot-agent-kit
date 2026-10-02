@@ -205,7 +205,9 @@ class Tart:
             self._owned()
             result["running"] = row.get("Running") is True
             if result["running"]:
-                result["network"] = self._verify_launcher()["network"]
+                launcher = self._verify_launcher()
+                result["network"] = launcher["network"]
+                result["startup_readiness"] = launcher.get("startup_readiness")
         return result
 
     def start(self, bootstrap=False):
@@ -219,6 +221,9 @@ class Tart:
             receipt = self._verify_launcher()
             if receipt["network"] != ("bootstrap-nat" if bootstrap else "host-only"):
                 raise VMError("Running VM network differs; stop before changing bootstrap mode")
+            # A failed new readiness check must not leave an earlier admission.
+            receipt.pop("startup_readiness", None)
+            self._write_json(self.launcher, receipt)
         else:
             self._stopped(VM_NAME, inventory)
             fd = os.open(self.log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
@@ -241,18 +246,33 @@ class Tart:
             if process is not None and process.poll() is not None:
                 raise VMError(f"Tart launcher exited ({process.returncode}); see private log {self.log}")
             if self._inventory().get(VM_NAME, {}).get("Running"):
-                self._verify_launcher()
+                receipt = self._verify_launcher()
                 try:
-                    result = self._run(["exec", VM_NAME, "/usr/bin/true"], timeout=min(10, max(0.1, deadline - time.monotonic())))
+                    # A reachable guest agent can precede the boot work queue
+                    # draining. Do not spend a product request's fixed budget
+                    # competing with that work; reuse this bounded readiness wait.
+                    result = self._run(["exec", VM_NAME, "/usr/sbin/sysctl", "-n", "vm.loadavg", "hw.ncpu"],
+                                       timeout=min(10, max(0.1, deadline - time.monotonic())))
                     if result.returncode == 0:
-                        return
-                    last_error = (result.stderr or b"").decode(errors="replace").strip()
-                except VMError as exc:
-                    # During boot, the VM lock exists before the guest agent.
+                        fields = result.stdout.split()
+                        if len(fields) != 6 or fields[0] != b"{" or fields[4] != b"}":
+                            raise VMError("guest load/CPU observation unavailable")
+                        load, cpus = float(fields[1]), int(fields[5])
+                        if cpus <= 0 or not 0 <= load < float("inf"):
+                            raise VMError("guest load/CPU observation invalid")
+                        if load <= cpus:
+                            receipt["startup_readiness"] = {"load_average_1m": load, "cpu_count": cpus}
+                            self._write_json(self.launcher, receipt)
+                            return
+                        last_error = f"guest boot work queue remains busy (load {load}, CPUs {cpus})"
+                    else:
+                        last_error = "Tart Guest Agent/vsock unavailable: " + (result.stderr or b"").decode(errors="replace").strip()
+                except (VMError, ValueError) as exc:
+                    # During boot, the VM lock exists before guest readiness.
                     # A connection timeout is not the end of the boot deadline.
                     last_error = str(exc)
             time.sleep(1)
-        raise VMError(f"VM readiness timed out: Tart Guest Agent/vsock unavailable ({last_error}); VM remains owned, use stop; log {self.log}")
+        raise VMError(f"VM readiness timed out: {last_error}; VM remains owned, use stop; log {self.log}")
 
     def stop(self):
         self._owned()
