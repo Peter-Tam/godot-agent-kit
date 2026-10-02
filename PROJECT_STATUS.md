@@ -3,13 +3,15 @@
 ## Current
 
 - **Phase:** 1 — Live-editor script coherence
-- **Phase state:** In progress
-- **Feature:** [006 — Safely Save an Open Project GDScript](specs/006-save-project-gdscript/spec.md)
-- **Feature state:** Specification — draft quality-validated and ready for planning; implementation has not started.
-- **Specification:** [Requirements checklist](specs/006-save-project-gdscript/checklists/requirements.md) passed all 16 criteria. The feature specifies one revision-bound Save of existing open-buffer work, independent D/R/B and clean-state verification, conflict/stale/effect refusals, native-history preservation and truthful partial outcomes.
-- **Current task:** None. Clarification, planning, task derivation, consistency analysis and implementation have not run for Feature 006.
-- **Delivery:** Documentation-only design branch `spec/006-save-project-gdscript`; delivery state does not establish feature completion.
-- **Phase 1 assessment:** Features 001–005 remain complete. Independent Save is now specified, not implemented; independent history controls and the remaining phase exit assessment remain pending.
+- **Phase state:** In progress — pending a dedicated requirements-to-evidence exit-gap assessment.
+- **Feature 006 proposal:** [Standalone Save](specs/006-save-project-gdscript/decision.md) — **assessed, not proceeding**. The product decision is recorded; this is not a completed Save capability.
+- **Retained candidate:** [Original specification](specs/006-save-project-gdscript/spec.md) and [historical quality checklist](specs/006-save-project-gdscript/checklists/requirements.md). Candidate requirements are inactive; specification quality does not imply product approval or implementation readiness.
+- **Completed capabilities:** Features 001–005 remain complete within their recorded scope and accepted evidence.
+- **Standalone Save:** Not required for the currently established Phase 1 exit and no longer a known implementation gap. No implementation is planned absent a newly demonstrated product need.
+- **Independent history controls:** Not decided by the Save review; they must be assessed independently against original Phase 1 obligations and product value. They are not presumed required or selected as the next feature.
+- **Current task:** No implementation task or next feature is selected. Feature 006 authorizes no planning, task derivation or implementation.
+- **Next required decision:** A dedicated **Phase 1 requirements-to-evidence exit-gap assessment** to determine what, if anything, remains. It is not performed by this decision PR, and Phase 1 completion is not claimed.
+- **Delivery:** Existing [PR #59](https://github.com/Peter-Tam/godot-agent-kit/pull/59), on `spec/006-save-project-gdscript`, records the documentation/governance correction while preserving the considered proposal. No product/runtime behavior changes.
 
 ## Feature 005 completion
 
@@ -30,14 +32,14 @@
 - **Previous Feature 003 T001 verification:** Visible opening **265 records**, complete edit/native **407 records**, complete observation **216 records**, native history, durability/runtime and enabled/disabled/hook-only exports. All 114 edit-suite public results received result-only review; maximum existing edit **9.553 s**, observation **4.803 s**. Rust formatting, Clippy, **207 tests**, rustdoc and builds; **9 native-build tests**, **22 workflow tests** and Actionlint passed. Owned-window images and implementation shape were reviewed; the large-v3-frame regression was fixed and exercised.
 - **Previous Feature 003 T002 verification:** Six public opening groups: **177 records / 144 opening results**, all within ten seconds (maximum **9.5105 s**). Separate native boundary **265 records**, full edit/native **407 records** and full observation **216 records** passed, including preserved history, A–E, Save/reopen/reparse/rescan/runtime and all three export modes. Formatting, Clippy, **247 Rust tests**, rustdoc, locked builds, **9 native-build tests**, **22 workflow tests** and Actionlint passed. [Evidence/provenance](specs/003-open-project-gdscript/quickstart.md#9-t002-public-caller-acceptance-2026-09-30) and [shape/constitutional review](specs/003-open-project-gdscript/plan.md#t002-implementation-shape-and-constitutional-review-2026-09-30) are recorded.
 - **Previous Feature 003 T003 verification:** Unfiltered opening **663 records / 187 public opening results**, edit/native **407 records / 114 public edit results**, observation **216 records**. Maximum caller times **9.575 s**, **9.559 s**, **4.764 s** respectively. Opening stress included **25 requests**, **five closed successes** and **ten dirty recognitions**; product opening supplied the reused composed A–E/durability matrix. Rust formatting, Clippy, **247 tests**, rustdoc/locked builds, normal/fault native builds, **9 native-build tests**, **22 workflow tests** and Actionlint passed. Owned windows, exact history, privacy/export, cleanup and [shape/constitutional review](specs/003-open-project-gdscript/plan.md#t003-implementation-shape-and-constitutional-review-2026-09-30) are recorded in the [acceptance evidence](specs/003-open-project-gdscript/quickstart.md#10-t003-cumulative-acceptance-2026-09-30).
-- **Phase 1 assessment:** Features 001–005 are complete within their recorded scope. Independent Save/history controls and the remaining phase exit assessment are not complete, so Phase 1 remains in progress. Locked-desktop diagnostics and incomplete/interrupted campaigns are not acceptance.
+- **Phase 1 interpretation:** Features 001–005 remain complete. The former standalone-Save prerequisite assumption is superseded by the [Feature 006 product decision](specs/006-save-project-gdscript/decision.md). Phase 1 remains in progress pending the requirements-to-evidence exit-gap assessment; independent history controls are undecided, not presumed pending implementation. Locked-desktop diagnostics and incomplete/interrupted campaigns are not acceptance.
 
 ## Roadmap status
 
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Features 001–005 complete with cumulative valid acceptance. Feature 006 independent Save is specified, not implemented; independent history controls and the phase exit assessment remain pending. |
+| 1 — Live-editor script coherence | In progress | Features 001–005 complete with cumulative valid acceptance. Feature 006 proposal assessed, not proceeding; standalone Save is not a known implementation gap. Independent history controls are undecided. A dedicated requirements-to-evidence exit-gap assessment remains to be performed. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 The sections below retain historical Feature 001/002 design and evidence.

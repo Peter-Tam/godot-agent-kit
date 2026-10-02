@@ -4,6 +4,11 @@
 **Created**: 2026-10-02
 **Feature**: [spec.md](../spec.md)
 
+**Current status:** The proposal is **not proceeding** per [decision.md](../decision.md).
+Specification-quality validation does not imply product approval or implementation
+readiness. The original purpose, checked items and review notes are retained as the
+historical quality assessment of the candidate, not authorization to advance it.
+
 This is the built-in requirements-quality checklist maintained by `/speckit.specify` and `/speckit.clarify`. Checked items establish specification quality, not implementation completion or verified product support.
 
 ## Content Quality

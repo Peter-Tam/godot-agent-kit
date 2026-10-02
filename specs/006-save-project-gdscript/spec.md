@@ -1,10 +1,32 @@
-# Feature Specification: Safely Save an Open Project GDScript
+# Considered Feature 006 Proposal: Safely Save an Open Project GDScript
 
 **Feature Branch**: `spec/006-save-project-gdscript`
 
 **Created**: 2026-10-02
 
-**Status**: Draft — quality-validated and ready for planning; implementation is not authorized.
+**Status**: **Not proceeding** — product-value review found no justified current Phase 1 need.
+
+## Decision notice
+
+This document retains the considered standalone Save proposal and the requirements
+used to evaluate it. They describe the rejected capability; they are **not active
+implementation requirements**. No planning, task derivation or implementation is
+authorized from this specification.
+
+The feature-local [product decision](decision.md) records the authoritative reason
+for not proceeding. It supersedes the candidate's claims below about a Phase 1 Save
+gap, implementation progression and pending history controls. Standalone history
+controls were not decided by the Save review.
+
+Feature **006** remains the historical/product-decision identity of this proposal.
+The directory and original candidate material are retained; do not reuse `006` for
+another feature. The historical quality checklist does not imply product approval
+or implementation readiness.
+
+## Original candidate specification — inactive
+
+All remaining sections preserve the original proposal, not current implementation
+obligations or authorization to continue its workflow.
 
 **Input**: Generated feature description supplied to `/speckit.specify`:
 
