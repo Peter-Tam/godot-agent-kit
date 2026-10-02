@@ -9,8 +9,8 @@ revision-3 `editor_integration` bundle together for
 [bridge v5](../005-close-project-gdscript/contracts/bridge-protocol.md), then
 restart the editor for a fresh session. Observation remains public v1 and
 read-only. Historical acceptance below retains the private version it actually
-exercised; it is not closing evidence. T001's private native close boundary
-does not advertise a public closing caller.
+exercised; it is not closing evidence. The separate public closing caller and
+its capability gate are documented in the [closing quickstart](../005-close-project-gdscript/quickstart.md).
 
 ## 1. Prerequisites
 

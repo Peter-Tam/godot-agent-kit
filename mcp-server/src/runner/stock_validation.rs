@@ -268,6 +268,7 @@ mod admission;
 mod closing_context;
 #[path = "stock_validation/opening_context.rs"]
 mod opening_context;
+pub(crate) use closing_context::validate_close_context_owned;
 pub use closing_context::{
     capture_close_target, recheck_close_target, validate_close_context, CloseContext,
     CloseValidation, TargetCapture,

@@ -123,7 +123,7 @@ const char *open_failure() {
         default: return "source_unavailable";
     }
 }
-const char *pin_file(const Session &session, const std::string &path, FileBinding &out, int access) {
+const char *pin_file(const Session &session, const std::string &path, FileBinding &out, int access, bool bounded_source) {
     Fd cursor(dup(session.project_fd));
     if (cursor.value < 0) { return "source_unavailable"; }
     if (!attached_project(session)) { return "namespace_or_descriptor_changed"; }
@@ -137,7 +137,7 @@ const char *pin_file(const Session &session, const std::string &path, FileBindin
             struct stat st{};
             if (fstat(out.leaf.value, &st)) { return "source_unavailable"; }
             if (!secure(out.leaf.value, false) || st.st_uid != geteuid()) { return "denied_access"; }
-            if (st.st_size < 0 || st.st_size > static_cast<off_t>(LIMIT)) { return "evidence_limit"; }
+            if (st.st_size < 0 || (bounded_source && st.st_size > static_cast<off_t>(LIMIT))) { return "evidence_limit"; }
             out.device = st.st_dev; out.inode = st.st_ino;
             return file_attached(session, out) ? nullptr : "namespace_or_descriptor_changed";
         }

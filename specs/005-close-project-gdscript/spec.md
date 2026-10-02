@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-01
 
-**Status**: Quality-validated and clarified; selection-time granularity and consistency review passed. T001 is complete against its native/validation/cutover acceptance. Public closing, T002/T003 and Feature 005 completion remain pending; see the [accepted task evidence](quickstart.md#9-t001-native-boundary-acceptance-2026-10-02).
+**Status**: Quality-validated and clarified; selection-time granularity and consistency review passed. T001 and T002 are complete against their native/caller and full affected-suite acceptance; see the [public-caller evidence](quickstart.md#10-t002-public-caller-acceptance-2026-10-02). T003 cumulative acceptance and Feature 005 completion remain pending.
 
 **Input**: Generated feature description supplied to `/speckit.specify`:
 

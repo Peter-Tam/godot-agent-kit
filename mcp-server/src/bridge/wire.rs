@@ -12,6 +12,7 @@ use crate::target::{RoutingFailure, SelectedSession};
 pub const RESULT_LIMIT: usize = 12 * 1024 * 1024;
 const COLLECTION_LIMIT: usize = 64;
 
+pub mod close;
 pub(crate) mod discovery;
 pub mod edit;
 pub mod open;

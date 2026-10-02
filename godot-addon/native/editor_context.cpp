@@ -461,7 +461,7 @@ const char *editor_context(const Session &session, const std::string &request, c
     out.dirty = truth(dirty); out.edited = truth(edited); out.undo = truth(undo); out.redo = truth(redo);
     if (retained && retained->kind == OpeningContext::Current) {
         if (!file_attached(session, retained->file)) { return "current_namespace_changed"; }
-    } else if (const char *reason = pin_file(session, out.path, out.file, O_RDONLY)) { return reason; }
+    } else if (const char *reason = pin_file(session, out.path, out.file, O_RDONLY, true)) { return reason; }
     if (const char *reason = opening_path_guard(session,
             retained && retained->kind == OpeningContext::Current ? retained->file : out.file)) { return reason; }
     if (const char *reason = opening_source_profile(out.source, e, out.bindings)) { return reason; }

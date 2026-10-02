@@ -450,7 +450,9 @@ func _dispatch_native_request(request: Dictionary) -> void:
 			response.before_disk_changed = before_disk != saved.B
 			response.disk_matches = FileAccess.get_file_as_string("res://scripts/subject.gd") == saved.B
 			response.document = saved
-			response.ok = response.focused and response.before_disk_changed != clean_save \
+			# Equal-text human edits are still dirty. Their real Save clears
+			# the dirty/saved-version state without needing different D bytes.
+			response.ok = response.focused and (not clean_save or not response.before_disk_changed) \
 				and response.disk_matches and not saved.dirty \
 				and saved.version == saved.saved_version
 	elif action == "native_edit_scan":

@@ -274,6 +274,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
             if capture is not None:
                 self.cases[-1]["screenshot"] = capture
             self.unchanged_state(editor, project, before, disks, name)
+            self.close_editor(editor)
+            self.editors.remove(editor)
         project, editor, descriptor, before, disks = self.caller_fixture("missing-basis")
         basis = self.edit_basis(project, descriptor, "basis-missing")
         for name, faulty in (("missing_snapshot", {**basis, "snapshot": None}),
@@ -297,6 +299,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
         self.release_edit(editor, process, payload, started, "caller_human_before_apply_refused",
                           "refused", 3)
         self.unchanged_state(editor, project, human, human_disk, "human_before_apply")
+        self.close_editor(editor)
+        self.editors.remove(editor)
         project, editor, descriptor, _, _ = self.caller_fixture("preflight-replaced-document")
         basis = self.edit_basis(project, descriptor, "basis-preflight-replaced-document")
         process, payload, started = self.held_edit(
@@ -311,6 +315,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
                             result["history"] == "not_participated",
                             "fresh_guard_failure_has_no_released_authority")
         self.unchanged_state(editor, project, human, human_disk, "replaced_guard")
+        self.close_editor(editor)
+        self.editors.remove(editor)
         self.conflict_basis_cases()
 
     def conflict_basis_cases(self):
@@ -330,6 +336,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
             self.edit(project, basis, DESIRED, "caller_conflict_" + name, "refused", 3,
                       session=descriptor["session_id"], application="not_applied")
             self.unchanged_state(editor, project, before, disks, name)
+            self.close_editor(editor)
+            self.editors.remove(editor)
         for name, preparation, expected in (
                 ("dirty_equal_basis", "equal_dirty_subject", "complete_observation"),
                 ("divergent_basis", "resource_subject", "complete_observation"),
@@ -343,6 +351,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
             self.edit(project, basis, DESIRED, "caller_conflict_" + name, "refused", 3,
                       session=descriptor["session_id"], application="not_applied")
             self.unchanged_state(editor, project, before, disks, name)
+            self.close_editor(editor)
+            self.editors.remove(editor)
         project, editor, descriptor, _, _ = self.caller_fixture("replaced-document")
         basis = self.edit_basis(project, descriptor, "basis-replaced-document")
         self.native_action(editor, "native_edit_human", mode="close_reopen")
@@ -353,6 +363,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
                   session=descriptor["session_id"], application="not_applied")
         self.unchanged_state(editor, project, current, disk, "replaced_document")
         self.malformed_input_cases(project, editor, descriptor)
+        self.close_editor(editor)
+        self.editors.remove(editor)
 
     def malformed_input_cases(self, project, editor, descriptor):
         basis = self.edit_basis(project, descriptor, "basis-malformed-input")
@@ -459,6 +471,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
         self.release_edit(editor, process, payload, started,
                           "caller_entered_native_stage_first_completes", "verified_changed", 0)
         self.changed_state(editor, project, second_before, second_disk, DESIRED, "entered_overlap")
+        self.close_editor(editor)
+        self.editors.remove(editor)
         self.routing_boundaries()
 
     def routing_boundaries(self):
@@ -478,6 +492,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
         observation.require(self.action(editor, "witness") == before and
                             disks["subject"] == observation.disk_witness(project / "scripts/subject.gd"),
                             "closed_refusal_no_document_or_disk_change")
+        self.close_editor(editor)
+        self.editors.remove(editor)
         project, editor, descriptor, original, disks = self.caller_fixture("route-unavailable")
         basis = self.edit_basis(project, descriptor, "basis-route-unavailable")
         self.action(editor, "duplicate_script")
@@ -488,6 +504,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
         observation.require(self.action(editor, "witness") == before and
                             disks["subject"] == observation.disk_witness(project / "scripts/subject.gd"),
                             "unknown_open_no_guessed_tab")
+        self.close_editor(editor)
+        self.editors.remove(editor)
         project, editor, descriptor, original, disks = self.caller_fixture("route-denied")
         basis = self.edit_basis(project, descriptor, "basis-route-denied")
         path = project / "scripts/subject.gd"
@@ -505,6 +523,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
         observation.require(self.action(editor, "witness") == original and
                             observation.disk_witness(path)["text"] == disks["subject"]["text"],
                             "denied_request_no_source_history_change")
+        self.close_editor(editor)
+        self.editors.remove(editor)
         self.routing_access_precedence()
         project, editor, descriptor, original, disks = self.caller_fixture("route-ended")
         basis = self.edit_basis(project, descriptor, "basis-route-ended")
@@ -528,6 +548,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
             os.kill(editor["process"].pid, signal.SIGCONT)
             editor["suspended"] = False
         self.unchanged_state(editor, project, original, disks, "unresponsive_no_late_edit")
+        self.close_editor(editor)
+        self.editors.remove(editor)
         project, editor, descriptor, original, disks = self.caller_fixture("route-wrong-project")
         basis = self.edit_basis(project, descriptor, "basis-route-wrong-project")
         other_project, other_editor, other_descriptor, other_before, other_disks = self.caller_fixture(
@@ -541,6 +563,9 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
                   "refused", 3, session=descriptor["session_id"], script="res://../outside.gd",
                   reason="invalid_request", application="not_applied", correlated=False)
         self.unchanged_state(editor, project, original, disks, "outside_project")
+        for completed in (editor, other_editor):
+            self.close_editor(completed)
+            self.editors.remove(completed)
         unsupported = self.fixture("caller-unsupported-native", controlled=True)
         shutil.rmtree(unsupported / "addons/godot_agent_kit/native")
         unsupported_editor = self.start_editor(unsupported)
@@ -562,6 +587,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
         observation.require(self.action(unsupported_editor, "witness") == before and
                             disk == observation.disk_witness(unsupported / "scripts/subject.gd"),
                             "unsupported_native_no_fake_mutation")
+        self.close_editor(unsupported_editor)
+        self.editors.remove(unsupported_editor)
 
     def routing_access_precedence(self):
         for transition in ("dirty", "same_text", "close"):
@@ -590,6 +617,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
                 all(disk[key] == disks["subject"][key]
                     for key in ("text", "inode", "mtime_ns")),
                 "combined_denial_preserves_human_and_disk_" + transition)
+            self.close_editor(editor)
+            self.editors.remove(editor)
 
     def restarted_basis_no_acquisition(self, project, basis, prior_descriptor):
         editor = self.start_editor(project)
@@ -614,6 +643,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
         observation.require(descriptor["session_id"] != prior_descriptor["session_id"],
                             "restarted_lifetime_is_real")
         self.unchanged_state(editor, project, before, disks, "replacement_lifetime")
+        self.close_editor(editor)
+        self.editors.remove(editor)
 
 
     def validation_edit(self):
@@ -777,6 +808,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
                                     "retained_actual_partial_history_and_human_work_" + name)
             self.case("caller_deadline_stage_" + stage.replace(":", "-"),
                       source_surfaces="real_stage_barrier_deadline_and_independent_after_state")
+            self.close_editor(editor)
+            self.editors.remove(editor)
         project, editor, descriptor, before, disks = self.caller_fixture("stdin-no-eof")
         started = time.monotonic()
         process = self.edit_process(project, None, session=descriptor["session_id"])
@@ -803,6 +836,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
         self.case("caller_stalled_stdin_no_authorize_no_late_apply",
                   source_surfaces="actual_supervised_input_deadline_and_disk_history",
                   elapsed_seconds=elapsed, evidence="caller-stdin-no-eof.json", result_review=result_review)
+        self.close_editor(editor)
+        self.editors.remove(editor)
         project, editor, descriptor, before, disks = self.caller_fixture("disconnect")
         basis = self.edit_basis(project, descriptor, "basis-disconnect")
         process, payload, started = self.held_edit(project, editor, basis, DESIRED,
@@ -819,6 +854,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
             disconnected["current_script"] == before["current_script"] and
             disconnected["open_paths"] == before["open_paths"],
             "disconnect_preserves_documents_history_and_disk_without_late_apply")
+        self.close_editor(editor)
+        self.editors.remove(editor)
         self.partial_persistence_cases()
 
     def partial_persistence_cases(self):
@@ -850,6 +887,8 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
                                 (fault not in ("fail_futimens", "mismatch_mtime", "close_fd_before_restore") or
                                  after["subject"]["dirty"]),
                                 "known_partial_content_no_false_saved_tag_" + fault)
+            self.close_editor(editor)
+            self.editors.remove(editor)
 
     def post_change_validation_edit(self):
         for name, stage, transition in (("newer_human_before_tag", "edited_cleared", "dirty"),
@@ -911,3 +950,5 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
                                     result["after"]["sources"]["B"]["source_sha256"] ==
                                     self.stock_sha(desired),
                                     "unavailable_post_context_retains_independent_after_state")
+            self.close_editor(editor)
+            self.editors.remove(editor)

@@ -861,3 +861,72 @@ fn opening_caller_refuses_leaf_and_directory_symlinks_before_authentication() {
         assert_eq!(fs::read(&outside).unwrap(), b"OPEN_OUTSIDE_SOURCE_SENTINEL");
     }
 }
+
+#[test]
+fn close_capture_preserves_read_only_empty_source_and_detects_same_bytes_replacement() {
+    use godot_agent_kit::runner::stock_validation::{capture_close_target, recheck_close_target};
+    let fixture = Fixture::new();
+    let root = ProjectRoot::new(fixture.project.to_str().unwrap()).unwrap();
+    let path = ResourcePath::new("res://subject.gd").unwrap();
+    let file = fixture.project.join("subject.gd");
+    fs::write(&file, "").unwrap();
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o444)).unwrap();
+    let captured = capture_close_target(&root, &path).unwrap();
+    assert!(recheck_close_target(&root, &path, &captured).unwrap().0);
+    assert_eq!(fs::read(&file).unwrap(), b"");
+    assert_eq!(
+        fs::metadata(&file).unwrap().permissions().mode() & 0o777,
+        0o444
+    );
+    fs::rename(&file, fixture.project.join("old.gd")).unwrap();
+    fs::write(&file, "").unwrap();
+    assert!(!recheck_close_target(&root, &path, &captured).unwrap().0);
+}
+
+#[test]
+fn close_capture_rejects_actual_leaf_and_parent_namespace_redirection() {
+    use godot_agent_kit::runner::stock_validation::{capture_close_target, recheck_close_target};
+    let fixture = Fixture::new();
+    let root = ProjectRoot::new(fixture.project.to_str().unwrap()).unwrap();
+    fs::create_dir(fixture.project.join("scripts")).unwrap();
+    let file = fixture.project.join("scripts/subject.gd");
+    fs::write(&file, "extends Node\n").unwrap();
+    let path = ResourcePath::new("res://scripts/subject.gd").unwrap();
+    let captured = capture_close_target(&root, &path).unwrap();
+    let outside = fixture.home.join("PRIVATE_OUTSIDE_SOURCE.gd");
+    fs::write(&outside, "OUTSIDE_SOURCE_SENTINEL").unwrap();
+    fs::remove_file(&file).unwrap();
+    symlink(&outside, &file).unwrap();
+    assert!(recheck_close_target(&root, &path, &captured).is_err());
+    fs::remove_file(&file).unwrap();
+    fs::write(&file, "extends Node\n").unwrap();
+    fs::rename(
+        fixture.project.join("scripts"),
+        fixture.home.join("old-scripts"),
+    )
+    .unwrap();
+    symlink(
+        fixture.home.join("old-scripts"),
+        fixture.project.join("scripts"),
+    )
+    .unwrap();
+    assert!(capture_close_target(&root, &path).is_err());
+    assert_eq!(
+        fs::read_to_string(outside).unwrap(),
+        "OUTSIDE_SOURCE_SENTINEL"
+    );
+}
+
+#[test]
+fn close_capture_applies_source_bound_before_admitting_independent_disk() {
+    use godot_agent_kit::runner::stock_validation::{capture_close_target, recheck_close_target};
+    let fixture = Fixture::new();
+    let root = ProjectRoot::new(fixture.project.to_str().unwrap()).unwrap();
+    let path = ResourcePath::new("res://subject.gd").unwrap();
+    let file = fixture.project.join("subject.gd");
+    fs::write(&file, vec![b'a'; SOURCE_LIMIT_BYTES]).unwrap();
+    let captured = capture_close_target(&root, &path).unwrap();
+    assert!(recheck_close_target(&root, &path, &captured).unwrap().0);
+    fs::write(&file, vec![b'a'; SOURCE_LIMIT_BYTES + 1]).unwrap();
+    assert!(capture_close_target(&root, &path).is_err());
+}

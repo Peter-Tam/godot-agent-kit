@@ -28,3 +28,7 @@ path = "src/bin/open-gdscript.rs"
 [[bin]]
 name = "discover-gdscripts"
 path = "src/bin/discover-gdscripts.rs"
+
+[[bin]]
+name = "close-gdscript"
+path = "src/bin/close-gdscript.rs"

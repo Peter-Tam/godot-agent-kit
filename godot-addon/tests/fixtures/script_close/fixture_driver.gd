@@ -16,6 +16,51 @@ var _close_events: Array[Dictionary] = []
 var _close_connections: Array[Dictionary] = []
 var _close_files := {}
 var _close_settings := {}
+var _close_hold_stage := ""
+var _close_hold_response := ""
+var _close_hold_purpose := ""
+var _close_hold_announced := false
+var _close_fault_stage := ""
+var _close_fault_name := ""
+var _close_held_peer := {}
+const CloseFixtureCollector = preload("res://addons/fixture_driver/fixture_collector.gd")
+
+func _close_publish_event(stage: String, request_id: String) -> bool:
+	var file := FileAccess.open(_control.path_join("close-event.json"), FileAccess.WRITE)
+	if file == null: return false
+	file.store_string(JSON.stringify({"stage": stage, "request_id": request_id}))
+	file.close()
+	return true
+
+func close_barrier(stage: String, peer: Dictionary) -> bool:
+	_close_held_peer = peer
+	if stage == _close_fault_stage and not _close_fault_name.is_empty():
+		var api: Dictionary = Engine.get_meta(NATIVE_META, {})
+		if api.has("close_fixture_fault"):
+			api.close_fixture_fault.call(peer.request_id, _close_fault_name)
+		_close_fault_stage = ""
+		_close_fault_name = ""
+	if stage != _close_hold_stage: return true
+	if not _close_hold_announced:
+		_close_hold_announced = _close_publish_event(stage, peer.request_id)
+	return false
+
+func close_response_barrier(kind: String, peer: Dictionary, _reply: Dictionary) -> bool:
+	_close_held_peer = peer
+	if restriction in ["withhold_resource", "withhold_buffer", "withhold_association", "withhold_open", "withhold_dirty"] \
+			and _reply.get("sample") is Dictionary:
+		var collector := CloseFixtureCollector.new()
+		collector.restriction = restriction
+		var sample: Dictionary = collector.collect(peer.close_session, peer.close_project, peer.close_path)
+		sample.request_id = peer.request_id
+		_reply.sample = sample
+		collector.clear()
+		_reply.collection.finished_tick_us = str(Time.get_ticks_usec())
+	if kind != _close_hold_response: return true
+	if not _close_hold_purpose.is_empty() and _reply.get("purpose", "") != _close_hold_purpose: return true
+	if not _close_hold_announced:
+		_close_hold_announced = _close_publish_event("response:" + kind, peer.request_id)
+	return false
 
 class CloseWaitWitness extends RefCounted:
 	signal completed(result: Dictionary)
@@ -243,6 +288,28 @@ func _close_entered(request_id: String, stage: String) -> void:
 	_close_callback_result.retained_slot_busy = not active.is_empty()
 	_close_callback_result.retained_owner_matches = active.get("operation_owner") == owner
 	_close_callback_result.owner_reference_alive = is_instance_valid(owner)
+	if _close_callback_mode in ["hold", "hold_stop", "hold_disable"]:
+		var event := FileAccess.open(_control.path_join("close-entered.json"), FileAccess.WRITE)
+		if event != null:
+			event.store_string(JSON.stringify({"stage": stage, "request_id": request_id}))
+			event.close()
+		# Publish actual entry before an intentional stop can terminalize the caller.
+		if _close_callback_mode == "hold_stop": bridge.stop()
+		if _close_callback_mode == "hold_disable": EditorInterface.set_plugin_enabled(PRODUCT, false)
+		var held_active: Dictionary = bridge.get("_active") if is_instance_valid(bridge) else {}
+		_close_callback_result.retained_slot_busy = not held_active.is_empty()
+		_close_callback_result.retained_owner_matches = held_active.get("operation_owner") == owner
+		_close_callback_result.owner_reference_alive = is_instance_valid(owner)
+		_close_callback_result.current_reference_alive = is_instance_valid(current_script) and \
+			is_instance_valid(current_editor) and is_instance_valid(current_buffer)
+		# Stall an actual synchronous native call/callback without pumping
+		# editor events. Release is owned, request-bound and non-effectful.
+		var cutoff := Time.get_ticks_usec() + 15000000
+		while Time.get_ticks_usec() < cutoff:
+			var release: Variant = JSON.parse_string(FileAccess.get_file_as_string(_control.path_join("close-native-release.json"))) \
+				if FileAccess.file_exists(_control.path_join("close-native-release.json")) else null
+			if release is Dictionary and release.get("request_id") == request_id: break
+			OS.delay_msec(10)
 	if api.has("close_fixture_state"): _close_callback_result.retained_after = api.close_fixture_state.call(request_id)
 
 func _process(_delta: float) -> void:
@@ -289,6 +356,9 @@ func _dispatch_close_request(request: Dictionary) -> void:
 				manifest.get("native_library_sha256") == FileAccess.get_sha256(library) and \
 				owner != null and bridge != null and api.has_all(["close_fixture_fault", "close_fixture_state", "api_revision", "build_id"]) and \
 				api.api_revision.call() == 3 and api.build_id.call() == manifest.get("native_build_id")
+			if response.ok:
+				bridge.attach_close(owner, 3, api.build_id.call())
+				response.ok = bridge.get("_close_owner") == owner
 		"close_setup":
 			_close_release_target_refs()
 			for path in request.get("paths", [CLOSE_TARGET, CLOSE_CURRENT, CLOSE_BACKGROUND]):
@@ -332,6 +402,11 @@ func _dispatch_close_request(request: Dictionary) -> void:
 		"close_file":
 			response.ok = _close_file(request.get("path", CLOSE_TARGET), request.get("mutation", ""))
 			response.state = _close_state()
+		"close_cached_source":
+			var cached := ResourceLoader.get_cached_ref(CLOSE_TARGET) as GDScript
+			response.ok = cached != null and not _close_document(CLOSE_TARGET).get("associated", false)
+			if response.ok: cached.source_code = "extends RefCounted\n# CLOSE_PRIVATE_CACHED_SOURCE\n"
+			response.state = _close_state()
 		"close_refs":
 			_close_release_target_refs()
 			if request.get("retain_target", false): _close_target_ref = ResourceLoader.get_cached_ref(CLOSE_TARGET) as GDScript
@@ -344,9 +419,33 @@ func _dispatch_close_request(request: Dictionary) -> void:
 			response.state = _close_state()
 		"close_arm":
 			_close_callback_mode = request.get("callback", "")
-			response.ok = _close_callback_mode in ["", "cancel", "finish", "stop", "disable", "compete", "target_typing", "current_typing"]
+			response.ok = _close_callback_mode in ["", "cancel", "finish", "stop", "disable", "compete", "target_typing", "current_typing", "hold", "hold_stop", "hold_disable"]
 			_close_callback_result = {}
 			_close_callback_count = 0
+			_close_hold_stage = request.get("stage", "")
+			_close_hold_response = request.get("response_kind", "")
+			_close_hold_purpose = request.get("response_purpose", "")
+			_close_fault_stage = request.get("native_stage", "")
+			_close_fault_name = request.get("native_fault", "")
+			_close_hold_announced = false
+			_close_held_peer = {}
+			response.ok = response.ok and (_close_hold_stage.is_empty() or _close_hold_stage in [
+				"begin", "prepare", "recheck:pre_close", "advance", "wait", "verify:recognition",
+				"recheck:recognition", "verify:post_close", "recheck:post_close", "verify:survivor", "finish", "abort"])
+		"close_release":
+			_close_hold_stage = ""
+			_close_hold_response = ""
+			_close_hold_purpose = ""
+			_close_hold_announced = false
+			_close_callback_mode = ""
+		"close_disconnect":
+			response.ok = _close_held_peer.has("socket")
+			if response.ok: _close_held_peer.socket.disconnect_from_host()
+		"close_malformed":
+			response.ok = _close_held_peer.has("socket")
+			if response.ok:
+				_close_held_peer.socket.put_data(PackedByteArray([0, 0, 0, 3, 123, 0, 125]))
+				_close_held_peer.socket.disconnect_from_host()
 		"close_callback_witness": response.callback = _close_callback_result
 		"close_collect":
 			var collector := OpenObservation.new()
@@ -381,10 +480,11 @@ func _dispatch_close_request(request: Dictionary) -> void:
 				var witness := CloseWaitWitness.new()
 				_close_wait_start(owner, request_id, witness)
 				await get_tree().process_frame
+				var first_pending := not witness.done
 				var second: Dictionary = await owner.wait_for_completion(request_id)
 				var first: Dictionary = witness.result
 				if not witness.done: first = await witness.completed
-				response.result = {"first": first, "second": second}
+				response.result = {"first": first, "second": second, "first_pending": first_pending}
 		"close_finish":
 			response.ok = owner != null
 			if response.ok: response.result = owner.finish(request_id)

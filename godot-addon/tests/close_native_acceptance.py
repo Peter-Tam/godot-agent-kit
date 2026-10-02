@@ -803,14 +803,27 @@ class CloseNativeAcceptanceMixin:
             self.close_action(editor, "close_fault", request_id=attempt["request_id"], fault="drop_completion")
             result = self.advance_close(attempt)
             observation.require(facts(result)["entered"], "pending_duplicate_wait_actual_entered_close")
+            expiry = attempt["prepared"]["expiry_tick_us"]
+            remaining = (int(expiry) - int(self.close_action(editor, "close_info")["editor_tick_us"])) / 1_000_000
+            started = time.monotonic()
             pair = self.close_action(editor, "close_wait_duplicate", request_id=attempt["request_id"])["result"]
-            observation.require(pair["second"]["reason"] == "duplicate_wait" and
-                                pair["first"]["status"] in ("expired", "unavailable") and
-                                pair["second"].get("expiry_tick_us") in
-                                (None, attempt["prepared"].get("expiry_tick_us")),
+            elapsed = time.monotonic() - started
+            observation.json_file(self.artifacts / "pending-waiter-witness.json", {
+                "first_pending": pair["first_pending"], "original_expiry": expiry,
+                "remaining_original_seconds": remaining, "elapsed_seconds": elapsed,
+                "first": {key: pair["first"].get(key) for key in ("status", "reason", "expiry_tick_us")},
+                "second": {key: pair["second"].get(key) for key in ("status", "reason", "expiry_tick_us")}})
+            observation.require(pair["first_pending"] and pair["second"]["reason"] == "duplicate_wait" and
+                                pair["first"]["status"] != "completed" and
+                                pair["first"].get("continuation", {}).get("state") != "completed" and
+                                elapsed <= max(0, remaining) + 0.5 and
+                                pair["second"].get("expiry_tick_us") in (None, expiry) and
+                                pair["first"].get("expiry_tick_us") in (None, expiry),
                                 "pending_duplicate_cannot_attach_waiter_or_extend_original_expiry")
             self.case("one_pending_waiter_original_expiry", first=pair["first"]["status"],
-                      duplicate_reason=pair["second"]["reason"])
+                      duplicate_reason=pair["second"]["reason"], first_pending=True,
+                      remaining_original_seconds=remaining, elapsed_seconds=elapsed,
+                      native_reason=pair["first"].get("reason"), witness="pending-waiter-witness.json")
 
     def target_capture_bounds(self):
         for size in (524288, 524289):
@@ -845,7 +858,7 @@ class CloseNativeAcceptanceMixin:
                                 "missing_disk_capture_no_effect_or_source_fallback")
             self.case("missing_disk_with_live_buffer_refuses", native_entered=False)
 
-    def compiled_metadata_bounds(self):
+    def compiled_metadata_bounds(self, public_callback=None):
         # Calibrate against an actual admitted typed record, then grow ordinary
         # inert source identifiers. A one-byte name change is one byte of E;
         # source hashes retain their fixed width. No forged context authorizes
@@ -883,6 +896,8 @@ class CloseNativeAcceptanceMixin:
             observation.require(close_metadata_size(exact) == 262144, "actual_exact_256KiB_typed_metadata")
             self.terminate_close(attempt, "close_abort")
             self.case("exact_aggregate_metadata_bound", metadata_bytes=262144, native_entered=False)
+            if public_callback is not None:
+                public_callback(project, editor, descriptor, 262144)
         lengths[-1] += 1
         with self.close_fixture("metadata-bound-2", paths=paths, setup=setup) as (project, editor, descriptor):
             attempt = self.prepare_close(project, editor, descriptor)
@@ -921,6 +936,8 @@ class CloseNativeAcceptanceMixin:
                                 "one_over_metadata_not_unrelated_per_document_refusal")
             self.terminate_close(attempt, "close_abort")
             self.case("one_over_aggregate_metadata_bound", metadata_bytes=262145, native_entered=False)
+            if public_callback is not None:
+                public_callback(project, editor, descriptor, 262145)
 
     def pending_export_and_stale_compiled(self):
         profiles = (

@@ -392,7 +392,7 @@ std::string json_levels(const std::map<std::string, uint64_t> &values) {
     return out + "}";
 }
 const char *validator_context(Session &s, CloseAttempt &a) {
-    if (const char *reason = pin_file(s, "res://project.godot", a.settings_file, O_RDONLY)) { return reason; }
+    if (const char *reason = pin_file(s, "res://project.godot", a.settings_file, O_RDONLY, true)) { return reason; }
     struct stat st{};
     if (fstat(a.settings_file.leaf.value, &st) || st.st_size < 0 || st.st_size > static_cast<off_t>(SOURCE_LIMIT)) { return "validator_settings_limit"; }
     a.settings_source.resize(static_cast<size_t>(st.st_size));
@@ -573,7 +573,7 @@ Value close_inspect(Session &s, const Value &path_value, const Value &correlatio
     a->path = path; a->request = request; a->session = session; a->expires = expiry; s.owner = a;
     Running running(s); Binding b;
     if (!attached_project(s) || !find_document(path, b, a->open)) { return fail(*a, "document_association_unavailable"); }
-    if (const char *reason = pin_file(s, path, a->recognition_file, O_RDONLY)) { return fail(*a, reason); }
+    if (const char *reason = pin_file(s, path, a->recognition_file, O_RDONLY, a->open)) { return fail(*a, reason); }
     if (a->open) { a->target.document = b; a->rid = b.script_id; a->eid = b.editor_id; a->bid = b.buffer_id; }
     a->selected_known = selected(a->selected_script, a->selected_editor, a->selected_buffer);
     a->after_known = a->selected_known; a->after_script = a->selected_script;

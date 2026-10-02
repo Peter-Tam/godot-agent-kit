@@ -115,7 +115,9 @@ fn unique_levels<'de, D: Deserializer<'de>>(
     }
     d.deserialize_map(Levels)
 }
-fn checked_warnings<'de, D: Deserializer<'de>>(d: D) -> Result<WarningSettings, D::Error> {
+pub(super) fn checked_warnings<'de, D: Deserializer<'de>>(
+    d: D,
+) -> Result<WarningSettings, D::Error> {
     #[derive(Deserialize)]
     #[serde(deny_unknown_fields)]
     struct Warnings {

@@ -20,12 +20,14 @@ import tempfile
 from run_script_open import SCENARIOS as OPEN_SCENARIOS
 from run_script_edit import SCENARIOS as EDIT_SCENARIOS
 from run_script_discovery import SCENARIOS as DISCOVERY_SCENARIOS
+from run_script_close import SCENARIOS as CLOSE_SCENARIOS
 
 REPO = Path(__file__).resolve().parents[2]
 RUNNERS = {"open": "run_script_open.py", "edit": "run_script_edit.py",
-           "observation": "run_observation.py", "discovery": "run_script_discovery.py"}
+           "observation": "run_observation.py", "discovery": "run_script_discovery.py",
+           "close": "run_script_close.py"}
 SCENARIOS = {"open": OPEN_SCENARIOS, "edit": EDIT_SCENARIOS, "observation": ("all",),
-             "discovery": DISCOVERY_SCENARIOS}
+             "discovery": DISCOVERY_SCENARIOS, "close": CLOSE_SCENARIOS}
 ATTEMPT = re.compile(r"attempt-([0-9]{3,})\Z")
 
 
@@ -43,12 +45,14 @@ def _digest(path):
 
 def _options(args, suite):
     names = ["godot", "observer"]
-    if suite in ("open", "edit", "discovery"):
+    if suite in ("open", "edit", "discovery", "close"):
         names += ["editor", "stock_validator", "native_fault_addon"]
-    if suite in ("open", "discovery"):
+    if suite in ("open", "discovery", "close"):
         names.append("opener")
-    if suite == "discovery":
+    if suite in ("discovery", "close"):
         names.append("discoverer")
+    if suite == "close":
+        names.append("closer")
     return [(name, getattr(args, name)) for name in names]
 
 
@@ -103,12 +107,14 @@ def fingerprint(args, suite, scenario):
                 and not child.name.startswith("test_")):
             file(child)
     tree(tests / "fixtures" / "observation")
-    if suite in ("open", "edit", "discovery"):
+    if suite in ("open", "edit", "discovery", "close"):
         tree(tests / "fixtures" / ("script_" + suite))
-        if suite in ("open", "discovery"):
+        if suite in ("open", "discovery", "close"):
             tree(tests / "fixtures" / "script_edit")
-        if suite == "discovery":
+        if suite in ("discovery", "close"):
             tree(tests / "fixtures" / "script_open")
+        if suite == "close":
+            tree(tests / "fixtures" / "script_discovery")
     tree(REPO / "godot-addon" / "addons" / "godot_agent_kit")
     tree(REPO / "godot-addon" / "native", {".py", ".cpp", ".hpp", ".h", ".json"})
     tree(REPO / "mcp-server" / "src", {".rs"})
@@ -253,8 +259,7 @@ def _execute(command):
 
 
 def _run(args, root):
-    suites = RUNNERS if args.suite == "all" else (args.suite,)
-    selected = [(suite, scenario) for suite in suites for scenario in SCENARIOS[suite]]
+    selected = [(args.suite, scenario) for scenario in SCENARIOS[args.suite]]
     previous = _load(root) if args.resume else []
     steps = [{"suite": suite, "scenario": scenario, "status": "not_run", "exit_code": None,
               "fingerprint": None, "attempt_dir": None, "summary_path": None,
@@ -337,21 +342,24 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", required=True, choices=(*RUNNERS, "all"))
     parser.add_argument("--campaign-dir", required=True, type=Path)
-    for name in ("godot", "observer", "editor", "opener", "discoverer", "stock-validator", "native-fault-addon"):
+    for name in ("godot", "observer", "editor", "opener", "discoverer", "closer",
+                 "stock-validator", "native-fault-addon"):
         parser.add_argument("--" + name, type=Path, required=name in ("godot", "observer"))
     parser.add_argument("--keep-going", action="store_true")
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args(argv)
-    for suite in (RUNNERS if args.suite == "all" else (args.suite,)):
-        for name, path in _options(args, suite):
-            if path is None or not path.is_absolute():
-                parser.error("--" + name.replace("_", "-") + " requires an absolute path")
-            if name == "native_fault_addon":
-                valid = path.is_dir()
-            else:
-                valid = path.is_file() and os.access(path, os.X_OK)
-            if not valid:
-                parser.error("required execution input is unavailable: --" + name.replace("_", "-"))
+    if args.suite in ("close", "all"):
+        parser.error("complete close acceptance is unavailable: sequential and composed groups "
+                     "are not implemented; run implemented close groups directly")
+    for name, path in _options(args, args.suite):
+        if path is None or not path.is_absolute():
+            parser.error("--" + name.replace("_", "-") + " requires an absolute path")
+        if name == "native_fault_addon":
+            valid = path.is_dir()
+        else:
+            valid = path.is_file() and os.access(path, os.X_OK)
+        if not valid:
+            parser.error("required execution input is unavailable: --" + name.replace("_", "-"))
     root = args.campaign_dir
     if not root.is_absolute():
         parser.error("--campaign-dir requires an absolute path")

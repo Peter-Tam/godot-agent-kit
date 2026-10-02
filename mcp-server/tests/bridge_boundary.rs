@@ -3119,3 +3119,53 @@ mod script_open;
 
 #[path = "bridge_boundary/discovery.rs"]
 mod script_discovery;
+
+#[test]
+fn close_caller_does_not_infer_closing_from_authenticated_revision_three() {
+    use std::process::{Command, Stdio};
+    let fixture = Fixture::new();
+    fs::create_dir(fixture.project.join("scripts")).unwrap();
+    fs::write(
+        fixture.project.join("scripts/subject.gd"),
+        "AUTHENTICATED_TARGET_SOURCE_SENTINEL",
+    )
+    .unwrap();
+    let peer = attach(&fixture, ID1, Mode::ValidNative);
+    let mut child = Command::new(env!("CARGO_BIN_EXE_close-gdscript"))
+        .args([
+            "--registry",
+            fixture.registry.to_str().unwrap(),
+            "--project",
+            fixture.project.to_str().unwrap(),
+            "--session",
+            ID1,
+            "--script",
+            "res://scripts/subject.gd",
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(br#"{"schema_version":1,"request_id":"close-no-capability","basis":null}"#)
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    peer.join().unwrap();
+    assert_eq!(output.status.code(), Some(3));
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["reason"], "unsupported_capability");
+    assert_eq!(result["application"], "not_applied");
+    assert!(result["observation"].is_null());
+    assert!(!String::from_utf8(output.stdout)
+        .unwrap()
+        .contains("AUTHENTICATED_TARGET_SOURCE_SENTINEL"));
+    assert!(output.stderr.is_empty());
+    assert_eq!(
+        fs::read_to_string(fixture.project.join("scripts/subject.gd")).unwrap(),
+        "AUTHENTICATED_TARGET_SOURCE_SENTINEL"
+    );
+}

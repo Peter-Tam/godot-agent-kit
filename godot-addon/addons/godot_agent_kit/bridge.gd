@@ -6,6 +6,7 @@ const ENGINE_HASH := "ed1daf0bf001b61586d9930840f2f1394092c079"
 const DOMAIN := "godot-agent-kit/editor-bridge/v5"
 const ObservationScript = preload("res://addons/godot_agent_kit/observation.gd")
 const OpeningTransportScript = preload("res://addons/godot_agent_kit/script_open_transport.gd")
+const ClosingTransportScript = preload("res://addons/godot_agent_kit/script_close_transport.gd")
 const DiscoveryScript = preload("res://addons/godot_agent_kit/script_discovery.gd")
 const MAX_FRAME := 4096
 const MAX_SELECTED_REQUEST := 4 * 1024 * 1024
@@ -45,8 +46,10 @@ var _project_identity := ""
 
 var _edit_owner: Node
 var _open_owner: Node
+var _close_owner: Node
 var _discovery_owner: Node
 var _opening_exchange := OpeningTransportScript.new()
+var _closing_exchange := ClosingTransportScript.new()
 var _native_revision := 0
 var _native_build_id := ""
 var _active: Dictionary = {}
@@ -181,6 +184,7 @@ func _registry_unchanged() -> bool:
 func start(registry: String) -> bool:
 	stop()
 	_opening_exchange.configure(self)
+	_closing_exchange.configure(self)
 	if not Engine.is_editor_hint():
 		return false
 	var version := Engine.get_version_info()
@@ -339,11 +343,17 @@ func attach_open(owner: Node, revision: int, build_id: String) -> void:
 		and _matched_family(owner, revision, build_id) else null
 
 
+func attach_close(owner: Node, revision: int, build_id: String) -> void:
+	_close_owner = owner if _native_revision == 3 and build_id == _native_build_id \
+		and _matched_family(owner, revision, build_id) else null
+
+
 func _capabilities() -> Dictionary:
 	var capabilities := CAPABILITIES.duplicate()
 	capabilities.edit_open_gdscript = is_instance_valid(_edit_owner) and _native_revision == 3
 	capabilities.open_gdscript = is_instance_valid(_open_owner) and _native_revision == 3
 	capabilities.discover_gdscripts = is_instance_valid(_discovery_owner) and _discovery_owner.available()
+	capabilities.close_gdscript = is_instance_valid(_close_owner) and _native_revision == 3
 	return capabilities
 
 
@@ -363,7 +373,7 @@ func stop() -> void:
 			peer.edit_collector.clear()
 		if peer.has("open_collector"):
 			peer.open_collector.clear()
-		for field in ["pending", "open_prepare_tuple", "open_advance_tuple", "open_reply", "open_reply_closing"]:
+		for field in ["pending", "open_prepare_tuple", "open_advance_tuple", "open_reply", "open_reply_closing", "close_tuple", "close_reply", "close_reply_closing"]:
 			peer.erase(field)
 	# Reentrant shutdown may interrupt an already-entered native call. Its owner
 	# releases this marker only after the call and its history cleanup return.
@@ -388,6 +398,7 @@ func stop() -> void:
 	_project_identity = ""
 	_edit_owner = null
 	_open_owner = null
+	_close_owner = null
 	_native_revision = 0
 	_native_build_id = ""
 
@@ -422,7 +433,7 @@ func _process(_delta: float) -> void:
 		if socket.get_status() != StreamPeerTCP.STATUS_CONNECTED or (peer.state in ["initial", "challenged"] and Time.get_ticks_usec() - int(peer.since) >= HANDSHAKE_EXPIRY_USEC):
 			_close_peer(peer)
 			continue
-		if peer.has("frame_pending") or peer.has("open_reply"):
+		if peer.has("frame_pending") or peer.has("open_reply") or peer.has("close_reply"):
 			continue
 		if not peer.output.is_empty():
 			var remaining: int = peer.output.size() - peer.sent
@@ -467,7 +478,8 @@ func _process(_delta: float) -> void:
 				var prefix: String = peer.input.slice(4).get_string_from_utf8()
 				for whitespace in [" ", "\t", "\r", "\n"]:
 					prefix = prefix.replace(whitespace, "")
-				if not prefix.begins_with('[5,"edit_prepare",') and not prefix.begins_with('[5,"open_prepare",'):
+				if not prefix.begins_with('[5,"edit_prepare",') and not prefix.begins_with('[5,"open_prepare",') \
+						and not prefix.begins_with('[5,"close_prepare",'):
 					_close_peer(peer)
 					break
 				peer.large_prefix = true
@@ -505,6 +517,8 @@ func _process(_delta: float) -> void:
 	if not _active.is_empty() and _active.has("pending"):
 		if _active.get("operation_owner") == _open_owner and is_instance_valid(_open_owner):
 			_opening_exchange.collect(_active)
+		elif _active.get("operation_owner") == _close_owner and is_instance_valid(_close_owner):
+			_closing_exchange.collect(_active)
 		elif _active.has("operation_owner"):
 			_collect_edit(_active)
 		else:
@@ -512,6 +526,9 @@ func _process(_delta: float) -> void:
 	for peer in schedule:
 		if peer.has("open_reply") and _peers.has(peer):
 			_opening_exchange.flush(peer)
+			break
+		if peer.has("close_reply") and _peers.has(peer):
+			_closing_exchange.flush(peer)
 			break
 
 
@@ -537,7 +554,9 @@ func _close_peer(peer: Dictionary) -> void:
 		peer.erase("open_collector")
 	for field in ["open_prepare_tuple", "open_advance_tuple", "open_reply", "open_reply_closing"]:
 		peer.erase(field)
-	if peer.has("open_path"):
+	for field in ["close_tuple", "close_reply", "close_reply_closing"]:
+		peer.erase(field)
+	if peer.has("open_path") or peer.has("close_path"):
 		peer.erase("pending")
 	_peers.erase(peer)
 
@@ -781,6 +800,13 @@ func _handle_frame(peer: Dictionary, bytes: PackedByteArray) -> void:
 		if typeof(value) == TYPE_ARRAY and value.size() >= 2 and typeof(value[1]) == TYPE_STRING \
 				and (value[1] as String).begins_with("open_"):
 			_opening_exchange.handle(peer, value, bytes.size())
+			return
+		if typeof(value) == TYPE_ARRAY and value.size() >= 2 and typeof(value[1]) == TYPE_STRING \
+				and (value[1] as String).begins_with("close_"):
+			if not _closing_exchange.unique_keys(bytes):
+				_close_peer(peer)
+				return
+			_closing_exchange.handle(peer, value, bytes.size())
 			return
 		if bytes.size() > MAX_FRAME:
 			_close_peer(peer)
@@ -1049,6 +1075,14 @@ func _open_ready(_peer: Dictionary, _stage: String) -> bool:
 
 
 func _open_response_ready(_peer: Dictionary, _kind: String, _reply: Dictionary) -> bool:
+	return true
+
+
+func _close_ready(_peer: Dictionary, _stage: String) -> bool:
+	return true
+
+
+func _close_response_ready(_peer: Dictionary, _kind: String, _reply: Dictionary) -> bool:
 	return true
 
 

@@ -59,9 +59,9 @@ The loader checks the running engine version/full commit and executable SHA-256.
 bridge or owned-fixture session; `close()` and editor shutdown release state.
 Unmatched or missing binaries fail closed without changing observation.
 Bridge v5 authenticates nine capability bits and the installed revision-3 native
-build. Editing and opening each require their matched complete family; public
-observation/edit/open/discovery stay v1. The private close owner does not
-advertise `close_gdscript` until the complete product caller exchange exists.
+build. Editing, opening and closing require their matched complete native and
+transport families; public observation/edit/open/discovery stay v1. The distinct
+`close-gdscript` caller uses the authenticated `close_gdscript` capability.
 The read-only discovery/observation owners do not require native mutation
 availability. Rebuild/install Rust, addon and native peers together, then
 restart the editor; v4 peers and revision-2 bundles have no fallback.
@@ -138,6 +138,29 @@ paths. The composed campaign uses product opening before the reused edit A–E
 workflows; fixture-only human Save/close/history actions remain distinct from
 product capabilities. Use the [opening quickstart](../../specs/003-open-project-gdscript/quickstart.md)
 for exact commands, separate artifact directories and current acceptance limits.
+
+Build `close-gdscript` for the explicit clean-document closing operation. Its
+[caller contract](../../specs/005-close-project-gdscript/contracts/close-api.md)
+accepts one bounded stdin object with `schema_version`, a fresh `request_id`,
+and the complete prior observation-v1 `basis`. Only a fresh clean, exact-target
+basis can authorize closing an open document. Explicit `basis: null` can
+recognize an already-closed valid target without loading or closing it.
+
+Closing never saves, discards, repairs, retries or compensates by reopening.
+Verified new closure requires actual buffer absence, unchanged independent D,
+unchanged original retained R or observed unloading, completed native
+revalidation and preserved remaining documents. B is then not applicable,
+not empty. Target-buffer native history may be disposed by ordinary closing;
+unrelated history remains protected. Obtain a fresh ordinary observation
+before any later effectful operation, especially after possible application.
+
+The [closing runner](../../specs/005-close-project-gdscript/quickstart.md#3-owned-native-boundary-and-caller-groups)
+provides `native-boundary`, `clean-close`, `already-closed`, `preservation`,
+`routing`, `interruption` and `privacy-export`. Public groups require the real
+`--closer`, `--opener` and `--discoverer` in addition to observer/editor/validator
+and separate fixture-fault inputs. Native-only execution does not need these
+three callers. Full close `all`/`sequential`/`composed` and campaign `--suite close`
+or `--suite all` remain unavailable until cumulative closing acceptance exists.
 
 
 ## Official-stock boundary and verification

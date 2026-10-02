@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""T001 owned native-boundary close evidence; never a public close caller."""
+"""Owned live-editor acceptance for native and public safe script closing."""
 from __future__ import annotations
 
 import argparse
@@ -19,6 +19,10 @@ import run_observation as observation
 from run_script_edit import STOCK_SHA256
 from run_script_open import OpeningHarness
 from close_native_acceptance import CloseNativeAcceptanceMixin, documents, facts
+from caller_close_acceptance import CallerCloseAcceptanceMixin
+
+SCENARIOS = ("native-boundary", "clean-close", "already-closed", "preservation",
+             "routing", "interruption", "privacy-export")
 
 FIXTURE = Path(__file__).parent / "fixtures/script_close"
 TARGET = "res://scripts/subject.gd"
@@ -27,22 +31,37 @@ BACKGROUND = "res://scripts/close/background.gd"
 SAFE = "extends RefCounted\nfunc value() -> int:\n\treturn 47\n"
 
 
-class CloseHarness(CloseNativeAcceptanceMixin, OpeningHarness):
+class CloseHarness(CallerCloseAcceptanceMixin, CloseNativeAcceptanceMixin, OpeningHarness):
     def __init__(self, args, work):
         super().__init__(args, work)
-        self.summary.update(coverage_scope="T001_native_boundary_only",
-                            product_close_acceptance=False, public_close_gdscript=False,
-                            product_opening_caller_acceptance=False,
+        public = args.scenario != "native-boundary"
+        self.summary.update(coverage_scope="T002_first_caller" if public else "T001_native_boundary",
+                            product_close_acceptance=public, public_close_gdscript=public,
+                            product_opening_caller_acceptance=public, public_open_gdscript=public,
                             driver_sha256=observation.digest(Path(__file__)),
                             close_acceptance_sha256=observation.digest(
                                 Path(__file__).with_name("close_native_acceptance.py")),
                             close_fixture_files={str(p.relative_to(FIXTURE)): observation.digest(p)
                                                  for p in sorted(FIXTURE.rglob("*")) if p.is_file()})
+        self.summary["public_close_acceptance_sha256"] = observation.digest(
+            Path(__file__).with_name("caller_close_acceptance.py"))
+        self.summary["close_result_review_sha256"] = observation.digest(
+            Path(__file__).with_name("close_result_review.py"))
+        if public:
+            self.summary["closer_sha256"] = observation.digest(args.closer)
+            self.summary["discoverer_sha256"] = observation.digest(args.discoverer)
         self.summary["acceptance_coverage"] = {
             "native-boundary": ["guarded_one_shot_close", "independent_target_and_protection_witnesses",
                                 "actual_native_visits_and_completion", "real_protected_history",
                                 "bounded_source_context_and_receipts", "identity_and_configuration_races",
                                 "owned_callback_retirement", "privacy_and_production_exports"]}
+        self.summary["acceptance_coverage"].update({
+            "clean-close": ["actual_public_closes", "independent_D_R_B_and_roster", "first_public_composition"],
+            "already-closed": ["public_null_and_old_basis_recognition", "source_local_limits", "zero_effects"],
+            "preservation": ["dirty_and_equal_dirty", "real_unrelated_undo_redo", "identity_context_and_bounds"],
+            "routing": ["authenticated_exact_selection", "namespace_races", "real_operation_overlap"],
+            "interruption": ["original_ten_second_deadline", "effect_sensitive_results", "no_late_close", "newer_work"],
+            "privacy-export": ["result_only_review", "source_credentials_sentinels", "three_actual_export_modes"]})
         self.source_markers.update((b"CLOSE_PRIVATE_TARGET", b"CLOSE_PRIVATE_CURRENT",
                                     b"CLOSE_PRIVATE_BACKGROUND", b"CLOSE_HUMAN"))
 
@@ -88,13 +107,15 @@ class CloseHarness(CloseNativeAcceptanceMixin, OpeningHarness):
                                 info["build_id"] == self.expected_native_build_id and
                                 info["session_id"] == descriptor["session_id"] and descriptor["v"] == 5,
                                 "matched_native_revision3_bridge5")
-            stream, challenge = self.challenge(descriptor)
-            stream.close()
-            observation.require(challenge["capabilities"]["close_gdscript"] is False,
-                                "private_fixture_never_advertises_public_close")
             if faults:
                 observation.require(info["fixture_faults"], "separate_native_fault_artifact")
+                self.native_action(editor, "native_edit_fixture_activate")
+                self.open_action(editor, "open_fixture_activate")
                 self.close_action(editor, "close_fixture_activate")
+            stream, challenge = self.challenge(descriptor)
+            stream.close()
+            observation.require(challenge["capabilities"]["close_gdscript"] is True,
+                                "matched_installed_public_close_capability")
             self.close_action(editor, "close_setup", paths=paths if paths is not None else
                               [TARGET, CURRENT, BACKGROUND], selected=selected,
                               retain_target=retained, replacement_target=replacement_target)
@@ -298,7 +319,7 @@ class CloseHarness(CloseNativeAcceptanceMixin, OpeningHarness):
         unloaded = (sample["R"]["availability"] == "unavailable" and
                     sample["R"].get("reason", {}).get("code") == "resource_not_loaded" and
                     state["cached_id"] == "" and state["original_target_alive"] is False)
-        resource_ok = unloaded or (retained and sample["R"]["text"] == attempt["capture"]["source"] and
+        resource_ok = unloaded or (retained and sample["R"]["text"] == attempt["disks"][TARGET]["text"] and
                        sample["document"]["identity"]["script_instance_id"] == before["target"]["script_id"] and
                        state["cached_edited"] == before["target"]["resource_edited"])
         selection_ok = (before["selection"] == state["selection"] if before["selection"] != TARGET else
@@ -349,13 +370,25 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("godot", "observer", "editor", "stock-validator", "native-fault-addon", "artifacts"):
         parser.add_argument("--" + name, required=True, type=Path)
-    parser.add_argument("--scenario", required=True, choices=("native-boundary",))
+    for name in ("closer", "opener", "discoverer"):
+        parser.add_argument("--" + name, type=Path)
+    parser.add_argument("--scenario", required=True)
     args = parser.parse_args()
-    args.opener = None
+    if args.scenario not in SCENARIOS:
+        parser.error("unavailable close coverage: sequential, composed and all require T003; "
+                     "choose an implemented group: " + ", ".join(SCENARIOS))
+    if args.scenario != "native-boundary" and any(
+            getattr(args, name) is None for name in ("closer", "opener", "discoverer")):
+        parser.error("public close groups require actual --closer, --opener and --discoverer")
     os.umask(0o077)
     for path in (args.godot, args.observer, args.editor, args.stock_validator):
         observation.require(path.is_absolute() and path.is_file() and os.access(path, os.X_OK),
                             "absolute_actual_executable_inputs")
+    for name in ("closer", "opener", "discoverer"):
+        path = getattr(args, name)
+        if path is not None:
+            observation.require(path.is_absolute() and path.is_file() and os.access(path, os.X_OK),
+                                "absolute_actual_public_executable_" + name)
     observation.require(args.artifacts.is_absolute() and args.artifacts.is_dir() and
                         not args.artifacts.is_symlink() and not list(args.artifacts.iterdir()) and
                         args.artifacts.stat().st_uid == os.geteuid() and
@@ -369,7 +402,17 @@ def main():
         code = 0
         try:
             harness.initialize()
-            harness.group("native-boundary", harness.native_boundary)
+            method = {"native-boundary": harness.native_boundary, "clean-close": harness.clean_close,
+                      "already-closed": harness.already_closed, "preservation": harness.preservation,
+                      "routing": harness.routing, "interruption": harness.interruption,
+                      "privacy-export": harness.privacy_export}[args.scenario]
+            harness.group(args.scenario, method)
+            if args.scenario != "native-boundary":
+                public_cases = [case for case in harness.cases if case.get("operation") == "close_gdscript"]
+                observation.require(public_cases and all(
+                    case.get("result_only_review") and case.get("independent_evidence") and case.get("screenshot")
+                    for case in public_cases), "every_public_close_result_independently_reviewed")
+                harness.summary["public_close_case_count"] = len(public_cases)
             harness.summary["status"] = "passed"
         except (observation.Failure, OSError, ValueError, KeyError, TypeError, EOFError,
                 subprocess.SubprocessError) as error:

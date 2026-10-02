@@ -95,6 +95,7 @@ func _enter_tree() -> void:
 		var build_id := _matched_build_id(_native)
 		_bridge.attach_edit(_edit if not build_id.is_empty() else null, 3 if not build_id.is_empty() else 0, build_id)
 		_bridge.attach_open(_open if not build_id.is_empty() else null, 3 if not build_id.is_empty() else 0, build_id)
+		_bridge.attach_close(_close if not build_id.is_empty() else null, 3 if not build_id.is_empty() else 0, build_id)
 
 
 func _matched_build_id(candidate: Dictionary) -> String:

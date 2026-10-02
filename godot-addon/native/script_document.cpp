@@ -75,7 +75,7 @@ std::string profile_digest(const Profile &p) {
 }
 constexpr size_t LIMIT = SOURCE_LIMIT;
 const char *open_file(const Session &session, const std::string &path, FileBinding &out) {
-    return pin_file(session, path, out, O_RDWR);
+    return pin_file(session, path, out, O_RDWR, true);
 }
 bool unsaved(const std::string &path) {
     Name name("EditorInterface");

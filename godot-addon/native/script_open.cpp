@@ -290,7 +290,7 @@ Value open_prepare(Session &s, const Value &request, const Value &source_value, 
         if (!a->edited) { return refuse("resource_edited_unavailable"); }
         if (*a->edited) { return refuse("resource_edited"); }
     }
-    if (const char *reason = pin_file(s, a->path, a->file, O_RDONLY)) { return refuse(reason); }
+    if (const char *reason = pin_file(s, a->path, a->file, O_RDONLY, true)) { return refuse(reason); }
     if (td != static_cast<uint64_t>(a->file.device) || ti != static_cast<uint64_t>(a->file.inode)) {
         return refuse("namespace_or_descriptor_changed");
     }

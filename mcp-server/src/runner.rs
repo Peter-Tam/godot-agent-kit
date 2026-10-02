@@ -29,6 +29,8 @@ pub mod stock_validation;
 #[path = "runner/edit.rs"]
 pub mod edit;
 
+#[path = "runner/close.rs"]
+pub mod close;
 #[path = "runner/open.rs"]
 pub mod open;
 

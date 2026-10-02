@@ -48,6 +48,20 @@ func _open_response_ready(peer: Dictionary, kind: String, reply: Dictionary) -> 
 			and not drivers[0].open_response_barrier(kind, peer, reply):
 		return false
 	return super._open_response_ready(peer, kind, reply)
+func _close_ready(peer: Dictionary, stage: String) -> bool:
+	var drivers := get_tree().get_nodes_in_group("observation_fixture_driver")
+	if drivers.size() == 1 and drivers[0].has_method("close_barrier") \
+			and not drivers[0].close_barrier(stage, peer):
+		return false
+	return super._close_ready(peer, stage)
+
+func _close_response_ready(peer: Dictionary, kind: String, reply: Dictionary) -> bool:
+	var drivers := get_tree().get_nodes_in_group("observation_fixture_driver")
+	if drivers.size() == 1 and drivers[0].has_method("close_response_barrier") \
+			and not drivers[0].close_response_barrier(kind, peer, reply):
+		return false
+	return super._close_response_ready(peer, kind, reply)
+
 
 
 

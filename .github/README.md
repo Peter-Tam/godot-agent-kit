@@ -28,16 +28,16 @@ Project-script discovery retains its authenticated read-only scope boundary.
 Current peers use [private bridge v5](../specs/005-close-project-gdscript/contracts/bridge-protocol.md).
 Rebuild Rust consumers and the matched native revision-3 bundle, install the
 matching addon and restart owned editors; older peers/native revision 2 have
-no fallback. The private native closing boundary keeps `close_gdscript=false`
-until the complete public caller exchange exists.
+no fallback. `close_gdscript` now requires the installed complete close transport
+and matched native family; it is not inferred from observation, edit or opening.
 The ordinary Rust job also builds `discover-gdscripts`. Its
 [eight-group acceptance runner](../specs/004-discover-project-gdscript/quickstart.md#4-owned-discovery-runner-after-implementation)
 runs through the public caller with independent inventory and editor witnesses,
 including repeated discovery and composed A–E/durability. Discovery's shared
 selector integration requires complete observation, edit and opening regressions
-as well. The optional GUI workflow still covers only edit and observation; it
-does not establish discovery acceptance. Use the complete serial campaign below
-for the cumulative gate.
+as well. The ordinary Rust job builds `close-gdscript` too. The optional GUI
+workflow still covers only edit and observation; it does not establish
+discovery or closing acceptance. Run the required suites serially.
 
 ## Focused validation and resumable campaigns
 
@@ -103,29 +103,39 @@ python3 godot-addon/tests/run_editor_campaign.py \
 ```
 
 Discovery executes `inventory`, `routing`, `coverage`, `interruption`, `readonly`,
-`sequential`, `composed`, and `privacy-export` exactly once. Run the complete
-cumulative campaign on unchanged inputs with a fresh private directory:
+`sequential`, `composed`, and `privacy-export` exactly once.
+
+Closing has seven implemented task-owned groups. Run them directly and serially
+with fresh private evidence directories and the real close/discovery callers:
 
 ```sh
-FULL_CAMPAIGN="$(mktemp -d "$HOME/full-editor-campaign.XXXXXX")"
-python3 godot-addon/tests/run_editor_campaign.py \
-  --suite all --campaign-dir "$FULL_CAMPAIGN" --keep-going \
-  --discoverer "$PWD/mcp-server/target/debug/discover-gdscripts" "$@"
+(
+for GROUP in native-boundary clean-close already-closed preservation routing interruption privacy-export; do
+  CLOSE_ARTIFACTS="$(mktemp -d "$HOME/close-$GROUP.XXXXXX")"
+  python3 godot-addon/tests/run_script_close.py \
+    --scenario "$GROUP" --artifacts "$CLOSE_ARTIFACTS" \
+    --closer "$PWD/mcp-server/target/debug/close-gdscript" \
+    --discoverer "$PWD/mcp-server/target/debug/discover-gdscripts" "$@" || exit
+done
+)
 ```
 
-Resume that same campaign with `--resume`, the same `FULL_CAMPAIGN` and the
-same execution inputs. `--suite all` schedules complete opening, edit,
-observation and discovery suites in that order, once each. Nested composed
-evidence stays in its owning runner's summary; it is not scheduled again or
-flattened into extra campaign steps. Runnable commands are not proof of feature
-completion; review actual final-head results against the approved gate.
+The close runner's `sequential`, full `composed`, and `all` groups remain T003
+work. Campaign `--suite close` and `--suite all` explicitly refuse before
+execution or checkpoint changes; neither may certify incomplete close coverage.
+Run existing `open`, `edit`, `observation`, and `discovery` campaigns separately
+on unchanged inputs for the affected-boundary gate. Their `--resume` behavior
+is unchanged. Nested composed evidence stays in its owning runner's summary,
+not extra campaign steps. See the [closing quickstart](../specs/005-close-project-gdscript/quickstart.md)
+for exact scope and acceptance evidence.
 
 Campaigns are serial, with one isolated subprocess per opening, edit or
 discovery scenario in the runner's authoritative order. Observation deliberately
 remains one `run_observation.py --scenario all` step: its cross-group
 redaction/replay/boundary assertions must stay together. There is no case-level
-resume. Discovery fingerprints include its caller and discovery/open/edit
-fixtures as well as shared inputs.
+resume. Close execution fingerprints include its caller and close/discovery/
+open/edit fixtures as well as shared inputs; registration does not imply that
+the still-incomplete full close campaign is runnable.
 
 Every execution receives a fresh empty private directory such as
 `open/routing/attempt-001/`, with the runner's `summary.json`. Failed and
