@@ -26,10 +26,10 @@ class CallerEditAcceptanceMixin(CallerPrivacyAcceptanceMixin):
         editor = self.start_editor(project)
         descriptor = observation.wait_for(lambda: next(iter(self.descriptors(project)), None),
                                           "edit_native_advertisement")
-        observation.require(descriptor["v"] == 4, "edit_private_v4_descriptor")
+        observation.require(descriptor["v"] == 5, "edit_private_v5_descriptor")
         info = self.native_action(editor, "native_info")
         observation.require(info["edit_installed"] and info["open_installed"] and
-                            info["api_revision"] == 2 and
+                            info["api_revision"] == 3 and
                             info["build_id"] == self.expected_native_build_id, "real_native_shared_build")
         if faults:
             self.native_action(editor, "native_edit_fixture_activate")

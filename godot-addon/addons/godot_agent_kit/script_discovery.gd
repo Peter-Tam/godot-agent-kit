@@ -56,7 +56,7 @@ func _filesystem_facts() -> Dictionary:
 
 
 func _envelope(peer: Dictionary, kind: String, started: int) -> Dictionary:
-	return {"v": 4, "kind": kind, "request_id": peer.request_id,
+	return {"v": 5, "kind": kind, "request_id": peer.request_id,
 		"session_id": _bridge.get("_session"), "project_root": _bridge.get("_project"),
 		"collection": _bridge.call("_editor_stamp", started)}
 

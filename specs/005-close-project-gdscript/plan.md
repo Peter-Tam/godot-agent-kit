@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/005-close-project-gdscript/spec.md`, including the accepted guarded-native-revalidation clarification.
 
-**Status:** Phase 0 research and Phase 1 design complete; integrated artifact review and the post-design Constitution Check passed. The accepted native-revalidation clarification is recorded in the specification. The [task decomposition and granularity review](tasks.md#granularity-review) are complete; `/speckit.analyze` remains separate. No implementation task is selected, no product close is implemented, and no feature/support acceptance is claimed. Planning stays on the existing specification branch.
+**Status:** Phase 0 research, Phase 1 design and selection-time granularity/consistency review passed. T001 is complete with [native-boundary and full affected-suite acceptance](quickstart.md#9-t001-native-boundary-acceptance-2026-10-02) and the implementation-shape/constitutional review below. T002/T003 remain pending and unstarted; no public closing or feature-completion claim follows this native increment.
 
 ## Summary
 
@@ -203,3 +203,119 @@ No constitutional violation or exception is selected. [Research §8](research.md
 | Coordinated v5/revision-3 cutover | Fixed authenticated capabilities and native callable/lifetime contract change | Migrate all peers/build checks/docs once; same artifact names, no shim or platform expansion. |
 
 New public visibility must have a current caller. Retain the existing checked basis implementation without an unnecessary public breaking move; keep close attempt/native/codec internals private. Use typed recoverable failures for unavailable evidence, not `unwrap`/`expect` on practical failure paths. Review accidental complexity introduced by each later task before marking it complete; do not defer necessary cleanup to a new task or expand into unrelated refactoring.
+
+## T001 selection and constitutional scope — 2026-10-01
+
+The single-task implementation instruction selects T001 after completed
+Features 001–004, the merged planning artifacts, passed granularity review and
+read-only consistency analysis. The requirements-quality checklist remains
+16/16, unchanged. Coverage and native-contract reviews found no actionable
+constitutional, dependency or interface contradiction. The checked executable,
+host and toolchain match the planned candidate; no runtime acceptance is claimed
+by these prerequisite checks.
+
+T001 retains the approved complexity decisions: one native close owner and
+bounded continuation ledger address the observed dirty-source application and
+deferred validation; shared source-context acquisition has two current
+consumers; the existing validator and fixture consume exact protected source.
+No public close caller/reducer/transport, new dependency, service, approval
+mechanism or CI topology belongs to this increment. The ninth authenticated
+capability remains false until T002's complete exchange. The private fixture
+must prove native behavior without advertising a product success verdict.
+
+### Implementation-discovered boundary details
+
+The first real-editor preparation refused, rather than manufacturing native
+eligibility. The private JSON handoff must convert only finite integral
+bounded byte lengths to Godot integers; the native ABI retains its strict
+integer checks. The pinned [CodeTextEditor settings](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/gui/code_editor.cpp#L1166-L1167)
+have separate normal and error-state idle delays under `text_editor/completion`.
+Both are captured and committed; admission uses their maximum and rechecks
+both values. No editor preference, timer or source is changed to pass admission.
+
+The strict context decoder needs a small private shared budget for retained
+source and metadata. The concrete failure is that an internally tagged Serde
+enum buffers its complete `Content` before nested source/array bounds run;
+an otherwise bounded 12-MiB fixture frame can exceed the task's retained
+512-KiB source/256-KiB context limits first. A direct closed struct plus the
+existing per-record validation is the simplest alternative, but per-record
+checks alone cannot enforce a remaining cross-document budget before copying.
+Direct structs and schema-specific nested Serde seeds therefore share that
+budget for the two current source-context consumers. The maintenance cost is
+explicit field/visitor coverage in the private codec, justified by T001's
+pre-allocation requirement and covered by malformed-tail boundary regressions.
+There is no new dependency, public parser framework or service; Serde's
+escaped-string scratch remains bounded by the existing outer frame ceiling.
+
+Survivor acquisition is separate from a successful-close guard. It retains
+scope/deadline confinement and sticky original effects/invalidation while
+observing a still-open or newly reopened target; it retires rather than renews
+authority. Terminal cleanup cannot turn an unprepared protection set into
+`preserved`, or erase established original-document removal merely because a
+different document now occupies the same path.
+
+### Implementation-shape review
+
+The new bounded decoder pushed `opening_context.rs` beyond a coherent
+source-context model/validation surface. Its schema-specific budget, seed and
+visitor code now lives in private `opening_context/decode.rs`; the parent
+retains models, semantic checks, serialization, F/E encoding and existing
+behavioral tests. This is a relocation of the required decoder, not another
+parsing abstraction. The existing sibling-consumer paths remain private to
+`stock_validation`; the child does not expand public visibility. The concrete
+cost is one private module and explicit field coverage, offset by separating
+decoding/allocation limits from semantic admission and receipt checks.
+
+`script_close.cpp` owns one private close attempt: admission, one generated
+native effect, callback attribution, independent verification and retirement
+all share that attempt's identities and immutable guard. Its size triggers a
+cohesion review, but another state-owner boundary would expose mutable attempt
+internals without a current separate consumer. Common lexical/compiled/effective
+acquisition instead lives in `editor_context`, with both opening and closing
+as actual consumers. There is no generic callback registry or duplicated
+scanner. Historical `entered`/discard facts remain separate from the current
+phase; selection/removal availability is not converted into guessed Booleans.
+
+The addon owns the existing shared slot, collection and waiter lifetime, not
+a second reducer. Rust's close-context module owns aggregate binding and
+sequential reuse of the existing validator; opaque public types/functions are
+needed by the current external example consumer. No public close outcome,
+future-only extension point, dependency, new unsafe Rust or operational gate
+is introduced. Native ABI calls retain generated public signatures and checked
+failure outcomes. The split passed formatting, Clippy, all 317 default Rust
+tests, rustdoc and actual consumer builds. Both retained example tests prove
+pre-allocation source-bound rejection; they passed separately after deleting
+an incidental Serde-error-wording test. Live acceptance is recorded separately.
+
+The Resource-lifetime fixture distinguishes compiler-cache retention from
+document ownership. Both raw stock close and guarded close retained an ordinary
+loaded target after all attempt references were released. Godot's
+[reload path](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/gdscript.cpp#L780-L783)
+registers named Scripts in a
+[strong compilation cache](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/gdscript_cache.h#L89-L91).
+The naturally-unloaded control therefore prepares a fresh replacement
+document before admission while the compiler retains the older Resource.
+It independently establishes the new clean D/R/B identity, performs the
+same guarded close, and requires both ordinary cache absence and destruction
+of that original captured Script instance. It never clears a cache or drops
+an extra reference after close to obtain the expected result. This positive
+passed independently; ordinary retained-original controls remain separate.
+
+Dirty-history preparation now reuses the existing fixture's deadline-limited
+R==B observation instead of assuming that 180 process frames suffice for idle
+validation. This happens before any close attempt, without a Resource setter,
+Save, timer change or product retry. The dirty-current positive leaves that
+document selected while closing the separate target; the dirty-background
+positive uses a different selected document. Both passed real earlier and
+post-close Undo/Redo plus exact source/history preservation. A deliberate
+R!=B case still refuses before entry. Owned-window captures are taken on the
+actual Script screen; the selected close, last-tab removal and preserved
+dirty-buffer/history surfaces have been visually inspected.
+
+Upstream workflow governance was fast-forwarded from `origin/main` during
+verification (`8744cf6`, PR #51); it changed only `AGENTS.md` and
+`SPECKIT_WORKFLOW.md`, not tested runtime inputs. The selection-time analysis
+above is historical, not a schema-1 currentness attestation for later edited
+artifacts. Future implementation prerequisites must apply the
+[current analysis-recognition policy](../../SPECKIT_WORKFLOW.md#g-recognize-current-analysis-before-implementation);
+no pass is backfilled from remembered analysis or newly computed hashes.

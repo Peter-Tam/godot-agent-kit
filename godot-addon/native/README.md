@@ -58,25 +58,32 @@ The loader checks the running engine version/full commit and executable SHA-256.
 `configure(session_id)` binds the actual project and existing 32-lowercase-hex
 bridge or owned-fixture session; `close()` and editor shutdown release state.
 Unmatched or missing binaries fail closed without changing observation.
-Bridge v4 authenticates eight capability bits and the installed native build.
-Editing and opening each require their matched complete family; public
-observation/edit/open stay v1. The read-only discovery scope owner does not
-require native mutation availability. Update Rust/addon peers together and
-restart the editor for v4; unchanged matched revision-2 native artifacts remain
-usable without a transport-only rebuild.
+Bridge v5 authenticates nine capability bits and the installed revision-3 native
+build. Editing and opening each require their matched complete family; public
+observation/edit/open/discovery stay v1. The private close owner does not
+advertise `close_gdscript` until the complete product caller exchange exists.
+The read-only discovery/observation owners do not require native mutation
+availability. Rebuild/install Rust, addon and native peers together, then
+restart the editor; v4 peers and revision-2 bundles have no fallback.
 
 The editor-local `godot_agent_kit_native` metadata exposes `configure`, `close`,
 `api_revision`, `build_id`, read-only `edit_inspect`, `edit_prepare`,
 `edit_advance`, `edit_cancel` and `edit_expire`. The opening family is
 `open_inspect`, `open_prepare`, `open_advance`, `open_verify`, `open_recheck`,
-`open_finish`, `open_abort` and `open_expire`. Revision `2` and the matched
-build ID are authenticated; unavailable tooling cannot advertise editing or opening.
-Stock validation stays in the supervised Rust helper, never a native fallback.
-`session.cpp` owns one edit/open session owner; `document_guard` owns shared
+`open_finish`, `open_abort` and `open_expire`. The closing family is
+`close_inspect`, `close_prepare`, `close_advance`, `close_status`, `close_verify`,
+`close_recheck`, `close_finish`, `close_abort` and `close_expire`. Revision `3`
+and the matched build ID are authenticated; unavailable tooling cannot
+advertise editing or opening. Stock validation stays in the supervised Rust
+helper, never a native fallback.
+`session.cpp` owns one edit/open/close session owner; `document_guard` owns shared
 read/identity/document checks. Editing and its Save-format/write/T0/saved-state
-steps remain in `script_document.cpp`; opening stages are in `script_open.cpp`
-and private current/source/effective-context admission in `open_context.cpp`.
-Registration remains in `extension.cpp`. The [opening native contract](../../specs/003-open-project-gdscript/contracts/native-integration.md)
+steps remain in `script_document.cpp`; opening stages remain in `script_open.cpp`.
+Shared source/effective/compiled-context acquisition belongs to `editor_context`,
+with opening-specific orchestration retained in `open_context`; guarded closing
+and native continuation witnesses belong to `script_close`. Registration remains
+in `extension.cpp`. The [closing native contract](../../specs/005-close-project-gdscript/contracts/native-integration.md),
+[opening native contract](../../specs/003-open-project-gdscript/contracts/native-integration.md)
 and [editing contract](../../specs/002-edit-open-gdscript/contracts/native-integration.md#7-current-private-implementation-boundary)
 distinguish stage facts from independent verification.
 
@@ -90,7 +97,7 @@ or a dangling runtime extension dependency.
 ## Guarded caller integration
 
 Build `observe-gdscript` and `edit-gdscript` from `mcp-server/` with locked
-resolution. Restart the editor with the updated addon to create a new v4 session, obtain a
+resolution. Restart the editor with the updated addon to create a new v5 session, obtain a
 fresh observation, and submit the complete basis plus replacement source through
 stdin using the [caller contract](../../specs/002-edit-open-gdscript/contracts/edit-api.md).
 The caller owns validation supervision and a 9.5-second operation budget with
@@ -181,7 +188,7 @@ only admitted sources, checks the exact official binary and its loopback listene
 requires each URI's diagnostics before its shaped symbol response, discards all
 raw child output and owns teardown. Effective editor context must be freshly
 acquired and rechecked by the trusted integration through authenticated
-bridge-v4 ProjectSettings observations, not inferred from disk configuration.
+bridge-v5 ProjectSettings observations, not inferred from disk configuration.
 Unsupported context and incomplete evidence remain unavailable, not invalid or
 valid by omission. The stock endpoint's documented inherited limitation remains;
 private staging is context isolation, not an OS sandbox.

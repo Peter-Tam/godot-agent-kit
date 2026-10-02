@@ -94,7 +94,7 @@ pub fn run(
     let worker = OwnedWorker(Some(worker));
     let request = attempt.request();
     let startup = serde_json::to_vec(&(
-        4,
+        5,
         request.request_id().as_str(),
         request.project_root().as_str(),
         request

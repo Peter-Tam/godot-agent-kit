@@ -17,8 +17,8 @@ HERE = Path(__file__).resolve().parent
 ADDON = HERE.parent / "addons" / "godot_agent_kit" / "native"
 BUILD = HERE / "build"
 SOURCES = ("extension.cpp", "session.cpp", "document_guard.cpp", "script_document.cpp",
-           "open_context.cpp", "script_open.cpp")
-HEADERS = ("native.hpp", "document_guard.hpp", "open_context.hpp")
+           "editor_context.cpp", "open_context.cpp", "script_open.cpp", "script_close.cpp")
+HEADERS = ("native.hpp", "document_guard.hpp", "editor_context.hpp", "open_context.hpp")
 DESCRIPTOR = """[configuration]
 entry_symbol = "editor_integration_library_init"
 compatibility_minimum = "4.7"
@@ -48,6 +48,26 @@ def method(api, cls, name):
     if len(methods) != 1:
         raise ValueError(f"Required method missing or ambiguous: {cls}.{name}")
     return methods[0]["hash"]
+
+
+def close_method(api):
+    entry = next((c for c in api["classes"] if c["name"] == "ScriptEditor"), None)
+    if entry is None:
+        raise ValueError("Required class missing: ScriptEditor")
+    candidates = [m for m in entry.get("methods", []) if m["name"] == "close_file"]
+    if len(candidates) != 1:
+        raise ValueError("Required method missing or ambiguous: ScriptEditor.close_file")
+    value = candidates[0]
+    arguments = value.get("arguments", [])
+    if (value.get("is_static", False) or value.get("is_vararg", False)
+            or value.get("is_virtual", False) or value.get("is_const", False)
+            or len(arguments) != 1 or arguments[0].get("type") != "String"
+            or "default_value" in arguments[0]
+            or value.get("return_value", {}).get("type") != "enum::Error"
+            or type(value.get("hash")) is not int or not 0 < value["hash"] <= 0xFFFFFFFF):
+        raise ValueError("Unsupported ScriptEditor.close_file signature")
+    return value["hash"]
+
 
 def enum_constant(api, name):
     values = [value["value"] for enum in api["global_enums"]
@@ -175,6 +195,11 @@ def main(argv=None):
         "GLOBALIZE_PATH": method(api, "ProjectSettings", "globalize_path"),
         "GLOBAL_CLASSES": method(api, "ProjectSettings", "get_global_class_list"),
         "OBJECT_PROPERTIES": method(api, "Object", "get_property_list"),
+        "CLOSE_FILE": close_method(api),
+        "HAS_SIGNAL": method(api, "Object", "has_signal"),
+        "CONNECT": method(api, "Object", "connect"),
+        "DISCONNECT": method(api, "Object", "disconnect"),
+        "IS_CONNECTED": method(api, "Object", "is_connected"),
         "GET_META": method(api, "Object", "get_meta"),
         "OBJECT_SET": method(api, "Object", "set"),
     }
@@ -213,7 +238,7 @@ def main(argv=None):
     manifest = {
         "base_commit": BASE, "engine_version": version, "engine_binary": str(engine), "engine_sha256": engine_sha,
         "fixture_only": args.fixture,
-        "native_api_revision": 2, "native_family": "editor_integration",
+        "native_api_revision": 3, "native_family": "editor_integration",
         "native_library": output.name, "entry_symbol": "editor_integration_library_init",
         "abi_sha256": digest(abi_json), "api_sha256": digest(api_json), "header_sha256": digest(header),
         "native_build_id": build_id, "native_library_sha256": digest(output),

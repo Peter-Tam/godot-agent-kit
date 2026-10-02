@@ -205,6 +205,7 @@ inline void copy_into(void *destination, const Value &v) { api.destroy(destinati
 std::string sha256(std::string_view bytes);
 struct EditAttempt;
 struct OpenAttempt;
+struct CloseAttempt;
 bool valid_utf8(std::string_view source);
 bool same_time(timespec left, timespec right);
 bool engine_binary_matches();
@@ -215,8 +216,9 @@ struct Session {
     std::string project_path;
     std::string session_id;
     std::thread::id main_thread;
+    uint64_t close_generation{};
     enum class CallState { Idle, Running, Closing };
-    std::variant<std::monostate, EditAttempt *, OpenAttempt *> owner;
+    std::variant<std::monostate, EditAttempt *, OpenAttempt *, CloseAttempt *> owner;
     CallState call_state = CallState::Idle;
 };
 inline EditAttempt *edit_attempt(Session &session) {
@@ -225,6 +227,10 @@ inline EditAttempt *edit_attempt(Session &session) {
 }
 inline OpenAttempt *open_attempt(Session &session) {
     auto *held = std::get_if<OpenAttempt *>(&session.owner);
+    return held ? *held : nullptr;
+}
+inline CloseAttempt *close_attempt(Session &session) {
+    auto *held = std::get_if<CloseAttempt *>(&session.owner);
     return held ? *held : nullptr;
 }
 inline bool occupied(const Session &session) {
@@ -244,6 +250,17 @@ Value open_recheck(Session &session, const Value &request, const Value &purpose)
 Value open_finish(Session &session, const Value &request);
 Value open_abort(Session &session, const Value &request);
 bool open_expire(Session &session);
+void close_cleanup(Session &session);
+void close_closing(Session &session);
+Value close_inspect(Session &session, const Value &path, const Value &correlation);
+Value close_prepare(Session &session, const Value &request, const Value &source, const Value &capture);
+Value close_advance(Session &session, const Value &request, const Value &guard, const Value &receipts);
+Value close_status(Session &session, const Value &request);
+Value close_verify(Session &session, const Value &request, const Value &purpose);
+Value close_recheck(Session &session, const Value &request, const Value &purpose);
+Value close_finish(Session &session, const Value &request);
+Value close_abort(Session &session, const Value &request);
+Value close_expire(Session &session);
 Value edit_inspect(Session &session, const Value &path, const Value &original,
         const Value &desired, const Value &document);
 Value edit_prepare(Session &session, const Value &path, const Value &expected,
@@ -255,5 +272,7 @@ bool edit_expire(Session &session);
 Value edit_fixture_fault(Session &session, const Value &request, const Value &fault);
 Value open_fixture_fault(Session &session, const Value &request, const Value &fault);
 Value open_fixture_state(Session &session, const Value &request);
+Value close_fixture_fault(Session &session, const Value &request, const Value &fault);
+Value close_fixture_state(Session &session, const Value &request);
 #endif
 } // namespace gak

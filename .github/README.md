@@ -24,10 +24,12 @@ repeated opening and composed A–E/durability. At the cumulative gate, run open
 edit and observation serially on the same final delivery head with private
 artifacts. The campaign utility below retains evidence at existing scenario boundaries.
 
-Project-script discovery uses the authenticated read-only scope boundary and
-[private bridge v4](../specs/004-discover-project-gdscript/contracts/bridge-protocol.md).
-Rebuild Rust consumers, install the matching addon and restart owned editors;
-v3 peers have no fallback. The native revision-2 family is unchanged.
+Project-script discovery retains its authenticated read-only scope boundary.
+Current peers use [private bridge v5](../specs/005-close-project-gdscript/contracts/bridge-protocol.md).
+Rebuild Rust consumers and the matched native revision-3 bundle, install the
+matching addon and restart owned editors; older peers/native revision 2 have
+no fallback. The private native closing boundary keeps `close_gdscript=false`
+until the complete public caller exchange exists.
 The ordinary Rust job also builds `discover-gdscripts`. Its
 [eight-group acceptance runner](../specs/004-discover-project-gdscript/quickstart.md#4-owned-discovery-runner-after-implementation)
 runs through the public caller with independent inventory and editor witnesses,

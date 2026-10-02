@@ -131,6 +131,7 @@ pub enum Purpose {
     PostChange,
     Unchanged,
     OpenContext,
+    CloseContext,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -263,8 +264,14 @@ fn deadline(deadline: Instant) -> Result<(), &'static str> {
 }
 #[path = "stock_validation/admission.rs"]
 mod admission;
+#[path = "stock_validation/closing_context.rs"]
+mod closing_context;
 #[path = "stock_validation/opening_context.rs"]
 mod opening_context;
+pub use closing_context::{
+    capture_close_target, recheck_close_target, validate_close_context, CloseContext,
+    CloseValidation, TargetCapture,
+};
 #[path = "stock_validation/opening_literals.rs"]
 mod opening_literals;
 #[path = "stock_validation/ownership.rs"]
@@ -523,9 +530,24 @@ pub fn validate(
     clock: AttemptClock,
     cancelled: &AtomicBool,
 ) -> ValidationResult {
+    validate_until(request, clock, cancelled, clock.started + BUDGET)
+}
+
+fn validate_until(
+    request: ValidationRequest,
+    clock: AttemptClock,
+    cancelled: &AtomicBool,
+    attempt_deadline: Instant,
+) -> ValidationResult {
     let mut wire = wire_request(request, &clock);
+    // The inherited worker's existing finite budget is shortened, never renewed.
+    wire.elapsed_us = 9_500_000u64.saturating_sub(
+        attempt_deadline
+            .saturating_duration_since(Instant::now())
+            .as_micros()
+            .min(9_500_000) as u64,
+    );
     let mut result = ValidationResult::new(&wire);
-    let attempt_deadline = clock.started + BUDGET;
     let mut cleanup_path = None;
     let process = (|| -> Result<ValidationResult, &'static str> {
         deadline(attempt_deadline)?;

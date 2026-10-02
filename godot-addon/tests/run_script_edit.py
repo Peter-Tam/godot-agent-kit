@@ -190,7 +190,7 @@ class NativeHarness(CumulativeEditAcceptanceMixin, CallerEditAcceptanceMixin,
             provenance.get("engine_sha256") == observation.digest(self.args.godot) and
             provenance.get("native_library_sha256") == observation.digest(binaries[0]) and
             provenance.get("fixture_only") is fixture_only and
-            provenance.get("native_api_revision") == 2 and
+            provenance.get("native_api_revision") == 3 and
             provenance.get("native_family") == "editor_integration" and
             provenance.get("native_library") == binaries[0].name and
             provenance.get("entry_symbol") == "editor_integration_library_init" and
@@ -307,7 +307,7 @@ def main():
         fault_receipt = json.loads((args.native_fault_addon / "build-manifest.json").read_text())
         observation.require(fault_receipt.get("fixture_only") is True and
                             fault_receipt.get("engine_sha256") == STOCK_SHA256 and
-                            fault_receipt.get("native_api_revision") == 2 and
+                            fault_receipt.get("native_api_revision") == 3 and
                             fault_receipt.get("native_family") == "editor_integration" and
                             fault_receipt.get("native_library") == "libeditor_integration.macos.arm64.dylib" and
                             fault_receipt.get("entry_symbol") == "editor_integration_library_init" and

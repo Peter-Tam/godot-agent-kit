@@ -5,6 +5,7 @@ const BridgeScript = preload("res://addons/godot_agent_kit/bridge.gd")
 const ExportGuardScript = preload("res://addons/godot_agent_kit/export_guard.gd")
 const ScriptEditScript = preload("res://addons/godot_agent_kit/script_edit.gd")
 const ScriptOpenScript = preload("res://addons/godot_agent_kit/script_open.gd")
+const ScriptCloseScript = preload("res://addons/godot_agent_kit/script_close.gd")
 const NATIVE_EXTENSION := "res://addons/godot_agent_kit/native/editor_integration.gdextension"
 const NATIVE_LIBRARY := "res://addons/godot_agent_kit/native/libeditor_integration.macos.arm64.dylib"
 const NATIVE_MANIFEST := "res://addons/godot_agent_kit/native/build-manifest.json"
@@ -15,6 +16,7 @@ var _export_guard: EditorExportPlugin
 var _native: Dictionary = {}
 var _edit: Node
 var _open: Node
+var _close: Node
 
 
 func _load_native() -> void:
@@ -36,11 +38,12 @@ func _native_api() -> Dictionary:
 	for operation in ["configure", "close", "api_revision", "build_id", "edit_inspect",
 			"edit_prepare", "edit_advance", "edit_cancel", "edit_expire", "open_inspect",
 			"open_prepare", "open_advance", "open_verify", "open_recheck", "open_finish",
-			"open_abort", "open_expire"]:
+			"open_abort", "open_expire", "close_inspect", "close_prepare", "close_advance",
+			"close_status", "close_verify", "close_recheck", "close_finish", "close_abort", "close_expire"]:
 		if not candidate.has(operation) or not (candidate[operation] is Callable) \
 				or not candidate[operation].is_custom() or not candidate[operation].is_valid():
 			return {}
-	if candidate["api_revision"].call() != 2:
+	if candidate["api_revision"].call() != 3:
 		return {}
 	var build_id: Variant = candidate["build_id"].call()
 	if not (build_id is String) or build_id.length() != 64 or not build_id.is_valid_hex_number() \
@@ -63,6 +66,10 @@ func _enter_tree() -> void:
 		_open.name = "GodotAgentKitScriptOpen"
 		add_child(_open)
 		_open.configure(family, null)
+		_close = ScriptCloseScript.new()
+		_close.name = "GodotAgentKitScriptClose"
+		add_child(_close)
+		_close.configure(family, null)
 	if not OS.has_environment("GODOT_AGENT_KIT_REGISTRY"):
 		return
 	var registry := OS.get_environment("GODOT_AGENT_KIT_REGISTRY")
@@ -83,9 +90,11 @@ func _enter_tree() -> void:
 			_edit.configure(_native, _bridge)
 		if _open != null:
 			_open.configure(_native, _bridge)
+		if _close != null:
+			_close.configure(_native, _bridge)
 		var build_id := _matched_build_id(_native)
-		_bridge.attach_edit(_edit if not build_id.is_empty() else null, 2 if not build_id.is_empty() else 0, build_id)
-		_bridge.attach_open(_open if not build_id.is_empty() else null, 2 if not build_id.is_empty() else 0, build_id)
+		_bridge.attach_edit(_edit if not build_id.is_empty() else null, 3 if not build_id.is_empty() else 0, build_id)
+		_bridge.attach_open(_open if not build_id.is_empty() else null, 3 if not build_id.is_empty() else 0, build_id)
 
 
 func _matched_build_id(candidate: Dictionary) -> String:
@@ -100,7 +109,7 @@ func _matched_build_id(candidate: Dictionary) -> String:
 	var manifest: Dictionary = parser.data
 	var build_id: Variant = candidate["build_id"].call()
 	if manifest.get("fixture_only") != false or manifest.get("generated_from_exact_binary") != true \
-			or manifest.get("native_api_revision") != 2 \
+			or manifest.get("native_api_revision") != 3 \
 			or manifest.get("native_family") != "editor_integration" \
 			or manifest.get("native_library") != "libeditor_integration.macos.arm64.dylib" \
 			or manifest.get("entry_symbol") != "editor_integration_library_init" \
@@ -130,6 +139,12 @@ func _exit_tree() -> void:
 		if not entered:
 			_open.free()
 		_open = null
+	if _close != null:
+		var entered: bool = _close.is_active_stage()
+		remove_child(_close)
+		if not entered:
+			_close.free()
+		_close = null
 	var api := _native if not _native.is_empty() else _native_api()
 	if not api.is_empty():
 		api["close"].call()

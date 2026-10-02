@@ -4,11 +4,12 @@
 
 **Current migration:** This document preserves the accepted v3 contract and
 historical evidence. Current caller/addon peers use
-[private v4](../../004-discover-project-gdscript/contracts/bridge-protocol.md):
-the discovery capability is the eighth authenticated bit; existing opening
-tuples use version 4 with unchanged semantics. Native revision 2 and all public
-v1 contracts remain unchanged. Install matching peers and restart the editor;
-v3 descriptors/proofs and previous session-bound edit bases cannot be reused.
+[private v5](../../005-close-project-gdscript/contracts/bridge-protocol.md):
+closing is the ninth authenticated bit and remains false until its complete
+caller exchange exists. Existing opening tuples use version 5 with unchanged
+semantics. Rebuild/install the matched revision-3 shared native bundle and
+caller/addon peers, then restart the editor. Older descriptors/proofs, native
+revision 2 and previous session-bound edit bases cannot be reused.
 
 ## 1. Bootstrap, authentication and migration
 

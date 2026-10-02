@@ -4,11 +4,13 @@
 
 This guide covers the entire observation-only specification. It does not implement the feature, derive tasks, or claim a mutation/UndoRedo/Phase 1 exit guarantee. Use the [data model](data-model.md), [caller contract](contracts/observation-api.md), and [bridge contract](contracts/bridge-protocol.md) for normative fields and outcomes instead of inferring semantics from exit status alone.
 
-**Current private integration:** Rebuild caller/addon peers together for
-[bridge v4](../004-discover-project-gdscript/contracts/bridge-protocol.md), retaining
-the matched revision-2 `editor_integration` bundle, then restart the editor for a
-fresh session. Observation remains public v1 and read-only. Historical acceptance
-below retains the private version it actually exercised; it is not discovery evidence.
+**Current private integration:** Rebuild caller/addon peers and the shared
+revision-3 `editor_integration` bundle together for
+[bridge v5](../005-close-project-gdscript/contracts/bridge-protocol.md), then
+restart the editor for a fresh session. Observation remains public v1 and
+read-only. Historical acceptance below retains the private version it actually
+exercised; it is not closing evidence. T001's private native close boundary
+does not advertise a public closing caller.
 
 ## 1. Prerequisites
 

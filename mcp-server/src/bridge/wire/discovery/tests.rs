@@ -24,7 +24,7 @@ fn target() -> DiscoveryTarget {
     }
 }
 fn context_reply() -> serde_json::Value {
-    serde_json::json!({"v":4,"kind":"discover_state","request_id":"discovery-wire","session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","collection":{"clock_id":"editor:00112233445566778899aabbccddeeff","started_tick_us":"10","finished_tick_us":"11","received_elapsed_us":0},"status":"observed","reason":null,"context":{"policy":"godot_project_files_v1","project_data_directory":"res://.godot","filesystem_epoch":"0","scanning":false,"importing":false},"expiry_tick_us":"4500010"})
+    serde_json::json!({"v":5,"kind":"discover_state","request_id":"discovery-wire","session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","collection":{"clock_id":"editor:00112233445566778899aabbccddeeff","started_tick_us":"10","finished_tick_us":"11","received_elapsed_us":0},"status":"observed","reason":null,"context":{"policy":"godot_project_files_v1","project_data_directory":"res://.godot","filesystem_epoch":"0","scanning":false,"importing":false},"expiry_tick_us":"4500010"})
 }
 fn decode(v: &serde_json::Value) -> Result<Context, Reason> {
     decode_context(
@@ -50,7 +50,7 @@ fn controls_are_real_path_free_bound_exact_tuples() {
         let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         let expected = if control == Control::Begin {
             serde_json::json!([
-                4,
+                5,
                 opcode,
                 "discovery-wire",
                 "00112233445566778899aabbccddeeff",
@@ -59,7 +59,7 @@ fn controls_are_real_path_free_bound_exact_tuples() {
             ])
         } else {
             serde_json::json!([
-                4,
+                5,
                 opcode,
                 "discovery-wire",
                 "00112233445566778899aabbccddeeff",
@@ -166,7 +166,7 @@ fn context_rejects_unknown_duplicate_copied_or_wrong_primitive_facts() {
     }
     let raw = serde_json::to_string(&context_reply()).unwrap();
     for (old, new) in [
-        ("\"v\":4", "\"v\":4,\"v\":4"),
+        ("\"v\":5", "\"v\":5,\"v\":5"),
         (
             "\"policy\":\"godot_project_files_v1\"",
             "\"policy\":\"godot_project_files_v1\",\"policy\":\"godot_project_files_v1\"",
@@ -264,7 +264,7 @@ fn editor_control_size_and_depth_bounds_reject_before_model_acquisition() {
     let deep = format!("{}0{}", "[".repeat(33), "]".repeat(33));
     assert!(decode_event(deep.as_bytes()).is_err());
     let mut v = context_reply();
-    v["v"] = serde_json::json!(4.0);
+    v["v"] = serde_json::json!(5.0);
     assert!(decode(&v).is_err());
 }
 fn worker_entries(n: usize) -> Event {

@@ -408,7 +408,7 @@ pub fn worker_main() -> Option<i32> {
     type Startup = (u32, String, String, Option<String>, String, u64);
     let (version, id, root, session, registry, prior_elapsed): Startup =
         serde_json::from_slice(&startup).ok()?;
-    if version != 4
+    if version != 5
         || prior_elapsed >= 4_500_000
         || registry.len() > 1024
         || !Path::new(&registry).is_absolute()

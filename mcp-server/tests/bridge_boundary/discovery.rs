@@ -12,22 +12,22 @@ fn authenticate_peer(listener: TcpListener) -> (TcpStream, Value) {
         .set_write_timeout(Some(Duration::from_secs(1)))
         .unwrap();
     let hello = read_frame(&mut socket);
-    let caps = json!({"observe_gdscript":true,"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false,"edit_open_gdscript":false,"open_gdscript":false,"discover_gdscripts":true});
+    let caps = json!({"observe_gdscript":true,"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false,"edit_open_gdscript":false,"open_gdscript":false,"discover_gdscripts":true,"close_gdscript":false});
     frame(
         &mut socket,
-        &json!({"v":4,"kind":"challenge","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,"capabilities":caps,"native_api_revision":0,"native_build_id":"","client_nonce":hello[5],"server_nonce":SERVER_NONCE,"server_proof":proof(b"server",&hello,&caps,SECRET)}),
+        &json!({"v":5,"kind":"challenge","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,"capabilities":caps,"native_api_revision":0,"native_build_id":"","client_nonce":hello[5],"server_nonce":SERVER_NONCE,"server_proof":proof(b"server",&hello,&caps,SECRET)}),
     );
     let authentication = read_frame(&mut socket);
     assert_eq!(authentication[1], "authenticate");
     assert_eq!(authentication[7], proof(b"client", &hello, &caps, SECRET));
     frame(
         &mut socket,
-        &json!({"v":4,"kind":"hello","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,"capabilities":caps,"native_api_revision":0,"native_build_id":"","client_nonce":hello[5],"server_nonce":SERVER_NONCE,"finish_proof":proof(b"finish",&hello,&caps,SECRET)}),
+        &json!({"v":5,"kind":"hello","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,"capabilities":caps,"native_api_revision":0,"native_build_id":"","client_nonce":hello[5],"server_nonce":SERVER_NONCE,"finish_proof":proof(b"finish",&hello,&caps,SECRET)}),
     );
     (socket, hello)
 }
 fn context(hello: &Value, kind: &str, tick: u64) -> Value {
-    json!({"v":4,"kind":kind,"request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"collection":{"clock_id":format!("editor:{}",hello[3].as_str().unwrap()),"started_tick_us":tick.to_string(),"finished_tick_us":(tick+1).to_string(),"received_elapsed_us":0},"status":"observed","reason":null,"context":{"policy":"godot_project_files_v1","project_data_directory":"res://.godot","filesystem_epoch":"0","scanning":false,"importing":false},"expiry_tick_us":"9000000000"})
+    json!({"v":5,"kind":kind,"request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"collection":{"clock_id":format!("editor:{}",hello[3].as_str().unwrap()),"started_tick_us":tick.to_string(),"finished_tick_us":(tick+1).to_string(),"received_elapsed_us":0},"status":"observed","reason":null,"context":{"policy":"godot_project_files_v1","project_data_directory":"res://.godot","filesystem_epoch":"0","scanning":false,"importing":false},"expiry_tick_us":"9000000000"})
 }
 fn spawn_caller(fixture: &Fixture) -> Child {
     Command::new(env!("CARGO_BIN_EXE_discover-gdscripts"))
@@ -93,13 +93,13 @@ fn public_discovery_actually_exhausts_metadata_without_source_acquisition() {
         admit(&mut socket, &hello);
         assert_eq!(
             read_frame(&mut socket),
-            json!([4, "discover_recheck", hello[2], hello[3], hello[4]])
+            json!([5, "discover_recheck", hello[2], hello[3], hello[4]])
         );
         frame(&mut socket, &context(&hello, "discover_rechecked", 200));
         let finish = read_frame(&mut socket);
         assert_eq!(
             finish,
-            json!([4, "discover_finish", hello[2], hello[3], hello[4]])
+            json!([5, "discover_finish", hello[2], hello[3], hello[4]])
         );
         let mut ack = context(&hello, "discover_finished", 300);
         for key in ["status", "reason", "context", "expiry_tick_us"] {
@@ -285,7 +285,7 @@ fn scope_loss_busy_and_malformed_control_never_become_complete_empty() {
                 return;
             }
             assert_eq!(read_frame(&mut socket)[1], "discover_finish");
-            let mut ack = json!({"v":4,"kind":"discover_finished","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"collection":{"clock_id":format!("editor:{}",hello[3].as_str().unwrap()),"started_tick_us":"300","finished_tick_us":"301","received_elapsed_us":0},"terminal_discard":false});
+            let mut ack = json!({"v":5,"kind":"discover_finished","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"collection":{"clock_id":format!("editor:{}",hello[3].as_str().unwrap()),"started_tick_us":"300","finished_tick_us":"301","received_elapsed_us":0},"terminal_discard":false});
             if case == "foreign_ack" {
                 ack["session_id"] = json!("ffffffffffffffffffffffffffffffff");
             }

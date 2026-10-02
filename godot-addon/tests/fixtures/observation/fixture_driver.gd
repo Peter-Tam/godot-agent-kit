@@ -576,13 +576,13 @@ func _proof_vectors() -> Dictionary:
 	var token := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f".hex_decode()
 	var caps := {"observe_gdscript": true, "open_enumeration": true,
 		"buffer_attribution": true, "unsaved_paths": true, "cached_resource_lookup": true,
-		"edit_open_gdscript": true, "open_gdscript": false, "discover_gdscripts": true}
+		"edit_open_gdscript": true, "open_gdscript": false, "discover_gdscripts": true, "close_gdscript": false}
 	var transcript := Bridge.transcript_bytes("example-1", "00112233445566778899aabbccddeeff",
 		"/fixture/project", "4.7.2.stable.official.ed1daf0bf",
 		"ed1daf0bf001b61586d9930840f2f1394092c079", caps,
-		2, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		3, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
 		"404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f")
-	return {"server_matches": Bridge.role_proof(token, "server", transcript).hex_encode() == "59f272feb95a7ebc4c16d7ea642b0d8640bda97370abbba2a6e1a339bfaa5f02",
-		"client_matches": Bridge.role_proof(token, "client", transcript).hex_encode() == "f9f5d3fd50af8e1203e01075f35ea34f60ad32f693eb1125701155482922ada3",
-		"finish_matches": Bridge.role_proof(token, "finish", transcript).hex_encode() == "afb6050649507952e255dda36690ce92982b78181dd584c25c17b92acf9d832b"}
+	return {"server_matches": Bridge.role_proof(token, "server", transcript).hex_encode() == "9b1722d6ddf5512be7600ba5f265857729af70b66cd17a49ae51cfefc10f807d",
+		"client_matches": Bridge.role_proof(token, "client", transcript).hex_encode() == "42c0e079bde980b620dbc221e1f21592cafe252cc5af57b03aaf7554ab718e79",
+		"finish_matches": Bridge.role_proof(token, "finish", transcript).hex_encode() == "9c5fabfdc618902d7223a52fdd5a6a0983076b922fb7445583c735ddc5681742"}
