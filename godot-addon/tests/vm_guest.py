@@ -183,7 +183,7 @@ def _provision(root, generation):
     snapshot = _snapshot(root)
     service_results = {}
     for name, argv in (
-        ('remote_login', ['/usr/bin/sudo', '-n', '/usr/sbin/systemsetup', '-f', '-setremotelogin', 'off']),
+        ('remote_login', ['/usr/bin/sudo', '-n', '/bin/launchctl', 'disable', 'system/com.openssh.sshd']),
         ('screen_sharing', ['/usr/bin/sudo', '-n', '/bin/launchctl', 'disable', 'system/com.apple.screensharing'])):
         result = _command(argv, check=False)
         service_results[name] = {'exit_code': result.returncode, 'disabled': result.returncode == 0}

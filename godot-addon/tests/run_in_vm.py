@@ -134,15 +134,14 @@ def _fetch(tart, state, run_id, captures):
 
 def _host_godot_processes():
     # Read process executable names, not unrelated host command arguments or window contents.
-    result = subprocess.run(["/bin/ps", "-axo", "pid=,comm="], capture_output=True, check=True, text=True)
+    result = subprocess.run(["/bin/ps", "-axo", "pid=,ucomm="], capture_output=True, check=True, text=True)
     matches = []
     for line in result.stdout.splitlines():
         fields = line.strip().split(None, 1)
         if len(fields) != 2:
             continue
         executable = fields[1]
-        if (Path(executable).name.lower().startswith("godot")
-                or re.search(r"/\.godot-agent-kit-(acceptance|edit|open|discovery|close)-", executable)):
+        if executable.lower().startswith("godot"):
             matches.append(line.strip())
     return matches
 
@@ -188,8 +187,12 @@ def _execute(tart, state, args, repo=_REPO):
         raise VMError("Owned VM is missing or stopped; use setup/start before running acceptance.")
     revision = _revision(repo, args.revision)
     run_id = args.run_id or _identity()
+    wrapper_hash = _digest(__file__)
+    worker_hash = _digest(Path(__file__).with_name("vm_guest.py"))
     print(f"VM run {run_id}; exact source {revision}", flush=True)
     _sync(tart, repo, revision)
+    if worker_hash != _digest(Path(__file__).with_name("vm_guest.py")):
+        raise VMError("Guest worker changed during upload; no acceptance command was started.")
     command = [args.operation, "--revision", revision, "--run-id", run_id, "--suite", args.suite]
     if args.operation == "run":
         command += ["--scenario", args.scenario]
@@ -209,8 +212,8 @@ def _execute(tart, state, args, repo=_REPO):
         if result.stderr:
             print(result.stderr.decode(errors="replace"), file=sys.stderr, end="")
     evidence = {"revision": revision, "run_id": run_id, "runner_exit_code": status,
-                "host_wrapper_sha256": _digest(__file__),
-                "guest_worker_sha256": _digest(Path(__file__).with_name("vm_guest.py")),
+                "host_wrapper_sha256": wrapper_hash,
+                "guest_worker_sha256": worker_hash,
                 "vm": tart.status(), **observation.evidence()}
     (host_run / (invocation + ".host.json")).write_text(json.dumps(evidence, indent=2) + "\n")
     try:
@@ -256,7 +259,7 @@ def _setup(tart, state, args):
     result = _worker(tart, "provision", "--generation", uuid.uuid4().hex, timeout=1800)
     print(result.stdout.decode(errors="replace"))
     _sync(tart, _REPO, revision)
-    tart.exec(["/usr/bin/env", "HOME=/Users/admin",
+    tart.exec(["/usr/bin/env", "-i", "HOME=/Users/admin", "RUSTUP_AUTO_INSTALL=0",
                "PATH=/Users/admin/.cargo/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
                "/Users/admin/.cargo/bin/cargo", "+1.98.1", "fetch", "--locked",
                "--manifest-path", GUEST_ROOT + "/workspace/repo/mcp-server/Cargo.toml"], timeout=600)

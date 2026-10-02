@@ -258,10 +258,17 @@ class Tart:
         if inventory[VM_NAME].get("State") == "stopped":
             return
         self._verify_launcher()
+        sync_error = None
+        try:
+            self._require_success(self._run(["exec", VM_NAME, "/bin/sync"], timeout=30))
+        except VMError as exc:
+            sync_error = exc
         self._require_success(self._run(["stop", VM_NAME, "--timeout", "30"], timeout=40))
         self._stopped(VM_NAME, self._inventory())
         if self.launcher.exists():
             self.launcher.unlink()
+        if sync_error is not None:
+            raise VMError(f"Owned VM stopped without guest filesystem sync; unsynced state may be lost: {sync_error}")
 
     def save_base(self):
         receipt = self._owned()

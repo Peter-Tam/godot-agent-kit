@@ -213,6 +213,21 @@ class TartTests(unittest.TestCase):
             self.tart.start()
         launch.assert_not_called()
 
+    def test_unresponsive_guest_stops_but_cannot_claim_durable_snapshot(self):
+        self.own()
+        self.running()
+        def backend(args, **kwargs):
+            if args[0] == "exec":
+                return subprocess.CompletedProcess(args, 1, b"", b"guest unavailable")
+            self.stopped()
+            return subprocess.CompletedProcess(args, 0, b"", b"")
+        with (self.inventory(), mock.patch.object(self.tart, "_verify_launcher"),
+              mock.patch.object(self.tart, "_run", side_effect=backend)):
+            with self.assertRaises(vm.VMError):
+                self.tart.stop()
+        self.assertEqual(self.rows[vm.VM_NAME]["State"], "stopped")
+        self.assertFalse(self.tart._owned()["base"])
+
 
     def test_transport_timeout_is_infrastructure_error(self):
         self.tart._version_checked = True

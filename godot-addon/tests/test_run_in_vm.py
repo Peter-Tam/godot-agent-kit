@@ -136,13 +136,11 @@ class SourceAndEvidenceTests(unittest.TestCase):
                     vm.main(arguments)
                 self.assertEqual(failure.exception.code, 2)
 
-    def test_process_sampling_does_not_misclassify_backend_path_as_godot(self):
-        output = ("101 /home/user/.local/state/godot-agent-kit-vm/backend/tart.app/Contents/MacOS/tart\n"
-                  "102 /Applications/Godot.app/Contents/MacOS/Godot\n"
-                  "103 /home/user/.godot-agent-kit-acceptance-abc/runtime.app/Contents/MacOS/game\n")
+    def test_process_sampling_uses_executable_names_not_backend_or_mcp_titles(self):
+        output = "101 tart\n102 Godot\n103 node\n"
         with mock.patch.object(vm.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, output, "")):
             matches = vm._host_godot_processes()
-        self.assertEqual([item.split()[0] for item in matches], ["102", "103"])
+        self.assertEqual([item.split()[0] for item in matches], ["102"])
 
 
 if __name__ == "__main__":
