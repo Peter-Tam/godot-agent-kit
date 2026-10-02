@@ -212,7 +212,7 @@ class CallerCloseAcceptanceMixin:
                     ("safe_invalid", {"source": "extends RefCounted\nfunc value(:\n", "paths": [TARGET]}),
                     ("unloaded", {"paths": [TARGET], "replacement_target": True}))
         profiles = profiles[1:2]
-        self.summary["private_case_filter"] = "nonselected_late_validation_probe"
+        self.summary["private_case_filter"] = "public_close_nonselected"
         for profile, options in profiles:
             name = "public_close_" + profile
             with self.close_fixture(name, **options) as (project, editor, descriptor):

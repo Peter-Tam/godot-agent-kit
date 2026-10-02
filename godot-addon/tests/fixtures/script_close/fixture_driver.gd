@@ -35,9 +35,6 @@ func _close_publish_event(stage: String, request_id: String) -> bool:
 
 func close_barrier(stage: String, peer: Dictionary) -> bool:
 	_close_held_peer = peer
-	# Temporary replay of the retained late-validation boundary, not synchronization.
-	if stage == "recheck:pre_close" and int(peer.get("expiry_tick_us", 0)) - Time.get_ticks_usec() > 1400000:
-		return false
 	if _close_trace.size() < 32:
 		_close_trace.append({"stage": stage, "tick_us": str(Time.get_ticks_usec()), "expiry_tick_us": str(peer.get("expiry_tick_us", 0))})
 	if stage == _close_fault_stage and not _close_fault_name.is_empty():
