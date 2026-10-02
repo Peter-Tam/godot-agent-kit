@@ -1,6 +1,6 @@
 # Quickstart: Verify Safe Clean-Document GDScript Closing
 
-**Status: Phase 1 design, not implemented or accepted.** This guide separates existing runnable baselines from **proposed, not implemented** close builds, caller and runner interfaces. There is currently no `close-gdscript`, `run_script_close.py`, campaign `--suite close` or campaign `--closer` flag. Native research does not establish product completion, and completing this feature does not complete roadmap Phase 1.
+**Status: T001 is complete.** [Task acceptance](#9-t001-native-boundary-acceptance-2026-10-02) covers the revision-3 native boundary, private owner, actual `close_context` validation, v5 cutover and complete affected suites. Public `close-gdscript`, the remaining caller groups, campaign `--suite close` and `--closer` remain T002/T003 work and are not advertised. Feature 005 and roadmap Phase 1 remain incomplete.
 
 Read [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md) and [research.md](research.md). The [constitution](../../.specify/memory/constitution.md), [architecture](../../ARCHITECTURE.md) and [working agreement](../../AGENTS.md) govern acceptance. An editor/native acknowledgment, matching source pair, successful process exit or fixed sleep is not verified closure.
 
@@ -10,8 +10,8 @@ Read [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md) and 
 - Rust **1.98.1**, edition 2021, tracked Cargo.lock and existing rustfmt/Clippy components; existing C++17 Apple compiler/SDK; Python **3.10+**. Use matching official export templates; the existing candidate template SHA-256 is `88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`. No engine patch, new dependency or package installation is selected.
 - An unlocked visible desktop, explicitly owned synthetic projects and editor/runtime processes, and permission to capture only owned windows. Inspect actual captures; headless/getter evidence alone does not prove visible buffer/history preservation.
 - Canonical absolute executable/input paths; fresh empty mode-0700 artifact directories; a draining stdout consumer; no human source or credentials in fixtures. Resolve a symlink Godot executable before supplying the existing stock validator.
-- Use the existing [native build/operator guide](../../godot-addon/native/README.md) and separate production versus fixture-fault bundles. After implementation, install matched **native family revision 3**, retaining `editor_integration.gdextension` and `libeditor_integration.macos.arm64.dylib` artifact names. The current revision-2 bundle is baseline evidence only, not close capability.
-- Install all Rust/addon peers together for the proposed **private bridge v5**, which appends `close_gdscript` as the ninth capability. Restart owned editors for new descriptors; never reuse v4 descriptors or earlier session-bound bases. Public observation/edit/open/discovery v1 and their existing limits/deadlines remain unchanged. No compatibility fallback is proposed.
+- Use the [native build/operator guide](../../godot-addon/native/README.md) and separate production versus fixture-fault bundles. Install matched **native family revision 3**, retaining `editor_integration.gdextension` and `libeditor_integration.macos.arm64.dylib`; revision 2 is not a close-compatible bundle.
+- Install all Rust/addon peers together for **private bridge v5**, whose ninth authenticated bit is `close_gdscript=false` until T002's complete exchange exists. Restart owned editors for fresh descriptors; never reuse v4 descriptors or earlier session-bound bases. Public observation/edit/open/discovery v1 and their existing limits/deadlines remain unchanged. No compatibility fallback is retained.
 
 Record actual executable, library, manifest/build ID, generated ABI/API, source, addon, fixture, caller, validator and toolchain hashes for each accepted run. Version strings/manifests alone do not establish native compatibility. Generated binaries, editor state, credentials and evidence are not committed.
 
@@ -28,7 +28,7 @@ python3 godot-addon/native/build.py --godot "$STOCK_GODOT" \
   --fixture-faults --output-addon "$PRIVATE_FAULT_NATIVE"
 ```
 
-These are existing interfaces. Running them today builds the current integration, **not revision-3 closing**. The normal library must not contain fixture-fault controls; the separate fixture artifact must never replace it in production or enter an export.
+These interfaces build the current revision-3 integration. The normal library must not contain fixture-fault controls; the separate fixture artifact must never replace it in production or enter an export.
 
 From `mcp-server/`, existing checks and build commands are:
 
@@ -117,23 +117,22 @@ Expected: `already_closed_unchanged`, no load/open/close, context validation or 
 
 Proposed exits: **0** for either verified new closure or already-closed recognition; **3** for proven refused/not applied; **4** for `applied_unverified` or `effects_unknown`; **2** for malformed CLI/input; **1** for unexpected host delivery failure. Inspect structured evidence, not exit code alone. Possibly applied outcomes require fresh observation of the explicit original target, never automatic retry, rollback or compensating reopen.
 
-## 3. Proposed owned closing runner after implementation
+## 3. Owned native boundary and planned caller groups
 
-**Not implemented:** `godot-addon/tests/run_script_close.py` reuses existing observation/open/edit/discovery harness ownership, authentication, source/history/selection witnesses, owned-window capture, private barriers, cleanup and export checks. Controls remain fixture-only, never arbitrary method dispatch or product opcodes. `--closer` names an absolute close binary; all other input flags below reuse existing interfaces.
+The implemented `godot-addon/tests/run_script_close.py` reuses existing harness ownership, authenticated selection, independent source/history/selection witnesses, owned-window capture, private controls, cleanup and export checks. T001 supplies **only `native-boundary`**, without a public closer or incomplete `all` shortcut. Its controls invoke the real shared-slot owner and actual Rust source validation; no primitive receipt is a public success verdict.
 
-**Future focused command** (new empty private artifacts for every invocation):
+**Current T001 command** (new empty private artifacts for each invocation):
 
 ```sh
 CLOSE_ARTIFACTS="$(mktemp -d "$HOME/close-native-boundary.XXXXXX")"
 python3 godot-addon/tests/run_script_close.py \
-  --godot "$STOCK_GODOT" --closer "$CLOSER" \
-  --observer "$OBSERVER" --opener "$OPENER" --editor "$EDIT_CALLER" \
-  --discoverer "$DISCOVERER" --stock-validator "$STOCK_VALIDATION_FIXTURE" \
+  --godot "$STOCK_GODOT" --observer "$OBSERVER" --editor "$EDIT_CALLER" \
+  --stock-validator "$STOCK_VALIDATION_FIXTURE" \
   --native-fault-addon "$PRIVATE_FAULT_NATIVE" \
   --scenario native-boundary --artifacts "$CLOSE_ARTIFACTS"
 ```
 
-Proposed groups are `native-boundary`, `clean-close`, `already-closed`, `preservation`, `routing`, `interruption`, `sequential`, `composed`, `privacy-export`, plus `all`. The same command with a new directory and `--scenario all` must execute every group once, serially. No incomplete/no-op group may be advertised as complete acceptance. Private native controls cannot substitute for the public closer in product cases.
+The remaining groups below are **planned caller acceptance**, not T001 runner options. T002 adds `clean-close`, `already-closed`, `preservation`, `routing`, `interruption` and `privacy-export` with an actual `--closer`; T003 supplies `sequential`, full `composed` and `all`. Only then may `--scenario all` execute every group once, serially. Private native controls cannot substitute for the public closer in product cases.
 
 | Group | Specification coverage | Required observable proof |
 |---|---|---|
@@ -259,3 +258,96 @@ Record actual coverage, exact provenance, measured deadlines and substantive lim
 [Research §3–§4](research.md#3-exact-candidate-and-observed-provenance) records **seven native `ScriptEditor.close_file` calls: six positive stock controls and one deliberately unsafe unrelated-source negative**, across **four owned visible editors**, all reaped with exit **0**. Independent source/identity/dirty/selection witnesses, actual native validation events, unrelated Undo/Redo and three inspected owned-window captures support the selected guard design. Research retains exact local evidence hashes and cleanup provenance; those local artifacts are not contributor prerequisites and are not duplicated here.
 
 The user accepted **guarded native close-triggered revalidation**, not unguarded source application. The selected complete protection set, per-purpose private validation receipts, event-fenced continuation and separate fresh verification are proposed implementation obligations. The seven probes did **not** exercise a guarded public closer, bridge v5/native revision 3, close runner/campaign, full timing/race/sequential/composed/export acceptance or a new platform-support guarantee. No close product acceptance was executed by this documentation-only planning work.
+
+## 9. T001 native-boundary acceptance (2026-10-02)
+
+**T001 is complete**, independently of GitHub review/merge state. This is an
+accepted private native/validation capability and coordinated compatibility
+cutover, not a public closer or Feature 005 completion. T002/T003 are unstarted.
+The ninth authenticated `close_gdscript` capability remains false.
+
+### Executed scope
+
+- The real owner performs one generated-bound close under exact clean D/R/B,
+  identity, revision, complete protection-set and effective-context guards.
+  Selected/non-selected/last-tab, stable two-document, empty, safe syntax-invalid
+  and read-only targets passed. Retained-original R and genuinely destroyed,
+  unloaded original R have separate controls. Already-closed recognition has
+  no close or validation child.
+- Dirty-current/background R==B preserves exact unsaved text, versions, flags
+  and actual earlier Undo/Redo; post-close Undo/Redo repeats those real
+  transitions. Dirty/equal-dirty targets and the demonstrated unrelated R!=B
+  case refuse before entry. Owned Script-screen images were inspected.
+- Exact/one-over document, source and metadata bounds; invalid/missing/misbound
+  source-purpose receipts; file/roster/session/configuration races; native visit,
+  missing/wrong/premature/renewed completion; callback/disable/cancel/expiry
+  lifetime; duplicate wait/advance; shared-slot exclusion and no late close
+  passed. Independent verification deliberately fails after native OK and
+  completion when actual postconditions change; survivor acquisition never
+  renews authority or closes a newer document.
+- Source privacy, cleanup and actual enabled-addon, disabled-addon and
+  export-hook-only pack inspection/runtime execution passed. Complete existing
+  observation/edit/open/discovery suites passed after the shared cutover,
+  including their applicable A–E, native history, Save/reopen/reparse/rescan/
+  runtime and privacy/export regressions.
+
+Commands were the current native command in §3 and all four unfiltered
+`--scenario all` commands in §6, run serially with the same production runtime
+inputs. The native total includes one bootstrap record plus 122 boundary
+records; nested groups/composed records are not extra suite invocations.
+
+Private evidence root:
+`/Users/petertam/.godot-agent-kit-close-T001-mw18ukyk/`.
+These retained local artifacts identify this run, not contributor prerequisites.
+
+| Accepted summary, relative to that root | Passed records | SHA-256 |
+| --- | ---: | --- |
+| [native-final/summary.json](file:///Users/petertam/.godot-agent-kit-close-T001-mw18ukyk/native-final/summary.json) | 123 | `54fd091bf65be13660396edb27e3cad9079dcc2bf118e57b382f888b8fa1130b` |
+| [regression-observation/summary.json](file:///Users/petertam/.godot-agent-kit-close-T001-mw18ukyk/regression-observation/summary.json) | 273 | `9a20c065cb8e2804e68f86f721e02d1a263db692498867a5e94be5a781bdb5c3` |
+| [regression-edit/summary.json](file:///Users/petertam/.godot-agent-kit-close-T001-mw18ukyk/regression-edit/summary.json) | 408 | `6fae7fa9ec8d46a9b1839f52c015f73233e3cea3d1065a30fb3205f76de76468` |
+| [regression-open-complete/summary.json](file:///Users/petertam/.godot-agent-kit-close-T001-mw18ukyk/regression-open-complete/summary.json) | 664 | `1741e30bf407256b05baa94f13526f79fae82c921d276d45a68e13d2fc91692a` |
+| [regression-discovery/summary.json](file:///Users/petertam/.godot-agent-kit-close-T001-mw18ukyk/regression-discovery/summary.json) | 429 | `dc6d6f37ced8e4f1e344c31bbbe8243f75e180d7f6ac04ca632b6933bcce528b` |
+
+Opening includes **187 public calls**, maximum **9.510375 s**; discovery includes
+**158 public calls**, maximum **4.507051 s**. The existing caller deadline gates
+remain unchanged. Native controls do not claim the future public close deadline
+or terminal-result reducer.
+
+### Exact provenance and implementation checks
+
+Tested environment: the exact official Godot **4.7.2** commit and executable
+hash in §1, **macOS 26.6.2 arm64**, Rust **1.98.1**, Apple clang
+**21.0.0 (clang-2100.3.34.2)**, SDK **27.0**. No broader version/platform claim.
+The summary records contain caller/validator, addon/fixture, Cargo.lock,
+generated API/ABI and matching export-template fingerprints.
+
+| Native artifact | Build ID | Library SHA-256 |
+| --- | --- | --- |
+| Production revision 3 | `89d9027522bcf175d55fe4e8cd63fab5e933b7e4b08f031c736696c4f329c122` | `80bfedb1d639f10c66a2530e26003f4d5e84fc01b21299c0136c64155ced9f1a` |
+| Separate fixture-fault revision 3 | `cce41410ffbb538a2ca281c015b3ab6ae19f545a11791fceb28ad3627fd99c44` | `67d49b46151eab76f9fee12bf412095f8eca2b4a06be87a7b806a224f884c971` |
+
+The unchanged native acceptance implementation
+`godot-addon/tests/close_native_acceptance.py` has SHA-256
+`343664d81842e4715abf93e73936dda1f784d84486933bbc0e2603c23e8b5af6`.
+After the full run, the runner gained an explicit field recording that module's
+hash; actual constructor execution verified it. That reporting-only addition,
+documentation/status updates and deletion of a wording-only unit test do not
+change the exercised production or acceptance behavior.
+
+Passed: §1 Cargo formatting, Clippy, **317 default tests including doctests**,
+rustdoc and locked real-consumer builds; **2 example pre-allocation boundary
+tests**; normal and separate fault native builds; **13 native-build tests** and
+**22 workflow tests**. The selected task's [shape and constitutional
+review](plan.md#implementation-shape-review) covers module ownership, private
+visibility, one-owner lifecycle, evidence failure paths and justified decoder
+complexity. No dependency, new CI/provider/approval gate or public close API
+was added. No extension hooks were configured.
+
+Earlier diagnostic/failing runs and the outer-tool-timeout `regression-open`
+directory are retained but excluded from acceptance. No owned editor remained
+after that interruption; its attributed private staging directory was removed,
+and the independent complete opening run above replaced it. Temporary projects,
+registries and throwaway diagnostic helpers were cleaned up. Close's permitted
+target-local history disposal is not an Undo-close claim; public close
+composition, result-only review and cumulative feature acceptance remain
+T002/T003 obligations, not waived gates.

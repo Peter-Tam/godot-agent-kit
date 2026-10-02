@@ -40,6 +40,51 @@ class AbiRefusalTests(unittest.TestCase):
             native_build.single_precision_sizes(api)
 
 
+class CloseAbiTests(unittest.TestCase):
+    def api(self, **changes):
+        entry = {
+            "name": "close_file", "hash": 166001499,
+            "is_static": False, "is_vararg": False,
+            "arguments": [{"name": "path", "type": "String"}],
+            "return_value": {"type": "enum::Error"},
+        }
+        entry.update(changes)
+        return {"classes": [{"name": "ScriptEditor", "methods": [entry]}]}
+
+    def test_discard_boundary_rejects_wrong_argument_or_return_abi(self):
+        for changes in (
+            {"arguments": []},
+            {"arguments": [{"name": "path", "type": "StringName"}]},
+            {"arguments": [{"name": "path", "type": "String"}, {"name": "force", "type": "bool"}]},
+            {"return_value": {"type": "bool"}},
+            {"return_value": {"type": "int"}},
+            {"is_static": True},
+            {"is_vararg": True},
+            {"is_virtual": True},
+            {"is_const": True},
+            {"hash": 0},
+            {"hash": True},
+        ):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                native_build.close_method(self.api(**changes))
+
+    def test_ambiguous_close_overload_refuses_instead_of_selecting_first(self):
+        api = self.api()
+        api["classes"][0]["methods"].append(dict(api["classes"][0]["methods"][0]))
+        with self.assertRaises(ValueError):
+            native_build.close_method(api)
+
+    def test_missing_close_api_refuses(self):
+        api = self.api()
+        api["classes"][0]["methods"].clear()
+        with self.assertRaises(ValueError):
+            native_build.close_method(api)
+
+    def test_missing_editor_class_refuses_with_checked_build_error(self):
+        with self.assertRaises(ValueError):
+            native_build.close_method({"classes": []})
+
+
 class StockBinaryRefusalTests(unittest.TestCase):
     def test_unknown_executable_is_refused_without_invoking_it(self):
         with TemporaryDirectory() as directory:

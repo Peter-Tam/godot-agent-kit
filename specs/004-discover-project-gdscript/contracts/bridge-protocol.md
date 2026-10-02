@@ -2,6 +2,15 @@
 
 **Status:** Implemented and accepted for completed Feature 004. T001 supplies the coordinated v4 cutover and path-free addon scope exchange (§1–§3); T002 supplies the inventory worker/events (§4) and [public discovery v1](discovery-api.md). [T003 cumulative acceptance](../quickstart.md#11-t003-cumulative-acceptance-2026-10-01) completes the feature gate. Public observation/edit/open v1 and native API revision 2 are unchanged. This contract supersedes private [v3 transport](../../003-open-project-gdscript/contracts/bridge-protocol.md), not its historical acceptance record.
 
+**Current migration:** This document preserves Feature 004's accepted v4 contract
+and historical evidence. Current peers use
+[private v5](../../005-close-project-gdscript/contracts/bridge-protocol.md),
+with the ninth authenticated `close_gdscript` bit false until the complete
+closing caller exchange exists. Discovery tuples now use version 5 with
+unchanged semantics. Rebuild/install caller, addon and matched revision-3 native
+bundle together; restart for a new session. No v4/revision-2 fallback is retained.
+Discovery and observation remain available without native mutation support.
+
 ## 1. Bootstrap and authenticated capability migration
 
 Reuse the existing owner-private source-free registry, per-editor-lifetime session/256-bit secret, canonical project identity, IPv4 loopback endpoint, role-separated mutual HMAC and bounded candidate selection. No new listener, credential, permission class or session service.

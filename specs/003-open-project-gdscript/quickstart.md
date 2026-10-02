@@ -10,7 +10,7 @@ Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [calle
 - Rust **1.98.1**, edition 2021, tracked Cargo.lock, declared rustfmt/Clippy components; C++17 Apple toolchain/SDK; Python **3.10+**; exact matching Godot export templates. No engine source checkout/patch or new dependency is selected.
 - Owned synthetic project/editor/runtime processes, an **unlocked visible desktop** and permission to capture only their windows. Getter diagnostics while the desktop is locked are research, not GUI acceptance.
 - Canonical absolute executable paths, new empty mode-0700 artifact directories for each runner invocation, a draining stdout consumer and explicit deadlines. The stock validator rejects a symlink executable rather than following it; resolve the supplied Godot path before invoking these commands. No real developer source/credentials in fixtures or captured artifacts.
-- Install the matched native bundle using the [build guide](../../godot-addon/native/README.md): `editor_integration.gdextension`, `libeditor_integration.macos.arm64.dylib` and matching revision-2 provenance. The builder removes only provenance-matched obsolete kit artifacts and refuses substituted files. Update caller/addon peers together for [private v4](../004-discover-project-gdscript/contracts/bridge-protocol.md) and restart the owned editor for a fresh descriptor; do not reuse a v3 descriptor or previous session-bound edit basis. An unchanged matched native bundle needs no rebuild solely for the v4 cutover.
+- Rebuild/install the matched revision-3 native bundle using the [build guide](../../godot-addon/native/README.md): `editor_integration.gdextension`, `libeditor_integration.macos.arm64.dylib` and matching provenance. The builder removes only provenance-matched obsolete kit artifacts and refuses substituted files. Update caller/addon peers together for [private v5](../005-close-project-gdscript/contracts/bridge-protocol.md) and restart the owned editor for a fresh descriptor; do not reuse older descriptors, native revision 2 or previous session-bound edit bases.
 
 Current executable identity/build entrypoints, from the repository root:
 
@@ -21,7 +21,7 @@ python3 --version
 python3 godot-addon/native/build.py --godot "$STOCK_GODOT"
 ```
 
-The current build contains both edit and private opening boundaries. A version string or generated manifest alone does not pass native compatibility. Record executable/library/source/ABI/toolchain hashes and actual exercised capabilities; never commit generated binaries, manifests or editor state.
+The current cutover contains edit, opening and the private native close boundary. Public closing remains unadvertised until its complete caller exchange exists. A version string or generated manifest alone does not pass native compatibility. Record executable/library/source/ABI/toolchain hashes and actual exercised capabilities; never commit generated binaries, manifests or editor state.
 
 ## 2. Build checks
 
@@ -44,7 +44,7 @@ cargo +1.98.1 build --locked --lib --bin open-gdscript \
   --bin observe-gdscript --bin edit-gdscript --example stock_validation_fixture
 ```
 
-Pure/core and boundary tests must assert outcomes and plausible consumer-visible failures: dirty-equal recognition versus new-open conflict, independent evidence, no false absent R, invalidated identity/source, source/access precedence, staged known/unknown effects, terminal discard and late-message immutability. Cover strict v4 framing/authentication and actual confined file changes. Avoid forwarding/mock echoes, source-text tests or duplicate rows for the same path. Historical acceptance below retains its exercised v3 provenance; the v4 scope/cutover evidence belongs to the [discovery quickstart](../004-discover-project-gdscript/quickstart.md).
+Pure/core and boundary tests must assert outcomes and plausible consumer-visible failures: dirty-equal recognition versus new-open conflict, independent evidence, no false absent R, invalidated identity/source, source/access precedence, staged known/unknown effects, terminal discard and late-message immutability. Cover strict v5 framing/authentication and actual confined file changes. Avoid forwarding/mock echoes, source-text tests or duplicate rows for the same path. Historical acceptance below retains its exercised v3 provenance; current v5/native-revision-3 cutover evidence belongs to the [closing quickstart](../005-close-project-gdscript/quickstart.md).
 
 ## 3. Owned opening runner and caller groups
 

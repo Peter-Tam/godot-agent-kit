@@ -1,6 +1,6 @@
 # Quickstart: Verify Guarded Open-GDScript Editing
 
-**Status:** **T001–T005 and Feature 002 are complete.** [T005 cumulative acceptance](#14-t005-cumulative-acceptance-2026-09-29) records the completed edit/native and observation runs on their then-current private-v2 integration. Earlier task records retain their historical scope and completion state. Public caller/observation schemas remain v1; the current private-v4 migration below does not reinterpret this evidence as discovery acceptance.
+**Status:** **T001–T005 and Feature 002 are complete.** [T005 cumulative acceptance](#14-t005-cumulative-acceptance-2026-09-29) records the completed edit/native and observation runs on their then-current private-v2 integration. Earlier task records retain their historical scope and completion state. Public caller/observation schemas remain v1; the current private-v5 migration below does not reinterpret this evidence as closing acceptance.
 
 **Current reproduction:** Use the official stock executable and matched standard
 public-ABI extension from the [native guide](../../godot-addon/native/README.md).
@@ -10,14 +10,15 @@ Historical patched-family/mtime sketches are superseded by the current caller,
 bridge, native and data-model contracts. §10 is an archive summary, not an
 oracle recipe.
 
-**Private-v4 migration:** Feature 004 T001 moves current callers, addon and
-fixtures to [bridge v4](../004-discover-project-gdscript/contracts/bridge-protocol.md),
-with eight authenticated capability bits and unchanged native revision 2. Rebuild
-the Rust peers, install the updated addon and restart the editor; no old-peer
-fallback or portable old-session edit basis exists. The matched native bundle
-does not need rebuilding solely for this transport cutover. Guarded editing is
-unchanged; scope-boundary acceptance belongs to the
-[discovery quickstart](../004-discover-project-gdscript/quickstart.md).
+**Private-v5 migration:** Feature 005 T001 moves current callers, addon and
+fixtures to [bridge v5](../005-close-project-gdscript/contracts/bridge-protocol.md),
+with nine authenticated capability bits and matched native revision 3. Rebuild
+Rust peers and the production/separate fixture-fault native bundles, install
+the updated addon and restart the editor. No old-peer/revision-2 fallback or
+portable old-session edit basis exists. Guarded editing remains unchanged;
+the new private close boundary keeps `close_gdscript=false` until its complete
+public exchange exists. Closing evidence belongs to the
+[closing quickstart](../005-close-project-gdscript/quickstart.md).
 
 Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [caller](contracts/edit-api.md), [bridge](contracts/bridge-protocol.md), [native](contracts/native-integration.md) contracts as normative semantics. Do not infer success from process exit, a save acknowledgment or the finalizer's copied fields.
 

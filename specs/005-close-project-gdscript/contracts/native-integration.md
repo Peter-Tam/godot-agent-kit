@@ -1,6 +1,6 @@
 # Native Clean-Document Closing Integration
 
-**Status:** Proposed design for the clarified [specification](../spec.md), informed by [stock source and visible-editor research](../research.md). No product close/native revision-3 implementation or full acceptance is claimed. This contract uses public Godot APIs and the standard generated GDExtension ABI, not an engine patch or private editor-field access.
+**Status:** T001 is complete with [native and full affected-suite acceptance](../quickstart.md#9-t001-native-boundary-acceptance-2026-10-02) for the revision-3 family, shared-slot internal owner and real protected-source validation. Public closing and its caller/supervisor exchange remain T002 work and `close_gdscript` stays false. This contract uses public Godot APIs and the generated GDExtension ABI, not an engine patch or private editor-field access. Earlier [research](../research.md) remains historical evidence.
 
 ## 1. Responsibilities and matched native family
 

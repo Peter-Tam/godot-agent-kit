@@ -2,63 +2,20 @@
 use super::*;
 use crate::observation::{ObservationRequest, ResolvedTarget};
 
-#[derive(Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[path = "opening_context/decode.rs"]
+mod decode;
+use decode::{bindings, names, properties, unique_levels};
+pub(super) use decode::{
+    bounded, captured_source, context_record, ContextDecode, ContextSeed, DecodeBudget, Records,
+};
+
+#[derive(Clone)]
 pub struct OpeningContext {
     kind: ContextKind,
-    #[serde(deserialize_with = "required_nullable")]
     reason: Option<String>,
-    #[serde(deserialize_with = "required_nullable")]
     projection: Option<Projection>,
-    #[serde(deserialize_with = "required_nullable")]
     source: Option<String>,
-    #[serde(deserialize_with = "required_nullable")]
     sha256: Option<String>,
-}
-
-fn required_nullable<'de, T: Deserialize<'de>, D: serde::Deserializer<'de>>(
-    d: D,
-) -> Result<Option<T>, D::Error> {
-    struct Present<T>(std::marker::PhantomData<T>);
-    impl<'de, T: Deserialize<'de>> serde::de::Visitor<'de> for Present<T> {
-        type Value = Option<T>;
-        fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.write_str("a required context value or explicit null")
-        }
-        fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
-            Ok(None)
-        }
-        fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
-            T::deserialize(serde::de::value::StrDeserializer::<E>::new(v)).map(Some)
-        }
-        fn visit_map<A: serde::de::MapAccess<'de>>(self, v: A) -> Result<Self::Value, A::Error> {
-            T::deserialize(serde::de::value::MapAccessDeserializer::new(v)).map(Some)
-        }
-    }
-    d.deserialize_any(Present(std::marker::PhantomData))
-}
-
-fn unique_levels<'de, D: serde::Deserializer<'de>>(d: D) -> Result<BTreeMap<String, u8>, D::Error> {
-    struct Levels;
-    impl<'de> serde::de::Visitor<'de> for Levels {
-        type Value = BTreeMap<String, u8>;
-        fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.write_str("bounded unique guard warning levels")
-        }
-        fn visit_map<A: serde::de::MapAccess<'de>>(
-            self,
-            mut map: A,
-        ) -> Result<Self::Value, A::Error> {
-            let mut out = BTreeMap::new();
-            while let Some((key, value)) = map.next_entry::<String, u8>()? {
-                if out.len() == 128 || key.len() > 2048 || out.insert(key, value).is_some() {
-                    return Err(serde::de::Error::custom("invalid guard warning map"));
-                }
-            }
-            Ok(out)
-        }
-    }
-    d.deserialize_map(Levels)
 }
 
 impl std::fmt::Debug for OpeningContext {
@@ -121,11 +78,16 @@ struct Projection {
     tool: bool,
     external_editor: bool,
     script_base_id: String,
+    #[serde(deserialize_with = "properties")]
     properties: Vec<Property>,
+    #[serde(deserialize_with = "names")]
     methods: Vec<String>,
     warnings: Warnings,
+    #[serde(deserialize_with = "names")]
     global_classes: Vec<String>,
+    #[serde(deserialize_with = "names")]
     autoloads: Vec<String>,
+    #[serde(deserialize_with = "bindings")]
     bindings: Vec<Binding>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -159,18 +121,18 @@ struct Warnings {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct OpeningValidationBinding {
-    request_id: String,
-    session_id: String,
-    project_root: String,
-    project_device: String,
-    project_inode: String,
-    path: String,
-    script_id: String,
-    editor_id: String,
-    buffer_id: String,
-    source_sha256: String,
-    source_length: String,
-    guard_sha256: String,
+    pub(super) request_id: String,
+    pub(super) session_id: String,
+    pub(super) project_root: String,
+    pub(super) project_device: String,
+    pub(super) project_inode: String,
+    pub(super) path: String,
+    pub(super) script_id: String,
+    pub(super) editor_id: String,
+    pub(super) buffer_id: String,
+    pub(super) source_sha256: String,
+    pub(super) source_length: String,
+    pub(super) guard_sha256: String,
 }
 
 fn decimal(value: &str) -> Result<u64, &'static str> {
@@ -204,6 +166,9 @@ fn dynamic(name: &str) -> bool {
 
 impl OpeningContext {
     fn current(&self) -> Result<(&Projection, &str), &'static str> {
+        self.current_with_metadata().map(|(p, s, _)| (p, s))
+    }
+    fn current_with_metadata(&self) -> Result<(&Projection, &str, usize), &'static str> {
         if self.kind != ContextKind::CurrentGdscript {
             return Err("opening_context_unavailable");
         }
@@ -213,14 +178,16 @@ impl OpeningContext {
             return Err("opening_context_mismatch");
         }
         projection.check()?;
+        let encoding = projection.encoding()?;
+        let metadata_bytes = encoding.bytes - 4 - "godot-agent-kit/open-context/v1".len();
         if projection.source_sha256 != confined::hex_sha256(source.as_bytes())
             || decimal(&projection.source_length)? != source.len() as u64
-            || self.sha256.as_deref() != Some(projection.fingerprint()?.as_str())
+            || self.sha256.as_deref() != Some(encoding.finish().as_str())
         {
             return Err("opening_context_mismatch");
         }
         source_profile(source, projection)?;
-        Ok((projection, source))
+        Ok((projection, source, metadata_bytes))
     }
 
     /// Independently recompute the private guard, retaining only source-free
@@ -228,6 +195,26 @@ impl OpeningContext {
     pub fn checked_binding(&self) -> Option<OpeningValidationBinding> {
         let (projection, _) = self.current().ok()?;
         Some(projection.binding(self.sha256.as_deref()?))
+    }
+    pub(super) fn close_facts(&self) -> Option<(OpeningValidationBinding, usize, String)> {
+        let (p, _, bytes) = self.current_with_metadata().ok()?;
+        let mut guard = Guard::new();
+        guard.object(4);
+        guard.key("autoloads");
+        guard.strings(&p.autoloads);
+        guard.key("external_editor");
+        guard.boolean(p.external_editor);
+        guard.key("global_classes");
+        guard.strings(&p.global_classes);
+        guard.key("warnings");
+        guard.object(3);
+        guard.key("directory_rules");
+        guard.levels(&p.warnings.directory_rules);
+        guard.key("enable");
+        guard.boolean(p.warnings.enable);
+        guard.key("levels");
+        guard.levels(&p.warnings.levels);
+        Some((p.binding(self.sha256.as_deref()?), bytes, guard.finish()))
     }
 
     pub(crate) fn no_source(&self) -> bool {
@@ -281,13 +268,20 @@ impl OpeningValidationBinding {
     /// source/guard hashes to the private native fixture.
     pub fn validated_hashes<'a>(&self, result: &'a ValidationResult) -> Option<(&'a str, &'a str)> {
         let actual = result.opening_binding.as_ref()?;
-        if actual != self || !completed(self, result) {
+        if result.purpose != Purpose::OpenContext || actual != self || !completed(self, result) {
             return None;
         }
         Some((&actual.source_sha256, &actual.guard_sha256))
     }
     pub(crate) fn invalid_result(&self, result: &ValidationResult) -> bool {
+        self.invalid_for(result, Purpose::OpenContext)
+    }
+    pub(super) fn close_invalid_completed(&self, result: &ValidationResult) -> bool {
+        self.invalid_for(result, Purpose::CloseContext)
+    }
+    fn invalid_for(&self, result: &ValidationResult, purpose: Purpose) -> bool {
         result.status == "invalid"
+            && result.purpose == purpose
             && result.opening_binding.is_none()
             && attributed_completion(self, result)
             && !result.diagnostics.is_empty()
@@ -295,6 +289,11 @@ impl OpeningValidationBinding {
                 .diagnostics
                 .iter()
                 .all(|d| d.path == self.path && d.source_sha256 == self.source_sha256)
+    }
+    pub(super) fn close_completed(&self, result: &ValidationResult) -> bool {
+        result.purpose == Purpose::CloseContext
+            && result.opening_binding.as_ref() == Some(self)
+            && completed(self, result)
     }
 }
 impl Projection {
@@ -397,7 +396,7 @@ impl Projection {
             guard_sha256: guard.into(),
         }
     }
-    fn fingerprint(&self) -> Result<String, &'static str> {
+    fn encoding(&self) -> Result<Guard, &'static str> {
         let mut guard = Guard::new();
         guard.frame("godot-agent-kit/open-context/v1");
         guard.object(26);
@@ -484,22 +483,25 @@ impl Projection {
         if guard.bytes > 256 * 1024 {
             return Err("opening_context_limit");
         }
-        let mut hash = String::with_capacity(64);
-        for byte in guard.digest.finish().as_ref() {
-            use std::fmt::Write as _;
-            let _ = write!(hash, "{byte:02x}");
-        }
-        Ok(hash)
+        Ok(guard)
     }
 }
 
 // Streaming encoding of this one closed typed projection; never JSON values.
-struct Guard {
+pub(super) struct Guard {
     digest: Context,
-    bytes: usize,
+    pub(super) bytes: usize,
 }
 impl Guard {
-    fn new() -> Self {
+    pub(super) fn finish(self) -> String {
+        let mut hash = String::with_capacity(64);
+        for byte in self.digest.finish().as_ref() {
+            use std::fmt::Write as _;
+            let _ = write!(hash, "{byte:02x}");
+        }
+        hash
+    }
+    pub(super) fn new() -> Self {
         Self {
             digest: Context::new(&SHA256),
             bytes: 0,
@@ -509,22 +511,22 @@ impl Guard {
         self.digest.update(bytes);
         self.bytes += bytes.len();
     }
-    fn frame(&mut self, value: &str) {
+    pub(super) fn frame(&mut self, value: &str) {
         self.write(&(value.len() as u32).to_be_bytes());
         self.write(value.as_bytes());
     }
-    fn key(&mut self, value: &str) {
+    pub(super) fn key(&mut self, value: &str) {
         self.frame(value);
     }
-    fn object(&mut self, count: usize) {
+    pub(super) fn object(&mut self, count: usize) {
         self.write(b"o");
         self.write(&(count as u32).to_be_bytes());
     }
-    fn array(&mut self, count: usize) {
+    pub(super) fn array(&mut self, count: usize) {
         self.write(b"a");
         self.write(&(count as u32).to_be_bytes());
     }
-    fn string(&mut self, value: &str) {
+    pub(super) fn string(&mut self, value: &str) {
         self.write(b"s");
         self.frame(value);
     }
@@ -532,7 +534,7 @@ impl Guard {
         self.write(b"u");
         self.write(&value.to_be_bytes());
     }
-    fn boolean(&mut self, value: bool) {
+    pub(super) fn boolean(&mut self, value: bool) {
         self.write(&[b'b', u8::from(value)]);
     }
     fn strings(&mut self, values: &[String]) {
@@ -640,7 +642,7 @@ pub(super) fn source(request: &WireRequest) -> Result<Option<&str>, &'static str
         return Err("source_limit");
     }
     match request.purpose {
-        Purpose::OpenContext => {
+        Purpose::OpenContext | Purpose::CloseContext => {
             if request.source.is_some() {
                 return Err("wrong_purpose");
             }
@@ -674,7 +676,10 @@ pub(super) fn source(request: &WireRequest) -> Result<Option<&str>, &'static str
     }
 }
 pub(super) fn recheck_project(request: &WireRequest) -> Result<(), &'static str> {
-    if request.purpose == Purpose::OpenContext {
+    if matches!(
+        request.purpose,
+        Purpose::OpenContext | Purpose::CloseContext
+    ) {
         let projection = request
             .open_context
             .as_ref()
@@ -696,9 +701,12 @@ fn completed(projection: &OpeningValidationBinding, result: &ValidationResult) -
         && result.diagnostics.is_empty()
         && attributed_completion(projection, result)
 }
-fn attributed_completion(projection: &OpeningValidationBinding, result: &ValidationResult) -> bool {
+pub(super) fn attributed_completion(
+    projection: &OpeningValidationBinding,
+    result: &ValidationResult,
+) -> bool {
     result.reason.is_none()
-        && result.purpose == Purpose::OpenContext
+        && matches!(result.purpose, Purpose::OpenContext | Purpose::CloseContext)
         && result.request_id == projection.request_id
         && result.session_id == projection.session_id
         && result.root_path == projection.path
@@ -724,7 +732,10 @@ fn attributed_completion(projection: &OpeningValidationBinding, result: &Validat
         })
 }
 pub(super) fn complete(request: &WireRequest, result: &mut ValidationResult) {
-    if request.purpose != Purpose::OpenContext {
+    if !matches!(
+        request.purpose,
+        Purpose::OpenContext | Purpose::CloseContext
+    ) {
         return;
     }
     let Some(context) = &request.open_context else {
@@ -740,13 +751,23 @@ pub(super) fn complete(request: &WireRequest, result: &mut ValidationResult) {
     }
 }
 pub(super) fn check_receipt(request: &WireRequest, result: &mut ValidationResult) {
-    if request.purpose == Purpose::OpenContext {
+    if matches!(
+        request.purpose,
+        Purpose::OpenContext | Purpose::CloseContext
+    ) {
         if result.status == "valid"
             && !request
                 .open_context
                 .as_ref()
                 .and_then(OpeningContext::checked_binding)
-                .is_some_and(|binding| binding.validated_hashes(result).is_some())
+                .is_some_and(|binding| {
+                    result.purpose == request.purpose
+                        && if request.purpose == Purpose::CloseContext {
+                            binding.close_completed(result)
+                        } else {
+                            binding.validated_hashes(result).is_some()
+                        }
+                })
         {
             result.unavailable("opening_receipt_mismatch");
         } else if result.status != "valid" {
@@ -811,7 +832,7 @@ mod tests {
         OpeningContext {
             kind: ContextKind::CurrentGdscript,
             reason: None,
-            sha256: Some(projection.fingerprint().unwrap()),
+            sha256: Some(projection.encoding().unwrap().finish()),
             projection: Some(projection),
             source: Some(CURRENT.into()),
         }
@@ -823,7 +844,15 @@ mod tests {
         (private, request)
     }
     fn rehash(context: &mut OpeningContext) {
-        context.sha256 = Some(context.projection.as_ref().unwrap().fingerprint().unwrap());
+        context.sha256 = Some(
+            context
+                .projection
+                .as_ref()
+                .unwrap()
+                .encoding()
+                .unwrap()
+                .finish(),
+        );
     }
 
     #[test]
@@ -843,12 +872,12 @@ mod tests {
         projection.global_classes = vec!["Glob".into()];
         projection.autoloads = vec!["Auto".into()];
         assert_eq!(
-            projection.fingerprint().unwrap(),
+            projection.encoding().unwrap().finish(),
             "c7cb0ae8c98286c2da33a3154941135dea9cc58b0e61e36afd77428ac67ec18f"
         );
         projection.version = "18".into();
         assert_ne!(
-            projection.fingerprint().unwrap(),
+            projection.encoding().unwrap().finish(),
             "c7cb0ae8c98286c2da33a3154941135dea9cc58b0e61e36afd77428ac67ec18f"
         );
     }
@@ -1125,6 +1154,55 @@ mod tests {
     }
 
     #[test]
+    fn close_receipts_cannot_authorize_opening_and_require_both_uri_fences() {
+        let (_private, mut request) = opening();
+        request.purpose = Purpose::CloseContext;
+        let binding = request
+            .open_context
+            .as_ref()
+            .unwrap()
+            .checked_binding()
+            .unwrap();
+        let closure = admission(&request).unwrap();
+        let mut result = ValidationResult::new(&request);
+        attribute(&mut result, &closure.sources[0]);
+        result.status = "valid".into();
+        result.context_sha256 = Some("a".repeat(64));
+        result.sources[0].diagnostics_completed = true;
+        result.sources[0].symbols_completed = true;
+        result.child_spawned = Some(true);
+        result.child_reaped = Some(true);
+        result.child_pid = Some(42);
+        result.clone_extra_files = Some(false);
+        result.clone_log_files = Some(false);
+        complete(&request, &mut result);
+        assert!(binding.close_completed(&result));
+        assert!(binding.validated_hashes(&result).is_none());
+        for field in [
+            "purpose",
+            "diagnostics",
+            "symbols",
+            "cleanup",
+            "source",
+            "request",
+            "guard",
+        ] {
+            let mut changed = result.clone();
+            match field {
+                "purpose" => changed.purpose = Purpose::OpenContext,
+                "diagnostics" => changed.sources[0].diagnostics_completed = false,
+                "symbols" => changed.sources[0].symbols_completed = false,
+                "cleanup" => changed.cleanup_confirmed = false,
+                "source" => changed.sources[0].sha256 = "0".repeat(64),
+                "request" => changed.request_id = "another-close".into(),
+                "guard" => changed.opening_binding.as_mut().unwrap().guard_sha256 = "0".repeat(64),
+                _ => unreachable!(),
+            }
+            assert!(!binding.close_completed(&changed), "{field}");
+        }
+    }
+
+    #[test]
     fn invalid_current_source_requires_complete_attributable_evidence_not_a_status_string() {
         let (_private, request) = opening();
         let binding = request
@@ -1154,6 +1232,10 @@ mod tests {
         result.sources[0].diagnostics_completed = true;
         result.sources[0].symbols_completed = true;
         assert!(binding.invalid_result(&result));
+        let mut close = result.clone();
+        close.purpose = Purpose::CloseContext;
+        assert!(!binding.invalid_result(&close));
+        assert!(binding.close_invalid_completed(&close));
         for field in ["source", "path", "diagnostics", "symbols", "cleanup"] {
             let mut changed = result.clone();
             match field {
@@ -1165,6 +1247,8 @@ mod tests {
                 _ => unreachable!(),
             }
             assert!(!binding.invalid_result(&changed), "{field}");
+            changed.purpose = Purpose::CloseContext;
+            assert!(!binding.close_invalid_completed(&changed), "{field}");
         }
     }
 }

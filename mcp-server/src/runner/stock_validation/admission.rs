@@ -408,7 +408,10 @@ fn context(request: &WireRequest, root: &ProjectRoot) -> Result<Captured, &'stat
     {
         return Err("incomplete_editor_context");
     }
-    let (name_limit, count_limit) = if request.purpose == Purpose::OpenContext {
+    let (name_limit, count_limit) = if matches!(
+        request.purpose,
+        Purpose::OpenContext | Purpose::CloseContext
+    ) {
         (256, 64)
     } else {
         (128, 256)
@@ -441,7 +444,10 @@ fn context(request: &WireRequest, root: &ProjectRoot) -> Result<Captured, &'stat
         // bounded effective names/ClassDB bindings and forbids source dependencies;
         // edit validation retains its broader source closure and stricter config gate.
         if matches!(section, "[autoload]" | "[gdextension]")
-            && request.purpose != Purpose::OpenContext
+            && !matches!(
+                request.purpose,
+                Purpose::OpenContext | Purpose::CloseContext
+            )
             && !line.is_empty()
             && !line.starts_with('[')
             && !line.starts_with(';')
@@ -552,7 +558,10 @@ pub(super) fn capture_closure(
     let mut index = 0usize;
     while index < sources.len() {
         deadline(deadline_at)?;
-        let paths = if request.purpose == Purpose::OpenContext {
+        let paths = if matches!(
+            request.purpose,
+            Purpose::OpenContext | Purpose::CloseContext
+        ) {
             // Opening's admitted current source cannot reference dependencies.
             // Do not probe arbitrary literals or traverse project sources.
             Vec::new()
@@ -641,7 +650,12 @@ pub(super) fn recheck(
     for source in &closure.sources {
         deadline(deadline_at)?;
         let now = capture(&root, &source.path)?.ok_or("source_changed")?;
-        if source.proposed || request.purpose == Purpose::OpenContext {
+        if source.proposed
+            || matches!(
+                request.purpose,
+                Purpose::OpenContext | Purpose::CloseContext
+            )
+        {
             // Private current R/B, like a proposal, need not equal original D.
             // The independently captured D name/bytes/identity must stay fixed.
             if Some(&now) != closure.baseline.as_ref() {

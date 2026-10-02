@@ -3,7 +3,7 @@ extends Node
 
 const VERSION := "4.7.2.stable.official.ed1daf0bf"
 const ENGINE_HASH := "ed1daf0bf001b61586d9930840f2f1394092c079"
-const DOMAIN := "godot-agent-kit/editor-bridge/v4"
+const DOMAIN := "godot-agent-kit/editor-bridge/v5"
 const ObservationScript = preload("res://addons/godot_agent_kit/observation.gd")
 const OpeningTransportScript = preload("res://addons/godot_agent_kit/script_open_transport.gd")
 const DiscoveryScript = preload("res://addons/godot_agent_kit/script_discovery.gd")
@@ -26,6 +26,7 @@ const CAPABILITIES := {
 	"edit_open_gdscript": false,
 	"open_gdscript": false,
 	"discover_gdscripts": false,
+	"close_gdscript": false,
 }
 var _crypto := Crypto.new()
 var _filesystem := DirAccess.open("/")
@@ -232,7 +233,7 @@ func _publish(port: int) -> bool:
 		or _filesystem.is_link(temp_path) or DirAccess.dir_exists_absolute(temp_path) or FileAccess.file_exists(temp_path):
 		return false
 	var descriptor := {
-		"v": 4, "session_id": _session, "project_root": _project,
+		"v": 5, "session_id": _session, "project_root": _project,
 		"godot_version": VERSION, "engine_hash": ENGINE_HASH,
 		"host": "127.0.0.1", "port": port, "token": _secret.hex_encode(),
 	}
@@ -303,7 +304,7 @@ func _release_operation(owner: Node) -> void:
 
 func _matched_family(owner: Node, revision: int, build_id: String) -> bool:
 	var valid: bool = is_instance_valid(owner) and owner.get("_bridge") == self \
-		and revision == 2 and _valid_hex(build_id, 64)
+		and revision == 3 and _valid_hex(build_id, 64)
 	if valid:
 		var installed: Variant = Engine.get_meta("godot_agent_kit_native", {})
 		var family: Variant = owner.get("_native")
@@ -312,35 +313,36 @@ func _matched_family(owner: Node, revision: int, build_id: String) -> bool:
 			for operation in ["configure", "close", "api_revision", "build_id", "edit_inspect",
 					"edit_prepare", "edit_advance", "edit_cancel", "edit_expire", "open_inspect",
 					"open_prepare", "open_advance", "open_verify", "open_recheck", "open_finish",
-					"open_abort", "open_expire"]:
+					"open_abort", "open_expire", "close_inspect", "close_prepare", "close_advance",
+					"close_status", "close_verify", "close_recheck", "close_finish", "close_abort", "close_expire"]:
 				if not family.has(operation) or not (family[operation] is Callable) \
 						or not family[operation].is_custom() or not family[operation].is_valid() \
 						or installed.get(operation) != family[operation]:
 					valid = false
 					break
 		if valid:
-			valid = family["api_revision"].call() == 2 and family["build_id"].call() == build_id
+			valid = family["api_revision"].call() == 3 and family["build_id"].call() == build_id
 	return valid
 
 
 func attach_edit(owner: Node, revision: int, build_id: String) -> void:
 	var valid := _matched_family(owner, revision, build_id)
 	_edit_owner = owner if valid else null
-	_native_revision = 2 if valid else 0
+	_native_revision = 3 if valid else 0
 	_native_build_id = build_id if valid else ""
 	if not valid:
 		_open_owner = null
 
 
 func attach_open(owner: Node, revision: int, build_id: String) -> void:
-	_open_owner = owner if _native_revision == 2 and build_id == _native_build_id \
+	_open_owner = owner if _native_revision == 3 and build_id == _native_build_id \
 		and _matched_family(owner, revision, build_id) else null
 
 
 func _capabilities() -> Dictionary:
 	var capabilities := CAPABILITIES.duplicate()
-	capabilities.edit_open_gdscript = is_instance_valid(_edit_owner) and _native_revision == 2
-	capabilities.open_gdscript = is_instance_valid(_open_owner) and _native_revision == 2
+	capabilities.edit_open_gdscript = is_instance_valid(_edit_owner) and _native_revision == 3
+	capabilities.open_gdscript = is_instance_valid(_open_owner) and _native_revision == 3
 	capabilities.discover_gdscripts = is_instance_valid(_discovery_owner) and _discovery_owner.available()
 	return capabilities
 
@@ -465,7 +467,7 @@ func _process(_delta: float) -> void:
 				var prefix: String = peer.input.slice(4).get_string_from_utf8()
 				for whitespace in [" ", "\t", "\r", "\n"]:
 					prefix = prefix.replace(whitespace, "")
-				if not prefix.begins_with('[4,"edit_prepare",') and not prefix.begins_with('[4,"open_prepare",'):
+				if not prefix.begins_with('[5,"edit_prepare",') and not prefix.begins_with('[5,"open_prepare",'):
 					_close_peer(peer)
 					break
 				peer.large_prefix = true
@@ -655,7 +657,7 @@ func _integral_control(value: Variant, minimum: int, maximum: int) -> bool:
 
 
 func _fixed_tuple(value: Variant, count: int, operation: String) -> bool:
-	return typeof(value) == TYPE_ARRAY and value.size() == count and _integral_control(value[0], 4, 4) \
+	return typeof(value) == TYPE_ARRAY and value.size() == count and _integral_control(value[0], 5, 5) \
 		and typeof(value[1]) == TYPE_STRING and value[1] == operation and _valid_id(value[2]) \
 		and typeof(value[3]) == TYPE_STRING and value[3] == _session \
 		and typeof(value[4]) == TYPE_STRING and value[4] == _project and value[4].to_utf8_buffer().size() <= 1024
@@ -842,7 +844,7 @@ func _editor_stamp(started: int) -> Dictionary:
 
 
 func _edit_envelope(peer: Dictionary, kind: String) -> Dictionary:
-	return {"v": 4, "kind": kind, "request_id": peer.request_id,
+	return {"v": 5, "kind": kind, "request_id": peer.request_id,
 		"session_id": _session, "project_root": _project,
 		"script_path": peer.get("edit_path", ""), "collection": _editor_stamp(Time.get_ticks_usec())}
 
@@ -873,7 +875,7 @@ func _handle_edit_tuple(peer: Dictionary, value: Array, size: int) -> void:
 		if not _active.is_empty():
 			_edit_busy(peer, path)
 			return
-		if not peer.auth_capabilities.edit_open_gdscript or peer.auth_native_revision != 2 \
+		if not peer.auth_capabilities.edit_open_gdscript or peer.auth_native_revision != 3 \
 				or peer.auth_native_build_id != _native_build_id \
 				or _edit_owner == null or not is_instance_valid(_edit_owner):
 			_queue(peer, _failure(peer, path, "read_editor", "unsupported_capability"), true)
@@ -933,7 +935,7 @@ func _handle_edit_tuple(peer: Dictionary, value: Array, size: int) -> void:
 
 
 func _failure(peer: Dictionary, path: String, stage: String, code: String = "out_of_project") -> Dictionary:
-	return {"v": 4, "kind": "failure", "request_id": peer.request_id,
+	return {"v": 5, "kind": "failure", "request_id": peer.request_id,
 		"session_id": _session, "project_root": _project, "script_path": path,
 		"code": code, "stage": stage}
 
@@ -1364,7 +1366,7 @@ func _collect_edit(peer: Dictionary) -> void:
 
 
 func _reply_fields(peer: Dictionary, kind: String) -> Dictionary:
-	return {"v": 4, "kind": kind, "request_id": peer.request_id,
+	return {"v": 5, "kind": kind, "request_id": peer.request_id,
 		"session_id": _session, "project_root": _project,
 		"godot_version": VERSION, "engine_hash": ENGINE_HASH,
 		"capabilities": peer.auth_capabilities, "native_api_revision": peer.auth_native_revision,
@@ -1384,11 +1386,11 @@ static func transcript_bytes(request_id: String, session_id: String, project_roo
 		native_api_revision: int, native_build_id: String,
 		client_nonce: String, server_nonce: String) -> PackedByteArray:
 	if session_id.length() != 32 or client_nonce.length() != 64 or server_nonce.length() != 64 \
-			or native_api_revision not in [0, 2] or (native_api_revision == 0 and not native_build_id.is_empty()) \
-			or (native_api_revision == 2 and (native_build_id.length() != 64 \
+			or native_api_revision not in [0, 3] or (native_api_revision == 0 and not native_build_id.is_empty()) \
+			or (native_api_revision == 3 and (native_build_id.length() != 64 \
 			or not native_build_id.is_valid_hex_number() or native_build_id != native_build_id.to_lower())):
 		return PackedByteArray()
-	if capabilities.size() != 8:
+	if capabilities.size() != 9:
 		return PackedByteArray()
 	for encoded in [session_id, client_nonce, server_nonce]:
 		if not encoded.is_valid_hex_number() or encoded != encoded.to_lower():
@@ -1400,11 +1402,11 @@ static func transcript_bytes(request_id: String, session_id: String, project_roo
 	for part in [project_root, godot_version, engine_hash]:
 		out.append_array(_field(part.to_utf8_buffer()))
 	for name in ["observe_gdscript", "open_enumeration", "buffer_attribution", "unsaved_paths",
-			"cached_resource_lookup", "edit_open_gdscript", "open_gdscript", "discover_gdscripts"]:
+			"cached_resource_lookup", "edit_open_gdscript", "open_gdscript", "discover_gdscripts", "close_gdscript"]:
 		if not capabilities.has(name) or typeof(capabilities[name]) != TYPE_BOOL:
 			return PackedByteArray()
 		out.append_array(_field(PackedByteArray([1 if capabilities[name] else 0])))
-	if native_api_revision == 0 and (capabilities.edit_open_gdscript or capabilities.open_gdscript):
+	if native_api_revision == 0 and (capabilities.edit_open_gdscript or capabilities.open_gdscript or capabilities.close_gdscript):
 		return PackedByteArray()
 	out.append_array(_field(PackedByteArray([0, 0, 0, native_api_revision])))
 	out.append_array(_field(native_build_id.to_utf8_buffer()))

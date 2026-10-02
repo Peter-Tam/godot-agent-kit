@@ -177,11 +177,13 @@ bool engine_binary_matches() {
 void close(Session &session) {
     if (session.call_state != Session::CallState::Idle) {
         open_closing(session);
+        close_closing(session);
         session.call_state = Session::CallState::Closing;
         return;
     }
     edit_cleanup(session);
     open_cleanup(session);
+    close_cleanup(session);
     if (session.project_fd >= 0) { ::close(session.project_fd); }
     session.project_fd = -1;
     session.project_path.clear();

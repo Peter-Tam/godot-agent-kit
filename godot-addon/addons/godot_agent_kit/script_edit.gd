@@ -48,7 +48,7 @@ func _release_attempt() -> void:
 func begin(path: String, expected: String, desired: String, correlation: Dictionary) -> Dictionary:
 	if _native.is_empty() or not is_instance_valid(_bridge) or _state != Lifecycle.IDLE:
 		return {"status": "busy", "reason": "slot_busy"}
-	# The selected v4 peer claims on admission. Its exact immutable tuple must
+	# The selected v5 peer claims on admission. Its exact immutable tuple must
 	# still own this preparation; a private fixture may claim only an empty slot.
 	var active: Dictionary = _bridge.get("_active")
 	var admitted: bool = active.get("operation_owner") == self and active.get("request_id") == correlation.get("request_id") \

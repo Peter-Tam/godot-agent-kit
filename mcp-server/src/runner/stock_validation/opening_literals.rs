@@ -91,7 +91,10 @@ pub(super) fn fence(
     source: Option<&str>,
     deadline_at: Instant,
 ) -> Result<(), &'static str> {
-    if request.purpose != Purpose::OpenContext {
+    if !matches!(
+        request.purpose,
+        Purpose::OpenContext | Purpose::CloseContext
+    ) {
         return Ok(());
     }
     let source = source.ok_or("opening_context_unavailable")?;

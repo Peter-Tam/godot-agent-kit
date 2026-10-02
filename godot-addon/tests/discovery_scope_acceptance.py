@@ -1,4 +1,4 @@
-"""Private v4 read-only scope probes, owned by existing boundary groups.
+"""Private v5 read-only scope probes, owned by existing boundary groups.
 
 No inventory, public runner, or product control surface is introduced here.
 Raw context/source/credentials remain request-local; evidence records are safe facts.
@@ -19,7 +19,7 @@ TERMINAL_KEYS = {"v", "kind", "request_id", "session_id", "project_root", "colle
 
 
 def tuple_for(descriptor, request, opcode, *tail):
-    return [4, opcode, request, descriptor["session_id"], descriptor["project_root"], *tail]
+    return [5, opcode, request, descriptor["session_id"], descriptor["project_root"], *tail]
 
 
 def exchange(harness, stream, descriptor, request, opcode, *tail):
@@ -31,7 +31,7 @@ def exchange(harness, stream, descriptor, request, opcode, *tail):
     observation.require(set(reply) == (STATE_KEYS if opcode in ("discover_begin", "discover_recheck")
                                       else TERMINAL_KEYS), "scope_exact_reply_shape")
     observation.require(all(reply[key] == value for key, value in {
-        "v": 4, "kind": kind, "request_id": request, "session_id": descriptor["session_id"],
+        "v": 5, "kind": kind, "request_id": request, "session_id": descriptor["session_id"],
         "project_root": descriptor["project_root"]}.items()), "scope_authenticated_binding")
     stamp = reply["collection"]
     observation.require(set(stamp) == {"clock_id", "started_tick_us", "finished_tick_us", "received_elapsed_us"}
@@ -117,7 +117,7 @@ def session_scope_cases(harness, descriptor, editor):
         stream, request = harness.authenticated_peer(descriptor)
         with stream:
             if payload is None:
-                body = ('[4,"discover_begin",' + json.dumps(request) + ',' +
+                body = ('[5,"discover_begin",' + json.dumps(request) + ',' +
                         json.dumps(descriptor["session_id"]) + ',' + json.dumps(descriptor["project_root"]) +
                         ',' + '[' * 33 + '0' + ']' * 33 + ']').encode()
                 payload = struct.pack(">I", len(body)) + body

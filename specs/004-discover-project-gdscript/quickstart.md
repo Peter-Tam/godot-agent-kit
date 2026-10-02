@@ -4,14 +4,20 @@
 
 Use [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md), [caller v1](contracts/discovery-api.md) and [private bridge v4](contracts/bridge-protocol.md). No successful process exit, nonempty list or editor acknowledgment proves complete discovery.
 
+**Current reproduction:** Historical discovery acceptance below used private v4.
+The [closing cutover](../005-close-project-gdscript/contracts/bridge-protocol.md)
+migrates current peers to v5 and the shared native family to revision 3 without
+changing discovery v1. Its private close boundary keeps `close_gdscript=false`;
+earlier discovery evidence is not closing acceptance.
+
 ## 1. Candidate and owned prerequisites
 
 - Existing official Godot `4.7.2.stable.official.ed1daf0bf`, full commit `ed1daf0bf001b61586d9930840f2f1394092c079`, executable SHA-256 `c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`; macOS 26.6.2 arm64. Other builds/platforms are not discovery support claims.
 - Rust 1.98.1/edition 2021, tracked Cargo.lock and existing compiler/native tooling; Python 3.10+. No new package/runtime dependency.
 - Unlocked visible desktop and owned synthetic project/editor processes for buffer/selection/history evidence; capture only owned windows. Headless metadata checks cannot establish non-interference with visible buffers.
 - Canonical absolute executable paths and fresh empty mode-0700 artifact directories. Resolve a symlink Godot executable before invoking the existing stock-validator/composed harness.
-- Existing matched production native revision-2 bundle for the composed opening/editing scenarios, matching export templates and a separate existing fixture-fault bundle for the affected mutation suites. Discovery itself adds no native method/ABI requirement. Follow the existing [native build/operator guide](../../godot-addon/native/README.md) and [opening prerequisites](../003-open-project-gdscript/quickstart.md#1-exact-candidate-and-prerequisites).
-- Install the v4 addon and Rust callers together; restart the owned editor to create a fresh session descriptor. Do not reuse a v3 descriptor or an earlier lifetime's edit basis.
+- Rebuild the matched production revision-3 bundle and separate fixture-fault bundle for composed opening/editing and affected mutation scenarios; retain matching export templates. Discovery itself still needs no native mutation capability. Follow the [native build/operator guide](../../godot-addon/native/README.md) and [opening prerequisites](../003-open-project-gdscript/quickstart.md#1-exact-candidate-and-prerequisites).
+- Install the v5 addon and Rust callers together; restart the owned editor for a fresh session descriptor. Do not reuse older descriptors, revision-2 native bundles or an earlier lifetime's edit basis.
 
 From the repository root, set `STOCK_GODOT` to the actual absolute executable and `PRIVATE_FAULT_NATIVE` to the separate fixture-only addon/native output. These are local validation inputs, not new product flags or operational services.
 

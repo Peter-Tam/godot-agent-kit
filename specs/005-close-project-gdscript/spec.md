@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-01
 
-**Status**: Draft — quality-validated and clarified; task decomposition and granularity review complete, ready for consistency analysis. Implementation is not authorized.
+**Status**: Quality-validated and clarified; selection-time granularity and consistency review passed. T001 is complete against its native/validation/cutover acceptance. Public closing, T002/T003 and Feature 005 completion remain pending; see the [accepted task evidence](quickstart.md#9-t001-native-boundary-acceptance-2026-10-02).
 
 **Input**: Generated feature description supplied to `/speckit.specify`:
 

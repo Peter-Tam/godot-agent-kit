@@ -1,6 +1,6 @@
-# Private Editor Bridge — Proposed Version 5
+# Private Editor Bridge — Version 5
 
-**Status:** Phase 1 planning contract, **not implemented or accepted**. Supersedes current [v4 transport](../../004-discover-project-gdscript/contracts/bridge-protocol.md) only when its coordinated cutover is implemented. Existing public observation/edit/open/discovery v1 contracts do not change. The [close caller](close-api.md), [model §9](../data-model.md#9-private-interface-contract-shared-by-design-artifacts) and [native contract](native-integration.md) govern closing; native API revision 3 is proposed. [Research](../research.md) observed seven stock native calls (six positive controls, one unsafe negative) in four owned visible editors with exit 0, not seven passing guarded product requests. This contract describes future required evidence, not support already earned.
+**Status:** T001's coordinated v5 migration and revision-3 native/private-fixture boundary are complete, with [accepted task evidence](../quickstart.md#9-t001-native-boundary-acceptance-2026-10-02). The ninth authenticated `close_gdscript` bit remains false. The product close tuple/worker/caller exchange below remains T002 work, not an advertised partial handler. Public observation/edit/open/discovery v1 contracts remain unchanged. The [close caller](close-api.md), [model §9](../data-model.md#9-private-interface-contract-shared-by-design-artifacts) and [native contract](native-integration.md) remain normative.
 
 ## 1. Fixed authenticated migration
 
@@ -83,6 +83,34 @@ Retain opening's closed typed encoding, **not canonical JSON**:
 - closed object: `o || u32_be(count)` then `F(key) || E(value)` in UTF-8 byte-sorted key order.
 
 No float, negative integer, unknown/duplicate key enters E; declared decimal-string counters stay strings. Shared source contexts retain existing opening projection/domain semantics, not a newly invented hash algorithm. Close aggregate is `SHA256(F("godot-agent-kit/close-context/v1") || E(projection))`. Its closed projection binds target/request/session/project/file/selection identity, target source/current/saved-version/clean facts, effective configuration including idle-parse delay, sorted complete document-roster identities and sorted protected-document guard commitments. Exclude source bodies, clocks/receive stamps, helper status/progress and callback counters. Rust independently recomputes every received projection/aggregate hash; native guards compare fresh actual values and bytes, never only echoed expected digests. A roster/source/version/selection/configuration/identity change invalidates, never silently recaptures a wider set.
+
+The native/fixture aggregate projection has exactly `request_id`, `session_id`,
+`project_root`, `project_device`, `project_inode`, `target_path`, `target`,
+`selected_script_id`, `selected_editor_id`, `selected_buffer_id`,
+`idle_parse_delay_us`, `idle_parse_error_delay_us`, `effective_sha256`, `roster`
+and `protected`. The two delay strings commit the actual normal/error settings
+under `text_editor/completion`; their maximum governs admission, and both
+remain guarded. A smaller error delay is not permission to ignore the normal
+timer. `effective_sha256` retains the existing shared effective-context meaning.
+
+`target`/`target_guard` contains exactly `target_device`, `target_inode`,
+`script_id`, `editor_id`, `buffer_id`, `source_sha256`, `source_length`,
+`version`, `saved_version`, `dirty`, `resource_edited`, `guard_sha256`.
+`roster` records contain `path`, `script_id`, `editor_id`, `buffer_id`;
+`protected` records add `guard_sha256`. Both lists and the corresponding
+source-context `documents` are path-sorted and identity-unique. IDs, lengths,
+versions and delay microseconds in these projections are canonical decimal
+strings; the two flags are Booleans. The target's guard is its admitted
+source/compiled context, not a target parser receipt. Source bodies are held
+only in the separate private per-document records.
+
+The internal native fixture uses this projection and strict native facts
+without implementing the product close response envelope. Its actual Rust
+example consumer performs confined target capture/recheck and whole-set
+`close_context` validation under one remaining deadline. Direct closed
+decoding applies shared source/metadata budgets before retaining records;
+an internally tagged enum must not buffer the entire context first.
+
 
 The supervisor owns existing one-shot stock source-only validator children, **one at a time** per remaining document, all sharing original deadline and owned cleanup. Purpose is exactly `close_context`, separate from `open_context` and edit purposes. No remaining document means no child. Private completed-valid receipt binds exactly:
 

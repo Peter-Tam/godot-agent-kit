@@ -85,7 +85,10 @@ pub(super) fn helper_request(
     purpose: stock_validation::Purpose,
     context: &wire::edit::EditContext,
 ) -> Result<Vec<u8>, RoutingFailure> {
-    if purpose == stock_validation::Purpose::OpenContext {
+    if matches!(
+        purpose,
+        stock_validation::Purpose::OpenContext | stock_validation::Purpose::CloseContext
+    ) {
         return Err(protocol_failure());
     }
     let bytes = serde_json::to_vec(&json!({"v":1,"kind":"edit_helper_request",
@@ -109,7 +112,10 @@ impl HelperRequestIn {
             || self.kind != "edit_helper_request"
             || self.request_id != request.request_id().as_str()
             || self.purpose != purpose
-            || purpose == stock_validation::Purpose::OpenContext
+            || matches!(
+                purpose,
+                stock_validation::Purpose::OpenContext | stock_validation::Purpose::CloseContext
+            )
             || self.global_classes.len() > 256
             || self.global_classes.iter().any(|v| v.len() > 2048)
             || self.warnings.levels.len() > 128
@@ -156,7 +162,10 @@ impl HelperReplyIn {
             || self.purpose != purpose
             || self.result.request_id != id.as_str()
             || self.result.purpose != purpose
-            || purpose == stock_validation::Purpose::OpenContext
+            || matches!(
+                purpose,
+                stock_validation::Purpose::OpenContext | stock_validation::Purpose::CloseContext
+            )
             || self.result.opening_binding.is_some()
         {
             return Err(protocol_failure());

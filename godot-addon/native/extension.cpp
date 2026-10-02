@@ -70,6 +70,11 @@ bool engine_revision() {
         {"ProjectSettings", "globalize_path", GAK_HASH_GLOBALIZE_PATH},
         {"ProjectSettings", "get_global_class_list", GAK_HASH_GLOBAL_CLASSES},
         {"Object", "get_property_list", GAK_HASH_OBJECT_PROPERTIES},
+        {"ScriptEditor", "close_file", GAK_HASH_CLOSE_FILE},
+        {"Object", "has_signal", GAK_HASH_HAS_SIGNAL},
+        {"Object", "connect", GAK_HASH_CONNECT},
+        {"Object", "disconnect", GAK_HASH_DISCONNECT},
+        {"Object", "is_connected", GAK_HASH_IS_CONNECTED},
     };
     for (const auto &required : methods) {
         Name cls(required.cls), method(required.method);
@@ -80,8 +85,10 @@ bool engine_revision() {
 
 enum class Action { Configure, Close, Revision, BuildId, Inspect, Prepare, Advance, Cancel, Expire,
     OpenInspect, OpenPrepare, OpenAdvance, OpenVerify, OpenRecheck, OpenFinish, OpenAbort, OpenExpire,
+    CloseInspect, ClosePrepare, CloseAdvance, CloseStatus, CloseVerify, CloseRecheck, CloseFinish, CloseAbort, CloseExpire,
 #if GAK_FIXTURE
     FixtureFault, OpenFixtureFault, OpenFixtureState,
+    CloseFixtureFault, CloseFixtureState,
 #endif
 };
 
@@ -95,7 +102,7 @@ void native_callback(void *userdata, const GDExtensionConstVariantPtr *arguments
     }
     if (action == Action::Revision) {
         if (count == 0 && std::this_thread::get_id() == session.main_thread && engine_revision()) {
-            copy_into(destination, integer(2));
+            copy_into(destination, integer(3));
         } else { copy_into(destination, integer(0)); }
         return;
     }
@@ -174,6 +181,28 @@ void native_callback(void *userdata, const GDExtensionConstVariantPtr *arguments
         }
         copy_into(destination, result); return;
     }
+    if (action >= Action::CloseInspect && action <= Action::CloseExpire) {
+        Value result;
+        if (std::this_thread::get_id() == session.main_thread) {
+            if (action == Action::CloseExpire && count == 0) { result = close_expire(session); }
+            else if (action == Action::CloseInspect && count == 2) {
+                Value path(arguments[0]), correlation(arguments[1]); result = close_inspect(session, path, correlation);
+            } else if (action == Action::ClosePrepare && count == 3) {
+                Value request(arguments[0]), source(arguments[1]), capture(arguments[2]); result = close_prepare(session, request, source, capture);
+            } else if (action == Action::CloseAdvance && count == 3) {
+                Value request(arguments[0]), guard(arguments[1]), receipts(arguments[2]); result = close_advance(session, request, guard, receipts);
+            } else if ((action == Action::CloseVerify || action == Action::CloseRecheck) && count == 2) {
+                Value request(arguments[0]), purpose(arguments[1]);
+                result = action == Action::CloseVerify ? close_verify(session, request, purpose) : close_recheck(session, request, purpose);
+            } else if (count == 1) {
+                Value request(arguments[0]);
+                if (action == Action::CloseStatus) { result = close_status(session, request); }
+                else if (action == Action::CloseFinish) { result = close_finish(session, request); }
+                else if (action == Action::CloseAbort) { result = close_abort(session, request); }
+            }
+        }
+        copy_into(destination, result);
+    }
 #if GAK_FIXTURE
     if (action == Action::FixtureFault) {
         Value result;
@@ -195,6 +224,19 @@ void native_callback(void *userdata, const GDExtensionConstVariantPtr *arguments
         copy_into(destination, result);
     }
 #endif
+#if GAK_FIXTURE
+    if (action == Action::CloseFixtureFault || action == Action::CloseFixtureState) {
+        Value result;
+        if (std::this_thread::get_id() == session.main_thread) {
+            if (action == Action::CloseFixtureFault && count == 2) {
+                Value request(arguments[0]), fault(arguments[1]); result = close_fixture_fault(session, request, fault);
+            } else if (action == Action::CloseFixtureState && count == 1) {
+                Value request(arguments[0]); result = close_fixture_state(session, request);
+            }
+        }
+        copy_into(destination, result);
+    }
+#endif
 }
 
 Action configure_action = Action::Configure, close_action = Action::Close;
@@ -204,9 +246,13 @@ Action expire_action = Action::Expire;
 Action open_inspect_action = Action::OpenInspect, open_prepare_action = Action::OpenPrepare;
 Action open_advance_action = Action::OpenAdvance, open_verify_action = Action::OpenVerify, open_recheck_action = Action::OpenRecheck;
 Action open_finish_action = Action::OpenFinish, open_abort_action = Action::OpenAbort, open_expire_action = Action::OpenExpire;
+Action close_inspect_action = Action::CloseInspect, close_prepare_action = Action::ClosePrepare, close_advance_action = Action::CloseAdvance;
+Action close_status_action = Action::CloseStatus, close_verify_action = Action::CloseVerify, close_recheck_action = Action::CloseRecheck;
+Action close_finish_action = Action::CloseFinish, close_abort_action = Action::CloseAbort, close_expire_action = Action::CloseExpire;
 #if GAK_FIXTURE
 Action fault_action = Action::FixtureFault;
 Action open_fault_action = Action::OpenFixtureFault, open_state_action = Action::OpenFixtureState;
+Action close_fault_action = Action::CloseFixtureFault, close_state_action = Action::CloseFixtureState;
 #endif
 
 Value callable(Action &action) {
@@ -260,10 +306,21 @@ void editor_initialize(void *, GDExtensionInitializationLevel level) {
     put(metadata, "open_finish", callable(open_finish_action));
     put(metadata, "open_abort", callable(open_abort_action));
     put(metadata, "open_expire", callable(open_expire_action));
+    put(metadata, "close_inspect", callable(close_inspect_action));
+    put(metadata, "close_prepare", callable(close_prepare_action));
+    put(metadata, "close_advance", callable(close_advance_action));
+    put(metadata, "close_status", callable(close_status_action));
+    put(metadata, "close_verify", callable(close_verify_action));
+    put(metadata, "close_recheck", callable(close_recheck_action));
+    put(metadata, "close_finish", callable(close_finish_action));
+    put(metadata, "close_abort", callable(close_abort_action));
+    put(metadata, "close_expire", callable(close_expire_action));
 #if GAK_FIXTURE
     put(metadata, "edit_fixture_fault", callable(fault_action));
     put(metadata, "open_fixture_fault", callable(open_fault_action));
     put(metadata, "open_fixture_state", callable(open_state_action));
+    put(metadata, "close_fixture_fault", callable(close_fault_action));
+    put(metadata, "close_fixture_state", callable(close_state_action));
 #endif
     Value done = call(engine, "Object", "set_meta", 3776071444ULL, {&key, &metadata});
     (void)done;
@@ -330,7 +387,7 @@ extern "C" __attribute__((visibility("default"))) GDExtensionBool editor_integra
             !load(unregister_fixture_class, proc, "classdb_unregister_extension_class")) { return 0; }
 #endif
     for (const auto kind : {GDEXTENSION_VARIANT_TYPE_BOOL, GDEXTENSION_VARIANT_TYPE_INT,
-            GDEXTENSION_VARIANT_TYPE_STRING, GDEXTENSION_VARIANT_TYPE_STRING_NAME,
+            GDEXTENSION_VARIANT_TYPE_FLOAT, GDEXTENSION_VARIANT_TYPE_STRING, GDEXTENSION_VARIANT_TYPE_STRING_NAME,
             GDEXTENSION_VARIANT_TYPE_OBJECT, GDEXTENSION_VARIANT_TYPE_CALLABLE,
             GDEXTENSION_VARIANT_TYPE_DICTIONARY, GDEXTENSION_VARIANT_TYPE_ARRAY}) {
         api.from[kind] = api.get_from(kind);

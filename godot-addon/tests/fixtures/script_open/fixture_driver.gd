@@ -438,11 +438,11 @@ func _dispatch_open_request(request: Dictionary) -> void:
 			var manifest: Variant = JSON.parse_string(manifest_file.get_as_text()) if manifest_file != null else null
 			var library := "res://addons/godot_agent_kit/native/libeditor_integration.macos.arm64.dylib"
 			response.ok = manifest is Dictionary and manifest.get("fixture_only") == true and \
-				manifest.get("native_api_revision") == 2 and manifest.get("native_family") == "editor_integration" and \
+				manifest.get("native_api_revision") == 3 and manifest.get("native_family") == "editor_integration" and \
 				manifest.get("native_library_sha256") == FileAccess.get_sha256(library) and \
 				owner != null and bridge != null and api.has("open_fixture_fault")
 			if response.ok:
-				bridge.attach_open(owner, 2, api.build_id.call())
+				bridge.attach_open(owner, 3, api.build_id.call())
 				response.ok = bridge.get("_open_owner") == owner
 		"open_setup":
 			for source_path in request.get("paths", []):
