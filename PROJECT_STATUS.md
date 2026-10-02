@@ -4,10 +4,19 @@
 
 - **Phase:** 1 — Live-editor script coherence
 - **Phase state:** In progress
+- **Feature:** [006 — Safely Save an Open Project GDScript](specs/006-save-project-gdscript/spec.md)
+- **Feature state:** Specification — draft quality-validated and ready for planning; implementation has not started.
+- **Specification:** [Requirements checklist](specs/006-save-project-gdscript/checklists/requirements.md) passed all 16 criteria. The feature specifies one revision-bound Save of existing open-buffer work, independent D/R/B and clean-state verification, conflict/stale/effect refusals, native-history preservation and truthful partial outcomes.
+- **Current task:** None. Clarification, planning, task derivation, consistency analysis and implementation have not run for Feature 006.
+- **Delivery:** Documentation-only design branch `spec/006-save-project-gdscript`; delivery state does not establish feature completion.
+- **Phase 1 assessment:** Features 001–005 remain complete. Independent Save is now specified, not implemented; independent history controls and the remaining phase exit assessment remain pending.
+
+## Feature 005 completion
+
 - **Feature:** [005 — Safely Close a Clean Project GDScript](specs/005-close-project-gdscript/spec.md)
 - **Feature state:** **Complete.** All three implementation tasks satisfy acceptance, cumulative evidence validity and implementation-shape/constitutional gates. Completion is independent of PR review or merge.
-- **Tasks:** [3 / 3 complete](specs/005-close-project-gdscript/tasks.md). Only T003 changed to complete in the current task; no next feature/task is selected.
-- **Current task:** Feature 005 T003 — **Complete**, repeated-close and full composed-workflow acceptance. Nine close groups and complete close/all campaign interfaces are implemented.
+- **Tasks:** [3 / 3 complete](specs/005-close-project-gdscript/tasks.md). T003 completed the feature; no implementation task remains.
+- **Final task:** Feature 005 T003 — **Complete**, repeated-close and full composed-workflow acceptance. Nine close groups and complete close/all campaign interfaces are implemented.
 - **T001 acceptance:** Native close **123 records**, complete observation **273**, edit/native **408**, opening **664** and discovery **429** passed. Rust formatting, Clippy, **317 default tests**, **2 example boundary tests**, rustdoc and locked builds; normal/fault native builds, **13 native-build tests** and **22 workflow tests** passed. [Evidence/provenance](specs/005-close-project-gdscript/quickstart.md#9-t001-native-boundary-acceptance-2026-10-02) and [implementation-shape/constitutional review](specs/005-close-project-gdscript/plan.md#implementation-shape-review) are recorded.
 - **T002 acceptance:** Seven close groups **639 records / 206 public results**, maximum **9.510 s**; complete observation **273**, edit/native **408**, opening **664** and discovery **429** passed. Rust formatting, Clippy, **367 default tests**, **2 example tests**, rustdoc/locked builds; normal/fault native builds, **38 Python native/harness tests**, **22 workflow tests** and Actionlint passed. [Evidence/provenance](specs/005-close-project-gdscript/quickstart.md#10-t002-public-caller-acceptance-2026-10-02) and [implementation-shape/constitutional review](specs/005-close-project-gdscript/plan.md#t002-implementation-shape-and-constitutional-review--2026-10-02) are recorded.
 - **T003 acceptance:** New VM `sequential` **45 records / 27 close results**, full `composed` **121 / 6**, affected `clean-close` **134 / 10**; maximum new close **6.007 s**. The sequence includes five real closes, five recognitions and five dirty refusals; the matrix includes actual Undo/Save/Redo/Save and twenty fresh-basis edits. **24 campaign tests**, Python compilation and CLI/dispatch smoke passed. [Cumulative coverage/provenance](specs/005-close-project-gdscript/quickstart.md#t003-execution-decision-and-evidence-review) and [shape/constitutional review](specs/005-close-project-gdscript/plan.md#t003-implementation-shape-and-constitutional-review--2026-10-02) retain valid historical privacy/export and existing-operation evidence. No product code, schema, deadline or native/Rust build input changed.
@@ -28,7 +37,7 @@
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Features 001–005 complete with cumulative valid acceptance. Independent Save/history controls and the phase exit assessment remain pending. |
+| 1 — Live-editor script coherence | In progress | Features 001–005 complete with cumulative valid acceptance. Feature 006 independent Save is specified, not implemented; independent history controls and the phase exit assessment remain pending. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 The sections below retain historical Feature 001/002 design and evidence.
