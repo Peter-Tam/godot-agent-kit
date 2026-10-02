@@ -211,9 +211,6 @@ class CallerCloseAcceptanceMixin:
                     ("readonly", {"read_only": True, "paths": [TARGET]}),
                     ("safe_invalid", {"source": "extends RefCounted\nfunc value(:\n", "paths": [TARGET]}),
                     ("unloaded", {"paths": [TARGET], "replacement_target": True}))
-        # Temporary private reproducer; never certifies the complete group.
-        profiles = profiles[:2]
-        self.summary["private_case_filter"] = "selected_retained_then_nonselected"
         for profile, options in profiles:
             name = "public_close_" + profile
             with self.close_fixture(name, **options) as (project, editor, descriptor):
@@ -232,7 +229,6 @@ class CallerCloseAcceptanceMixin:
                 reopened, reopened_disk = self.state(editor, project)
                 observation.require(reopened["target"]["associated"] and reopened["target"]["B"] == disks[TARGET]["text"] and
                                     reopened_disk == disks, "public_close_separate_reopen_persisted_revision_" + profile)
-        return  # Temporary private reproducer, excluding unrelated composition.
         self.first_use_composition()
         # Reuse established A-E regressions without advertising a new close
         # matrix. These consumers use the existing subject/other oracle.
