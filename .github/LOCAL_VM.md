@@ -156,6 +156,20 @@ and complete close/all campaigns are not implemented merely by adding a VM.
 The host terminal remains available; the Tart process is detached and has no
 viewer. Foreground activation by the inner harness targets guest WindowServer.
 
+`start` also observes guest CPU headroom within its existing **180-second**
+readiness deadline. A reachable guest agent and logged-in Aqua session alone do
+not establish a settled desktop during cold boot. Five measured one-second CPU
+intervals must each show at least 75% idle; the initial cumulative `top` report
+does not count. This leaves three of the profile's four CPUs for editor,
+validator and control work. The one-minute load average is recorded, not used
+as a gate: it can remain high after current work has finished.
+
+The observation is saved in the owned launcher receipt and included by `status`
+and host run provenance. Missing or failed startup readiness refuses `run` and
+`campaign` before source transfer or acceptance; use `start` to establish it.
+Stop and artifact retrieval remain available. No warm-up editor, product retry,
+new fixed sleep, resource/profile change or deadline extension is performed.
+
 Default source is clean committed `HEAD`. Commit development changes first, or
 explicitly choose `--revision <commit>` on `setup`, `run` or `campaign`.
 An explicit revision deliberately excludes uncommitted changes. The wrapper
@@ -321,18 +335,20 @@ Private evidence is under `~/.local/state/godot-agent-kit-vm/`:
 Raw project-bearing evidence is not committed or
 uploaded with the PR.
 
-**Known product/environment result, not waived:** `close --scenario clean-close`
-did not pass as a complete group. At four CPUs the selected-close,
-closed-observation and intentional-reopen cases passed, but the next nonselected
-close failed the unchanged
+**Historical PR #56 close failure:** `close --scenario clean-close` did not pass
+as a complete group during infrastructure acceptance. At four CPUs the
+selected-close, closed-observation and intentional-reopen cases passed, but the
+next nonselected close failed the unchanged
 `public_close_expected_outcome_public_close_nonselected` assertion. Its complete
-result remains guest-private with the failed summary and capture retrieved.
-The two-CPU attempt had refused `context_validation_unavailable` after 8.9 seconds.
-The cause of the remaining failure is not established here. No close requirement,
-native behavior, ten-second operation deadline or assertion was relaxed; this
-infrastructure PR does not certify close acceptance or complete Feature 005.
-Retain that failure and use the existing focused/relevant-input policy, not a
-host fallback or a claim of equivalent historical evidence.
+result remained guest-private; the failed summary and completed selected-case
+capture were retrieved. The two-CPU attempt had refused
+`context_validation_unavailable` after 8.9 seconds. That PR did not establish the
+remaining failure's cause or certify close acceptance.
+
+The subsequent [focused cold-start regression investigation](../specs/005-close-project-gdscript/quickstart.md#11-vm-cold-start-close-regression)
+reproduced the exact refusal and corrected VM startup readiness without changing
+product code, assertions or deadlines. Retain the original failed evidence;
+the new acceptance supplements it rather than rewriting the infrastructure run.
 
 Bootstrap also exposed a concrete lifecycle bug: stopping Tart immediately after
 dependency downloads left an incomplete cache after reboot. Guest filesystem
@@ -347,3 +363,39 @@ boundary, `vm_tart.py` owns this one backend's lifecycle and vsock transport, an
 `vm_guest.py` owns guest preflight/build/run/export. Existing runners own all
 acceptance semantics. Helpers remain internal to test tooling, with no product
 API, duplicated suite, generic executor interface or speculative backend.
+
+### Cold-start readiness correction
+
+An unforced cold-start nonselected close reproduced the original failure:
+`unsafe_editor_context` at `validated`, `not_applied`, in 7.859 s. Private native
+evidence identified `idle_parse_delay_exceeds_lease`: validation completed with
+only 1.333 s left in the native lease, less than the unchanged 1.5 s configured
+idle-parse delay. Independent target/protected documents, D/R/B, flags, versions
+and selection were unchanged; no native close entered. The same binaries and
+fixture passed in the settled guest. Guest CPU measurements identified competing
+ordinary boot services, not a stale binary, wrong target or continuation defect.
+
+The owning fix is in Tart startup readiness, not the close product. It reuses
+the existing bounded loop and observes current headroom before admitting timed
+acceptance. An initial one-minute-load predicate was rejected after its lag caused
+an infrastructure timeout; no readiness deadline was extended to accommodate it.
+Readiness is an admission observation, not a promise that arbitrary later load
+cannot produce an existing truthful bounded product failure.
+
+Principle XIII: the concrete failure is admitting timing-sensitive positive
+fixtures during guest boot contention. Fixed sleeps do not establish readiness;
+warming an extra editor or retrying the product would obscure the measured path;
+extending the close budget or removing its native guard would weaken safety.
+One existing-loop condition, provenance and focused lifecycle tests address that
+failure without a new dependency, service, scheduler, product branch or supported
+profile exclusion. Cost is a measured startup wait within the existing bound and
+a small parser for standard guest CPU observations.
+
+After the correction, the focused cold-start nonselected close passed in
+**6.941 s**. The complete unchanged cold-start `clean-close` group passed
+**134 records / 10 public close results**, nonselected **5.890 s**, maximum close
+**6.278 s**. **37 focused VM orchestration tests** passed. The exact original VM
+Rust and production/fault native build receipts were reused; no rebuild occurred.
+The feature quickstart records source revisions, summary hashes, inspected
+captures, no-host-disruption evidence and the scope of historical evidence reuse.
+Feature 005 T003 remains pending and unstarted.

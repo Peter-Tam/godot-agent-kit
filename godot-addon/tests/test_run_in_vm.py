@@ -123,12 +123,23 @@ class SourceAndEvidenceTests(unittest.TestCase):
         self.assertIn("No host Godot fallback", errors.getvalue())
         sync.assert_not_called()
 
+    def test_reachable_vm_without_completed_readiness_cannot_run_acceptance(self):
+        tart = mock.Mock()
+        tart.status.return_value = {"running": True, "startup_readiness": None}
+        args = vm._parser().parse_args(["run", "close", "--scenario", "clean-close"])
+        with mock.patch.object(vm, "_install_worker") as install:
+            with self.assertRaises(vm.VMError):
+                vm._execute(tart, self.root / "state", args, repo=self.repo)
+        install.assert_not_called()
+        self.assertFalse((self.root / "state/artifacts").exists())
+
     def test_failed_runner_status_survives_artifact_transfer_failure(self):
         args = vm._parser().parse_args(["run", "edit", "--scenario", "clean-open",
                                        "--run-id", "retained-failure", "--revision", "HEAD"])
         state = self.root / "state"
         tart = mock.Mock()
-        tart.status.return_value = {"state": "running", "running": True}
+        tart.status.return_value = {"state": "running", "running": True,
+                                    "startup_readiness": {"load_average_1m": 1.0, "cpu_count": 4}}
         with (mock.patch.object(vm, "_sync"),
               mock.patch.object(vm, "_worker", return_value=subprocess.CompletedProcess([], 37, b"", b"")),
               mock.patch.object(vm, "_fetch", side_effect=subprocess.CalledProcessError(70, ["tart", "exec"])),

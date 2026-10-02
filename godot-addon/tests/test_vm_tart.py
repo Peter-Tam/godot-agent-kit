@@ -34,6 +34,10 @@ class TartTests(unittest.TestCase):
             "argv": self.tart._launch_argv(bootstrap),
             "network": "bootstrap-nat" if bootstrap else "host-only"})
 
+    def cpu_samples(self, *values):
+        data = "".join(f"CPU usage: {100 - value}% user, 0.0% sys, {value}% idle\n" for value in values)
+        return subprocess.CompletedProcess([], 0, data.encode(), b"")
+
     def inventory(self):
         return mock.patch.object(self.tart, "_inventory", side_effect=lambda: dict(self.rows))
 
@@ -203,15 +207,70 @@ class TartTests(unittest.TestCase):
     def test_running_boot_waits_through_control_timeout_without_relaunch(self):
         self.own()
         self.running()
-        responses = [vm.VMError("connection timeout"), subprocess.CompletedProcess([], 0, b"", b"")]
+        responses = [vm.VMError("connection timeout"),
+                     subprocess.CompletedProcess([], 0, b"{ 0.5 1.0 2.0 }\n4\n", b""),
+                     self.cpu_samples(0, 95, 95, 95, 95, 95)]
         with (self.inventory(), mock.patch.object(self.tart, "_backend"),
               mock.patch.object(self.tart, "_verify_launcher", return_value={"network": "host-only"}),
               mock.patch.object(self.tart, "_run", side_effect=responses),
               mock.patch("vm_tart.subprocess.Popen") as launch,
-              mock.patch("vm_tart.time.monotonic", side_effect=[0, 0, 0, 1, 1]),
+              mock.patch("vm_tart.time.monotonic", return_value=0),
               mock.patch("vm_tart.time.sleep")):
             self.tart.start()
         launch.assert_not_called()
+
+    def test_reachable_but_boot_loaded_guest_is_not_ready(self):
+        self.own()
+        self.running()
+        load = subprocess.CompletedProcess([], 0, b"{ 70.92 18.93 6.96 }\n4\n", b"")
+        responses = [load, self.cpu_samples(99, 30, 99, 99, 99, 99),
+                     load, self.cpu_samples(0, 95, 95, 95, 95, 95)]
+        with (self.inventory(), mock.patch.object(self.tart, "_backend"),
+              mock.patch.object(self.tart, "_verify_launcher", return_value={"network": "host-only"}),
+              mock.patch.object(self.tart, "_run", side_effect=responses) as probe,
+              mock.patch("vm_tart.subprocess.Popen") as launch,
+              mock.patch("vm_tart.time.monotonic", return_value=0),
+              mock.patch("vm_tart.time.sleep")):
+            self.tart.start()
+        self.assertEqual(probe.call_count, 4)
+        launch.assert_not_called()
+        self.assertEqual(self.tart._json(self.tart.launcher)["startup_readiness"]["idle_cpu_percent"],
+                         [95] * 5)
+
+    def test_incomplete_measurement_cannot_admit_a_guest(self):
+        self.own()
+        self.running()
+        load = subprocess.CompletedProcess([], 0, b"{ 0.5 1.0 2.0 }\n4\n", b"")
+        responses = [load, self.cpu_samples(0, 99, 99, 99, 99),
+                     load, self.cpu_samples(0, 80, 80, 80, 80, 80)]
+        with (self.inventory(), mock.patch.object(self.tart, "_backend"),
+              mock.patch.object(self.tart, "_verify_launcher", return_value={"network": "host-only"}),
+              mock.patch.object(self.tart, "_run", side_effect=responses) as probe,
+              mock.patch("vm_tart.time.monotonic", return_value=0),
+              mock.patch("vm_tart.time.sleep")):
+            self.tart.start()
+        self.assertEqual(probe.call_count, 4)
+        self.assertEqual(self.tart._json(self.tart.launcher)["startup_readiness"]["idle_cpu_percent"],
+                         [80] * 5)
+
+    def test_late_ready_observation_cannot_reuse_an_earlier_admission(self):
+        self.own()
+        self.running()
+        self.tart._write_json(self.tart.launcher, {"network": "host-only",
+                             "startup_readiness": {"idle_cpu_percent": [99] * 5}})
+        clock = iter([0, 0, 0, 0, vm.READY_TIMEOUT + 1])
+        responses = [subprocess.CompletedProcess([], 0, b"{ 0.5 1.0 2.0 }\n4\n", b""),
+                     self.cpu_samples(0, 99, 99, 99, 99, 99)]
+        with (self.inventory(), mock.patch.object(self.tart, "_backend"),
+              mock.patch.object(self.tart, "_verify_launcher", side_effect=lambda: self.tart._json(self.tart.launcher)),
+              mock.patch.object(self.tart, "_run", side_effect=responses),
+              mock.patch("vm_tart.subprocess.Popen") as launch,
+              mock.patch("vm_tart.time.monotonic", side_effect=lambda: next(clock, vm.READY_TIMEOUT + 1)),
+              mock.patch("vm_tart.time.sleep")):
+            with self.assertRaises(vm.VMError):
+                self.tart.start()
+        launch.assert_not_called()
+        self.assertNotIn("startup_readiness", self.tart._json(self.tart.launcher))
 
     def test_unresponsive_guest_stops_but_cannot_claim_durable_snapshot(self):
         self.own()

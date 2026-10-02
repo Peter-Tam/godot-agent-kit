@@ -23,6 +23,7 @@ var _close_hold_announced := false
 var _close_fault_stage := ""
 var _close_fault_name := ""
 var _close_held_peer := {}
+var _close_trace: Array[Dictionary] = []
 const CloseFixtureCollector = preload("res://addons/fixture_driver/fixture_collector.gd")
 
 func _close_publish_event(stage: String, request_id: String) -> bool:
@@ -34,6 +35,8 @@ func _close_publish_event(stage: String, request_id: String) -> bool:
 
 func close_barrier(stage: String, peer: Dictionary) -> bool:
 	_close_held_peer = peer
+	if _close_trace.size() < 32:
+		_close_trace.append({"stage": stage, "tick_us": str(Time.get_ticks_usec()), "expiry_tick_us": str(peer.get("expiry_tick_us", 0))})
 	if stage == _close_fault_stage and not _close_fault_name.is_empty():
 		var api: Dictionary = Engine.get_meta(NATIVE_META, {})
 		if api.has("close_fixture_fault"):
@@ -47,6 +50,11 @@ func close_barrier(stage: String, peer: Dictionary) -> bool:
 
 func close_response_barrier(kind: String, peer: Dictionary, _reply: Dictionary) -> bool:
 	_close_held_peer = peer
+	if _close_trace.size() < 32:
+		var entry := {"kind": kind, "tick_us": str(Time.get_ticks_usec())}
+		for key in ["status", "reason", "purpose", "native", "expiry_tick_us", "collection", "recheck"]:
+			entry[key] = _reply.get(key)
+		_close_trace.append(entry)
 	if restriction in ["withhold_resource", "withhold_buffer", "withhold_association", "withhold_open", "withhold_dirty"] \
 			and _reply.get("sample") is Dictionary:
 		var collector := CloseFixtureCollector.new()
@@ -123,7 +131,7 @@ func _close_state() -> Dictionary:
 		"session_id": bridge.get("_session") if bridge != null else "",
 		"loader_calls": _open_loader.calls, "effective_context": context,
 		"pending_node_payload_id": _open_payload_id(),
-		"events": _close_events.duplicate(true)}
+		"events": _close_events.duplicate(true), "close_trace": _close_trace.duplicate(true)}
 
 func _close_disconnect_observers() -> void:
 	for item in _close_connections:
