@@ -476,3 +476,35 @@ cases retain both editors until their comparisons finish. This reuses existing
 teardown, changes no product deadline/assertion and introduces no lifetime
 framework. Focused conflicts (38 records), focused routing (36) and the complete
 408-record edit suite passed with bounded fixture lifetimes.
+
+## T003 selection and evidence scope — 2026-10-02
+
+Select only T003 after T002's completed acceptance and merged PR #54. The
+requirements checklist remains 16/16. The existing analysis attestation is
+current: all six input fingerprints match its `a02deba67ac1593a792202859c1f017477afc4ad`
+baseline; subsequent feature-directory changes only record the VM regression
+and its acceptance provenance. No design obligation or support scope changed.
+
+The two implementation responsibilities are the stateful sequential/composed
+close acceptance groups and the existing campaign's complete selection/resume
+behavior. Reuse current caller, independent state/history/durability witnesses,
+fixture controls and campaign checkpoints. A close-specific cumulative helper
+is justified by the separately owned repeated/composed workflow rather than
+adding another responsibility to the existing 1,200-line first-caller module.
+No product API, dependency, lifecycle mechanism or new infrastructure is planned.
+
+New real-editor execution is `sequential` and full `composed`, serially through
+the existing macOS arm64 VM wrapper. Test campaign selection, complete `all`
+dispatch, input invalidation and resume without treating stand-in processes as
+Godot acceptance. Review T002's seven close groups and existing-operation
+evidence against exact relevant inputs, preserving historical accepted counts
+and failed-run exclusions. The existing guest's matched engine/OS and retained
+native/Rust build provenance must be checked; different build hashes are not
+equivalence by assertion. Only demonstrated affected behavior justifies further
+execution. Record the final coverage and reuse decision in quickstart §6.
+
+Constitutional scope remains I–IV independent D/R/B/lifecycle verification and
+human-work/history preservation, VI/XII real composed A–E and durability,
+V/VIII/X privacy/confinement/export and truthful outcomes, and XIII reuse of
+consumed harness responsibilities. This selection is not acceptance or feature
+completion; Phase 1's separate Save/history controls remain outside T003.

@@ -20,9 +20,10 @@ from run_script_edit import STOCK_SHA256
 from run_script_open import OpeningHarness
 from close_native_acceptance import CloseNativeAcceptanceMixin, documents, facts
 from caller_close_acceptance import CallerCloseAcceptanceMixin
+from close_cumulative_acceptance import CumulativeCloseAcceptanceMixin
 
 SCENARIOS = ("native-boundary", "clean-close", "already-closed", "preservation",
-             "routing", "interruption", "privacy-export")
+             "routing", "interruption", "sequential", "composed", "privacy-export")
 
 FIXTURE = Path(__file__).parent / "fixtures/script_close"
 TARGET = "res://scripts/subject.gd"
@@ -31,11 +32,15 @@ BACKGROUND = "res://scripts/close/background.gd"
 SAFE = "extends RefCounted\nfunc value() -> int:\n\treturn 47\n"
 
 
-class CloseHarness(CallerCloseAcceptanceMixin, CloseNativeAcceptanceMixin, OpeningHarness):
+class CloseHarness(CumulativeCloseAcceptanceMixin, CallerCloseAcceptanceMixin,
+                   CloseNativeAcceptanceMixin, OpeningHarness):
     def __init__(self, args, work):
         super().__init__(args, work)
         public = args.scenario != "native-boundary"
-        self.summary.update(coverage_scope="T002_first_caller" if public else "T001_native_boundary",
+        scope = ("complete_close_groups" if args.scenario == "all" else
+                 "T003_cumulative_close" if args.scenario in ("sequential", "composed") else
+                 "T002_first_caller" if public else "T001_native_boundary")
+        self.summary.update(coverage_scope=scope,
                             product_close_acceptance=public, public_close_gdscript=public,
                             product_opening_caller_acceptance=public, public_open_gdscript=public,
                             driver_sha256=observation.digest(Path(__file__)),
@@ -47,6 +52,13 @@ class CloseHarness(CallerCloseAcceptanceMixin, CloseNativeAcceptanceMixin, Openi
             Path(__file__).with_name("caller_close_acceptance.py"))
         self.summary["close_result_review_sha256"] = observation.digest(
             Path(__file__).with_name("close_result_review.py"))
+        self.summary["close_cumulative_acceptance_sha256"] = observation.digest(
+            Path(__file__).with_name("close_cumulative_acceptance.py"))
+        self.summary["close_harness_modules_sha256"] = {
+            name: observation.digest(Path(__file__).with_name(name))
+            for name in ("run_observation.py", "run_script_edit.py", "run_script_open.py",
+                         "native_finalization_acceptance.py", "stock_acceptance.py",
+                         "discovery_scope_acceptance.py")}
         if public:
             self.summary["closer_sha256"] = observation.digest(args.closer)
             self.summary["discoverer_sha256"] = observation.digest(args.discoverer)
@@ -61,6 +73,12 @@ class CloseHarness(CallerCloseAcceptanceMixin, CloseNativeAcceptanceMixin, Openi
             "preservation": ["dirty_and_equal_dirty", "real_unrelated_undo_redo", "identity_context_and_bounds"],
             "routing": ["authenticated_exact_selection", "namespace_races", "real_operation_overlap"],
             "interruption": ["original_ten_second_deadline", "effect_sensitive_results", "no_late_close", "newer_work"],
+            "sequential": ["twenty_real_public_close_minima", "equal_and_different_dirty_work",
+                           "fresh_effectful_bases", "ordinary_Save_and_new_buffer_reopen",
+                           "actual_unrelated_history", "terminal_barrier_newer_buffer_preservation"],
+            "composed": ["discovery_supplied_locator", "full_A_B_C_D_matrix",
+                         "twenty_fresh_basis_edit_stress", "separate_product_close_and_reopen",
+                         "ordinary_Save_reparse_rescan_runtime"],
             "privacy-export": ["result_only_review", "source_credentials_sentinels", "three_actual_export_modes"]})
         self.source_markers.update((b"CLOSE_PRIVATE_TARGET", b"CLOSE_PRIVATE_CURRENT",
                                     b"CLOSE_PRIVATE_BACKGROUND", b"CLOSE_HUMAN"))
@@ -372,11 +390,8 @@ def main():
         parser.add_argument("--" + name, required=True, type=Path)
     for name in ("closer", "opener", "discoverer"):
         parser.add_argument("--" + name, type=Path)
-    parser.add_argument("--scenario", required=True)
+    parser.add_argument("--scenario", required=True, choices=(*SCENARIOS, "all"))
     args = parser.parse_args()
-    if args.scenario not in SCENARIOS:
-        parser.error("unavailable close coverage: sequential, composed and all require T003; "
-                     "choose an implemented group: " + ", ".join(SCENARIOS))
     if args.scenario != "native-boundary" and any(
             getattr(args, name) is None for name in ("closer", "opener", "discoverer")):
         parser.error("public close groups require actual --closer, --opener and --discoverer")
@@ -402,11 +417,14 @@ def main():
         code = 0
         try:
             harness.initialize()
-            method = {"native-boundary": harness.native_boundary, "clean-close": harness.clean_close,
-                      "already-closed": harness.already_closed, "preservation": harness.preservation,
-                      "routing": harness.routing, "interruption": harness.interruption,
-                      "privacy-export": harness.privacy_export}[args.scenario]
-            harness.group(args.scenario, method)
+            methods = {"native-boundary": harness.native_boundary, "clean-close": harness.clean_close,
+                       "already-closed": harness.already_closed, "preservation": harness.preservation,
+                       "routing": harness.routing, "interruption": harness.interruption,
+                       "sequential": harness.sequential, "composed": harness.composed,
+                       "privacy-export": harness.privacy_export}
+            selected = SCENARIOS if args.scenario == "all" else (args.scenario,)
+            for scenario in selected:
+                harness.group(scenario, methods[scenario])
             if args.scenario != "native-boundary":
                 public_cases = [case for case in harness.cases if case.get("operation") == "close_gdscript"]
                 observation.require(public_cases and all(
