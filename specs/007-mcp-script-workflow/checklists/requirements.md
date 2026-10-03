@@ -32,20 +32,23 @@
 
 ## Notes
 
-- Review passed on 2026-10-03: five prioritized user stories, 22 acceptance scenarios, 21 functional requirements and eight measurable success criteria. No clarification marker remains.
-- MCP and the existing Godot guarantees are the requested product boundary, not a newly selected implementation. Released protocol/SDK versions, transport, runtime/process shape, schemas and concrete client choices remain for planning.
-- Scope is the five completed operations over MCP. Ordinary developer/editor Undo/Redo/Save actions explicitly retain their acceptance role; standalone controls and Feature 006 revival are excluded. Feature acceptance does not automatically establish Phase 3 exit or release readiness.
-- Dependencies are established by current Features 001–005 task/acceptance records and Phase 1/2 exits; older specification draft headers are not incomplete-work evidence.
-- Existing safety ownership and Principle XIII are explicit. New adapter and composed MCP evidence is required, while unchanged historical evidence follows TEST_POLICY.md rather than automatic full campaigns.
+- Clarification-stage review passed on 2026-10-03: five prioritized user stories, 25 acceptance scenarios, 21 functional requirements and eight measurable success criteria. Ten maintainer-supplied decisions are recorded in five clarification topics; no additional questions were asked and no clarification marker remains.
+- MCP and applicable Godot guarantees define product behavior, not an implementation selection. Released protocol/SDK versions, transport, runtime, schemas, exact tool names and client choices remain planning research, together with the minimum safe Godot-authoritative closed-edit route and loaded-Resource postconditions.
+- The public MCP surface is discover scripts, read/inspect one script and edit one script. No first-class open/close/Save/history tools are advertised. Reading preserves trusted observation semantics and does not open a closed target; editing must preserve the admitted open/closed lifecycle without implicit opening or post-edit closing.
+- Features 001–005 and Phases 1/2 remain complete. Feature 002 supports already-open editing and refuses closed targets; closed-script mutation is a new scoped requirement, not an accepted capability or evidence inherited from Feature 002. Features 003/005 and historical lifecycle evidence remain valid and unchanged.
+- Open edits retain native history and independently verified intended D/R/B. Closed edits require coherent persistence across applicable authorities with confirmed buffer absence, not an editor-buffer history entry; an observable loaded R cannot be left stale. If research finds no safe supported route, planning must report the blocker and return to the product/spec decision, never substitute direct writing, force loading, hoped-for reload, implicit opening or weaker verification.
+- MCP A–E uses discover/read/edit. Ordinary editor/fixture history, Save, close/reopen and durability actions remain witnesses, not product tools. New closed mutation needs focused deterministic/core/boundary and applicable real-Godot proof; unchanged accepted evidence is reused under TEST_POLICY.md.
+- Feature 006 remains assessed, not proceeding. Broader Godot/platform support, unrelated capabilities and generic transaction/workflow/retry/cancellation/redaction/tracing/extensible-capability frameworks remain excluded. The original generated Input is preserved verbatim and explicitly identified as superseded historical provenance.
 - Requirements coverage:
 
   | Requirements | Acceptance coverage |
   | --- | --- |
   | FR-001–FR-003, FR-016 | US1; SC-001, SC-007 |
-  | FR-004–FR-010, FR-018 | US2–US3; SC-002, SC-003, SC-008; scope/ownership review |
-  | FR-011–FR-015 | US3.5–US3.6 and US4; SC-004, SC-006 |
+  | FR-004–FR-010, FR-018 | US2–US3 and US5.5; SC-002, SC-003, SC-005, SC-008; scoped ownership/feasibility review |
+  | FR-011–FR-015 | US3.5–US3.7 and US4; SC-004, SC-006 |
   | FR-017, FR-021 | US1–US4 and privacy/error edge cases; SC-007–SC-008 |
-  | FR-019–FR-020 | US5 and evidence boundary; SC-001, SC-005, SC-008 |
+  | FR-019–FR-020 | US5 and new closed-edit evidence boundary; SC-001, SC-005, SC-008 |
 
 - Markdown rendering, section order, table structure, code fences and local links/anchors were checked. No product tests, native builds, client interoperability or GUI campaigns were run for this documentation-only stage.
-- All checks concern requirements quality. No feature approval, implementation, product acceptance, real-agent A–E proof or phase completion is claimed. Clarify, plan, tasks, analyze and implement have not run for this feature.
+- Checklist revalidation: **16/16 → 16/16** passing; no newly checked items, regressions or unchecked items. Checkbox markers are unchanged. Notes were revised to apply the maintainer's explicit product-surface correction, not to claim implementation feasibility.
+- All checks concern requirements quality. Clarification is complete; plan, tasks, analyze and implement have not run. No closed-edit feasibility, product acceptance, real-agent A–E proof, Phase 3 exit or release completion is claimed.
