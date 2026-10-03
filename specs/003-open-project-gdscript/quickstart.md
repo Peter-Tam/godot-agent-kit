@@ -614,3 +614,9 @@ XIII to a demonstrated current failure without new infrastructure.
 No Feature 007, Spec Kit task, MCP work or broader Phase 2 implementation started.
 Phase 2 completion is not claimed; its exit assessment remains a separate next
 step after this regression fix merges.
+
+**Subsequent Phase 2 closure (2026-10-03):** [PR #61](https://github.com/Peter-Tam/godot-agent-kit/pull/61)
+merged, and the [Phase 2 exit assessment](../../PHASE_2_EXIT.md) passed on that
+unchanged production state. **Phase 2 is complete on the documented support
+profile.** The preceding assessment-pending statement records this regression
+fix's delivery point; it is not current lifecycle status. No Phase 3 feature is selected.

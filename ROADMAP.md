@@ -114,6 +114,10 @@ editor divergence is required.
 
 ## Phase 2 — Protocol-independent automation/transaction core
 
+**Status:** **Complete** — exit criteria satisfied on the
+[documented support profile](PHASE_2_EXIT.md). No Phase 3 feature is selected
+or started by this lifecycle closure.
+
 **Purpose:** Generalize the proven script workflow into reusable semantics without losing
 its guarantees.
 

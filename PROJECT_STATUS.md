@@ -2,17 +2,20 @@
 
 ## Current
 
-- **Phase:** 1 — Live-editor script coherence
-- **Phase state:** **Complete** on the [documented support profile](PHASE_1_EXIT.md#scope). The [requirements-to-evidence exit assessment](PHASE_1_EXIT.md) passed.
+- **Phase:** 2 — Protocol-independent automation/transaction core
+- **Phase state:** **Complete** on the [documented support profile](PHASE_2_EXIT.md#scope). The [requirements-to-ownership/evidence exit assessment](PHASE_2_EXIT.md) passed.
+- **Phase 1:** **Complete** under the unchanged [live-editor coherence exit decision](PHASE_1_EXIT.md).
 - **Feature 006 proposal:** [Standalone Save](specs/006-save-project-gdscript/decision.md) — **assessed, not proceeding**. Its product decision is complete; no standalone Save capability was implemented.
 - **Retained candidate:** [Original specification](specs/006-save-project-gdscript/spec.md) and [historical quality checklist](specs/006-save-project-gdscript/checklists/requirements.md). Candidate requirements are inactive; specification quality does not imply product approval or implementation readiness.
 - **Completed capabilities:** Features 001–005 provide the completed observation, editing, opening, discovery and closing capabilities within their recorded scope and accepted evidence.
+- **Reusable execution:** Checked requests, operation-specific reducers, supervised Rust runners, authenticated routing, confinement and guarded Godot integration already own the workflow's safety and truthful outcomes. [Future adapters need protocol/host wiring, not a second safety policy](PHASE_2_EXIT.md#thin-adapter-conclusion).
+- **Phase 2 correction:** Merged [PR #61](https://github.com/Peter-Tam/godot-agent-kit/pull/61) resolved the only concrete entry gap: an existing opening-contract disclosure regression. [Focused evidence](specs/003-open-project-gdscript/quickstart.md#11-post-completion-disclosure-regression-correction-2026-10-03) closes it; no new capability or generic framework was required.
 - **Accepted exit evidence:** All [A–E gates](PHASE_1_EXIT.md#real-editor-ae-gates) and applicable [Save/close-reopen/reparse/rescan/runtime durability and safety boundaries](PHASE_1_EXIT.md#durability-and-safety) have valid accepted evidence.
 - **Support boundary:** Official Godot **4.7.2.stable.official.ed1daf0bf**, **macOS 26.6.2 arm64**, and the exact supported standalone GDScript profiles and recorded limitations; no broader version/platform/script/runtime-tooling support.
-- **Save/history interpretation:** Standalone agent-callable Save and Undo/Redo/history controls are **not required for Phase 1**. Edit-owned persistence and real native history behavior are required and demonstrated; see the [exit decision](PHASE_1_EXIT.md#savehistory-interpretation).
-- **Remaining Phase 1 work:** None. No product-capability or behavioral acceptance-evidence gap remains; this documentation/governance closure records the completed lifecycle.
-- **Next work:** No next feature or Phase 2 task is selected by this closure. Feature 006 authorizes no planning, task derivation or implementation.
-- **Decision delivery:** [PR #59](https://github.com/Peter-Tam/godot-agent-kit/pull/59) merged the Feature 006 product decision into `main` before this lifecycle closure. No product/runtime behavior changes accompany this closure.
+- **Save/history interpretation:** Standalone agent-callable Save and Undo/Redo/history controls are **not required for Phase 1 or Phase 2**. Edit-owned persistence and real native history remain demonstrated; see the [Phase 1 interpretation](PHASE_1_EXIT.md#savehistory-interpretation) and [Phase 2 non-requirements](PHASE_2_EXIT.md#explicit-non-requirements).
+- **Remaining Phase 1 / Phase 2 work:** None. No product-capability, reusable-core, or behavioral acceptance-evidence gap remains; this documentation/governance closure records Phase 2 completion.
+- **Next work:** **Phase 3 is not started.** No next feature or Feature 007 is selected by this task; any Phase 3 work requires a separate product-value/current-state decision. Feature 006 authorizes no planning, task derivation or implementation.
+- **Evidence reuse:** [Accepted evidence remains valid](PHASE_2_EXIT.md#evidence-currentness). This lifecycle closure changes no product/runtime/test behavior and requires no product suite or VM campaign.
 
 ## Feature 005 completion
 
@@ -41,7 +44,9 @@
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
 | 1 — Live-editor script coherence | **Complete** | [Exit assessment passed](PHASE_1_EXIT.md) on official Godot 4.7.2.stable.official.ed1daf0bf / macOS 26.6.2 arm64 and the documented script profiles. Features 001–005 supply accepted A–E/durability/safety evidence; Feature 006 is a product decision, not Save implementation. No next feature selected. |
-| 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
+| 2 — Protocol-independent automation/transaction core | **Complete** | [Exit assessment passed](PHASE_2_EXIT.md) on the unchanged documented support profile. Reusable execution owns safety/outcome semantics; PR #61 corrected the only identified entry gap without a generic framework. |
+| 3 — MCP adapter MVP | **Not started** | No feature selected by this lifecycle task; protocol/host wiring is a separate future decision, not a Phase 2 gap. |
+| 4–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 The sections below retain historical Feature 001/002 design and evidence.
 Current lifecycle state appears above; statements of then-pending work below do not
