@@ -455,3 +455,47 @@ fn out_of_order_receipts_cannot_introduce_or_erase_effect_knowledge() {
     assert_eq!(result.kind, Kind::AppliedUnverified);
     assert_eq!(result.application, Application::Applied);
 }
+
+#[test]
+fn disclosure_denial_stays_sticky_without_expanding_the_suppression_scope() {
+    let source = "extends Node\n# retained source\n";
+    for (later, suppress) in [
+        (Reason::DeniedAccess, true),
+        (Reason::OutsideProject, true),
+        (Reason::AmbiguousSession, true),
+        (Reason::TargetChanged, false),
+        (Reason::SessionChanged, false),
+    ] {
+        let mut a = opened(source, 0);
+        a.start_verification("post_open").unwrap();
+        a.fail(Reason::ContextChanged);
+        a.fail(later);
+        // Later evidence and an unrelated terminal failure cannot restore
+        // disclosure permission, including for invalidated source bodies.
+        a.latest_observation(snapshot(
+            source,
+            DirtyState::Clean,
+            vec![DetectedChange::Source(Authority::D)],
+            false,
+        ));
+        let result = a.finish(Some(Reason::Disconnected), None);
+        assert_eq!(result.reason, Reason::ContextChanged);
+        assert_eq!(result.kind, Kind::AppliedUnverified);
+        assert_eq!(result.application, Application::Applied);
+        if suppress {
+            assert!(result.snapshot().is_none(), "{later:?}");
+        } else {
+            assert_eq!(
+                result
+                    .snapshot()
+                    .unwrap()
+                    .sources()
+                    .disk()
+                    .invalidated_evidence()
+                    .unwrap()
+                    .text(),
+                source
+            );
+        }
+    }
+}

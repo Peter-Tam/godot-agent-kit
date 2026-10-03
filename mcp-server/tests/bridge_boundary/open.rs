@@ -1,7 +1,7 @@
 //! The actual public binary/worker/authenticated framing, with independent on-disk D.
 use super::*;
 use godot_agent_kit::observation::{DirtyReason, SourceReason};
-use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 #[derive(Clone, Copy)]
 enum OpenMode {
     RecognitionDirty,
@@ -12,6 +12,8 @@ enum OpenMode {
     InvalidParse,
     DivergentReadback,
     DirtySampleEof,
+    DirtySampleDeniedDisk,
+    SampleDeniedDisk,
     EditedSampleEof,
     DivergentSampleEof,
     SourceChangedRecheckFailure,
@@ -283,7 +285,11 @@ fn serve_open(f: &Fixture, mode: OpenMode) -> thread::JoinHandle<()> {
             &hello,
             600,
             true,
-            recognition || matches!(mode, OpenMode::DirtySampleEof),
+            recognition
+                || matches!(
+                    mode,
+                    OpenMode::DirtySampleEof | OpenMode::DirtySampleDeniedDisk
+                ),
             if matches!(
                 mode,
                 OpenMode::DivergentReadback | OpenMode::DivergentSampleEof
@@ -297,7 +303,25 @@ fn serve_open(f: &Fixture, mode: OpenMode) -> thread::JoinHandle<()> {
             json!(recognition || matches!(mode, OpenMode::EditedSampleEof));
         observed["protection"] = n["protection"].clone();
         observed["selection"] = json!("requested_target");
+        let denied_disk = matches!(
+            mode,
+            OpenMode::DirtySampleDeniedDisk | OpenMode::SampleDeniedDisk
+        );
+        if denied_disk {
+            // Revoke D access before releasing the sample, so the worker must
+            // report denial after the parent receives its verification evidence.
+            fs::set_permissions(
+                project.join("scripts/subject.gd"),
+                fs::Permissions::from_mode(0o000),
+            )
+            .unwrap();
+        }
         frame(&mut socket, &observed);
+        if denied_disk {
+            let terminal = read_frame(&mut socket);
+            assert_eq!(terminal[1], "open_abort");
+            return;
+        }
         if matches!(
             mode,
             OpenMode::DirtySampleEof | OpenMode::EditedSampleEof | OpenMode::DivergentSampleEof
@@ -563,6 +587,41 @@ fn decisive_observation_failure_precedes_later_editor_eof() {
             fs::read_to_string(f.project.join("scripts/subject.gd")).unwrap(),
             SOURCE
         );
+    }
+}
+#[test]
+fn disclosure_denial_suppresses_preparation_without_erasing_cause_or_effects() {
+    for (mode, first_reason) in [
+        (OpenMode::DirtySampleDeniedDisk, "dirty_conflict"),
+        (OpenMode::SampleDeniedDisk, "denied_access"),
+    ] {
+        let f = fixture();
+        let peer = serve_open(&f, mode);
+        let (code, result, _) = invoke_open(&f);
+        peer.join().unwrap();
+        assert_eq!(code, 4);
+        assert_eq!(result["outcome"], "applied_unverified");
+        assert_eq!(result["application"], "applied");
+        assert_eq!(result["reason"], first_reason);
+        assert_eq!(result["stage"], "verifying");
+        assert_eq!(result["progress"]["document_open"]["state"], "completed");
+        assert_eq!(result["target_parse"]["state"], "valid");
+        assert_eq!(result["resolved_target"]["script_path"], PATH);
+        let diagnostics = result["diagnostics"].as_array().unwrap();
+        assert_eq!(diagnostics.first().unwrap()["reason"], first_reason);
+        assert_eq!(
+            diagnostics.last().unwrap(),
+            &json!({"stage":"verifying","reason":"denied_access","code":null})
+        );
+        assert!(
+            result["before"].is_null(),
+            "denial must suppress source summaries"
+        );
+        assert!(
+            result["observation"].is_null(),
+            "denial must suppress retained source"
+        );
+        assert!(!result.to_string().contains(&sha(SOURCE)));
     }
 }
 #[test]

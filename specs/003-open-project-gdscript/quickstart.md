@@ -528,3 +528,89 @@ Opening itself adds no source-history action or reversible-tab-open promise.
 The inherited stock-validator endpoint and already-running-malicious-plugin
 limitations remain unchanged; no stronger isolation, untested version/platform,
 hosted GUI run or roadmap Phase 1 completion is claimed.
+
+## 11. Post-completion disclosure regression correction (2026-10-03)
+
+The source-established opening disclosure gap was corrected against the existing
+[caller contract, §§2–4](contracts/open-api.md#2-result-shape) and FR-010/011/017,
+not a new privacy requirement or capability. The base was merged Phase 1 exit
+`ca744829d49d550d9a047653b7e49db7364168ae`. Historical acceptance above is unchanged;
+it is not retroactively presented as covering this newly identified sequence.
+
+Preparation retained a source-bearing observation; verification could establish
+an earlier conflict before a later disk-access denial. Opening preserved the
+first causal failure but used that reason alone to decide source suppression.
+Consequently, the denial could leave earlier evidence in the public result.
+`script_open::Attempt` now tracks sticky `source_scope_invalid` independently.
+The existing denial set remains exactly `DeniedAccess`, `OutsideProject` and
+`AmbiguousSession`; finalization clears the same two fields as before:
+
+- `before`: source hashes/lengths, including invalidated-source summaries.
+- `observation`: ordinary D/R/B source bodies, including invalidated evidence.
+
+Causal reason, known effects/application certainty and permitted source-free
+diagnostics/stage metadata retain their existing meanings. No schema, public API,
+eligibility, authorization, native effect, deadline, cancellation or retry rule
+changed.
+
+### Failing-before / passing-after evidence
+
+The deterministic `disclosure_denial_suppresses_preparation_without_erasing_cause_or_effects`
+regression extends the existing authenticated opening boundary fixture and runs
+the actual `open-gdscript` binary/worker. After preparation and opening receipts,
+the fixture revokes real D file permissions before releasing a dirty verification
+sample. The result retained `dirty_conflict`, `applied_unverified`/`applied` and
+the later `denied_access` diagnostic, but the pre-fix run failed at
+`denial must suppress source summaries`. The same command passed after correction:
+
+```sh
+cargo test --locked --test bridge_boundary disclosure_denial_suppresses_preparation_without_erasing_cause_or_effects -- --nocapture
+```
+
+That regression also covers denial as the first failure. A reducer regression
+covers all three existing disclosure-denial reasons, later acquired invalidated
+source and a subsequent disconnection. Its `TargetChanged`/`SessionChanged`
+controls retain permissible evidence rather than importing closing's wider rule.
+Existing opening regressions retain earlier conflicts without disclosure denial
+and proven partial/unknown/no-effect outcomes.
+
+From `mcp-server/`, the focused selection passed **40 tests**: 14 opening reducer,
+4 opening wire, 15 opening binary/bridge and 7 caller/contract tests:
+
+```sh
+cargo test --locked --lib script_open::
+cargo test --locked --lib bridge::wire::open::
+cargo test --locked --test bridge_boundary script_open::
+cargo test --locked --test script_open_caller --test script_open_contract
+```
+
+`cargo fmt --all -- --check`, `cargo clippy --all-targets --locked -- -D warnings`,
+`cargo doc --no-deps --locked`, `cargo build --locked --bin open-gdscript` and
+`cargo test --locked --doc` passed (zero doctests). A separate actual-caller smoke
+with an owned temporary project and outside-project script symlink returned exit
+3, `refused`/`outside_project`/`not_applied`, null `before`/`observation`, no source
+sentinel and empty stderr. Its temporary fixture was removed.
+
+### Evidence reuse and implementation shape
+
+Under [TEST_POLICY](../../TEST_POLICY.md#reusing-evidence-across-commits), the
+changed behavior is Rust terminal disclosure reduction, established by the new
+deterministic reducer/public-result coverage. Acquisition, authorization,
+workers, native/addon behavior, ABI/protocol, GUI fixtures, campaign tooling,
+dependencies and supported environment are unchanged. The opener was rebuilt;
+no native artifact was rebuilt. Reuse the current cumulative real-editor
+evidence retained by the [Phase 1 exit](../../PHASE_1_EXIT.md#evidence-reuse-and-currentness)
+for unchanged behavior, not as proof of the previously missed denial ordering.
+No GUI opening group, observation/edit/discovery/close campaign, A–E campaign or
+VM full suite was rerun. The maintainer's focused-regression scope and absence of
+a changed shared boundary justify the opening-only Rust test selection instead
+of an unfiltered `cargo test --locked`; static checks and doctests remain covered.
+
+Implementation-shape review: the existing opening reducer remains the sole
+terminal interpretation owner. One private sticky evidence flag is distinct from
+lifecycle/effect state and first-cause precedence; no generic abstraction,
+visibility expansion or responsibility split is needed. This applies Principle
+XIII to a demonstrated current failure without new infrastructure.
+No Feature 007, Spec Kit task, MCP work or broader Phase 2 implementation started.
+Phase 2 completion is not claimed; its exit assessment remains a separate next
+step after this regression fix merges.

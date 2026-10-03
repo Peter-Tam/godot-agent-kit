@@ -52,6 +52,7 @@ pub(crate) struct Attempt {
     effects: Effects,
     result: OpeningOutcome,
     first_failure: Option<Reason>,
+    source_scope_invalid: bool,
     last_native: Option<NativeEvidence>,
     admitted: Option<(String, usize, FileIdentity)>,
 }
@@ -79,6 +80,7 @@ impl Attempt {
             state: State::Accepted,
             effects: Effects::None,
             first_failure: None,
+            source_scope_invalid: false,
             last_native: None,
             admitted: None,
             result: OpeningOutcome {
@@ -908,6 +910,11 @@ impl Attempt {
         Ok(())
     }
     pub(crate) fn fail(&mut self, reason: Reason) {
+        // Disclosure permission is independent of which failure happened first.
+        self.source_scope_invalid |= matches!(
+            reason,
+            Reason::DeniedAccess | Reason::OutsideProject | Reason::AmbiguousSession
+        );
         if self.first_failure.is_none() {
             self.first_failure = Some(reason);
         }
@@ -1030,10 +1037,7 @@ impl Attempt {
         self.result.kind = kind;
         self.result.reason = reason;
         self.result.application = application;
-        if matches!(
-            reason,
-            Reason::DeniedAccess | Reason::OutsideProject | Reason::AmbiguousSession
-        ) {
+        if self.source_scope_invalid {
             self.result.before = None;
             self.result.observation = None;
         }
