@@ -2,9 +2,12 @@
 
 ## Current
 
-- **Phase:** 2 — Protocol-independent automation/transaction core
-- **Phase state:** **Complete** on the [documented support profile](PHASE_2_EXIT.md#scope). The [requirements-to-ownership/evidence exit assessment](PHASE_2_EXIT.md) passed.
+- **Phase:** 3 — MCP adapter MVP
+- **Phase state:** **Specification** — the first external-adapter feature is selected; no MCP implementation or Phase 3 exit is claimed.
 - **Phase 1:** **Complete** under the unchanged [live-editor coherence exit decision](PHASE_1_EXIT.md).
+- **Phase 2:** **Complete** on the unchanged [documented support profile](PHASE_2_EXIT.md#scope); the [requirements-to-ownership/evidence exit assessment](PHASE_2_EXIT.md) remains valid.
+- **Selected feature:** [007 — Use the Trusted GDScript Workflow Through MCP](specs/007-mcp-script-workflow/spec.md) — **Specification**. The quality-validated draft specifies MCP exposure of the five completed operations without a second safety framework.
+- **Design-stage boundary:** Specification and [requirements-quality review](specs/007-mcp-script-workflow/checklists/requirements.md) only. Clarify, plan, tasks, analysis and implementation have not run for Feature 007; no implementation task is selected.
 - **Feature 006 proposal:** [Standalone Save](specs/006-save-project-gdscript/decision.md) — **assessed, not proceeding**. Its product decision is complete; no standalone Save capability was implemented.
 - **Retained candidate:** [Original specification](specs/006-save-project-gdscript/spec.md) and [historical quality checklist](specs/006-save-project-gdscript/checklists/requirements.md). Candidate requirements are inactive; specification quality does not imply product approval or implementation readiness.
 - **Completed capabilities:** Features 001–005 provide the completed observation, editing, opening, discovery and closing capabilities within their recorded scope and accepted evidence.
@@ -13,9 +16,10 @@
 - **Accepted exit evidence:** All [A–E gates](PHASE_1_EXIT.md#real-editor-ae-gates) and applicable [Save/close-reopen/reparse/rescan/runtime durability and safety boundaries](PHASE_1_EXIT.md#durability-and-safety) have valid accepted evidence.
 - **Support boundary:** Official Godot **4.7.2.stable.official.ed1daf0bf**, **macOS 26.6.2 arm64**, and the exact supported standalone GDScript profiles and recorded limitations; no broader version/platform/script/runtime-tooling support.
 - **Save/history interpretation:** Standalone agent-callable Save and Undo/Redo/history controls are **not required for Phase 1 or Phase 2**. Edit-owned persistence and real native history remain demonstrated; see the [Phase 1 interpretation](PHASE_1_EXIT.md#savehistory-interpretation) and [Phase 2 non-requirements](PHASE_2_EXIT.md#explicit-non-requirements).
-- **Remaining Phase 1 / Phase 2 work:** None. No product-capability, reusable-core, or behavioral acceptance-evidence gap remains; this documentation/governance closure records Phase 2 completion.
-- **Next work:** **Phase 3 is not started.** No next feature or Feature 007 is selected by this task; any Phase 3 work requires a separate product-value/current-state decision. Feature 006 authorizes no planning, task derivation or implementation.
-- **Evidence reuse:** [Accepted evidence remains valid](PHASE_2_EXIT.md#evidence-currentness). This lifecycle closure changes no product/runtime/test behavior and requires no product suite or VM campaign.
+- **Remaining Phase 1 / Phase 2 work:** None. No product-capability, reusable-core or behavioral acceptance-evidence gap is reopened by the adapter specification.
+- **Selected feature scope:** Real-agent discovery, observation, opening, editing and closing over MCP, preserving existing safety/outcomes and adding external-client evidence. Standalone Save/Undo/Redo and broader Godot capabilities are excluded; ordinary native history and Save remain acceptance interactions.
+- **Next work:** Review the selected specification; clarification if needed and approved planning remain separate stages. No automatic next-stage execution is authorized, and Feature 006 remains inactive.
+- **Evidence reuse:** [Accepted evidence remains valid](PHASE_2_EXIT.md#evidence-currentness). This specification changes no product/runtime/test behavior and requires no product suite or VM campaign. New adapter behavior will require its own evidence under [TEST_POLICY.md](TEST_POLICY.md).
 
 ## Feature 005 completion
 
@@ -43,9 +47,9 @@
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | **Complete** | [Exit assessment passed](PHASE_1_EXIT.md) on official Godot 4.7.2.stable.official.ed1daf0bf / macOS 26.6.2 arm64 and the documented script profiles. Features 001–005 supply accepted A–E/durability/safety evidence; Feature 006 is a product decision, not Save implementation. No next feature selected. |
+| 1 — Live-editor script coherence | **Complete** | [Exit assessment passed](PHASE_1_EXIT.md) on official Godot 4.7.2.stable.official.ed1daf0bf / macOS 26.6.2 arm64 and the documented script profiles. Features 001–005 supply accepted A–E/durability/safety evidence; Feature 006 is a product decision, not Save implementation. |
 | 2 — Protocol-independent automation/transaction core | **Complete** | [Exit assessment passed](PHASE_2_EXIT.md) on the unchanged documented support profile. Reusable execution owns safety/outcome semantics; PR #61 corrected the only identified entry gap without a generic framework. |
-| 3 — MCP adapter MVP | **Not started** | No feature selected by this lifecycle task; protocol/host wiring is a separate future decision, not a Phase 2 gap. |
+| 3 — MCP adapter MVP | **Specification** | [Feature 007](specs/007-mcp-script-workflow/spec.md) selects bounded MCP exposure of the completed five-operation workflow. Requirements draft only; no protocol choices, implementation or phase completion claimed. |
 | 4–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 The sections below retain historical Feature 001/002 design and evidence.
