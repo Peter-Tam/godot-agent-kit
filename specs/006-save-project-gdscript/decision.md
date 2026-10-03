@@ -191,13 +191,14 @@ planned. Standalone Save is **not required for the currently established Phase 1
 exit** and must not be counted as a known implementation gap. Features 001–005 and
 their accepted behavior remain complete within their recorded scope.
 
-Phase 1 nevertheless remains **in progress pending a dedicated
-requirements-to-evidence exit-gap assessment**. That is the next repository action
-after this decision PR, not work performed here. It must recompute any remaining
-obligations from original requirements and accepted evidence, without presuming
-standalone Save is pending. Independent history controls were **not decided** by
-this review and require their own original-provenance and product-value assessment;
-they are neither automatically required nor rejected. No next feature is selected.
+**Subsequent Phase 1 closure (2026-10-03):** The
+[requirements-to-evidence exit assessment](../../PHASE_1_EXIT.md) passed;
+**Phase 1 is complete on the documented support profile**. No product-capability
+or behavioral acceptance-evidence gap remains. The Save review did not itself
+perform that assessment or decide independent history controls; the subsequent
+assessment established that standalone agent-callable Undo/Redo/history controls
+are not Phase 1 requirements either. This lifecycle update does not reopen the
+standalone-Save decision or change its reasoning. No next feature is selected.
 
 ## Revisit conditions
 

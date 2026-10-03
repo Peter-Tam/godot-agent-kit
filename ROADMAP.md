@@ -70,6 +70,10 @@ stack direction. This foundation is present; technical feasibility remains unpro
 
 ## Phase 1 — Live-editor script coherence
 
+**Status:** **Complete** — exit criteria satisfied on the
+[documented support profile](PHASE_1_EXIT.md). No next feature or Phase 2 task
+is selected by this lifecycle closure.
+
 **Purpose:** Prove one reliable vertical slice: safe GDScript editing in a live Godot
 Editor, with human unsaved work protected.
 

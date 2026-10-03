@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/003-open-project-gdscript/spec.md`.
 
-**Status:** Design, implementation and Feature 003 acceptance are complete. Granularity and consistency analysis passed; T001/T002 merged in PRs [#42](https://github.com/Peter-Tam/godot-agent-kit/pull/42)/[#43](https://github.com/Peter-Tam/godot-agent-kit/pull/43). The maintainer selected only T003; its [cumulative acceptance](quickstart.md#10-t003-cumulative-acceptance-2026-09-30) and [implementation-shape review](#t003-implementation-shape-and-constitutional-review-2026-09-30) passed independently of delivery review/merge. Roadmap Phase 1 remains in progress. The initial B1 callback-isolation hold remains withdrawn under the inherited threat model; see [scope correction](research.md#6-scope-correction-and-callback-limitation). Historical research is not substituted for implementation acceptance.
+**Status:** Design, implementation and Feature 003 acceptance are complete. Granularity and consistency analysis passed; T001/T002 merged in PRs [#42](https://github.com/Peter-Tam/godot-agent-kit/pull/42)/[#43](https://github.com/Peter-Tam/godot-agent-kit/pull/43). The maintainer selected only T003; its [cumulative acceptance](quickstart.md#10-t003-cumulative-acceptance-2026-09-30) and [implementation-shape review](#t003-implementation-shape-and-constitutional-review-2026-09-30) passed independently of delivery review/merge. Roadmap Phase 1 is **complete** under the subsequent [phase exit decision](../../PHASE_1_EXIT.md). The initial B1 callback-isolation hold remains withdrawn under the inherited threat model; see [scope correction](research.md#6-scope-correction-and-callback-limitation). Historical research is not substituted for implementation acceptance.
 
 ## Summary
 

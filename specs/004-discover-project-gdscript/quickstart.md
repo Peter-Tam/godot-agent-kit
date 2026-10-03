@@ -1,6 +1,6 @@
 # Quickstart: Verify Safe Project GDScript Discovery
 
-**Status:** **Feature 004 is complete: T001, T002 and T003 are complete.** Authenticated scope/v4 passed [T001 acceptance](#9-t001-scope-and-private-v4-acceptance-2026-10-01); the public caller passed [T002 acceptance](#10-t002-public-caller-acceptance-2026-10-01). [T003 cumulative acceptance](#11-t003-cumulative-acceptance-2026-10-01) passed all eight discovery groups and complete observation/edit/open suites. Completion is independent of PR state. Roadmap Phase 1 remains in progress because its separate lifecycle controls and exit gates are not delivered here.
+**Status:** **Feature 004 is complete: T001, T002 and T003 are complete.** Authenticated scope/v4 passed [T001 acceptance](#9-t001-scope-and-private-v4-acceptance-2026-10-01); the public caller passed [T002 acceptance](#10-t002-public-caller-acceptance-2026-10-01). [T003 cumulative acceptance](#11-t003-cumulative-acceptance-2026-10-01) passed all eight discovery groups and complete observation/edit/open suites. Completion is independent of PR state. Roadmap Phase 1 is **complete** under the subsequent [phase exit decision](../../PHASE_1_EXIT.md); dated acceptance sections retain their delivery-time phase assessments, not current prerequisites.
 
 Use [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md), [caller v1](contracts/discovery-api.md) and [private bridge v4](contracts/bridge-protocol.md). No successful process exit, nonempty list or editor acknowledgment proves complete discovery.
 

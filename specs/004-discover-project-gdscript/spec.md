@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-30
 
-**Status**: Draft — quality-validated and ready for planning; implementation is not authorized.
+**Status**: **Complete** — T001–T003 satisfy the [accepted cumulative requirements](quickstart.md#11-t003-cumulative-acceptance-2026-10-01) on the documented support profile. Roadmap Phase 1 is **complete** under the subsequent [phase exit decision](../../PHASE_1_EXIT.md); the original specification input and feature requirements below are retained.
 
 **Input**: Generated feature description supplied to `/speckit.specify`:
 
@@ -150,7 +150,7 @@ This is the script-discovery slice of **Phase 1 — Live-editor script coherence
 
 In scope are one selected project's read-only script-location listing, exact-path handoff to existing operations, inseparable confinement/privacy, honest coverage/freshness and bounded non-interfering outcomes. A whole-project list within documented limits is sufficient; search expressions, ranking, content matching and multiple discovery modes are not required.
 
-Out of scope are source-content search, symbols, diagnostics or language indexing; persistent/background indexing; project or editor orchestration; file creation/rename/delete; embedded scripts or unsaved-document catalogs; independent close/Save/Undo/Redo controls; conflict resolution/force writes; batch mutation and concurrent-agent orchestration; broad core generalization; MCP; scene/resource/project-setting authoring; runtime/debugger tools; and distribution/platform expansion. These boundaries do not weaken the safety of existing operations. Phase 1 remains in progress after this discovery feature: separate lifecycle controls and remaining phase assessment are not delivered by a listing.
+Out of scope are source-content search, symbols, diagnostics or language indexing; persistent/background indexing; project or editor orchestration; file creation/rename/delete; embedded scripts or unsaved-document catalogs; independent close/Save/Undo/Redo controls; conflict resolution/force writes; batch mutation and concurrent-agent orchestration; broad core generalization; MCP; scene/resource/project-setting authoring; runtime/debugger tools; and distribution/platform expansion. These boundaries do not weaken the safety of existing operations. This listing alone does not establish phase completion; the subsequent [Phase 1 exit decision](../../PHASE_1_EXIT.md) covers the cumulative Features 001–005 obligations.
 
 The [constitution](../../.specify/memory/constitution.md), [working agreement](../../AGENTS.md), [roadmap](../../ROADMAP.md#phase-1--live-editor-script-coherence) and [architecture](../../ARCHITECTURE.md) govern the work. Principles I–IV preserve existing independent D/R/B, human-work and verified-mutation semantics; discovery supplies no substitute authority. V and X require confined authenticated access and truthful limited outcomes. VII–IX require protocol independence, tooling isolation and a small composable surface. XI–XII require independent implementation and evidence-backed quality. Security-sensitive planning/review must explicitly record constitutional compliance.
 

@@ -1,6 +1,6 @@
 # Quickstart: Verify Known-Path GDScript Opening
 
-**Status:** **Feature 003 is complete; T001–T003 are complete.** [Cumulative acceptance](#10-t003-cumulative-acceptance-2026-09-30) and the [implementation-shape review](plan.md#t003-implementation-shape-and-constitutional-review-2026-09-30) passed on the exact supported stock Godot/macOS arm64 environment below. The complete opening, edit and observation campaigns passed with unchanged public observation/edit v1. Completion is independent of PR review/merge; roadmap Phase 1 remains in progress because discovery and independent lifecycle controls remain outside this feature.
+**Status:** **Feature 003 is complete; T001–T003 are complete.** [Cumulative acceptance](#10-t003-cumulative-acceptance-2026-09-30) and the [implementation-shape review](plan.md#t003-implementation-shape-and-constitutional-review-2026-09-30) passed on the exact supported stock Godot/macOS arm64 environment below. The complete opening, edit and observation campaigns passed with unchanged public observation/edit v1. Completion is independent of PR review/merge. Roadmap Phase 1 is **complete** under the subsequent [phase exit decision](../../PHASE_1_EXIT.md); dated acceptance records retain their delivery-time scope.
 
 Use the [spec](spec.md), [plan](plan.md), [data model](data-model.md) and [caller](contracts/open-api.md), [bridge](contracts/bridge-protocol.md), [native](contracts/native-integration.md) contracts. A successful process exit, native return or matching pair of sources does not establish new-open success.
 
