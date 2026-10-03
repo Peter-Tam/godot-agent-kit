@@ -1,6 +1,6 @@
 # Quickstart: Validate Live GDScript Observation
 
-**Status:** T001–T008 are complete: Feature 001's **observation foundation** satisfies ordinary hosted native/workflow CI and complete maintainer-operated real-editor acceptance (§2.9). T001–T007 are merged; T008 remains in [PR #18](https://github.com/Peter-Tam/godot-agent-kit/pull/18), awaiting review/merge. Dedicated GUI CI is optional, not a completion prerequisite. Roadmap Phase 1 remains **In progress**; mutation A–E and edit durability remain pending. No broader platform/version or product mutation/UndoRedo claim is made.
+**Status:** T001–T008 are complete: Feature 001's **observation foundation** satisfies ordinary hosted native/workflow CI and complete maintainer-operated real-editor acceptance (§2.9), delivered in [PR #18](https://github.com/Peter-Tam/godot-agent-kit/pull/18). Dedicated GUI CI is optional, not a completion prerequisite. Roadmap Phase 1 is **complete** under the subsequent [phase exit decision](../../PHASE_1_EXIT.md). Dated acceptance sections retain their historical delivery/phase status; observation alone still makes no mutation/UndoRedo or broader platform/version claim.
 
 This guide covers the entire observation-only specification. It does not implement the feature, derive tasks, or claim a mutation/UndoRedo/Phase 1 exit guarantee. Use the [data model](data-model.md), [caller contract](contracts/observation-api.md), and [bridge contract](contracts/bridge-protocol.md) for normative fields and outcomes instead of inferring semantics from exit status alone.
 

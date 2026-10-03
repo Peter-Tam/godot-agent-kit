@@ -3,15 +3,16 @@
 ## Current
 
 - **Phase:** 1 — Live-editor script coherence
-- **Phase state:** In progress — pending a dedicated requirements-to-evidence exit-gap assessment.
-- **Feature 006 proposal:** [Standalone Save](specs/006-save-project-gdscript/decision.md) — **assessed, not proceeding**. The product decision is recorded; this is not a completed Save capability.
+- **Phase state:** **Complete** on the [documented support profile](PHASE_1_EXIT.md#scope). The [requirements-to-evidence exit assessment](PHASE_1_EXIT.md) passed.
+- **Feature 006 proposal:** [Standalone Save](specs/006-save-project-gdscript/decision.md) — **assessed, not proceeding**. Its product decision is complete; no standalone Save capability was implemented.
 - **Retained candidate:** [Original specification](specs/006-save-project-gdscript/spec.md) and [historical quality checklist](specs/006-save-project-gdscript/checklists/requirements.md). Candidate requirements are inactive; specification quality does not imply product approval or implementation readiness.
-- **Completed capabilities:** Features 001–005 remain complete within their recorded scope and accepted evidence.
-- **Standalone Save:** Not required for the currently established Phase 1 exit and no longer a known implementation gap. No implementation is planned absent a newly demonstrated product need.
-- **Independent history controls:** Not decided by the Save review; they must be assessed independently against original Phase 1 obligations and product value. They are not presumed required or selected as the next feature.
-- **Current task:** No implementation task or next feature is selected. Feature 006 authorizes no planning, task derivation or implementation.
-- **Next required decision:** A dedicated **Phase 1 requirements-to-evidence exit-gap assessment** to determine what, if anything, remains. It is not performed by this decision PR, and Phase 1 completion is not claimed.
-- **Delivery:** Existing [PR #59](https://github.com/Peter-Tam/godot-agent-kit/pull/59), on `spec/006-save-project-gdscript`, records the documentation/governance correction while preserving the considered proposal. No product/runtime behavior changes.
+- **Completed capabilities:** Features 001–005 provide the completed observation, editing, opening, discovery and closing capabilities within their recorded scope and accepted evidence.
+- **Accepted exit evidence:** All [A–E gates](PHASE_1_EXIT.md#real-editor-ae-gates) and applicable [Save/close-reopen/reparse/rescan/runtime durability and safety boundaries](PHASE_1_EXIT.md#durability-and-safety) have valid accepted evidence.
+- **Support boundary:** Official Godot **4.7.2.stable.official.ed1daf0bf**, **macOS 26.6.2 arm64**, and the exact supported standalone GDScript profiles and recorded limitations; no broader version/platform/script/runtime-tooling support.
+- **Save/history interpretation:** Standalone agent-callable Save and Undo/Redo/history controls are **not required for Phase 1**. Edit-owned persistence and real native history behavior are required and demonstrated; see the [exit decision](PHASE_1_EXIT.md#savehistory-interpretation).
+- **Remaining Phase 1 work:** None. No product-capability or behavioral acceptance-evidence gap remains; this documentation/governance closure records the completed lifecycle.
+- **Next work:** No next feature or Phase 2 task is selected by this closure. Feature 006 authorizes no planning, task derivation or implementation.
+- **Decision delivery:** [PR #59](https://github.com/Peter-Tam/godot-agent-kit/pull/59) merged the Feature 006 product decision into `main` before this lifecycle closure. No product/runtime behavior changes accompany this closure.
 
 ## Feature 005 completion
 
@@ -32,14 +33,14 @@
 - **Previous Feature 003 T001 verification:** Visible opening **265 records**, complete edit/native **407 records**, complete observation **216 records**, native history, durability/runtime and enabled/disabled/hook-only exports. All 114 edit-suite public results received result-only review; maximum existing edit **9.553 s**, observation **4.803 s**. Rust formatting, Clippy, **207 tests**, rustdoc and builds; **9 native-build tests**, **22 workflow tests** and Actionlint passed. Owned-window images and implementation shape were reviewed; the large-v3-frame regression was fixed and exercised.
 - **Previous Feature 003 T002 verification:** Six public opening groups: **177 records / 144 opening results**, all within ten seconds (maximum **9.5105 s**). Separate native boundary **265 records**, full edit/native **407 records** and full observation **216 records** passed, including preserved history, A–E, Save/reopen/reparse/rescan/runtime and all three export modes. Formatting, Clippy, **247 Rust tests**, rustdoc, locked builds, **9 native-build tests**, **22 workflow tests** and Actionlint passed. [Evidence/provenance](specs/003-open-project-gdscript/quickstart.md#9-t002-public-caller-acceptance-2026-09-30) and [shape/constitutional review](specs/003-open-project-gdscript/plan.md#t002-implementation-shape-and-constitutional-review-2026-09-30) are recorded.
 - **Previous Feature 003 T003 verification:** Unfiltered opening **663 records / 187 public opening results**, edit/native **407 records / 114 public edit results**, observation **216 records**. Maximum caller times **9.575 s**, **9.559 s**, **4.764 s** respectively. Opening stress included **25 requests**, **five closed successes** and **ten dirty recognitions**; product opening supplied the reused composed A–E/durability matrix. Rust formatting, Clippy, **247 tests**, rustdoc/locked builds, normal/fault native builds, **9 native-build tests**, **22 workflow tests** and Actionlint passed. Owned windows, exact history, privacy/export, cleanup and [shape/constitutional review](specs/003-open-project-gdscript/plan.md#t003-implementation-shape-and-constitutional-review-2026-09-30) are recorded in the [acceptance evidence](specs/003-open-project-gdscript/quickstart.md#10-t003-cumulative-acceptance-2026-09-30).
-- **Phase 1 interpretation:** Features 001–005 remain complete. The former standalone-Save prerequisite assumption is superseded by the [Feature 006 product decision](specs/006-save-project-gdscript/decision.md). Phase 1 remains in progress pending the requirements-to-evidence exit-gap assessment; independent history controls are undecided, not presumed pending implementation. Locked-desktop diagnostics and incomplete/interrupted campaigns are not acceptance.
+- **Phase 1 interpretation:** **Complete** under the [phase exit decision](PHASE_1_EXIT.md), with accepted A–E, durability and safety evidence from Features 001–005. Neither standalone Save nor standalone history automation is a Phase 1 requirement. Locked-desktop diagnostics and incomplete/interrupted campaigns remain excluded from acceptance.
 
 ## Roadmap status
 
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | 0 — Governance and project foundation | Complete | Merged [constitution v1.1.0](.specify/memory/constitution.md) and [working agreement](AGENTS.md). |
-| 1 — Live-editor script coherence | In progress | Features 001–005 complete with cumulative valid acceptance. Feature 006 proposal assessed, not proceeding; standalone Save is not a known implementation gap. Independent history controls are undecided. A dedicated requirements-to-evidence exit-gap assessment remains to be performed. |
+| 1 — Live-editor script coherence | **Complete** | [Exit assessment passed](PHASE_1_EXIT.md) on official Godot 4.7.2.stable.official.ed1daf0bf / macOS 26.6.2 arm64 and the documented script profiles. Features 001–005 supply accepted A–E/durability/safety evidence; Feature 006 is a product decision, not Save implementation. No next feature selected. |
 | 2–13 — Later roadmap phases | Pending | Not started; direction and exit criteria remain in [ROADMAP.md](ROADMAP.md). |
 
 The sections below retain historical Feature 001/002 design and evidence.
@@ -470,6 +471,11 @@ manual dispatch or GUI-CI result is not required. The existing workflow remains
 mandatory, with claims limited to the documented exercised environment.
 
 ## Phase 1 exit gates
+
+**Historical snapshot — Feature 001 completion.** The table and conclusion below
+retain the observation-only delivery's then-pending mutation gates; they are not
+current phase status. The subsequent [Phase 1 exit decision](PHASE_1_EXIT.md#real-editor-ae-gates)
+records all A–E gates satisfied and Phase 1 complete on its documented profile.
 
 D = disk source; R = loaded Godot Resource/Script; B = visible editor buffer.
 

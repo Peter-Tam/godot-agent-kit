@@ -4,7 +4,7 @@
 
 **Input**: `specs/001-observe-gdscript-state/spec.md`
 
-**Status**: Feature 001's observation foundation is implemented and its cumulative acceptance is complete; T008 is delivered in [PR #18](https://github.com/Peter-Tam/godot-agent-kit/pull/18), awaiting review/merge. This document retains the initial design and per-task compliance history. Required acceptance is ordinary hosted native/workflow CI plus complete maintainer-operated real-editor evidence; dedicated GUI CI is optional. Roadmap Phase 1 remains in progress.
+**Status**: Feature 001's observation foundation is implemented and its cumulative acceptance is complete; T008 was delivered in [PR #18](https://github.com/Peter-Tam/godot-agent-kit/pull/18). This document retains the initial design and per-task compliance history. Required acceptance is ordinary hosted native/workflow CI plus complete maintainer-operated real-editor evidence; dedicated GUI CI is optional. Roadmap Phase 1 is **complete** under the subsequent [phase exit decision](../../PHASE_1_EXIT.md); historical task reviews below retain their delivery-time scope.
 
 ## Summary
 

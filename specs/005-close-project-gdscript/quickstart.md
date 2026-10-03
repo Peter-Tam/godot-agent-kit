@@ -1,6 +1,6 @@
 # Quickstart: Verify Safe Clean-Document GDScript Closing
 
-**Status:** **Feature 005 is complete; T001–T003 are complete.** All nine close groups have valid cumulative acceptance through [new T003 execution](#12-t003-cumulative-acceptance-2026-10-02) and [reviewed prerequisite evidence](#t003-execution-decision-and-evidence-review). `sequential`, `composed`, `--scenario all`, campaign `--suite close` and `--suite all` are implemented. Roadmap Phase 1 remains in progress; independent Save/history controls and its exit assessment are not delivered here.
+**Status:** **Feature 005 is complete; T001–T003 are complete.** All nine close groups have valid cumulative acceptance through [new T003 execution](#12-t003-cumulative-acceptance-2026-10-02) and [reviewed prerequisite evidence](#t003-execution-decision-and-evidence-review). `sequential`, `composed`, `--scenario all`, campaign `--suite close` and `--suite all` are implemented. Roadmap Phase 1 is **complete** under the subsequent [phase exit decision](../../PHASE_1_EXIT.md). Dated acceptance sections retain their delivery-time phase assessments; standalone Save/history controls are not current Phase 1 prerequisites.
 
 Read [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md) and [research.md](research.md). The [constitution](../../.specify/memory/constitution.md), [architecture](../../ARCHITECTURE.md) and [working agreement](../../AGENTS.md) govern acceptance. An editor/native acknowledgment, matching source pair, successful process exit or fixed sleep is not verified closure.
 

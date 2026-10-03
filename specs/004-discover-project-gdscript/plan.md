@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/004-discover-project-gdscript/spec.md`, including the accepted Godot project-file visibility clarification.
 
-**Status:** Design, granularity/coverage and post-task consistency analysis passed; merged [planning PR #46](https://github.com/Peter-Tam/godot-agent-kit/pull/46) records analysis of `e7fb197af058c230751e59b2f05c3373adbfbf3b`. **T001, T002 and T003 are complete; Feature 004 is complete**, with [scope acceptance](quickstart.md#9-t001-scope-and-private-v4-acceptance-2026-10-01), [public caller acceptance](quickstart.md#10-t002-public-caller-acceptance-2026-10-01), [cumulative acceptance](quickstart.md#11-t003-cumulative-acceptance-2026-10-01) and the implementation-shape/constitutional reviews below. Phase 1 remains in progress; separate lifecycle controls and phase exit gates are not delivered here.
+**Status:** Design, granularity/coverage and post-task consistency analysis passed; merged [planning PR #46](https://github.com/Peter-Tam/godot-agent-kit/pull/46) records analysis of `e7fb197af058c230751e59b2f05c3373adbfbf3b`. **T001, T002 and T003 are complete; Feature 004 is complete**, with [scope acceptance](quickstart.md#9-t001-scope-and-private-v4-acceptance-2026-10-01), [public caller acceptance](quickstart.md#10-t002-public-caller-acceptance-2026-10-01), [cumulative acceptance](quickstart.md#11-t003-cumulative-acceptance-2026-10-01) and the implementation-shape/constitutional reviews below. Phase 1 is **complete** under the subsequent [phase exit decision](../../PHASE_1_EXIT.md); historical task reviews retain their delivery-time scope.
 
 ## Summary
 

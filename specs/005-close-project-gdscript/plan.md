@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/005-close-project-gdscript/spec.md`, including the accepted guarded-native-revalidation clarification.
 
-**Status:** **Feature 005 is complete; T001–T003 are complete.** Approved design, granularity and consistency gates passed. [Native acceptance](quickstart.md#9-t001-native-boundary-acceptance-2026-10-02), [public-caller acceptance](quickstart.md#10-t002-public-caller-acceptance-2026-10-02), [T003 cumulative acceptance and evidence reuse](quickstart.md#t003-execution-decision-and-evidence-review), and the implementation-shape/constitutional reviews below establish completion independently of PR state. Roadmap Phase 1 remains in progress.
+**Status:** **Feature 005 is complete; T001–T003 are complete.** Approved design, granularity and consistency gates passed. [Native acceptance](quickstart.md#9-t001-native-boundary-acceptance-2026-10-02), [public-caller acceptance](quickstart.md#10-t002-public-caller-acceptance-2026-10-02), [T003 cumulative acceptance and evidence reuse](quickstart.md#t003-execution-decision-and-evidence-review), and the implementation-shape/constitutional reviews below establish completion independently of PR state. Roadmap Phase 1 is **complete** under the subsequent [phase exit decision](../../PHASE_1_EXIT.md). Dated reviews retain their delivery-time phase assessments; standalone Save/history controls are not current Phase 1 prerequisites.
 
 ## Summary
 

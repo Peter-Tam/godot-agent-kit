@@ -2,6 +2,11 @@
 
 **Status:** **T001–T005 and Feature 002 are complete.** [T005 cumulative acceptance](#14-t005-cumulative-acceptance-2026-09-29) records the completed edit/native and observation runs on their then-current private-v2 integration. Earlier task records retain their historical scope and completion state. Public caller/observation schemas remain v1; the current private-v5 migration below does not reinterpret this evidence as closing acceptance.
 
+**Subsequent phase status:** [Phase 1 is complete](../../PHASE_1_EXIT.md) on the
+documented support profile. Dated acceptance sections below retain their
+delivery-time phase assessments; no standalone Save/history control is required
+for phase exit.
+
 **Current reproduction:** Use the official stock executable and matched standard
 public-ABI extension from the [native guide](../../godot-addon/native/README.md).
 The caller groups, retained `native-primitives`, cumulative `durability`,

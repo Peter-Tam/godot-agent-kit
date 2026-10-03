@@ -1,6 +1,6 @@
 # Discovery Caller Contract — Version 1
 
-**Status:** Implemented by T002 as a local CLI/typed-library contract, not MCP; [T003 cumulative acceptance](../quickstart.md#11-t003-cumulative-acceptance-2026-10-01) completes Feature 004. [Data model](../data-model.md) owns entities, bounds, evidence and terminal precedence; [private bridge](bridge-protocol.md) owns editor integration. Existing public observation/edit/open v1 remain unchanged. Exact verified support and limitations are recorded in the quickstart; Phase 1 remains in progress.
+**Status:** Implemented by T002 as a local CLI/typed-library contract, not MCP; [T003 cumulative acceptance](../quickstart.md#11-t003-cumulative-acceptance-2026-10-01) completes Feature 004. [Data model](../data-model.md) owns entities, bounds, evidence and terminal precedence; [private bridge](bridge-protocol.md) owns editor integration. Existing public observation/edit/open v1 remain unchanged. Exact verified support and limitations are recorded in the quickstart; Phase 1 is **complete** under the subsequent [phase exit decision](../../../PHASE_1_EXIT.md), without changing this contract.
 
 ## 1. Invocation
 
