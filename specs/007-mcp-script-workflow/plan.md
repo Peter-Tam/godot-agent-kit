@@ -10,7 +10,7 @@
 
 Add one local stdio MCP executable to the existing Rust package, exposing exactly `discover_scripts`, `read_script` and `edit_script`. Use official rmcp 3.5.0 with the explicitly selected published MCP 2025-11-25 revision and a minimal Tokio runtime. Keep a concrete static catalog and bounded protocol transport above the existing authenticated, confined, supervised operation paths; public prose is short and sufficient, not the safety mechanism.
 
-Read preserves Feature 001 observation and returns a self-contained open/closed edit-basis record. Open editing remains Feature 002 execution with the same open document and native history. New closed editing uses a narrow native main-thread source transaction: passive actual absence/cache checks, an explicit source setter only for existing clean R, confined retained-descriptor persistence and independent applicable-source/lifecycle verification. It never opens a target, force-loads R, relies on hoped-for reload or changes the old local edit caller's closed refusal.
+Read preserves Feature 001 observation semantics while presenting source, an opaque revision and useful current state. Edit accepts that revision, not a complete prior read object; execution freshly acquires and compares state before constructing its internal open/closed request. Open editing remains Feature 002 execution with the same open document and native history. New closed editing uses the unchanged narrow native main-thread source transaction: passive actual absence/cache checks, an explicit source setter only for existing clean R, confined retained-descriptor persistence and independent applicable-source/lifecycle verification. It never opens a target, force-loads R, relies on hoped-for reload or changes the old local edit caller's closed refusal.
 
 [Research](research.md) resolves R1–R5 through current code/LSP, released primary sources and a scoped stock-editor mechanics probe. It does not claim a complete guarded closed-edit implementation. The probe also establishes the explicit limitation that source editing does not hot-reload an existing class implementation; fresh-runtime persistence and live-editor source coherence are distinct facts.
 
@@ -51,7 +51,7 @@ Read preserves Feature 001 observation and returns a self-contained open/closed 
 | VI / XII — actual behavioral proof | New closed positive/race/refusal/interruption and MCP A–E/agent evidence, with applicable Save/reparse/rescan/runtime durability. Reuse valid unchanged evidence; rerun changed boundaries rather than every historical suite. |
 | VII — protocol independence | MCP DTO/framing at adapter; checked read/closed intent, safety and outcomes below it; Godot APIs at addon/native integration. Existing supervised operations are reused, not reimplemented in MCP. |
 | VIII — tooling separation | Matched addon/native/fixture additions stay out of production exports; enabled/disabled/hook-only evidence applies to affected artifacts. No gameplay authority. |
-| IX — lean effective interface | Three deliberate static descriptions, explicit selector/current-basis/lifecycle inputs, concrete structured outcomes and targeted actions. Full required observation remains intact; no internal architecture lecture, defensive prose copies or quantitative description budget. |
+| IX — lean effective interface | Three familiar static operations; read returns source/revision/state and edit takes revision/replacement. Required observation meaning survives a deliberate projection, not an internal evidence envelope for echoing. Structured outcomes and targeted actions; no architecture lecture, defensive prose copies or quantitative description budget. |
 | X — actionable truthful diagnostics | Preserve outcome/stage/application, independent availability/invalidation and safe next action. Post-effect private protocol/host failure is not malformed input; disclosure denial is sticky. |
 | XI — independent compatible implementation | Public pinned engine source/behavior, released official SDK and concrete clients, license/provenance/advisory findings. No unrelated implementation copied or dependency/support pass invented. |
 | XIII — justified complexity | Narrow closed owner/epoch, bounded transport and test-only stdio relay address specified failures; rationale/cost below. No transaction/workflow/retry/cancellation/redaction/tracing/metadata framework. |
@@ -63,15 +63,15 @@ Read preserves Feature 001 observation and returns a self-contained open/closed 
 
 ### Connection and public operations
 
-The [MCP contract](contracts/mcp-interface.md) selects initialization/version negotiation, static tool schemas, structuredContent plus matching JSON text, protocol-versus-operation error mapping and bounded transport. Registry is required deployment configuration; each tool explicitly names its intended project/session/target. Server catalog support is distinct from actual session/script eligibility.
+The [MCP contract](contracts/mcp-interface.md) selects initialization/version negotiation, static tool schemas, authoritative `structuredContent`, protocol-versus-operation error mapping and bounded transport. Full text duplication is not the default; a required fallback must be justified by selected-client evidence and recorded as a compatibility cost. Registry is required deployment configuration; each tool explicitly names its intended project/session/target. Server catalog support is distinct from actual session/script eligibility.
 
 The custom transport is only bounded framing/parsing/delivery around SDK types/service. It prevents source-bearing SDK tracing, unbounded input and silent parse failures identified in released source. The protocol executor remains responsive while the existing bounded synchronous supervisor runs off-executor; the active work handle is retained through cancellation. EOF/output loss means delivery unavailable, not no effects or permission to replay.
 
 ### Trusted read and fixed lifecycle branch
 
-The [model](data-model.md) returns one real observation and an eligibility record, not a duplicate source payload or opaque token store. Closed-read metadata is obtained without opening/loading under the same read clock and cross-checked before basis eligibility. The full prior read result is passed unchanged; core/native fresh guards remain authority.
+The [model](data-model.md#4-trusted-script-read) presents exact source, meaningful editor-aware state and a bounded opaque revision. Existing `ring` computes a stateless commitment to the checked project/session/target, source, lifecycle and relevant open-version or closed-revision/Resource/epoch facts. It is a stale-intent precondition, not authorization, replay/idempotency or a persistent basis ID. Closed metadata remains internal and is obtained without opening/loading, under the same capture clock and cross-checks.
 
-Open requests dispatch unchanged Feature 002 behavior. Closed requests use a distinct checked basis/request/runner. Missing, stale, wrong-target, changed lifecycle or unavailable evidence refuses; no late choice of the other branch makes an old request eligible.
+Edit freshly authenticates/resolves the target and reacquires all required current state. Only a matching recomputed revision and current eligibility allow construction of the internal request from that exact frozen capture; stale/changed state requires `fresh_read`. Open requests retain Feature 002's checked basis and runner, with private observation-shaped worker input assembled from the fresh server capture. Closed requests retain the selected checked basis/request/runner. All later native/core guards and independent postconditions remain mandatory under the original edit clock; no changed lifecycle selects the other branch.
 
 ### Closed source transaction
 
@@ -115,9 +115,9 @@ mcp-server/
 ├── src/
 │   ├── bin/godot-agent-kit-mcp.rs             # executable and internal worker wiring
 │   ├── mcp/                                  # concrete handler, DTO/catalog, bounded transport
-│   ├── script_read.rs                        # trusted read/basis semantic result
+│   ├── script_read.rs                        # trusted capture, revision and public read projection
 │   ├── script_closed_edit/                   # checked intent, evidence and outcome reduction
-│   ├── runner/read/                          # reused capture plus closed-basis supplement
+│   ├── runner/read/                          # reused acquisition plus private closed supplement
 │   ├── runner/closed_edit/                   # bounded supervisor and acquisition/authorization
 │   ├── bridge/wire/                          # v6 closed capture/operation codecs
 │   └── lib.rs                                # current-consumer semantic/runner exports
@@ -148,7 +148,10 @@ No constitutional exception is requested. The template's violation table is inap
 | Small bounded transport | SDK convenience stdio buffers unbounded lines, can log payloads and ignores syntax errors. | One bounded framing/delivery owner and focused boundary tests; required by FR-003/FR-014/FR-017, not generic hardening. |
 | Closed domain/native owner and read supplement | Open edit deliberately refuses closed targets; disk-only writing demonstrably leaves cached R stale. | One explicit source/lifecycle state machine with primitive reuse and new evidence; directly required by FR-007–FR-010. |
 | Session close epoch | Current absence alone misses closed→open→closed between read and effect. | One owned signal/counter with lifecycle cleanup and ABA tests; avoids a per-target history registry. |
+| Stateless revision and fresh expected-state acquisition | Echoing the whole read exposes internal evidence and moves redundant context; a persistent token store adds ownership/replay costs without enforcing safety. | One fixed state-commitment encoding using existing hashing and acquisition, with stale/race checks; no keys, cache or generic token layer. |
 | Fixed test-only stdio relay | Host client plus guest-only editor cannot share ordinary local registry/path execution; moving personal client credentials into guest violates its setup boundary. | Small reuse of existing Tart control/source/run ownership; enables FR-019 without host GUI or a product remote service. |
 | Static lean schemas/descriptions | A small catalog alone permits redundant instructions; a description DSL adds no safety. | Deliberate current text and ordinary review/real-agent evidence only; no extra process gate or measurement framework. |
 
 **Design-shape review:** Each new production responsibility has a current caller and bounded state. One attempt enum represents lifecycle; effects/receipts retain factual partial progress rather than speculative state variants. Existing large modules receive only their necessary integration seam, with narrow responsibility-based files for the new behavior. No permanent research scaffold, generic framework, unguarded public mutation API or additional approval/CI topology is selected.
+
+**Planning correction (2026-10-04):** The maintainer requested the public source/revision/state contract in place of the original whole-read echo. [Research](research.md#7-public-contract-correction-evidence) records exact-client carrier source findings and incomplete runtime probes. Constitution IX/XIII review preserves the approved specification, native closed route, selected protocol/dependencies and all enforced safety boundaries. Actual two-client result visibility remains an implementation acceptance obligation, not an interoperability claim at this design head.

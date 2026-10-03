@@ -12,7 +12,7 @@ Reuse these existing definitions rather than redefine their fields:
 - [Discovery v1](../004-discover-project-gdscript/contracts/discovery-api.md): scoped entries, complete/limited/interrupted/refused inventory, exact coverage and currentness.
 - [Open-edit v1](../002-edit-open-gdscript/contracts/edit-api.md) and its checked `ExpectedRevisionBasis`, validation, application/progress, evidence summaries, persistence, native history and safe next action.
 
-Existing local schemas/contracts remain unchanged. New read/closed domain types and MCP projections are separate contracts with actual current consumers, not replacements for Feature 001/002 APIs.
+Existing local schemas/contracts remain unchanged. Checked internal captures/expected-state records and public read projections are distinct: the agent receives useful source/state and an opaque revision, not those internal records for later resubmission.
 
 ## 2. Supported profile and bounds
 
@@ -26,7 +26,7 @@ Existing local schemas/contracts remain unchanged. New read/closed domain types 
 | Closed edit | Existing external standalone `.gd` source profile; no scene/built-in mutation, tool/custom Script, global registration, load/preload or unsafe effective/compiled context. Both original and desired sources must pass admission. |
 | Closed metadata | Bounded scalar file/Resource/epoch evidence; no source duplicate, document-history list or persistent journal. Existing bounded roster getter failure refuses safety admission. |
 | MCP input | Complete newline-delimited frame ≤16 MiB; JSON depth ≤64. Inner legacy open-edit payload still ≤12 MiB. Exact JSON representation bounds are checked in addition to decoded source bounds. |
-| MCP result | Tool object ≤16 MiB, allowing the existing ≤12 MiB operation record plus its new bounded metadata/envelope; complete serialized MCP response ≤64 MiB. Structured content plus its escaped JSON text uses at most 3× the object plus protocol envelope space. These are caps, not eager allocations or a source-size expansion. |
+| MCP result | Tool object ≤16 MiB; complete serialized MCP response ≤64 MiB. These retained caps cover any evidenced compatibility fallback, including escaped JSON text; they do not require a duplicate carrier or eager allocation. Public read projection does not duplicate agreeing source texts. |
 | Control traffic | At most eight outstanding JSON-RPC IDs per connection and one admitted tool execution; duplicate live IDs are rejected without replacing the original cancellation owner. No operation queue. |
 | Time | Read/discover: 5 s end-to-end, with the existing 4.5 s work cutoff; edit: 10 s with 9.5 s work cutoff. Initial handshake and partial-frame completion: 10 s. No idle timeout between complete requests. |
 
@@ -36,30 +36,48 @@ These are existing product or explicit framing/resource bounds, not description/
 
 `ConnectionState = AwaitingInitialize | Ready | Closing | Closed`.
 
-A connection stores the configured registry path, selected protocol revision, bounded request-ID ownership and active call control only. It does not store project source history, edit-basis tokens, outcomes for replay or implicit selected projects. Client/server metadata is protocol information, not routing authority.
+A connection stores the configured registry path, selected protocol revision, bounded request-ID ownership and active call control only. It does not store project source history, issued revisions, outcomes for replay or implicit selected projects. Client/server metadata is protocol information, not routing authority.
 
 `CallControl` binds one MCP ID to a new domain request ID, original `AttemptClock`, checked selector intent, an operation-local atomic cancellation flag and its owned supervision handle. One call cannot cancel another. The SDK token is translated at the adapter; cancellation does not destroy the core owner. EOF, delivery loss or process shutdown cancels admission/new stages, drains bounded owned supervision and preserves effect uncertainty. Nothing claims rollback or cancels the user's editor.
 
 ## 4. Trusted script read
 
-`ScriptReadResult` contains:
+`ScriptReadResult` is a caller-facing projection of independently acquired Feature 001 observation, supplemented by checked closed-state evidence where applicable. Its fields are:
 
 | Field | Type / meaning |
 | --- | --- |
-| `observation` | Complete existing observation-v1 record; not a filesystem-only substitute. |
-| `edit_basis` | Exactly one tagged eligibility record below; no second copy of the observation. |
+| `source` | Exact currently observed text or null; empty text remains an observed value. Prefer the observed open buffer, then disk, then loaded Script source, with provenance explicit below. This presentation choice does not select mutation authority. |
+| `revision` | Opaque `sr1:` plus 64 lowercase hex digits, or null when a safe read precondition cannot be produced. |
+| `state` | Target/document identity, lifecycle, authority/source availability and provenance, attributed dirty state, comparisons, stability, invalidation, observation interval, limitations and relevant next action as defined below. |
 
-`edit_basis` variants:
+`state` preserves required observation meaning without exporting the observation-v1 envelope or native expected-state layout:
 
-- `{kind: "open"}`: `ExpectedRevisionBasis::from_observation` succeeds on the actual prior open observation. This indicates usable expected facts, not continuing edit permission.
-- `{kind: "closed", state: ClosedStateEvidence}`: ordinary observation and independently obtained native closed facts agree on the same target/source/lifetime and observation interval, with successful rechecks.
-- `{kind: "unavailable", reason: code}`: no usable edit basis. Dirty/divergent/partial reads remain information; no forced load/open or state repair is attempted merely to produce a basis.
+- `status`: the existing observation outcome classification, including complete, limited, not-open, refused and unavailable distinctions; not-open or dirty does not itself make a successful observation an edit failure.
+- `target`: permitted requested/resolved project, script and selected session, plus target kind. No candidate content or authentication/routing internals.
+- `document`: observed `open`, `closed` or `unknown` and nullable opaque document identity derived from the existing session/document identity tuple. Do not expose native object IDs merely to encode that identity.
+- `source_origin`: `editor_buffer`, `disk`, `loaded_resource` or null. `sources` has those three named authorities; each distinguishes observed/unavailable/not-applicable, current versus invalidated evidence, and whether its text equals `source`. Return a distinct permitted text only when it differs; invalidated text remains explicitly historical, never a current `source` or revision input.
+- `dirty`: existing document-attributed buffer and loaded-Resource distinctions; unknown, dirty and not-applicable are not interchangeable. `consistency` preserves pairwise comparisons, performed/unavailable checks and changed/unchanged/unknown stability, with no atomic-snapshot claim.
+- `interval`, `diagnostics` and `limitations`: actual acquisition interval and permitted outcome-specific facts, including partial availability and loaded-class-not-reloaded where applicable. `revision_unavailable_reason` is null with a revision, otherwise the relevant eligibility failure. `next_action` retains an actionable safe response rather than a static failure catalog.
 
-Every read may return source and limitations allowed by Feature 001 even when the native closed capability is missing. Closed B and document dirty state remain not applicable only on confirmed absence. Native-inspection mismatch invalidates the basis and relevant facts rather than silently replacing the earlier observation with newer authorization. The read's full interval includes native supplement/rechecks under the original five-second bound.
+Internal `TrustedScriptCapture` retains the complete checked observation and either open eligibility, closed evidence or an unavailable reason. It exists only for the current call. A read issues a revision only when the existing open basis constructor succeeds, or ordinary observation and the private closed supplement pass the selected closed eligibility/rechecks. Dirty/divergent/partial/unsupported reads remain useful with `revision: null`; do not load/open, repair or hide state to issue one. The full interval includes the supplement/rechecks under the original read bound.
+
+### Revision precondition
+
+The protocol-independent read owner computes the revision with existing `ring` SHA-256 over a fixed versioned, domain-separated commitment to the stable safety-relevant state. Use explicit variant/field tags, fixed field order and length-delimited canonical checked values; reuse independently acquired source digests/byte lengths rather than copying source into a second serialization. This is one operation-specific encoding, not a generic token/canonical-JSON framework.
+
+The commitment binds:
+
+- Authenticated project identity, exact canonical script locator/kind, selected editor-session lifetime, file identity, observed lifecycle, independently acquired source witnesses and applicable dirty/availability distinctions.
+- Open: every stable expected-state fact used by the existing `ExpectedRevisionBasis`, including actual Script/editor/buffer identity and current buffer version. Same-text editor-version changes and close/reopen identity changes must change the revision.
+- Closed: the selected file length/hash/mtime/ctime, confirmed document absence, integration close epoch, and actual Resource absent/present branch with its identity/path/source/edited/profile evidence. Same-text writes, replacement, cache changes and closed→open→closed therefore invalidate it under the existing closed design.
+
+Exclude request IDs, collection stamps, observation timestamps and incidental JSON ordering: separate complete captures of unchanged state must compare equal. Those excluded correlation/interval facts are still validated internally. Unavailable or invalidated required evidence cannot be hashed as if it were a valid state.
+
+The revision is an unkeyed stale-intent precondition, **not authorization, authentication, an idempotency/replay token, a stored basis ID or permission to skip fresh checks**. No signing key, issuer registry, per-client token state or persistent store is needed. It is not consumed; that does not authorize replay or automatic retry. Safety continues to depend on authenticated fresh acquisition and native/core guards even if a caller fabricates a syntactically valid or matching digest.
 
 ## 5. Closed state and expected basis
 
-`ClosedStateEvidence` is core-validated, request/session/collection-attributed evidence:
+`ClosedStateEvidence` is internal core-validated, request/session/collection-attributed evidence, not an MCP argument or read-output field:
 
 | Field | Definition |
 | --- | --- |
@@ -70,22 +88,25 @@ Every read may return source and limitations allowed by Feature 001 even when th
 | `resource` | `absent` after successful agreeing cache getters, or `present` with actual stable Script instance/path, source witness, edited=false and supported effective/compiled profile. Getter failure is `unavailable`, never absent. |
 | `consistency` | Actual before/after checks, invalidations and observation interval; never `atomic: true`. |
 
-`ClosedExpectedBasis` is constructed only by revalidating this record together with the entire prior observation. It binds the expected target/session, disk revision, closed lifecycle/epoch and R applicability. Present R must equal D and be independently clean; known absent R needs no invented source/instance/dirty fact. B has no version, saved version or history record.
+For mutation, `ClosedExpectedBasis` is constructed only from the frozen fresh internal observation and matching closed supplement whose recomputed revision matched the caller's precondition. It binds the expected target/session, disk revision, closed lifecycle/epoch and R applicability. Present R must equal D and be independently clean; known absent R needs no invented source/instance/dirty fact. B has no version, saved version or history record.
 
-The native attempt retains descriptors and any existing Script strongly for its own lifetime. Serialized object IDs are not retained references. At mutation entry, recapture actual facts and compare them to expected facts; a syntactically valid caller record is never authority. The private close epoch catches closed→open→closed ABA; currently open state catches a target left open. Unrelated close events conservatively require a fresh closed read rather than a per-target lifecycle registry.
+The native attempt retains descriptors and any existing Script strongly for its own lifetime. Serialized private object IDs are not retained references. At mutation entry, recapture actual facts and compare them to the frozen expected facts; a public revision is never authority. The private close epoch catches closed→open→closed ABA; currently open state catches a target left open. Unrelated close events conservatively require a fresh closed read rather than a per-target lifecycle registry.
 
 Same-path replacement, same-text file writes with changed ctime, changed cache applicability/identity, Resource-edited state, changed source, session/epoch reset and unavailable evidence all make the old basis unusable. No claim of atomic exclusion of arbitrary filesystem writers, malicious same-UID software or in-editor hostile code is introduced.
 
 ## 6. Edit request and branch selection
 
-`ScriptEditRequest` has checked project/session/script selectors, fresh correlation, exact replacement and `ExpectedScriptState = Open(existing basis) | Closed(closed basis)`.
+The public request has only checked project/session/script selectors, `revision` and exact `replacement_source`. It contains no `basis`, prior read object, observation envelope or internal expected-state fields.
 
-The adapter input `basis` is the **entire preceding successful read tool object**, passed unchanged; it is not an opaque token or a second operation. Envelope validation stays at MCP. Core reconstructs checked prior evidence from its `ScriptReadResult`, then validates the explicitly requested target against that evidence.
+Execution freshly authenticates/resolves the requested target, reacquires relevant editor/disk/Resource/lifecycle state and recomputes the revision. Missing/unavailable required evidence refuses; a mismatch yields `revision_mismatch` with `next_action: {kind: "fresh_read"}` and no application. Never reinterpret an old open revision as permission for a newly closed target or vice versa.
 
-- Open mode dispatches the existing open-only runner/worker and its guarantees.
-- Closed mode dispatches the new closed runner/native owner.
-- Missing/ineligible/wrong-target bases refuse; an observed lifecycle change never selects the other branch automatically.
-- Already-satisfied replacement is `verified_unchanged` only after the same target/lifecycle/basis, safety, source validation and applicable-postcondition checks, with no setter/write/mtime/history effect.
+Only after equality and current eligibility checks may execution construct the internal `ScriptEditRequest` with fresh correlation and `ExpectedScriptState = Open(existing basis) | Closed(closed basis)`. Freeze the exact matching capture; derive both the expected basis and any private worker observation-shaped input from it, not another later capture. The internal observation has its own request ID, distinct from the edit ID as required by the existing constructor.
+
+- Open mode uses `ExpectedRevisionBasis::from_observation` on that capture and the existing open-only runner/worker.
+- Closed mode derives `ClosedExpectedBasis` from the same capture/supplement and uses the selected closed runner/native owner.
+- All prepare, pre-effect, native immediate and independent postcondition checks remain mandatory. A race after equality refuses or reports actual effects under the existing semantics; do not silently refresh the expected state or switch branches.
+- Fresh acquisition, comparison, validation and mutation share the original edit clock/cancellation owner. No second read/edit budget is started.
+- Already-satisfied replacement is `verified_unchanged` only after the same target/lifecycle/revision, safety, validation and applicable-postcondition checks, with no setter/write/mtime/history effect.
 - No create/rename/delete/Save/history/force/batch option is added.
 
 ## 7. Closed attempt state and outcomes

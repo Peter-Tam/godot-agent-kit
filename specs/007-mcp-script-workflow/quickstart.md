@@ -112,12 +112,26 @@ Use a fresh prepared run for the second client and retain actual tool-call/resul
 
 Each client must actually connect, discover the exact catalog and complete representative discover/read/edit calls. At least one real-agent conversation must perform the full composed workflow and applicable A–E below. Add/list/config output alone is not proof. If the selected old-revision negotiation or result visibility fails on a client, report and correct the design/compatibility claim before declaring support; do not silently test only a custom client.
 
+### Revision and result-carrier checks
+
+Exercise the familiar public flow: read the explicit target, use `result.source` and relevant `result.state`, then submit only its non-null `result.revision`, the selectors and replacement. No full read/observation object is accepted as edit input; ordinary informative reads with no safe revision remain useful.
+
+Focused deterministic/boundary and real-editor evidence must establish:
+
+- Reacquiring unchanged eligible state produces the same revision despite new request/collection IDs and intervals. Meaningful source, target/session/document identity, same-text buffer-version or lifecycle changes invalidate it.
+- Existing closed same-text file-revision, Resource branch/identity/dirty and close-epoch ABA cases invalidate the public revision as well as the internal basis. The native closed design and its positive coverage are unchanged.
+- Edit freshly authenticates/resolves/acquires before comparison, freezes exactly the matching capture and constructs the internal request from that evidence. A later race still reaches the existing guards; no refreshed basis, branch switch or clock renewal rescues stale intent.
+- Missing/malformed/wrong-target/stale revisions fail without mutation. Even a fabricated matching precondition cannot bypass current dirty, permission, confinement, Resource, lifecycle or validation checks. After possible effects, the next intentional edit requires a fresh read, not replay.
+- Public state preserves exact source/provenance, empty versus unavailable, dirty/divergent/invalidated authority facts and limitations without private expected-state payloads or redundant agreeing source copies.
+
+For **each selected real client**, demonstrate model-visible use of source, opaque revision, relevant state and failure/next-action facts from the authoritative structured result—not merely a raw SDK event or displayed summary. Include multiline/Unicode/empty source, informative limited reads and partial/unknown edit outcomes within the applicable existing bounds. Do not silently truncate to pass. Start with the selected structured-content plus terse-summary carrier; do not preload a full JSON text copy by assumption. If a client requires it, record the failing smaller carrier and the sufficient full-text fallback, update the carrier decision with its compatibility/context cost and preserve the same authorized object/schema. Unavailable model access is not a pass and does not justify silently dropping that client.
+
 ## Acceptance coverage
 
 | Group / evidence | Exact approved scenarios | FR / SC coverage and required observations |
 | --- | --- | --- |
 | Transport and both independent clients | US1.1–US1.4 | FR-001–FR-004, FR-012–FR-017, FR-021; SC-001, SC-004, SC-006–SC-007. Negotiation, unsupported requests, editor-unavailable versus connection success, bounded errors and no incidental disclosure/effect. |
-| Qualitative interface review and actual agent use | US1.5 | FR-002, FR-022; SC-009. Agent chooses operation, supplies required state, interprets structured results and safe next action without private knowledge, redundant warnings or exhaustive static prose. No numerical concision threshold. |
+| Qualitative interface review and actual agent use | US1.5 | FR-002, FR-022; SC-009. Agent chooses discover/read/edit, uses source/revision/state, submits revision/replacement without internal evidence knowledge, and interprets structured results/actions. No redundant warnings or numerical concision threshold; actual carrier visibility and any necessary fallback cost are recorded. |
 | Closed-native and closed-lifecycle | US2.1, US2.3–US2.5, US5.5 | FR-005–FR-011, FR-014, FR-018–FR-020; SC-002–SC-006, SC-008. Positive cached/absent R, current basis, no opening, no-op recognition, missing/dirty/divergent R refusal, namespace/cache/lifecycle races, independent closed postconditions and later opening durability. |
 | Preservation and stale state | US2.2, US3.1–US3.4, US3.7 | FR-004–FR-010, FR-018–FR-020; SC-002–SC-003, SC-008. Open guarantees, dirty/equal-dirty human state/history, same-text versions/file revisions, closed→open→closed epoch, target/session replacement, confinement and unobservable evidence. |
 | Interruption and overlapping calls | US3.5–US3.6, US4.1–US4.4 | FR-003–FR-004, FR-007, FR-010–FR-017, FR-020; SC-003–SC-004, SC-006–SC-007. Actual pre/post-authorization cancel/EOF/timeout/output-loss/disable, preserved newer work, exact effect certainty, no late effect after proven refusal, no queue/replay or cross-call cancellation. |
@@ -126,7 +140,7 @@ Each client must actually connect, discover the exact catalog and complete repre
 
 This covers all **26 scenarios, FR-001–FR-022 and SC-001–SC-009**. Cross-cutting routing, timing, privacy and outcome meaning apply to every relevant group, not just one named row. Closed positive cases supplement A, never replace its open-buffer proof.
 
-For C, native Undo/Redo must independently reverse/reapply real open-document source with prior history intact; no second source-edit call substitutes for history. For D, later opening is a durability witness after already-verified closed editing, not the method of obtaining success. Ordinary reparse/rescan/fresh runtime must retain intended source without reconciliation; loaded class metadata is not assumed hot-reloaded. E uses a fresh trusted read/basis for every intentional edit; losing a response requires another fresh read rather than replay.
+For C, native Undo/Redo must independently reverse/reapply real open-document source with prior history intact; no second source-edit call substitutes for history. For D, later opening is a durability witness after already-verified closed editing, not the method of obtaining success. Ordinary reparse/rescan/fresh runtime must retain intended source without reconciliation; loaded class metadata is not assumed hot-reloaded. E uses a fresh trusted read/revision for every intentional edit; losing a response requires another fresh read rather than replay.
 
 ## Evidence reuse and completion
 
@@ -141,3 +155,5 @@ After an owned run, retrieve artifacts and stop the VM using the existing wrappe
 ## Planning evidence only
 
 Planning ran static documentation checks, repository/LSP and released-source research, installed client version/help checks, VM status/start/stop, and the scoped [closed-source mechanics probe](research.md#owned-stock-editor-observations) with visual inspection and fresh-runtime persistence witness. The two incomplete probe attempts remain excluded from the completed observation. No MCP server/client interoperability, product test suite, native build, historical campaign, A–E acceptance, release or Phase 3 exit is claimed.
+
+The subsequent [public-contract correction](research.md#7-public-contract-correction-evidence) reviewed exact Codex result-conversion source and attempted an isolated synthetic carrier probe. Claude's expired OAuth and Codex's unavailable code-mode tool path prevented model-visible tool results. Those incomplete probes are not interoperability evidence; working client authentication/tool execution remains required for the acceptance above. No product suite, native build, Godot/VM campaign or new capability implementation was run for this documentation correction.

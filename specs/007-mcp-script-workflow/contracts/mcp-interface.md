@@ -9,8 +9,8 @@ Advertise these tools in this fixed order and no other product tools:
 | Name | Static description | Annotations |
 | --- | --- | --- |
 | `discover_scripts` | Find supported scripts in a project and report discovery coverage. | readOnlyHint=true; openWorldHint=false |
-| `read_script` | Read current script and editor state without opening it. Use the complete result as the basis for an edit. | readOnlyHint=true; openWorldHint=false |
-| `edit_script` | Replace one script using an eligible current read result. The script stays open or closed as observed. | readOnlyHint=false; destructiveHint=true; idempotentHint=false; openWorldHint=false |
+| `read_script` | Read script source, current editor state and an edit revision without opening the script. | readOnlyHint=true; openWorldHint=false |
+| `edit_script` | Replace one script using its current read revision. The script stays open or closed as observed. | readOnlyHint=false; destructiveHint=true; idempotentHint=false; openWorldHint=false |
 
 No title, long server instruction block, internal module names, repeated safety lecture or full failure catalog is required. Annotation hints are not permissions or safety enforcement. Discover is not required when the caller already knows the target. Native editor lifecycle/history operations are not hidden tool aliases.
 
@@ -23,12 +23,12 @@ Every input is a JSON Schema 2020-12 object with `additionalProperties: false`. 
 | `project_root` | Nonempty string; required on all tools | Absolute project directory. |
 | `session_id` | Optional string matching `^[0-9a-f]{32}$` | Editor session ID; omit only when selection is unambiguous. |
 | `script_path` | Nonempty string; required on read/edit | Exact project script locator, such as res://scripts/player.gd. |
-| `basis` | Complete schema-1 `read_script` tool object; required on edit | Previous read_script result, unchanged. |
+| `revision` | String matching `^sr1:[0-9a-f]{64}$`; required on edit | Revision returned by read_script for this target. |
 | `replacement_source` | String, including empty; required on edit | Exact replacement GDScript source. |
 
-`discover_scripts` permits only project_root/session_id. `read_script` additionally requires script_path. `edit_script` additionally requires basis/replacement_source. No force, lifecycle, timeout, retry, output-format, raw command or transport parameter exists.
+`discover_scripts` permits only project_root/session_id. `read_script` additionally requires script_path. `edit_script` additionally requires revision/replacement_source. No basis/prior-result object, force, lifecycle, timeout, retry, output-format, raw command or transport parameter exists.
 
-The basis schema references the concrete read-output definitions within that tool's schema; it is not an arbitrary object or remote schema URL. Concrete static definitions may be shared using local `$defs`/`$ref`, not a metadata DSL or generator framework. Parameter schemas represent structure; the core independently enforces exact UTF-8 byte, identity, source, applicability and stale-state rules. JSON Schema character lengths do not replace UTF-8 byte checks. Input unknown/duplicate keys, invalid counter encodings, excessive nesting and wrong types fail without dispatch.
+Concrete static result definitions may share local `$defs`/`$ref`, not a metadata DSL or generator framework. Edit inputs do not reference the read-output schema or contain internal expected-state evidence. The core independently enforces exact UTF-8 byte, identity, source, applicability and stale-state rules; JSON Schema character lengths do not replace UTF-8 byte checks. Unknown/duplicate keys, excessive nesting and wrong types fail without dispatch. A revision's valid syntax alone grants nothing.
 
 ### Example tool call
 
@@ -50,7 +50,15 @@ This is a complete read request; the project/session are synthetic selectors, no
 }
 ```
 
-A subsequent edit supplies the full decoded tool object returned by this read as `basis`, not its text-block wrapper, a digest alone or a manually shortened object. It uses explicit selectors again so wrong-target basis reuse is rejected. A failed read or unavailable basis cannot be converted to authority by modifying a tag.
+A subsequent edit uses the explicit selectors, the read's non-null `result.revision` and `replacement_source`; it does not echo the source/state or complete tool object. The agent treats the revision as opaque, not something to decode or construct. A null revision means the read is informative but cannot supply an edit precondition. Fresh execution compares current state and returns `fresh_read` on stale state; it never accepts the revision as authorization.
+
+For example, with `R` denoting the exact returned revision rather than a literal wire value:
+
+```text
+read_script(project_root, script_path, session_id?)
+  -> result: {source, revision: R, state}
+edit_script(project_root, script_path, revision: R, replacement_source, session_id?)
+```
 
 ## Structured results
 
@@ -64,7 +72,7 @@ All three output schemas have the exact root fields:
 | `result` | The operation-specific record below, or null when no operation result can be produced. |
 | `error` | The typed adapter error below, or null. Exactly one of result/error is non-null. |
 
-Use discriminated schemas with required fields and explicit nullable states, not a bag of optional safety flags. Existing record definitions referenced below are normative field/type/enum contracts, not an instruction to emit unbounded arbitrary JSON. Public schemas must model their observable distinctions and meaningful bounds without explanatory prose on every leaf.
+Use discriminated schemas with required fields and explicit nullable states, not a bag of optional safety flags. Referenced existing contracts define preserved semantics; the deliberate read/edit projections below are not exports of private evidence layouts or arbitrary JSON. Public schemas model observable distinctions and meaningful bounds without explanatory prose on every leaf.
 
 ### Discover result
 
@@ -72,16 +80,16 @@ Use discriminated schemas with required fields and explicit nullable states, not
 
 ### Read result
 
-`result` is the [ScriptReadResult](../data-model.md#4-trusted-script-read): exact `observation` and `edit_basis` fields. Observation preserves all [observation-v1 fields](../../001-observe-gdscript-state/contracts/observation-api.md#3-result-and-process-behavior), including independently permitted source, applicable authorities, identity/version, dirty attribution, consistency and invalidated/unavailable facts.
+`result` has exactly `source`, `revision` and `state`, as defined by [ScriptReadResult](../data-model.md#4-trusted-script-read). Source is exact text or null, distinct from an observed empty string. Revision is the opaque precondition or null with a reason. State preserves trusted observation classification, permitted target/document identity, lifecycle, source provenance and applicable authorities, dirty attribution, comparisons/stability, interval, limitations and invalidated/unavailable facts.
 
-`edit_basis.kind` is `open`, `closed` with the model's checked closed-state evidence, or `unavailable` with its reason. No source is returned twice merely to form a separate basis. All actual observation facts remain useful even when the target is dirty, closed, unsupported for mutation or only partly observable. A limited read is not made falsely complete to simplify the interface.
+Agreeing authority text is represented by its relation to `source`, not repeated source strings. Distinct or invalidated permitted evidence remains explicit; the main source is never silently chosen as mutation authority. Dirty, closed, unsupported or partly observable targets still return useful facts. No `ObservationOutcome`, `edit_basis`, native collection/epoch/file-revision tuple or full internal expected-state record is returned for the agent to copy into an edit.
 
 ### Edit result
 
 `result` has exactly `mode` and `outcome`:
 
-- `mode`: `open`, `closed` or `undetermined` before usable basis selection.
-- `outcome`: existing [open-edit result fields](../../002-edit-open-gdscript/contracts/edit-api.md), or their closed-source counterpart, preserving actual outcome/reason/stage, application certainty, interval, requested/resolved identity, expected/before/after evidence, validation, persistence/finalization, history, diagnostics and safe next action. The outer operation remains `edit_script`; a retained underlying operation discriminator describes the executed domain operation, not another MCP tool.
+- `mode`: `open`, `closed` or `undetermined` before matching current-state selection.
+- `outcome`: a public projection of the existing [open-edit outcome](../../002-edit-open-gdscript/contracts/edit-api.md), or its closed-source counterpart. Preserve actual outcome/reason/stage, application certainty, interval, permitted target/document identity, expected/before/after evidence meaning, validation, persistence/finalization, history, diagnostics and safe next action. Represent the caller precondition by its opaque revision and project meaningful evidence availability/agreement; do not export complete internal expected-state records, native IDs or collection bookkeeping merely because the core holds them. Existing local v1 output remains unchanged.
 
 The closed counterpart additionally has `lifecycle: {admitted: "closed", observed_final: "closed" | "open" | "unknown"}` and explicit R applicability; B/history are `not_applicable_closed` only on confirmed absence. It reports the loaded-class-not-reloaded limitation when R is present. Open history and Feature 002 outcomes remain unchanged. The core's source-free edit evidence projections are reused; replacement source, private validation source and unrelated documents are not echoed.
 
@@ -95,7 +103,11 @@ Before dispatch, invalid tool arguments report `application: "not_applied"`. Bus
 
 ### MCP result carrier
 
-Return one authorized object in `structuredContent` and identical JSON serialization in a single text content block, as recommended by the selected [MCP tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#structured-content). No extra explanation repeats the structured record. `outputSchema` describes the full object, including failure variants. Bound the actual whole response after escaping; do not assume raw source length equals wire length.
+Return the complete permitted public object in **`structuredContent`**, authoritative and conforming to `outputSchema`, including failure variants. The selected default `content` is one terse outcome/next-action text summary derived from that same typed result—not a serialized copy of the object, source or revision. It is not an alternative complete result and cannot make a text-only consumer compatible by itself.
+
+The selected [MCP specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#structured-content) says serialized JSON text **SHOULD** accompany structured content for backward compatibility; it does not require unconditional duplication. [Exact-client research](../research.md#7-public-contract-correction-evidence) establishes Codex's structured-content conversion but not completed two-client model use. Before claiming support, prove both selected clients can use source/revision/state and truthful failures through this carrier. If a required client demonstrably needs the full text object, record that case and the extra context/escaping cost, then adopt one identical serialization of the permitted public object as its necessary compatibility fallback. A summary-only or structured-only failure must not be called compatible merely for compactness.
+
+No invented capability bit, client-name heuristic, `_meta`-only data, format tool parameter or generic carrier framework is selected. A required fallback cannot weaken outcomes, disclosure or the authoritative structured schema. Bound the actual complete response after any escaping; never silently truncate safety facts or source to fit.
 
 `isError=true` for adapter errors and genuine operation refusals/failures/partial or unknown effects. Dirty/divergent successful observations, valid not-open reads and honest limited inventory/observation are not execution errors merely because they do not permit editing. Transport success or isError=false never replaces the structured outcome's meaning.
 
