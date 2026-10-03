@@ -122,6 +122,32 @@ near-duplicate operations; departures MUST justify a distinct agent need. Public
 consistent naming and structured schemas, with capability discovery and progressive disclosure
 so agents can identify available operations without navigating an inflated tool catalog.
 
+Across agent-facing tools, protocol adapters, capability providers, extensions, and
+machine-readable agent APIs, interfaces MUST minimize unnecessary context and interpretation
+cost. Tool and parameter descriptions, capability text, result guidance, and similar
+instructions MUST be concise, task-oriented, non-redundant, and limited to information needed
+to choose and correctly use the capability. They MUST NOT expose internal architecture or
+implementation terminology, repeat safety rationale, or enumerate exhaustive failure catalogs
+merely because those details exist internally.
+
+Lean interfaces MUST remain sufficient for reliable agent reasoning and truthful result
+interpretation, not pursue brevity at the expense of correctness. Purpose, when to use an
+operation, material prerequisites and limitations, distinctions from nearby operations,
+required current basis/state, and actionable safe next steps after failure MUST remain clear
+where applicable.
+
+Public interfaces SHOULD prefer structured schemas and outcomes, explicit typed/state
+distinctions, and progressive disclosure over repeated explanatory prose. Common rules SHOULD
+NOT be copied into every capability description merely for defensive documentation; failure
+details and next-action guidance SHOULD be disclosed when relevant to an outcome.
+
+Correctness and safety MUST NOT depend on repeated behavioral instructions to an agent.
+Trusted implementation boundaries MUST technically enforce authenticated routing, project
+confinement, target/revision/stale protection, dirty-human-work protection, permission
+boundaries, lifecycle preservation, truthful reporting of effects and uncertainty, and
+disclosure/redaction wherever applicable. Prompt or tool-description prose MUST NOT substitute
+for that enforcement.
+
 ### X. Make Diagnostics Deterministic and Actionable
 
 Failures MUST be actionable and machine-readable. Structured outcomes MUST distinguish revision
@@ -281,4 +307,4 @@ Templates and commands consume the constitution at runtime and MUST NOT be rewri
 of the constitution-update workflow. Amendment reviews MUST verify that affected artifacts are
 aligned or explicitly tracked as blocking dependent work.
 
-**Version**: 1.1.0 | **Ratified**: 2026-09-25 | **Last Amended**: 2026-09-27
+**Version**: 1.2.0 | **Ratified**: 2026-09-25 | **Last Amended**: 2026-10-03

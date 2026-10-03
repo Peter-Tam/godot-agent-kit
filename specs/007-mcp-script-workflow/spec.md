@@ -79,6 +79,7 @@ cases without causing an editor operation accidentally.
 2. **Given** a client that cannot agree on a supported protocol or required capability, **When** it connects or requests an unsupported protocol feature, **Then** it receives an explicit compatible failure without dispatching a Godot operation or claiming a successful connection with nonexistent capabilities.
 3. **Given** the protocol service is reachable but the selected editor is unavailable, incompatible or lacks an operation capability, **When** the agent requests that operation, **Then** the result distinguishes editor availability/support from protocol connection success. Tool presence never guarantees that a particular editor or script is eligible.
 4. **Given** a malformed or out-of-bound tool request or an unknown tool, **When** the client submits it, **Then** it receives the appropriate machine-readable request or execution failure without unsafe effects, payload echo or a fabricated operation result. Valid requests remain subject to the ordinary core checks.
+5. **Given** the public descriptions and machine-readable contracts, **When** a coding agent chooses and uses discover/read/edit and interprets a refusal or uncertain result, **Then** it can identify required inputs, current-basis/lifecycle prerequisites, material limitations, outcome meaning and safe next action without internal architecture knowledge or repeated safety explanations. Structured distinctions and targeted outcome details supply progressive disclosure rather than exhaustive static failure catalogs; safety does not depend on the agent obeying prose.
 
 ---
 
@@ -218,6 +219,10 @@ make a closed edit eligible or repair divergence after reported success.
 - **FR-019**: Real external-client interoperability and real coding-agent discover/read/edit execution MUST be demonstrated. New MCP A/B prove trusted open editing and human-work protection; C proves native history for applicable open edits through ordinary Undo/Redo/Save plus MCP reads and independent witnesses; D uses editor/fixture close/reopen; E uses fresh-basis sequential MCP edits and dirty/stale refusals. Applicable durability remains required without MCP lifecycle/history tools. Positive lifecycle-preserving closed edits MUST also be proved; refusal-only, disk-only or mock-only behavior is insufficient.
 - **FR-020**: Valid unchanged open-document observation/edit, historical opening/closing and other accepted evidence MUST be reused under TEST_POLICY.md after relevant-input review. Closed mutation MUST receive new focused deterministic/core/boundary and applicable real-Godot evidence for authority applicability, coherent persistence, lifecycle preservation, races, refusals and effect-sensitive interruption; Feature 002 acceptance does not prove it. Adapter mapping, cancellation, advertisement, traffic/privacy and composed MCP behavior also need new evidence. Changed relevant inputs require affected regressions, not automatic historical full campaigns.
 - **FR-021**: Local-only operation, no telemetry, preservation of human work, existing permission/confinement boundaries and tested tooling/export isolation MUST remain intact. Basic client connection/setup, exact compatibility and verified limitations MUST be documented before support is claimed. This feature adds no arbitrary evaluation/process/filesystem capability, remote access, gameplay authority or distribution expansion.
+- **FR-022**: Public MCP tool/parameter descriptions, capability text, result guidance and equivalent caller-facing prose MUST be concise, task-oriented and non-redundant, communicating only what a coding agent needs to choose discover/read/edit, supply valid required inputs, interpret structured results and take the appropriate safe next action.
+  Material prerequisites, limitations and operation distinctions MUST remain explicit: discover identifies supported script targets; read returns trusted current script/editor-aware state and the basis needed for editing without opening a closed target; edit requires a current trusted basis and preserves the admitted lifecycle.
+  Interfaces SHOULD prefer structured schemas/outcomes, explicit typed/state distinctions and progressive disclosure over prose duplicating structural information or common rules. Failure details and next-action guidance SHOULD be targeted to the returned outcome rather than exhaustively preloaded into static tool descriptions. Unnecessary internal terminology/architecture, repeated safety rationales and duplicated caveats MUST NOT burden public descriptions.
+  Lean prose MUST NOT weaken implementation-enforced authenticated routing, confinement, target/revision/stale checks, dirty-work protection, permissions, lifecycle preservation, disclosure/redaction or truthful effect semantics; prose MUST NOT compensate for missing enforcement.
 
 ### Scope and Governance Alignment
 
@@ -286,10 +291,13 @@ The [constitution](../../.specify/memory/constitution.md),
 [Phase 3 roadmap](../../ROADMAP.md#phase-3--mcp-adapter-mvp) govern this work.
 Principles I–IV preserve independent authorities, human work, native history and verified
 outcomes. V and X preserve local confinement and truthful diagnostics. VI and XII require
-real-editor evidence; VII–IX keep protocol ownership separate and the tool surface small,
-with no gameplay authority. XI requires released public protocol/library research and
-independent interoperability. Architecture-changing and security-sensitive planning/review
-must explicitly record constitutional compliance.
+real-editor evidence; VII–VIII keep protocol ownership separate and forbid gameplay authority.
+The proposed v1.2.0 expansion of [Principle IX](../../.specify/memory/constitution.md#ix-keep-the-tool-surface-small-and-composable)
+requires both a small composable catalog and lean, agent-effective interfaces with structured,
+progressive disclosure (FR-022, SC-009); this propagation does not claim amendment adoption.
+XI requires released public protocol/library research and independent interoperability.
+Architecture-changing and security-sensitive planning/review must explicitly record
+constitutional compliance.
 
 **Principle XIII check:** The concrete unmet workflow is an agent discovering, reading
 and editing source without managing editor documents or disturbing the developer's
@@ -304,6 +312,12 @@ That cost addresses the current specified gap, not future extensibility. No gene
 transaction manager, workflow engine, retry/replay, cancellation, redaction, tracing
 or extensible capability framework, broad API reshaping, new approval gate or CI/runner
 topology is required. Any additional mechanism must earn its cost in planning.
+
+For the agent-interface requirement, deliberate static descriptions and existing structured
+contracts are the simplest sufficient approach; a small catalog alone does not limit redundant
+prose. Ordinary planning and acceptance review adds no separate process gate. No
+description-generation framework, metadata DSL, prompt compiler, generic capability registry
+or documentation abstraction layer is justified by this requirement.
 
 **Evidence boundary:** Existing open-document observation/edit and historical
 opening/closing evidence remain reusable where relevant inputs are unchanged under
@@ -338,6 +352,7 @@ uses the existing VM boundary. Release and Phase 3 exit remain separate evidence
 - **SC-006**: Every controlled local MCP read/discover completes within five seconds and edit within ten seconds under documented admission/delivery measurement, including blocked/unresponsive cases. Both open and supported closed edits receive timing evidence; existing open-edit timing is not proof of the new closed path. Cancellation remains responsive without extended budgets or rollback claims.
 - **SC-007**: Inspection of authorized, denied, ambiguous, interrupted and startup/error paths finds zero incidental source/inventory/credential leakage or protocol traffic contamination. Only permitted requested results expose selected information; capability discovery never claims unsupported tools or guaranteed editor eligibility.
 - **SC-008**: Existing Features 001–005 contracts and support boundaries remain valid, with unchanged evidence reused after relevant-input review and affected regressions identified. New closed mutation has positive focused deterministic/core/boundary and applicable real-Godot evidence, not borrowed Feature 002 acceptance. Tooling/export isolation remains established; specification quality or unresolved feasibility cannot be reported as product, Phase 3 exit or release completion.
+- **SC-009**: Planning review and later real-agent acceptance establish that public descriptions and structured contracts are understandable without unnecessary prose and sufficient to choose and correctly use discover/read/edit, provide valid inputs, interpret results and take safe next actions without private implementation knowledge. Required current basis/state, lifecycle and material limitations remain explicit; typed/state distinctions and outcome-specific guidance provide progressive disclosure rather than duplicated warnings or exhaustive static failure catalogs. Correctness and safety remain implementation-enforced, not dependent on long instructions. Evaluation is qualitative: no token/word/character budget, description-length threshold or concision score is imposed.
 
 ## Assumptions
 

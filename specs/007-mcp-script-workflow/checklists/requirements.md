@@ -3,7 +3,7 @@
 **Purpose**: Validate specification completeness and quality before proceeding to planning.
 **Created**: 2026-10-03
 **Feature**: [spec.md](../spec.md)
-**Review ownership**: Maintained by `/speckit.specify` and `/speckit.clarify`; a checked item records requirements quality, not implementation or acceptance completion.
+**Review ownership**: Maintained by `/speckit.specify`, `/speckit.clarify` and affected governance/design reviews; a checked item records requirements quality, not implementation or acceptance completion.
 
 ## Content Quality
 
@@ -33,6 +33,9 @@
 ## Notes
 
 - Clarification-stage review passed on 2026-10-03: five prioritized user stories, 25 acceptance scenarios, 21 functional requirements and eight measurable success criteria. Ten maintainer-supplied decisions are recorded in five clarification topics; no additional questions were asked and no clarification marker remains.
+- Principle IX amendment-propagation review on 2026-10-03: five user stories, 26 acceptance scenarios, 22 functional requirements and nine success criteria. New FR-022, US1.5 and SC-009 make lean, agent-effective public interfaces an explicit qualitative obligation under proposed constitution v1.2.0; amendment adoption still requires maintainer approval.
+- Public descriptions must support operation choice, valid inputs, structured-result interpretation and safe next action without redundant safety prose, unnecessary internal terminology or exhaustive static failure catalogs. Material prerequisites, current trusted basis and lifecycle preservation remain explicit; structured distinctions and outcome-specific guidance provide progressive disclosure. Safety remains implementation-enforced.
+- Later planning review and real-agent acceptance must establish interface sufficiency, not a numeric token/word/character budget, description-length threshold or concision score. Deliberate static descriptions are sufficient; no description-generation framework, metadata DSL, prompt compiler, generic capability registry or documentation abstraction layer is justified.
 - MCP and applicable Godot guarantees define product behavior, not an implementation selection. Released protocol/SDK versions, transport, runtime, schemas, exact tool names and client choices remain planning research, together with the minimum safe Godot-authoritative closed-edit route and loaded-Resource postconditions.
 - The public MCP surface is discover scripts, read/inspect one script and edit one script. No first-class open/close/Save/history tools are advertised. Reading preserves trusted observation semantics and does not open a closed target; editing must preserve the admitted open/closed lifecycle without implicit opening or post-edit closing.
 - Features 001–005 and Phases 1/2 remain complete. Feature 002 supports already-open editing and refuses closed targets; closed-script mutation is a new scoped requirement, not an accepted capability or evidence inherited from Feature 002. Features 003/005 and historical lifecycle evidence remain valid and unchanged.
@@ -48,7 +51,8 @@
   | FR-011–FR-015 | US3.5–US3.7 and US4; SC-004, SC-006 |
   | FR-017, FR-021 | US1–US4 and privacy/error edge cases; SC-007–SC-008 |
   | FR-019–FR-020 | US5 and new closed-edit evidence boundary; SC-001, SC-005, SC-008 |
+  | FR-022 | US1.5; SC-009; Principle IX alignment in planning review and later real-agent acceptance |
 
 - Markdown rendering, section order, table structure, code fences and local links/anchors were checked. No product tests, native builds, client interoperability or GUI campaigns were run for this documentation-only stage.
-- Checklist revalidation: **16/16 → 16/16** passing; no newly checked items, regressions or unchecked items. Checkbox markers are unchanged. Notes were revised to apply the maintainer's explicit product-surface correction, not to claim implementation feasibility.
+- Amendment-propagation revalidation: **16/16 → 16/16** passing; no newly checked items, regressions or unchecked items. Checkbox markers and the clarification record are unchanged. The added requirement/scenario/criterion does not reopen product-surface or lifecycle decisions or claim closed-edit feasibility.
 - All checks concern requirements quality. Clarification is complete; plan, tasks, analyze and implement have not run. No closed-edit feasibility, product acceptance, real-agent A–E proof, Phase 3 exit or release completion is claimed.
