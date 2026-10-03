@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-03
 
-**Status**: Draft — product-surface clarification and requirements-quality review passed; implementation is not authorized.
+**Status**: Requirements approved — planning authorized by the maintainer; implementation is not authorized.
 
 **Input**: Generated WHAT/WHY description supplied to `/speckit.specify`:
 
@@ -292,9 +292,9 @@ The [constitution](../../.specify/memory/constitution.md),
 Principles I–IV preserve independent authorities, human work, native history and verified
 outcomes. V and X preserve local confinement and truthful diagnostics. VI and XII require
 real-editor evidence; VII–VIII keep protocol ownership separate and forbid gameplay authority.
-The proposed v1.2.0 expansion of [Principle IX](../../.specify/memory/constitution.md#ix-keep-the-tool-surface-small-and-composable)
+The maintainer-approved constitution v1.2.0 expansion of [Principle IX](../../.specify/memory/constitution.md#ix-keep-the-tool-surface-small-and-composable)
 requires both a small composable catalog and lean, agent-effective interfaces with structured,
-progressive disclosure (FR-022, SC-009); this propagation does not claim amendment adoption.
+progressive disclosure (FR-022, SC-009).
 XI requires released public protocol/library research and independent interoperability.
 Architecture-changing and security-sensitive planning/review must explicitly record
 constitutional compliance.
@@ -362,5 +362,5 @@ uses the existing VM boundary. Release and Phase 3 exit remain separate evidence
 - The engine/platform baseline remains official Godot 4.7.2.stable.official.ed1daf0bf on macOS 26.6.2 arm64. Neither MCP nor closed-edit support is already proved. Planning may identify unsupported closed-state profiles, but refusing every closed target does not satisfy the required positive capability; if no safe supported route exists, return to the product/spec decision.
 - Ordinary developer/editor or controlled fixture Undo/Redo/Save, close/reopen and durability actions are acceptance interactions, not MCP tools or an implicit editing implementation. Open edits preserve native history; closed edits require applicable-authority coherence without a new editor-buffer history entry. Standalone Save/history authority remains excluded.
 - Two independent external clients, one a real coding agent, establish a minimal interoperability check rather than a broad client-support matrix. Planning selects concrete released versions and reproducible evidence; unavailable clients cannot be replaced by mock-only proof.
-- Protocol/SDK/library versions, transport, process/runtime shape, wire/schema details, exact tool names, client versions and test implementation remain planning research. Planning must also establish the minimum safe Godot-authoritative closed-edit route, applicable loaded-Resource states, basis and independent postconditions. An unsupported route is a concrete planning blocker to resolve through the product/spec decision, not permission for a weaker implementation.
-- This clarified draft and its quality checklist establish requirements only. Product decisions are explicit, but implementation feasibility and approval are not claimed. Planning, task derivation, granularity review, analysis, implementation and acceptance remain separate stages; none starts automatically after clarification.
+- Protocol/SDK/library versions, transport, process/runtime shape, wire/schema details, exact tool names, client versions and test implementation belong in the [technical plan](plan.md) and [research](research.md), not this product specification. Planning must establish the minimum safe Godot-authoritative closed-edit route, applicable loaded-Resource states, basis and independent postconditions. An unsupported route requires returning to the product/spec decision, not a weaker implementation.
+- This approved specification and its quality checklist establish requirements, not product acceptance. Planning research/design is recorded separately; primitive feasibility evidence does not claim an implemented guarded closed-edit capability or approve the new technical plan. Task derivation, granularity review, analysis, implementation and acceptance remain separate stages; none starts automatically after planning.
