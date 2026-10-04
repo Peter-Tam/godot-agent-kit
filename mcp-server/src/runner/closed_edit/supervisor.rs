@@ -217,7 +217,6 @@ fn acquire_until(
                 }
                 "disconnected" | "editor_unavailable" => vec![DetectedChange::SessionEnded],
                 "identity_changed" => vec![DetectedChange::DocumentIdentityReplaced],
-                "unavailable_observation" => vec![DetectedChange::Source(Authority::R)],
                 "revision_mismatch" | "validation_context_changed" => vec![
                     DetectedChange::Source(Authority::D),
                     DetectedChange::Source(Authority::R),
@@ -225,10 +224,7 @@ fn acquire_until(
                 _ => vec![],
             };
             let mut acquisition = unavailable(&reason, changes);
-            acquisition.lifecycle_changed = matches!(
-                reason.as_str(),
-                "lifecycle_changed" | "unavailable_observation"
-            );
+            acquisition.lifecycle_changed = reason == "lifecycle_changed";
             Ok(acquisition)
         }
         Err(reason) => Ok(unavailable(reason, vec![])),

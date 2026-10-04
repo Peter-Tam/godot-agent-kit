@@ -196,6 +196,10 @@ class ClosedScriptAcceptanceMixin:
             if name == "missing_cache_getters_read":
                 observation.require(resource_dirty["availability"] == "unavailable" and resource_dirty["state"] is None,
                                     "missing_getters_never_fabricate_R_dirty_facts")
+            if name in ("missing_cache_getters_read", "missing_roster_read", "missing_context_read", "epoch_overflow_read"):
+                observation.require(state["consistency"]["detected_changes"] == [] and
+                                    state["document"]["invalidated_lifecycle"] is None,
+                                    "missing_supplement_never_fabricates_source_or_identity_changes_" + name)
         self.record_witness(name, before, disks, after, now, editor)
         return result
 

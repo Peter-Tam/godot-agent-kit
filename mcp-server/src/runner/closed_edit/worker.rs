@@ -93,13 +93,12 @@ fn admitted(reply: &codec::Reply, status: &str) -> Result<(), Failure> {
         Some("target_unsaved") => "dirty_target",
         Some("resource_edited") => "dirty_resource",
         Some("resource_disk_divergent") => "divergent_resource",
-        Some(
-            "cache_unavailable"
-            | "roster_unavailable"
-            | "unsaved_roster_unavailable"
-            | "resource_unavailable",
-        ) => "unavailable_observation",
-        Some("close_epoch_changed" | "close_epoch_unavailable") => "lifecycle_changed",
+        Some("cache_unavailable") => "cache_unavailable",
+        Some("resource_unavailable") => "resource_unavailable",
+        Some("roster_unavailable") => "roster_unavailable",
+        Some("unsaved_roster_unavailable") => "unsaved_roster_unavailable",
+        Some("close_epoch_unavailable") => "close_epoch_unavailable",
+        Some("close_epoch_changed") => "lifecycle_changed",
         Some("session_or_expiry_changed") => "session_or_expiry_changed",
         Some(
             "expected_revision_changed"

@@ -95,6 +95,14 @@ service is introduced. Exact unchanged intent validates the shared original/desi
 source once during preflight; both parties require byte equality before reusing
 that verdict. Scoped VM acceptance must confirm this optimization.
 
+Focused reruns also expose the existing named subgroups through the runner's
+fixed scenario table. A getter-only failure otherwise replayed 30 already-passing
+positive cases before reaching its own group; the two aggregate selectors could
+not isolate that failure. This reuses the existing close-runner dispatch, capture,
+provenance and cleanup conventions, costing one fixed selector table rather than
+a new campaign/resume mechanism. It neither skips assertions nor changes the
+requirements for cumulative coverage.
+
 ## Owned MCP fixture interfaces after implementation
 
 Extend the existing `run_in_vm.py` fixed suite allowlist with `mcp`, retaining its committed-source, cached-build, provenance, ownership, capture and artifact retrieval semantics. Required groups are `transport`, `closed-native`, `closed-lifecycle`, `preservation`, `interruption`, `composed` and `privacy-export`. They are individually runnable; no new workflow engine or requirement for an aggregate historical `all` mode.

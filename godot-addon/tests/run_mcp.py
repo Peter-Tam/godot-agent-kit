@@ -15,7 +15,12 @@ from run_script_edit import STOCK_SHA256
 from run_script_close import CloseHarness
 from closed_script_acceptance import ClosedScriptAcceptanceMixin, FIXTURE
 
-SCENARIOS = ("closed-native", "closed-lifecycle")
+SCENARIOS = ("closed-native", "closed-lifecycle", "closed-positives", "closed-refusals",
+             "closed-revisions-and-boundary-races", "closed-effect-faults",
+             "closed-acquisition-invalidation-and-selection", "closed-authenticated-wire-boundaries",
+             "closed-save-profile-and-shared-slot", "closed-cancel-and-newer-work",
+             "closed-later-durability-and-history", "matched-v6-native4-legacy-preservation",
+             "closed-privacy-export")
 
 
 class WorkflowHarness(ClosedScriptAcceptanceMixin, CloseHarness):
@@ -79,8 +84,24 @@ def main():
         code = 0
         try:
             harness.initialize()
-            harness.group(args.scenario, {"closed-native": harness.closed_native,
-                                          "closed-lifecycle": harness.closed_lifecycle}[args.scenario])
+            methods = {
+                "closed-native": harness.closed_native,
+                "closed-lifecycle": harness.closed_lifecycle,
+                "closed-positives": harness.closed_positives,
+                "closed-refusals": harness.closed_source_refusals,
+                "closed-revisions-and-boundary-races": harness.closed_revision_races,
+                "closed-effect-faults": harness.closed_effect_faults,
+                "closed-acquisition-invalidation-and-selection": harness.closed_acquisition_boundaries,
+                "closed-authenticated-wire-boundaries": harness.closed_wire_boundaries,
+                "closed-save-profile-and-shared-slot": harness.closed_save_and_slot_guards,
+                "closed-cancel-and-newer-work": harness.closed_cancellation,
+                "closed-later-durability-and-history": harness.closed_durability,
+                "matched-v6-native4-legacy-preservation": harness.closed_legacy_preservation,
+                "closed-privacy-export": harness.closed_privacy_export,
+            }
+            if args.scenario not in ("closed-native", "closed-lifecycle"):
+                harness.compile_window_probe()
+            harness.group(args.scenario, methods[args.scenario])
             harness.summary["status"] = "passed"
         except (observation.Failure, OSError, ValueError, KeyError, TypeError, EOFError,
                 subprocess.SubprocessError) as error:
