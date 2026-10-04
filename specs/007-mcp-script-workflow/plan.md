@@ -4,7 +4,7 @@
 
 **Input:** Maintainer-approved discover/read/edit requirements, including constitution v1.2.0 alignment in FR-022/SC-009.
 
-**Status:** Phase 0 research and Phase 1 design complete for review. [Six implementation tasks](tasks.md) are derived and their [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) has passed; all remain pending. Consistency analysis and implementation have not started. Maintainer approval of the constitution/requirements does not itself approve the technical plan or authorize merge.
+**Status:** Research/design and the revised [four-task decomposition](tasks.md) are available for review. T002 includes the complete positive real-agent workflow; T003 combines adversarial preservation and interrupted effects. The renewed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) governs this list; all tasks remain pending. Consistency analysis and implementation have not started. Requirements/constitution approval is distinct from technical-plan/task review and implementation or merge authorization.
 
 ## Summary
 
@@ -22,7 +22,7 @@ Read preserves Feature 001 observation semantics while presenting source, an opa
 
 **Storage:** Existing source-free owner-private registry; bounded request-local source/evidence and native retained descriptors/Script references. One integration-session close epoch for stale closed bases. No database, token/basis store, persistent outcome cache, replay service, callback history or generic registry.
 
-**Testing:** Existing Rust deterministic/boundary conventions and owned real-Godot VM witnesses, plus real Codex 0.153.4 and Claude Code 2.1.222 interoperability. Task-owned checks and affected regressions follow [TEST_POLICY.md](../../TEST_POLICY.md); [quickstart](quickstart.md) separates future runnable interfaces, required evidence and actual planning observations. No automatic historical whole-suite campaign.
+**Testing:** Existing Rust deterministic/boundary conventions and owned real-Godot VM witnesses, plus required real **Codex CLI 0.153.4 / OMP 18.5.1** interoperability. Both installed versions were re-observed; [OMP suitability/carrier source evidence](research.md#8-codex-and-omp-client-correction-evidence) is not runtime acceptance. Task-owned checks and affected regressions follow [TEST_POLICY.md](../../TEST_POLICY.md); [quickstart](quickstart.md) records concrete scoped client setup, future commands and evidence limits. No automatic historical whole-suite campaign.
 
 **Target Platform:** Official Godot `4.7.2.stable.official.ed1daf0bf`, commit `ed1daf0bf001b61586d9930840f2f1394092c079`, executable SHA-256 `c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`; documented macOS 26.6.2 (25G83), arm64. The planning experiment used that guest profile. No broader engine/platform or running-game hot-reload support.
 
@@ -104,7 +104,7 @@ specs/007-mcp-script-workflow/
     └── closed-edit.md
 ```
 
-[tasks.md](tasks.md) derives six meaningful capability/acceptance increments with directly related tests/docs and records the completed granularity, constitutional and focused-test-scope review. Consistency analysis remains the next separately authorized stage; no implementation task is selected by this plan or by task generation.
+[tasks.md](tasks.md) now derives four coherent implementation increments: protocol-independent trusted read/revision/closed editing; complete external MCP MVP with both clients' positive workflows; combined adversarial preservation/interrupted-effect behavior; composed real-agent A–E and cumulative acceptance. Direct tests/docs are bundled with their implementation, and separately runnable groups do not create extra task IDs. The renewed granularity/coverage review is recorded there. Consistency analysis is the next separately authorized stage; no implementation task is selected.
 
 ### Source code (repository root)
 
@@ -156,3 +156,5 @@ No constitutional exception is requested. The template's violation table is inap
 **Design-shape review:** Each new production responsibility has a current caller and bounded state. One attempt enum represents lifecycle; effects/receipts retain factual partial progress rather than speculative state variants. Existing large modules receive only their necessary integration seam, with narrow responsibility-based files for the new behavior. No permanent research scaffold, generic framework, unguarded public mutation API or additional approval/CI topology is selected.
 
 **Planning correction (2026-10-04):** The maintainer requested the public source/revision/state contract in place of the original whole-read echo. [Research](research.md#7-public-contract-correction-evidence) records exact-client carrier source findings and incomplete runtime probes. Constitution IX/XIII review preserves the approved specification, native closed route, selected protocol/dependencies and all enforced safety boundaries. Actual two-client result visibility remains an implementation acceptance obligation, not an interoperability claim at this design head.
+
+**Task/client correction (2026-10-04):** The maintainer requested consolidation from six pending tasks to four and selected Codex + OMP instead of the earlier client pair. Installed version/help and source inspection establish OMP's stdio/2025-11-25/tool/model-result path; actual client use remains required. The preferred single structured-first carrier is unchanged. OMP's project config is temporary and additive, normal non-bypass approval is retained, and client-local cancellation, reconnect/resend and output-spill limits are explicit in research/acceptance. Temporary config ownership addresses the present need to attach the fixed relay without overwriting human project settings; a global config mutation or a new isolation/client framework is unnecessary. The existing LSP setup, specification, closed transaction, revisions, protocol/dependencies and Features 001–005 remain unchanged. This correction does not run analysis or implementation.
