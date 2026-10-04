@@ -730,8 +730,22 @@ class ClosedScriptAcceptanceMixin:
                                         "prepare_busy_correct_kind_reason_no_effect")
                 self.case("closed_prepare_busy", operation="authenticated_private_v6")
                 self.assert_no_effect("closed_prepare_busy", project, editor, before, disks)
-                refusal = self.workflow_edit(project, descriptor, basis["revision"], CHANGED,
-                                             "workflow_busy_after_read", "refused")
+                self.workflow_edit(project, descriptor, basis["revision"], CHANGED,
+                                   "workflow_occupied_before_read", "refused")
+                self.assert_no_effect("workflow_occupied_before_read", project, editor, before, disks)
+                self.closed_exchange(owner, descriptor, owner_id, "closed_abort")
+            # Let ordinary observation finish before making the closed supplement busy.
+            self.close_action(editor, "closed_arm", stage="inspect")
+            pending = self.start_workflow(project, descriptor, "edit", revision=basis["revision"],
+                                          replacement_source=CHANGED)
+            self.wait_closed_barrier(editor, "inspect", pending)
+            owner, owner_id = self.authenticated_peer(descriptor)
+            with owner:
+                prepared = self.closed_exchange(owner, descriptor, owner_id, "closed_prepare", expected, CHANGED, 9000)
+                observation.require(prepared["status"] == "prepared", "owner_enters_between_read_and_supplement")
+                self.close_action(editor, "closed_release")
+                refusal = self.complete_workflow(pending, "workflow_busy_after_read", "edit")
+                self.review_workflow_edit(refusal, "workflow_busy_after_read", "refused")
                 observation.require(refusal["outcome"]["reason"] == "slot_busy",
                                     "workflow_busy_retains_actual_acquisition_cause")
                 self.assert_no_effect("workflow_busy_after_read", project, editor, before, disks)
