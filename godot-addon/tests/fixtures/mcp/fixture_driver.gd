@@ -94,6 +94,9 @@ func _dispatch_close_request(request: Dictionary) -> void:
 			_closed_announced = false
 			_closed_events.clear()
 			_closed_effect_seen = false
+			var event_path := _control.path_join("closed-event.json")
+			if FileAccess.file_exists(event_path):
+				response.ok = DirAccess.remove_absolute(event_path) == OK
 		"closed_info":
 			response.complete_family = api.has_all(["closed_inspect", "closed_prepare", "closed_apply", "closed_verify",
 				"closed_recheck", "closed_finish", "closed_abort", "closed_expire"])

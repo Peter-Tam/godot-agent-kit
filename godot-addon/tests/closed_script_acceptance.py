@@ -405,14 +405,17 @@ class ClosedScriptAcceptanceMixin:
             self.workflow_edit(project, descriptor, clean["revision"], CHANGED, "epoch_reset_refused", "refused")
             self.assert_no_effect("epoch_reset_refused", project, editor, before, disks)
 
-    def wait_closed_barrier(self, editor, stage, pending):
+    def wait_closed_barrier(self, editor, stage, pending, *, acquisition=False):
         process = pending[0]
         def reached():
             observation.require(process.poll() is None, "workflow_exited_before_barrier_" + stage)
             path = editor["control"] / "closed-event.json"
             if path.is_file():
                 event = json.loads(path.read_text())
-                if event.get("request_id") == pending[2] and event.get("stage") == stage:
+                request_id = event.get("request_id")
+                correlated = (isinstance(request_id, str) and 0 < len(request_id) <= 64 and
+                              request_id != pending[2]) if acquisition else request_id == pending[2]
+                if correlated and event.get("stage") == stage:
                     return event
             return None
         return observation.wait_for(reached, "actual_closed_barrier_" + stage, timeout=8)
@@ -738,7 +741,7 @@ class ClosedScriptAcceptanceMixin:
             self.close_action(editor, "closed_arm", stage="inspect")
             pending = self.start_workflow(project, descriptor, "edit", revision=basis["revision"],
                                           replacement_source=CHANGED)
-            self.wait_closed_barrier(editor, "inspect", pending)
+            self.wait_closed_barrier(editor, "inspect", pending, acquisition=True)
             owner, owner_id = self.authenticated_peer(descriptor)
             with owner:
                 prepared = self.closed_exchange(owner, descriptor, owner_id, "closed_prepare", expected, CHANGED, 9000)
