@@ -348,13 +348,26 @@ class ClosedScriptAcceptanceMixin:
                     self.workflow_edit(project, descriptor, capture["revision"], replacement, "source_refusal_" + name, "refused")
                 self.assert_no_effect("source_refusal_" + name, project, editor, before, disks)
         for profile, source in (("original_tool", "@tool\n" + SAFE),
-                                ("original_preload", SAFE + 'const BAD = preload("res://scripts/other.gd")\n'),
-                                ("original_invalid", "extends RefCounted\nfunc value(:\n")):
+                                ("original_preload", SAFE + 'const BAD = preload("res://scripts/other.gd")\n')):
             with self.closed_fixture(profile, source=source) as (project, editor, descriptor):
                 self.workflow_read(project, editor, descriptor, profile + "_read", revision=False, source=source)
                 before, disks = self.state(editor, project)
                 self.workflow_edit(project, descriptor, "sr1:" + "0" * 64, CHANGED, profile + "_refused", "refused")
                 self.assert_no_effect(profile + "_refused", project, editor, before, disks)
+        invalid = "extends RefCounted\nfunc value(:\n"
+        with self.closed_fixture("original-invalid", source=invalid) as (project, editor, descriptor):
+            # A revision binds observed state; it is not a parse verdict or mutation authority.
+            capture = self.workflow_read(project, editor, descriptor, "original_invalid_read", source=invalid)
+            before, disks = self.state(editor, project)
+            result = self.workflow_edit(project, descriptor, capture["revision"], CHANGED,
+                                        "original_invalid_refused", "refused")
+            outcome = result["outcome"]
+            observation.require(outcome["reason"] == "parse_error" and
+                                outcome["evidence"]["validation"] ==
+                                {"original": False, "desired": True, "actual": False} and
+                                not outcome["effects"]["authorized"],
+                                "valid_desired_never_bypasses_invalid_original")
+            self.assert_no_effect("original_invalid_refused", project, editor, before, disks)
         for mutation in ("divergent", "dirty", "equal_dirty"):
             with self.closed_fixture("resource-" + mutation, cached=True) as (project, editor, descriptor):
                 clean = self.workflow_read(project, editor, descriptor, "resource_" + mutation + "_clean", source=SAFE)

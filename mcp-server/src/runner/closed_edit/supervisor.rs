@@ -362,28 +362,47 @@ pub(crate) fn run(
                     }
                 };
                 let control = if preflight {
-                    let original = make_request(
-                        Some(context.source),
-                        stock_validation::Purpose::Preflight,
-                        context.validation.warnings.clone(),
-                        context.validation.global_classes.clone(),
-                        context.validation.executable.clone(),
-                    );
-                    let desired = make_request(
-                        source,
-                        stock_validation::Purpose::Preflight,
-                        context.validation.warnings,
-                        context.validation.global_classes,
-                        context.validation.executable,
-                    );
-                    let (original, desired) =
+                    let same_source = source.as_deref() == Some(context.source.as_str());
+                    if same_source != unchanged {
+                        reason = "protocol_error".into();
+                        break;
+                    }
+                    let (original, desired) = if same_source {
+                        let original = stock_validation::validate(
+                            make_request(
+                                source,
+                                stock_validation::Purpose::Preflight,
+                                context.validation.warnings,
+                                context.validation.global_classes,
+                                context.validation.executable,
+                            ),
+                            clock,
+                            cancelled,
+                        );
+                        (original, None)
+                    } else {
+                        let original = make_request(
+                            Some(context.source),
+                            stock_validation::Purpose::Preflight,
+                            context.validation.warnings.clone(),
+                            context.validation.global_classes.clone(),
+                            context.validation.executable.clone(),
+                        );
+                        let desired = make_request(
+                            source,
+                            stock_validation::Purpose::Preflight,
+                            context.validation.warnings,
+                            context.validation.global_classes,
+                            context.validation.executable,
+                        );
                         match self::preflight(original, desired, clock, cancelled) {
-                            Ok(results) => results,
+                            Ok((original, desired)) => (original, Some(desired)),
                             Err(error) => {
                                 reason = error.into();
                                 break;
                             }
-                        };
+                        }
+                    };
                     original_valid = valid(
                         &original,
                         request.id.as_str(),
@@ -392,27 +411,29 @@ pub(crate) fn run(
                         &request.basis.state.file_revision.sha256,
                     );
                     desired_valid = valid(
-                        &desired,
+                        desired.as_ref().unwrap_or(&original),
                         request.id.as_str(),
                         &request.basis.session,
                         &request.basis.path,
                         &desired_hash,
                     );
-                    denied |= [&original, &desired].iter().any(|result| {
-                        matches!(
-                            result.reason.as_deref(),
-                            Some(
-                                "denied_access"
-                                    | "unsafe_project"
-                                    | "unsafe_path"
-                                    | "source_unreadable"
+                    denied |= std::iter::once(&original)
+                        .chain(desired.as_ref())
+                        .any(|result| {
+                            matches!(
+                                result.reason.as_deref(),
+                                Some(
+                                    "denied_access"
+                                        | "unsafe_project"
+                                        | "unsafe_path"
+                                        | "source_unreadable"
+                                )
                             )
-                        )
-                    });
+                        });
                     helper_phase = 2;
                     Control::Preflight {
                         original: Box::new(original),
-                        desired: Box::new(desired),
+                        desired: desired.map(Box::new),
                     }
                 } else {
                     let result = stock_validation::validate(

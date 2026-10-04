@@ -91,8 +91,9 @@ protocol would add more state and compatibility work than reusing two existing
 bounded workers. The current cost is one scoped coordination thread and at most
 two simultaneous isolated validation children, with their existing provenance,
 cleanup and deadlines. No new dependency, extended lease or retained validator
-service is introduced. Scoped VM acceptance must confirm the scheduling change.
-
+service is introduced. Exact unchanged intent validates the shared original/desired
+source once during preflight; both parties require byte equality before reusing
+that verdict. Scoped VM acceptance must confirm this optimization.
 
 ## Owned MCP fixture interfaces after implementation
 

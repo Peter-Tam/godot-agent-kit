@@ -102,7 +102,7 @@ enum Control {
     Abort {},
     Preflight {
         original: Box<stock_validation::ValidationResult>,
-        desired: Box<stock_validation::ValidationResult>,
+        desired: Option<Box<stock_validation::ValidationResult>>,
     },
     Validation {
         result: Box<stock_validation::ValidationResult>,

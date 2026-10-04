@@ -272,7 +272,7 @@ fn preflight(
 ) -> Result<
     (
         stock_validation::ValidationResult,
-        stock_validation::ValidationResult,
+        Option<stock_validation::ValidationResult>,
     ),
     Failure,
 > {
@@ -304,14 +304,18 @@ fn preflight(
         context,
         &confined::hex_sha256(context.source.as_bytes()),
     )?;
-    check_validation(
-        &proposed,
-        selected,
-        request,
-        context,
-        &confined::hex_sha256(desired.as_bytes()),
-    )?;
-    Ok((*original, *proposed))
+    if let Some(proposed) = &proposed {
+        check_validation(
+            proposed,
+            selected,
+            request,
+            context,
+            &confined::hex_sha256(desired.as_bytes()),
+        )?;
+    } else if context.source != desired {
+        return Err(("validation_failed", false));
+    }
+    Ok((*original, proposed.map(|result| *result)))
 }
 fn post_validation(
     io: (&mut UnixStream, &mut UnixStream),
@@ -502,9 +506,15 @@ fn edit(
         if !basis.state.matches(&guard)
             || guard_context.sha256 != context.sha256
             || current_context(&selected, &guard_context).as_ref()
-                != desired_result.context_sha256.as_ref()
+                != desired_result
+                    .as_ref()
+                    .unwrap_or(&original)
+                    .context_sha256
+                    .as_ref()
             || !dependencies(&selected, &original)
-            || !dependencies(&selected, &desired_result)
+            || desired_result
+                .as_ref()
+                .is_some_and(|result| !dependencies(&selected, result))
         {
             return Err(("revision_mismatch", false));
         }
