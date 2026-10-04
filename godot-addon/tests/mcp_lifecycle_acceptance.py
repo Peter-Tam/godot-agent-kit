@@ -424,15 +424,18 @@ class McpLifecycleMixin:
     def finalize_targets(self, *, primary_only=False):
         for target in self.targets.values():
             calls = target['calls']
-            names = [c['name'] for c in calls]
             if target.get('durability_start') is not None:
                 primary_calls = calls[:target['durability_start']]
             else:
                 primary_calls = calls
-            calls = primary_calls
+            # Admission/host errors remain recorded attempts, not operation evidence.
+            calls = [c for c in primary_calls
+                     if isinstance(c.get('structuredContent', {}).get('result'), dict)]
+            names = [c['name'] for c in calls]
             observation.require('read_script' in names, 'real_client_read_' + target['name'])
             if target['name'] == 'known':
-                observation.require('discover_scripts' not in names, 'direct_known_target_without_discovery')
+                observation.require(not any(c['name'] == 'discover_scripts' for c in target['calls']),
+                                    'direct_known_target_without_discovery')
             if target['name'] == 'partial':
                 discoveries = [c['structuredContent']['result'] for c in calls if c['name'] == 'discover_scripts']
                 observation.require(any(d['inventory']['coverage'] == 'partial' for d in discoveries),
@@ -466,7 +469,8 @@ class McpLifecycleMixin:
                 later = target['calls'][target['durability_start']:]
                 observation.require(later and all(c['name'] == 'read_script' for c in later),
                                     'post_open_read_only_client_continuation')
-                observation.require(any(c['structuredContent']['result']['source'] == CHANGED and
+                observation.require(any(isinstance(c['structuredContent']['result'], dict) and
+                                        c['structuredContent']['result']['source'] == CHANGED and
                                         c['structuredContent']['result']['state']['document']['lifecycle'] == 'open'
                                         for c in later), 'later_open_actual_client_fresh_MCP_read')
                 self.native_action(target['editor'], 'native_edit_save_clean')

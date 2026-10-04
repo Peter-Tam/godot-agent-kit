@@ -138,7 +138,8 @@ class PreparedWorkflowTests(unittest.TestCase):
             return dict(name='read_script', structuredContent={'result': dict(source=source, revision=revision)})
         def edit(outcome):
             return dict(name='edit_script', structuredContent={'result': {'outcome': {'outcome': outcome}}})
-        calls = [dict(name='discover_scripts'), read('old', 'r1'), read('old', 'r1'),
+        calls = [dict(name='discover_scripts', structuredContent={'result': {'inventory': {'entries': [lifecycle.TARGET]}}}),
+                 read('old', 'r1'), read('old', 'r1'),
                  edit('verified_unchanged'), edit('verified_changed'), read(lifecycle.CHANGED, 'r2')]
         target = dict(name='cached', calls=calls, desired=lifecycle.CHANGED, durability_start=len(calls))
         harness.targets = {'owned': target}
@@ -146,3 +147,15 @@ class PreparedWorkflowTests(unittest.TestCase):
         with self.assertRaises(lifecycle.observation.Failure):
             harness.finalize_targets()
         harness.native_action.assert_not_called()
+        calls.append(dict(name='read_script', structuredContent={
+            'result': None, 'error': {'category': 'admission', 'code': 'server_busy'}}))
+        with self.assertRaises(lifecycle.observation.Failure):
+            harness.finalize_targets()
+        harness.native_action.assert_not_called()
+        target.update(project=Path('/owned'), editor=object())
+        later_read = read(lifecycle.CHANGED, 'r3')
+        later_read['structuredContent']['result']['state'] = {'document': {'lifecycle': 'open'}}
+        calls.append(later_read)
+        harness.native_action.side_effect = RuntimeError('reached_independent_durability')
+        with self.assertRaisesRegex(RuntimeError, 'reached_independent_durability'):
+            harness.finalize_targets()
