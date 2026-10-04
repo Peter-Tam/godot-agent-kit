@@ -912,11 +912,16 @@ class ClosedScriptAcceptanceMixin:
             name = "durability_" + ("cached" if cached else "absent")
             with self.closed_fixture(name, cached=cached) as (project, editor, descriptor):
                 self.close_action(editor, "close_human", path=CURRENT, mutation="dirty_equal")
+                self.close_action(editor, "open_setup", paths=[], path=CURRENT, idle=True)
                 human, disks = self.state(editor, project)
+                observation.require(human["current"]["dirty"] and human["current"]["has_undo"] and
+                                    human["current"]["R"] == human["current"]["B"] != disks[CURRENT]["text"],
+                                    "settled_unsaved_human_history_before_closed_edit")
                 basis = self.workflow_read(project, editor, descriptor, name + "_basis", source=SAFE)
                 result = self.workflow_edit(project, descriptor, basis["revision"], CHANGED, name, "verified_changed")
                 after, now = self.assert_closed_success(name, project, editor, human, disks, CHANGED, changed=True)
                 self.close_history(editor, CURRENT)
+                self.close_action(editor, "open_setup", paths=[], path=CURRENT, idle=True)
                 history_after, _ = self.state(editor, project)
                 # Opening is later durability evidence, never a means of admission.
                 self.public_open(project, descriptor, name + "_ordinary_open")
