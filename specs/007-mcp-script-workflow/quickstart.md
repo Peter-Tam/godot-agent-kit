@@ -1,0 +1,191 @@
+# Quickstart: Validate the Trusted MCP Script Workflow
+
+**Status:** Planning/validation contract only. The MCP binary, new closed transaction and MCP runner commands below are **implementation deliverables, not present commands at this planning head**. Existing availability checks are identified separately. This guide defines their exact intended invocation and expected evidence; it does not implement them or claim they ran.
+
+Read [plan.md](plan.md), [data-model.md](data-model.md) and [the public contract](contracts/mcp-interface.md). Follow [TEST_POLICY.md](../../TEST_POLICY.md) for scope, evidence reuse and the existing [VM boundary](../../.github/LOCAL_VM.md). No command authorizes a feature task before its own approved tasks/analysis and one-task-one-PR prerequisites.
+
+## Prerequisites and available checks
+
+- Existing exact stock Godot 4.7.2.stable.official.ed1daf0bf, macOS 26.6.2 arm64 profile and engine/native provenance. Keep the recorded support boundary; a different environment is not equivalent support evidence by assumption.
+- Rust 1.98.1, edition 2021, tracked locked dependencies; matched private bridge v6/native revision 4 after implementation. Old native revision 3 does not implement closed editing.
+- Existing dedicated Tart VM, private synthetic fixture projects, unlocked guest GUI and owned-window captures. Godot/core/registry stay inside the guest for acceptance; no host GUI fallback or personal projects/credentials in the guest.
+- Selected installed independent coding-agent clients: **Codex CLI 0.153.4** and **Oh My Pi (OMP) 18.5.1**, re-observed for this correction. Host-owned model authentication/approval is never copied into repository/guest evidence. Unavailable real model access cannot be replaced with mock calls or another client. See [source-backed suitability and limits](research.md#8-codex-and-omp-client-correction-evidence).
+
+These lightweight installed-client checks were executed for the correction and remain runnable from the repository root:
+
+```sh
+codex --version
+codex exec --help
+omp --version
+omp --help
+omp config --help
+```
+
+Observed outputs: `codex-cli 0.153.4` and `omp/18.5.1`. The retained Codex version is the current installed executable, not the newer upstream 0.160.0 release; no installation was changed. OMP package/source and authoritative docs establish structural MCP suitability, not interoperability. The original planning VM/Tart observations remain historical evidence; no VM/status/model/MCP acceptance run was repeated for this correction.
+
+## Build and local connection after implementation
+
+From `mcp-server/`, build the actual new executable and its library with the selected locked feature graph:
+
+```sh
+cargo +1.98.1 build --locked --bin godot-agent-kit-mcp
+./target/debug/godot-agent-kit-mcp --help
+./target/debug/godot-agent-kit-mcp --version
+```
+
+Expected: no editor effect, no source/credential output. For ordinary developer use with an already-configured local editor/registry, the client starts that binary with `--registry "$REGISTRY"`. Registry setup/addon enablement/editor startup remain deliberate developer actions. The server does not infer a project from cwd or start Godot.
+
+For implementation verification, start with the smallest affected test target. At Rust-affecting task completion run the applicable baseline from `mcp-server/`:
+
+```sh
+cargo +1.98.1 fmt --all -- --check
+cargo +1.98.1 clippy --all-targets --locked -- -D warnings
+cargo +1.98.1 test --locked
+cargo +1.98.1 doc --no-deps --locked
+```
+
+Retain default doctests. Native/bridge changes also require their directly affected build/loading/boundary evidence. Do not run these product commands merely because planning documentation changed.
+
+## Owned MCP fixture interfaces after implementation
+
+Extend the existing `run_in_vm.py` fixed suite allowlist with `mcp`, retaining its committed-source, cached-build, provenance, ownership, capture and artifact retrieval semantics. Required groups are `transport`, `closed-native`, `closed-lifecycle`, `preservation`, `interruption`, `composed` and `privacy-export`. They are individually runnable; no new workflow engine or requirement for an aggregate historical `all` mode.
+
+Group names are not task IDs: T001 owns direct core/native `closed-native`/`closed-lifecycle` proof; T002 adds transport and the full positive real-agent lifecycle workflow through actual MCP; T003 owns the combined adversarial purpose across separately runnable `preservation`, `interruption` and affected lifecycle cases; T004 owns `composed`, cumulative `privacy-export` and valid-evidence coverage. Use the [explicit scenario/FR/SC ownership tables](tasks.md#requirement-entity-and-contract-coverage); consolidation does not collapse test files or execution groups.
+
+From repository root, on the committed implementation revision:
+
+```sh
+python3 godot-addon/tests/run_in_vm.py start
+python3 godot-addon/tests/run_in_vm.py run mcp --scenario transport --captures
+python3 godot-addon/tests/run_in_vm.py run mcp --scenario closed-native --captures
+python3 godot-addon/tests/run_in_vm.py run mcp --scenario closed-lifecycle --captures
+```
+
+Run only groups owned/invalidated by the selected task, then the separately required cumulative MCP composition. Expected positive closed results independently establish intended D, same clean loaded R source or confirmed absence, continued absence of B, matching lifecycle/revision and actual validation. A native acknowledgment, disk hash alone or universal refusal is failure.
+
+The `transport` group uses the actual server executable without authorizing an editor mutation for malformed/unsupported cases. It records actual negotiated revision, exact three-tool catalog, result-schema validity, parse/request/tool-error distinctions, UTF-8/depth/size limits, duplicate/unknown IDs, concurrency refusal, stdout purity, blocked-output termination and open-input shutdown. Relevant source/credential sentinels must not occur in stderr or incidental protocol errors.
+
+The fixture controls human state/history/race barriers and independent witnesses, not the MCP tool's success verdict. Use fault artifacts separately from production native artifacts; neither fixtures nor their privileged controls may enter an export.
+
+## Real coding-agent clients after implementation
+
+Add two fixed test-only VM-wrapper commands:
+
+- `prepare-mcp --revision SHA --run-id ID --artifacts DIR`: prepare an owned synthetic project/session and matched binaries; write source-free target setup, `mcp.json` and `prompt.txt` into the fresh host artifact directory. `mcp.json` is an OMP-native project definition for the fixed relay below, with actual absolute paths/run ID. For an OMP run, attach it as the owned repository checkout's temporary `.omp/mcp.json` only when that path is absent; record ownership/content and remove it after the run only if unchanged. Never overwrite pre-existing config or human changes; use a clean owned checkout of the tested commit when needed. The receipt binds guest inputs/session and the selected host config without authentication secrets.
+- `mcp-stdio --run-id ID`: validate that prepared run and relay stdin/stdout through the existing private Tart channel to its fixed guest MCP executable/registry. No arbitrary guest command, endpoint or host project is accepted. Protocol bytes are not wrapped in helper status output. Setup/relay diagnostics are source-free stderr.
+
+The relay is test apparatus, not a product remote transport. Host clients retain their normal model access; editor/core effects remain in the owned guest. This is the minimal adaptation needed to combine real clients with the existing VM policy.
+
+Example preparation from the root of a clean, owned host checkout of the tested repository commit (`REPO` is that checkout, not a human Godot project). The OMP preparation must preserve `.omp/lsp.yaml` and normal repository-root launch semantics:
+
+```sh
+REPO="$PWD"
+REVISION="$(git rev-parse HEAD)"
+RUN_ID="mcp-agent-$(date -u +%Y%m%dT%H%M%SZ)"
+ARTIFACTS="$(mktemp -d "$HOME/mcp-agent.XXXXXX")"
+python3 godot-addon/tests/run_in_vm.py prepare-mcp \
+  --revision "$REVISION" --run-id "$RUN_ID" --artifacts "$ARTIFACTS"
+```
+
+The generated `mcp.json` uses this documented OMP shape; the example paths/ID are illustrative, while preparation writes their actual values:
+
+```json
+{
+  "mcpServers": {
+    "godot_agent_kit": {
+      "type": "stdio",
+      "command": "python3",
+      "args": [
+        "/owned/godot-agent-kit/godot-addon/tests/run_in_vm.py",
+        "mcp-stdio",
+        "--run-id",
+        "owned-run-id"
+      ],
+      "cwd": "/owned/godot-agent-kit",
+      "timeout": 15000,
+      "instructions": false
+    }
+  }
+}
+```
+
+The prompt gives the owned project/session, requested change and human intent, not private architecture coaching. The server contributes no long instruction block; static tool descriptions and structured outcomes must suffice.
+
+After the generated definition is attached as temporary project `.omp/mcp.json`, launch the actual installed OMP from that repository root:
+
+```sh
+OMP_MCP_TIMEOUT_MS=15000 OMP_MCP_REQUIRE_READY=1 \
+omp --cwd "$REPO" --mode json --no-session --approval-mode write \
+  < "$ARTIFACTS/prompt.txt"
+```
+
+This uses ordinary host-owned authentication and OMP's supported `write` approval mode, not yolo/auto-approve. MCP tools have the write tier; explicit user/tool denies and prompt policies still apply. A prompt-required headless call fails closed: use the ordinary interactive OMP with the same project config and non-bypass policy to obtain the required human approval/private session transcript, rather than loosening that policy. Do not use `--no-lsp` or modify `.omp/lsp.yaml`. OMP's `--config` accepts settings overlays, not a replacement MCP server file.
+
+Project MCP discovery is additive to user/profile/imported definitions; this command does not claim to disable them. Record the actual server/config origin and verify the `godot_agent_kit` relay owns `mcp__godot_agent_kit_discover_scripts`, `mcp__godot_agent_kit_read_script` and `mcp__godot_agent_kit_edit_script`. Do not mutate global personal configs to manufacture a clean result. Any other tool that substitutes shell/file/private-bridge access for a product operation invalidates the workflow proof; ordinary consumption of a client-owned artifact containing an already-returned MCP result is not such a substitution.
+
+Keep OMP JSONL stdout and stderr separate in private evidence. `message_end` carries completed messages; correlate actual tool execution/call/result events and subsequent model actions with relay/server records and independent guest witnesses. Raw `details.structuredContent`, a catalog listing or an assistant's unsupported success claim is not proof the model obtained the required fields.
+
+Codex's observed exec/config interface permits a separate invocation, retaining normal authentication but not changing user configuration:
+
+```sh
+codex exec --ignore-user-config --ephemeral --sandbox read-only --json \
+  -c 'mcp_servers.godot_agent_kit.command="python3"' \
+  -c "mcp_servers.godot_agent_kit.args=[\"$REPO/godot-addon/tests/run_in_vm.py\",\"mcp-stdio\",\"--run-id\",\"$RUN_ID\"]" \
+  -c 'mcp_servers.godot_agent_kit.startup_timeout_sec=10' \
+  -c 'mcp_servers.godot_agent_kit.tool_timeout_sec=15' \
+  - < "$ARTIFACTS/prompt.txt"
+```
+
+Use a fresh prepared run for the second client and retain actual tool-call/result transcripts. Client timeout exceeds the server contract so it does not hide the server's deadline result. Deny direct file/shell/private-bridge substitutions; any such substitution invalidates that agent workflow proof. The guest fixture is not a host workspace file path. Do not use global permission-bypass flags. The fixture harness must separately assert state; model claims are not acceptance.
+
+For T002, **each client** must actually connect, discover the exact three-tool catalog and perform `discover → read → edit → fresh read` for an eligible open script, cached-clean-R closed script and confirmed-absent-R closed script. Also cover known-target editing without mandatory discovery, unchanged intent and representative informative dirty/limited/non-editable reads. Model-visible source/revision/state and lifecycle-preserving independent postconditions are required, not deferred to a separate acceptance PR. Later opening of a successfully closed-edited target witnesses durability only. T003 adds adversarial/refusal/partial/unknown result interpretation; at least one real-agent conversation supplies T004's full composed A–E. If selected-version negotiation or required result visibility fails, report the actual limitation before claiming support; do not fall back to a custom SDK client or silently drop OMP.
+
+### Revision and result-carrier checks
+
+Exercise the familiar public flow: read the explicit target, use `result.source` and relevant `result.state`, then submit only its non-null `result.revision`, the selectors and replacement. No full read/observation object is accepted as edit input; ordinary informative reads with no safe revision remain useful.
+
+Focused deterministic/boundary and real-editor evidence must establish:
+
+- Reacquiring unchanged eligible state produces the same revision despite new request/collection IDs and intervals. Meaningful source, target/session/document identity, same-text buffer-version or lifecycle changes invalidate it.
+- Existing closed same-text file-revision, Resource branch/identity/dirty and close-epoch ABA cases invalidate the public revision as well as the internal basis. The native closed design and its positive coverage are unchanged.
+- Edit freshly authenticates/resolves/acquires before comparison, freezes exactly the matching capture and constructs the internal request from that evidence. A later race still reaches the existing guards; no refreshed basis, branch switch or clock renewal rescues stale intent.
+- Missing/malformed/wrong-target/stale revisions fail without mutation. Even a fabricated matching precondition cannot bypass current dirty, permission, confinement, Resource, lifecycle or validation checks. After possible effects, the next intentional edit requires a fresh read, not replay.
+- Public state preserves exact source/provenance, empty versus unavailable, dirty/divergent/invalidated authority facts and limitations without private expected-state payloads or redundant agreeing source copies.
+
+For **each selected real client**, demonstrate model-visible use of source, opaque revision, relevant state and failure/next-action facts from the authoritative structured result—not merely a raw SDK event or displayed summary. Include multiline/Unicode/empty source, informative limited reads and partial/unknown edit outcomes within the applicable existing bounds. Do not silently truncate to pass. Start with the selected structured-content plus terse-summary carrier; do not preload a full JSON text copy by assumption. If a client requires it, record the failing smaller carrier and the sufficient full-text fallback, update the carrier decision with its compatibility/context cost and preserve the same authorized object/schema. Unavailable model access is not a pass and does not justify silently dropping that client.
+
+Codex's inspected conversion prefers the structured object; OMP's inspected bridge renders it into model-facing JSON alongside the terse summary. Keep that single server carrier. OMP can spill large output to client-owned artifacts: record preview/complete-result recovery and show actual use of required source/revision/state/error fields, rather than assume raw transcript visibility equals model visibility. No unconditional JSON duplication or silent source truncation is a remedy for client output caps.
+
+OMP's stdio cancellation is client-local abandonment and does not send `notifications/cancelled`; use the focused protocol driver for actual wire-cancellation cases, while retaining required real-agent workflows and outcome interpretation. OMP also has a source-established reconnect/resend path after retryable EOF/closure. T003 records actual duplicates and survivor state, verifies unchanged product admission/stale/lifecycle enforcement and never counts an automatic resend as a new intentional edit/fresh read. Neither client-local timeout nor reconnect proves rollback or safe replay. The product adapter's no-retry/no-queue/no-compensation contract remains unchanged.
+
+## Acceptance coverage
+
+| Group / evidence | Owning task(s) | Exact approved scenarios | FR / SC coverage and required observations |
+| --- | --- | --- | --- |
+| Transport and both independent clients | T002; T003 failure extensions | US1.1–US1.4 | FR-001–FR-004, FR-012–FR-017, FR-021; SC-001, SC-004, SC-006–SC-007. Negotiation, unsupported requests, editor-unavailable versus connection success, bounded errors and no incidental disclosure/effect. |
+| Qualitative interface review and actual agent use | T002; T003 failure guidance; T004 composition | US1.5 | FR-002, FR-022; SC-009. Agent chooses discover/read/edit, uses source/revision/state, submits revision/replacement without internal evidence knowledge, and interprets structured results/actions. No redundant warnings or numerical concision threshold; actual carrier visibility and any necessary fallback cost are recorded. |
+| Closed-native and closed-lifecycle | T001 direct proof; T002 positive public workflows; T003 adversarial cases | US2.1, US2.3–US2.5, US5.5 | FR-005–FR-011, FR-014, FR-018–FR-020; SC-002–SC-006, SC-008. Positive cached/absent R, current basis, no opening, no-op recognition, missing/dirty/divergent R refusal, namespace/cache/lifecycle races, independent closed postconditions and later opening durability. |
+| Preservation and stale state | T002 positive open workflow; T003 combined safety increment | US2.2, US3.1–US3.4, US3.7 | FR-004–FR-010, FR-018–FR-020; SC-002–SC-003, SC-008. Open guarantees, dirty/equal-dirty human state/history, same-text versions/file revisions, closed→open→closed epoch, target/session replacement, confinement and unobservable evidence. |
+| Interruption and overlapping calls | T003 combined safety increment | US3.5–US3.6, US4.1–US4.4 | FR-003–FR-004, FR-007, FR-010–FR-017, FR-020; SC-003–SC-004, SC-006–SC-007. Actual pre/post-authorization cancel/EOF/timeout/output-loss/disable, preserved newer work, exact effect certainty, no late effect after proven refusal, no adapter queue/replay or cross-call cancellation. |
+| Real-agent MCP composed A–E | T004 | US5.1–US5.4 | FR-019–FR-020; SC-001–SC-005, SC-008–SC-009. A/B clean-open edit and dirty protection; C genuine native Undo/Save/Redo/Save for open edits; D ordinary fixture close/reopen and permitted durability; E twenty fresh-basis successful MCP edits covering open/closed with at least three dirty and three stale refusals. |
+| Privacy/export and existing-contract review | T001–T003 direct obligations; T004 cumulative coverage | US1–US5 relevant error/selection paths and all privacy/export edge cases | FR-016–FR-018, FR-020–FR-021; SC-007–SC-008. Authorized results only, source-free catalog/logs/errors, sticky disclosure denial after causal failure, enabled/disabled/hook-only exports, all existing local contracts unchanged. |
+
+This covers all **26 scenarios, FR-001–FR-022 and SC-001–SC-009**. Cross-cutting routing, timing, privacy and outcome meaning apply to every relevant group, not just one named row. Closed positive cases supplement A, never replace its open-buffer proof.
+
+For C, native Undo/Redo must independently reverse/reapply real open-document source with prior history intact; no second source-edit call substitutes for history. For D, later opening is a durability witness after already-verified closed editing, not the method of obtaining success. Ordinary reparse/rescan/fresh runtime must retain intended source without reconciliation; loaded class metadata is not assumed hot-reloaded. E uses a fresh trusted read/revision for every intentional edit; losing a response requires another fresh read rather than replay.
+
+## Evidence reuse and completion
+
+Reuse [Phase 1 accepted evidence](../../PHASE_1_EXIT.md#evidence-reuse-and-currentness), [Phase 2 ownership/evidence](../../PHASE_2_EXIT.md#evidence-currentness), [Feature 002 acceptance](../002-edit-open-gdscript/quickstart.md#14-t005-cumulative-acceptance-2026-09-29) and [Feature 005 cumulative review](../005-close-project-gdscript/quickstart.md#t003-execution-decision-and-evidence-review) only after relevant-input/provenance review.
+
+The private v6/native revision-4 cutover changes registration/negotiation/owner inputs. Prove affected capability/refusal/slot/cancellation/loading/export compatibility and representative existing open-edit/observation/discovery/lifecycle preservation. If mutation-relevant code or a witness changes, rerun its affected cases. A rebuilt library needs demonstrated relevant equivalence or those affected reruns; unchanged filenames/version strings alone are not equivalence. No blanket historical all-suite campaign is imposed.
+
+Retain exact committed source, engine/platform, SDK/client versions, dependency lock, native/ABI/build provenance, fixture/witness identity, negotiated revision, admission/delivery timings, independent authority/history/lifecycle records and owned captures. Keep raw source-bearing research/acceptance artifacts private and outside Git. Failure/partial/interrupted evidence is not a pass. Record reused/new/invalidated/not-applicable evidence against the matrix before completion.
+
+After an owned run, retrieve artifacts and stop the VM using the existing wrapper; close only owned processes/projects. A complete feature still requires approved implementation tasks, their actual acceptance and shape reviews. This planning guide does not satisfy those future gates.
+
+## Planning evidence only
+
+Planning ran static documentation checks, repository/LSP and released-source research, installed client version/help checks, VM status/start/stop, and the scoped [closed-source mechanics probe](research.md#owned-stock-editor-observations) with visual inspection and fresh-runtime persistence witness. The two incomplete probe attempts remain excluded from the completed observation. No MCP server/client interoperability, product test suite, native build, historical campaign, A–E acceptance, release or Phase 3 exit is claimed.
+
+**Historical public-contract probe:** The [earlier correction](research.md#7-public-contract-correction-evidence) inspected Codex result conversion and attempted an isolated synthetic carrier probe with the then-selected Codex + Claude pair. Expired Claude OAuth and an unavailable Codex code-mode tool path prevented model-visible results. Those failures remain excluded; Claude is no longer a current acceptance requirement. The [current Codex + OMP correction](research.md#8-codex-and-omp-client-correction-evidence) ran only installed version/help/configuration and public/installed-source research plus documentation validation. It did not retry the old probes, run a model/MCP server, product suite, native build or Godot/VM campaign. Actual two-client acceptance remains T002–T004 work.
