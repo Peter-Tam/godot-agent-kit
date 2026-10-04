@@ -131,6 +131,9 @@ class McpLifecycleMixin:
                         tool('edit_script', script_path=TARGET, revision=first['revision'], replacement_source=target['desired'])
                     tool('read_script', script_path=TARGET)
                 if any(t['name'] in ('cached', 'absent') for t in self.targets.values()):
+                    # The reply precedes its independent witness; a later ping
+                    # drains that witness before main-thread fixture opening.
+                    call('ping', {})
                     self.prepare_durability()
                     for target in self.targets.values():
                         if target['name'] in ('cached', 'absent'):
