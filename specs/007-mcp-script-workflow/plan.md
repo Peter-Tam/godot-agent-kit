@@ -4,7 +4,7 @@
 
 **Input:** Maintainer-approved discover/read/edit requirements, including constitution v1.2.0 alignment in FR-022/SC-009.
 
-**Status:** Phase 0 research and Phase 1 design complete for review. No implementation, tasks, granularity review or consistency analysis has started. Maintainer approval of the constitution/requirements does not itself approve this newly produced technical plan or authorize merge.
+**Status:** Phase 0 research and Phase 1 design complete for review. [Six implementation tasks](tasks.md) are derived and their [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) has passed; all remain pending. Consistency analysis and implementation have not started. Maintainer approval of the constitution/requirements does not itself approve the technical plan or authorize merge.
 
 ## Summary
 
@@ -55,7 +55,7 @@ Read preserves Feature 001 observation semantics while presenting source, an opa
 | X — actionable truthful diagnostics | Preserve outcome/stage/application, independent availability/invalidation and safe next action. Post-effect private protocol/host failure is not malformed input; disclosure denial is sticky. |
 | XI — independent compatible implementation | Public pinned engine source/behavior, released official SDK and concrete clients, license/provenance/advisory findings. No unrelated implementation copied or dependency/support pass invented. |
 | XIII — justified complexity | Narrow closed owner/epoch, bounded transport and test-only stdio relay address specified failures; rationale/cost below. No transaction/workflow/retry/cancellation/redaction/tracing/metadata framework. |
-| Compatibility / workflow | Existing local v1 APIs/refusals stay valid; coordinated private v6/native revision 4 cutover and new MCP schema 1. Planning stops before tasks, analysis or implementation; PR remains draft and unmerged. |
+| Compatibility / workflow | Existing local v1 APIs/refusals stay valid; coordinated private v6/native revision 4 cutover and new MCP schema 1. Task derivation and granularity review are complete; analysis and implementation have not started. PR remains draft and unmerged. |
 
 **Threat/evidence boundary:** Retain existing normal-local-user threat model; hostile same-UID software and malicious code already running inside Godot are not newly claimed isolated. No atomic filesystem exclusion, universal callback purity or live bytecode refresh is claimed. Unknown safety facts refuse. The observed source setter's old compiled constants are explicitly not used as new-source runtime evidence.
 
@@ -97,13 +97,14 @@ specs/007-mcp-script-workflow/
 ├── research.md
 ├── data-model.md
 ├── quickstart.md
+├── tasks.md
 └── contracts/
     ├── mcp-interface.md
     ├── execution.md
     └── closed-edit.md
 ```
 
-`tasks.md` is deliberately absent. A separately authorized task stage must derive meaningful capability increments with directly related tests/docs, review granularity and justified test scope, then run consistency analysis. This plan does not name/select implementation task IDs.
+[tasks.md](tasks.md) derives six meaningful capability/acceptance increments with directly related tests/docs and records the completed granularity, constitutional and focused-test-scope review. Consistency analysis remains the next separately authorized stage; no implementation task is selected by this plan or by task generation.
 
 ### Source code (repository root)
 
