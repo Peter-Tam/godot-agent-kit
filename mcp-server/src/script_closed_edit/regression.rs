@@ -122,7 +122,7 @@ fn matching_read_correlation_cannot_become_mutation_id() {
 }
 
 #[test]
-fn dirty_and_divergent_observation_never_becomes_a_checked_edit_basis() {
+fn incomplete_or_unsafe_resource_evidence_never_authorizes_a_closed_edit() {
     let source = "extends Node\n";
     let mut state = State {
         project_device: "1".into(),
@@ -148,6 +148,10 @@ fn dirty_and_divergent_observation_never_becomes_a_checked_edit_basis() {
     assert!(!state.expected().valid("res://a.gd"));
     state.resource.edited = Some(false);
     state.resource.source = Some("extends RefCounted\n".into());
+    assert!(state.valid("res://a.gd"));
+    assert!(!state.expected().valid("res://a.gd"));
+    state.resource.source = Some(source.into());
+    state.resource.profile_sha256 = None;
     assert!(state.valid("res://a.gd"));
     assert!(!state.expected().valid("res://a.gd"));
 }

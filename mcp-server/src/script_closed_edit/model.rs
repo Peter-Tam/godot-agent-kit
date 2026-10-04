@@ -111,7 +111,7 @@ impl ResourceState {
                         .as_ref()
                         .is_some_and(|s| s.len() <= SOURCE_LIMIT_BYTES)
                     && self.edited.is_some()
-                    && self.profile_sha256.as_deref().is_some_and(hash)
+                    && self.profile_sha256.as_deref().is_none_or(hash)
             }
             _ => false,
         }

@@ -121,7 +121,7 @@ const char *save_profile(std::string_view source, std::string &hash) {
     hash = sha256(encoded); return nullptr;
 }
 struct Sample { Value state, context, script; bool present{}; std::string source, profile, save; struct stat st{}; };
-const char *sample(Session &s, const std::string &request, const std::string &path, const FileBinding &file, Sample &out) {
+const char *sample(Session &s, const std::string &request, const std::string &path, const FileBinding &file, Sample &out, bool admission = true) {
     const uint64_t epoch = s.closed_epoch;
     if (!s.closed_epoch_valid || !s.closed_signal_callable || !api.from_id(s.closed_signal_owner)) { return "close_epoch_unavailable"; }
     Value signal = name("script_close"), connected;
@@ -133,20 +133,23 @@ const char *sample(Session &s, const std::string &request, const std::string &pa
     if (const char *r = cache(path, out.script, out.present)) { return r; }
     Value resource = dict(); put_string(resource, "state", out.present ? "present" : "absent");
     for (const char *key : {"instance_id", "path", "source", "edited", "profile_sha256"}) { put(resource, key, Value()); }
-    OpeningEffective effective; if (const char *r = opening_effective(effective)) { return r; }
-    if (const char *r = save_profile(out.source, out.save)) { return r; }
-    std::string actual = out.source;
+    std::string resource_source;
+    const std::string &actual = out.present ? resource_source : out.source;
     if (out.present) {
         Value text, edited;
-        if (!checked_call(text, object_ptr(out.script), "Script", "get_source_code", GAK_HASH_SCRIPT_SOURCE) || !checked_bytes(text, actual, SOURCE_LIMIT) ||
+        if (!checked_call(text, object_ptr(out.script), "Script", "get_source_code", GAK_HASH_SCRIPT_SOURCE) || !checked_bytes(text, resource_source, SOURCE_LIMIT) ||
                 !checked_call(edited, singleton("EditorInterface"), "EditorInterface", "is_object_edited", GAK_HASH_IS_EDITED, {&out.script}) || edited.type() != GDEXTENSION_VARIANT_TYPE_BOOL) { return "resource_unavailable"; }
         put_string(resource, "instance_id", std::to_string(id(out.script))); put_string(resource, "path", path); put_string(resource, "source", actual); put(resource, "edited", edited);
     }
-    OpeningContext context;
-    if (const char *r = closed_context(s, request, path, actual, effective, out.script, context, out.profile)) { return r; }
-    out.profile = sha256(out.profile + out.save);
-    if (out.present) { put_string(resource, "profile_sha256", out.profile); }
-    out.context = dict(); put(out.context, "projection", context.projection); put_string(out.context, "source", actual); put_string(out.context, "sha256", context.guard_hash);
+    if (admission) {
+        OpeningEffective effective; if (const char *r = opening_effective(effective)) { return r; }
+        if (const char *r = save_profile(out.source, out.save)) { return r; }
+        OpeningContext context;
+        if (const char *r = closed_context(s, request, path, actual, effective, out.script, context, out.profile)) { return r; }
+        out.profile = sha256(out.profile + out.save);
+        if (out.present) { put_string(resource, "profile_sha256", out.profile); }
+        out.context = dict(); put(out.context, "projection", context.projection); put_string(out.context, "source", actual); put_string(out.context, "sha256", context.guard_hash);
+    }
     out.state = dict(); put_string(out.state, "project_device", std::to_string(s.device)); put_string(out.state, "project_inode", std::to_string(s.inode));
     put(out.state, "file_revision", revision(file, out.st, out.source)); put_string(out.state, "close_epoch", std::to_string(s.closed_epoch)); put_string(out.state, "lifecycle", "closed"); put(out.state, "resource", resource);
     struct stat final_stat{};
@@ -364,7 +367,8 @@ Value verify(Session &s, const Value &request, const Value &purpose_value, bool 
         Sample survivor;
         if (s.session_id != a->session || ticks() >= a->expires) { return reply(a, "partial", a->reason.c_str()); }
         if (const char *r = settings_guard(s, *a)) { return reply(a, "partial", r); }
-        if (const char *r = sample(s, a->request, a->path, a->file, survivor)) { return reply(a, "partial", r); }
+        // Failed persistence may leave unparseable source. Observe it without granting new admission.
+        if (const char *r = sample(s, a->request, a->path, a->file, survivor, false)) { return reply(a, "partial", r); }
         if (const char *r = settings_guard(s, *a)) { return reply(a, "partial", r); }
         return reply(a, "partial", a->reason.c_str(), &survivor);
     }
