@@ -140,18 +140,15 @@ class McpLifecycleMixin:
                                 real_client_acceptance=False)
 
     def prepare_targets(self, stack, profiles=None):
-        def discoverable(project):
-            (project / 'scripts/.gdignore').unlink()
-
         self.targets = {}
         for name in profiles if profiles is not None else PROFILE_GROUPS[self.args.profile]:
             source = '' if name == 'empty' else SAFE
             if name == 'open':
                 fixture = self.close_fixture('mcp-' + name, source=source,
-                    paths=[TARGET, CURRENT, BACKGROUND], selected=TARGET, setup=discoverable)
+                    paths=[TARGET, CURRENT, BACKGROUND], selected=TARGET)
             else:
                 fixture = self.closed_fixture('mcp-' + name, cached=name in ('cached', 'dirty', 'divergent'),
-                                              source=source, faults=name == 'limited', setup=discoverable)
+                                              source=source, faults=name == 'limited')
             project, editor, descriptor = stack.enter_context(fixture)
             if name in ('dirty', 'divergent'):
                 self.close_action(editor, 'closed_resource', mutation=name)
@@ -181,6 +178,9 @@ class McpLifecycleMixin:
         targets = []
         for target in self.targets.values():
             item = target_receipt(target['name'], target['project'], target['descriptor'])
+            if target['name'] in ('open', 'cached', 'absent', 'unicode', 'empty', 'empty_desired', 'bound'):
+                del item['script_path']
+                item['script_hint'] = 'Find the script named subject.gd in the returned inventory.'
             if target['name'] == 'bound':
                 item['requested_change'] = ('Keep the current source unchanged and append one comment: "# ", '
                     'enough ASCII x characters to make the complete source exactly 524288 UTF-8 bytes, then one LF.')
@@ -188,7 +188,7 @@ class McpLifecycleMixin:
                 item['replacement_source'] = target['desired'] if target['name'] not in ('dirty', 'divergent', 'limited', 'partial') else None
             targets.append(item)
         return ('Use only the godot_agent_kit MCP tools for project operations; do not use shell, files, '
-                'or other bridges. Only cases present in the target list are in scope. For open/cached/absent/unicode/empty/empty_desired/bound targets, '
+                'or other bridges. Only cases present in the target list are in scope; complete each target before starting the next. For open/cached/absent/unicode/empty/empty_desired/bound targets, '
                 'discover, read twice to compare unchanged revisions, submit an already-satisfied edit using '
                 'the exact returned source/revision, edit to the requested replacement, then fresh-read. '
                 'For known, read and edit directly without discovery. Discover partial and explain incomplete '
@@ -214,6 +214,9 @@ class McpLifecycleMixin:
         result = content.get('result')
         state, disks = before
         after, now = self.state(target['editor'], target['project'])
+        if target['name'] in ('absent', 'known', 'unicode', 'empty', 'empty_desired', 'bound'):
+            observation.require(not state['cached_id'] and not after['cached_id'],
+                                'MCP_confirmed_absent_R_through_actual_call')
         if name in ('read_script', 'discover_scripts'):
             observation.require(source_free(state, disks) == source_free(after, now), 'MCP_observation_no_native_effect')
         if name == 'discover_scripts' and result and target['name'] != 'partial':
@@ -322,6 +325,13 @@ class McpLifecycleMixin:
                                     identity not in pending and len(pending) < 8):
                                 project = params['arguments'].get('project_root')
                                 target = self.targets.get(project) if isinstance(project, str) else None
+                                marker = target['project'] / 'scripts/.gdignore' if target else None
+                                if (params['name'] == 'discover_scripts' and target and
+                                        target['name'] != 'partial' and marker.exists()):
+                                    self.present_editor(target['editor'])
+                                    scanned = self.native_action(target['editor'], 'native_edit_scan')
+                                    observation.require(scanned['settled'], 'MCP_initial_index_settled')
+                                    marker.unlink()
                                 pending[identity] = (value, self.state(target['editor'], target['project']) if target else None,
                                                      time.monotonic())
                             process.stdin.write(line + b'\n')

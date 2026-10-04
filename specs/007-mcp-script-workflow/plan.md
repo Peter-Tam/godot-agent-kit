@@ -197,8 +197,13 @@ No product deadline, transaction, source authority or mutation behavior changes.
 
 OMP's first model-visible workflow exposed the inherited `scripts/.gdignore`:
 discovery correctly excluded the target, so that fixture could not prove discovery
-of the edited script. MCP preparation now follows the existing discovery fixture
-by removing that marker before editor startup, and requires the target in the
-returned inventory. Independent cached/absent-resource admission checks remain
-unchanged. Repeat the affected profiles; the earlier carrier/edit observations do
-not substitute for the corrected discover-to-edit acceptance.
+of the edited script. Exposing the scripts before startup then correctly failed the
+independent absent-R admission check: normal indexing had loaded the target.
+MCP preparation now retains cold setup, focuses the selected fixture and waits for
+its initial scan with the marker still present, then removes that owned marker
+before forwarding its first discovery. The actual inventory must contain the
+target, and every cold-profile call independently requires absent R before and
+after. No Resource is unloaded and no LSP or product guard is disabled. Positive
+prompts supply a filename hint, not an exact script path, as SC-002 requires.
+Repeat affected profiles; earlier carrier/edit observations do not substitute for
+this corrected discover-to-edit acceptance.
