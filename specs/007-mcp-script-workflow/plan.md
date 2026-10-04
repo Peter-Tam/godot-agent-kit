@@ -4,7 +4,7 @@
 
 **Input:** Maintainer-approved discover/read/edit requirements, including constitution v1.2.0 alignment in FR-022/SC-009.
 
-**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. T001 is complete with [core/native acceptance and implementation review](quickstart.md#t001-execution-evidence-2026-10-04). T002–T004 remain pending. This delivery/status update does not change approved remaining obligations or claim MCP interoperability, feature completion or Phase 3 exit.
+**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. T001 is complete and merged in PR #64 with [core/native acceptance and implementation review](quickstart.md#t001-execution-evidence-2026-10-04). T002 implementation/acceptance is in progress; T003–T004 remain pending. This delivery/status update does not change approved remaining obligations or claim real-client interoperability, feature completion or Phase 3 exit.
 
 ## Summary
 
@@ -55,7 +55,7 @@ Read preserves Feature 001 observation semantics while presenting source, an opa
 | X — actionable truthful diagnostics | Preserve outcome/stage/application, independent availability/invalidation and safe next action. Post-effect private protocol/host failure is not malformed input; disclosure denial is sticky. |
 | XI — independent compatible implementation | Public pinned engine source/behavior, released official SDK and concrete clients, license/provenance/advisory findings. No unrelated implementation copied or dependency/support pass invented. |
 | XIII — justified complexity | Narrow closed owner/epoch, bounded transport and test-only stdio relay address specified failures; rationale/cost below. No transaction/workflow/retry/cancellation/redaction/tracing/metadata framework. |
-| Compatibility / workflow | Existing local v1 APIs/refusals stay valid; coordinated private v6/native revision 4 cutover and new MCP schema 1. Design analysis is complete; only T001 is selected. Its implementation, review and required acceptance remain one task/PR. |
+| Compatibility / workflow | Existing local v1 APIs/refusals stay valid; private v6/native revision 4 remains unchanged and MCP uses schema 1. Analysis remains current after cumulative T001 delivery-only drift. Only T002 is selected, following merged T001; it remains one task/PR. |
 
 **Threat/evidence boundary:** Retain existing normal-local-user threat model; hostile same-UID software and malicious code already running inside Godot are not newly claimed isolated. No atomic filesystem exclusion, universal callback purity or live bytecode refresh is claimed. Unknown safety facts refuse. The observed source setter's old compiled constants are explicitly not used as new-source runtime evidence.
 
@@ -158,3 +158,18 @@ No constitutional exception is requested. The template's violation table is inap
 **Planning correction (2026-10-04):** The maintainer requested the public source/revision/state contract in place of the original whole-read echo. [Research](research.md#7-public-contract-correction-evidence) records exact-client carrier source findings and incomplete runtime probes. Constitution IX/XIII review preserves the approved specification, native closed route, selected protocol/dependencies and all enforced safety boundaries. Actual two-client result visibility remains an implementation acceptance obligation, not an interoperability claim at this design head.
 
 **Task/client correction (2026-10-04):** The maintainer requested consolidation from six pending tasks to four and selected Codex + OMP instead of the earlier client pair. Installed version/help and source inspection establish OMP's stdio/2025-11-25/tool/model-result path; actual client use remains required. The preferred single structured-first carrier is unchanged. OMP's project config is temporary and additive, normal non-bypass approval is retained, and client-local cancellation, reconnect/resend and output-spill limits are explicit in research/acceptance. Temporary config ownership addresses the present need to attach the fixed relay without overwriting human project settings; a global config mutation or a new isolation/client framework is unnecessary. The existing LSP setup, specification, closed transaction, revisions, protocol/dependencies and Features 001–005 remain unchanged. This correction does not run analysis or implementation.
+
+### T002 fixture ownership refinement
+
+The fixed relay keeps prepared projects alive across connection EOF: tearing them
+down at EOF would invalidate client reconnects and prevent independent later
+durability checks. Existing artifact retrieval is deliberately non-destructive;
+stopping the entire VM is not a substitute for those checks.
+
+`finalize-mcp --run-id ID` is the smallest explicit terminal action in the existing
+wrapper. It verifies the owned workflow and later durability, cleans up its
+fixtures, and retrieves evidence, including on failure. Its cost is one fixed
+allowlisted action using the existing receipt/control/cleanup boundary; no arbitrary
+command/path, product remote mode, new dependency or generic orchestration service
+is introduced. This implements T002's existing bounded-cleanup/independent-witness
+obligations without changing product scope or later task acceptance.

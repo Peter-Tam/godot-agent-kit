@@ -35,6 +35,31 @@ class GuestTests(unittest.TestCase):
         data, digest = self.archive(files)
         return guest._sync(self.root, revision, digest, io.BytesIO(data))
 
+    def test_active_prepared_owner_prevents_source_replacement(self):
+        self.sync({'tracked.txt': b'original'})
+        (self.root / 'tmp').mkdir()
+        (self.root / 'tmp/mcp-owned.sock').touch()
+        with self.assertRaisesRegex(guest.GuestError, 'finalize'):
+            self.sync({'tracked.txt': b'replacement'}, 'b' * 40)
+        self.assertEqual((self.root / 'workspace/repo/tracked.txt').read_bytes(), b'original')
+
+    def test_prepared_export_keeps_private_calls_not_project_or_credentials(self):
+        run = self.root / 'runs/owned'
+        artifacts = run / 'artifacts'
+        artifacts.mkdir(parents=True, mode=0o700)
+        run.chmod(0o700)
+        (run / 'provenance.json').write_text('{}')
+        (run / 'prepared.json').write_text('{}')
+        (artifacts / 'mcp-calls.jsonl').write_text('private result')
+        (artifacts / 'target-witness.json').write_text('{}')
+        (artifacts / 'credentials.json').write_text('never export')
+        (artifacts / 'project.godot').write_text('never export')
+        names = {p.name for p in guest._export_paths(run)}
+        self.assertIn('mcp-calls.jsonl', names)
+        self.assertIn('target-witness.json', names)
+        self.assertNotIn('credentials.json', names)
+        self.assertNotIn('project.godot', names)
+
     def test_sync_removes_obsolete_tracked_source_preserves_outputs(self):
         self.sync({'mcp-server/src/old.rs': b'old', 'README.md': b'first'})
         target = self.root / 'workspace/repo/mcp-server/target/debug/tool'

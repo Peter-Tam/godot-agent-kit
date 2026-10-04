@@ -281,6 +281,70 @@ def _setup(tart, state, args):
     print("Provisioned base saved. Use start for normal host-only execution.")
 
 
+def _mcp_config(repo, run_id):
+    return {"mcpServers": {"godot_agent_kit": {
+        "type": "stdio", "command": "python3",
+        "args": [str(repo / "godot-addon/tests/run_in_vm.py"), "mcp-stdio", "--run-id", run_id],
+        "cwd": str(repo), "timeout": 15000, "instructions": False}}}
+
+
+def _prepare_mcp(tart, state, args, repo=_REPO):
+    status = tart.status()
+    if not status["running"] or not status.get("startup_readiness"):
+        raise VMError("Owned VM must be running and ready before MCP preparation.")
+    revision = _revision(repo, args.revision)
+    destination = args.artifacts.expanduser().absolute()
+    if (not destination.is_dir() or destination.is_symlink() or list(destination.iterdir())
+            or destination.stat().st_uid != os.getuid() or destination.stat().st_mode & 0o077):
+        raise VMError("MCP artifacts must be an empty owned private directory.")
+    worker, worker_hash = _install_worker(tart)
+    _sync(tart, repo, revision, worker)
+    result = _worker(tart, worker, "prepare-mcp", "--revision", revision,
+                     "--run-id", args.run_id, timeout=1200)
+    prepared = json.loads(result.stdout)
+    receipt = prepared["receipt"]
+    if receipt["revision"] != revision:
+        raise VMError("MCP preparation revision mismatch.")
+    config = _mcp_config(repo.resolve(), args.run_id)
+    if state != _STATE:
+        config["mcpServers"]["godot_agent_kit"]["args"][1:1] = ["--state", str(state)]
+    content = json.dumps(config, indent=2) + "\n"
+    local = dict(run_id=args.run_id, revision=revision, guest=receipt, vm=status,
+                 worker=worker, worker_sha256=worker_hash, host_checkout=str(repo.resolve()),
+                 host_config_sha256=hashlib.sha256(content.encode()).hexdigest())
+    owned = state / "prepared" / args.run_id
+    owned.mkdir(mode=0o700, parents=True, exist_ok=False)
+    for path, text in ((owned / "receipt.json", json.dumps(local, indent=2) + "\n"),
+                       (destination / "receipt.json", json.dumps(local, indent=2) + "\n"),
+                       (destination / "mcp.json", content),
+                       (destination / "prompt.txt", prepared["prompt"])):
+        with path.open("x") as stream:
+            stream.write(text)
+        path.chmod(0o600)
+    print("Prepared owned MCP run " + args.run_id + "; private artifacts: " + str(destination))
+    return 0
+
+
+def _mcp_control(tart, state, args):
+    owned = state / "prepared" / args.run_id
+    if owned.is_symlink():
+        raise VMError("Unsafe prepared run receipt.")
+    receipt = json.loads((owned / "receipt.json").read_text())
+    worker = receipt["worker"]
+    if worker != GUEST_ROOT + "/workers/" + receipt["worker_sha256"] + ".py":
+        raise VMError("Prepared worker identity mismatch.")
+    if args.operation == "mcp-stdio":
+        result = _worker(tart, worker, "mcp-stdio", "--run-id", args.run_id,
+                         stdin=sys.stdin.buffer, stdout=sys.stdout.buffer, check=False)
+    else:
+        result = _worker(tart, worker, "finalize-mcp", "--run-id", args.run_id, check=False, timeout=200)
+        _fetch(tart, state, args.run_id, True, worker)
+    if result.stderr:
+        print("Owned MCP relay/control failed." if result.returncode else "Owned MCP relay diagnostic.",
+              file=sys.stderr)
+    return result.returncode
+
+
 def _parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--state", type=Path, default=_STATE, help="private local state directory")
@@ -307,6 +371,13 @@ def _parser():
         else:
             run.add_argument("--resume", action="store_true")
             run.add_argument("--keep-going", action="store_true")
+    prepare = commands.add_parser("prepare-mcp")
+    prepare.add_argument("--revision", required=True)
+    prepare.add_argument("--run-id", required=True, type=_run_id)
+    prepare.add_argument("--artifacts", required=True, type=Path)
+    for name in ("mcp-stdio", "finalize-mcp"):
+        control = commands.add_parser(name)
+        control.add_argument("--run-id", required=True, type=_run_id)
     fetch = commands.add_parser("fetch-artifacts")
     fetch.add_argument("run_id", type=_run_id)
     fetch.add_argument("--captures", action="store_true")
@@ -322,6 +393,10 @@ def main(argv=None):
     try:
         with _locked(state):
             tart = Tart(state)
+            if args.operation == "prepare-mcp":
+                return _prepare_mcp(tart, state, args)
+            if args.operation in ("mcp-stdio", "finalize-mcp"):
+                return _mcp_control(tart, state, args)
             if args.operation == "setup":
                 _setup(tart, state, args)
             elif args.operation == "start":

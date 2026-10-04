@@ -1,6 +1,6 @@
 # Quickstart: Validate the Trusted MCP Script Workflow
 
-**Status:** T001 is **complete** with [accepted protocol-independent core/native evidence](#t001-execution-evidence-2026-10-04). Its supervised fixture consumer and closed native/lifecycle groups are implemented and verified. T002–T004 remain pending; the MCP binary, transport group and real-client commands below are future task deliverables, not available product commands or interoperability claims.
+**Status:** T001 is **complete** with [accepted protocol-independent core/native evidence](#t001-execution-evidence-2026-10-04). T002 implementation/acceptance is in progress: the MCP executable, transport group and fixed real-client fixture commands are present. The actual executable's negotiation/catalog/three-operation refusal smoke passed; real-editor and both-client acceptance remain required before T002 completion. T003–T004 remain pending.
 
 Read [plan.md](plan.md), [data-model.md](data-model.md) and [the public contract](contracts/mcp-interface.md). Follow [TEST_POLICY.md](../../TEST_POLICY.md) for scope, evidence reuse and the existing [VM boundary](../../.github/LOCAL_VM.md). No command authorizes a feature task before its own approved tasks/analysis and one-task-one-PR prerequisites.
 
@@ -23,7 +23,7 @@ omp config --help
 
 Observed outputs: `codex-cli 0.153.4` and `omp/18.5.1`. The retained Codex version is the current installed executable, not the newer upstream 0.160.0 release; no installation was changed. OMP package/source and authoritative docs establish structural MCP suitability, not interoperability. The original planning VM/Tart observations remain historical evidence; no VM/status/model/MCP acceptance run was repeated for this correction.
 
-## Build and local connection after implementation
+## Build and local connection
 
 From `mcp-server/`, build the actual new executable and its library with the selected locked feature graph:
 
@@ -316,7 +316,7 @@ this serialization-only correction; the earlier parallel failure remains histori
 development evidence. No test assertion, production timeout, operation deadline
 or lease was relaxed. This is not a global serial-test rule for future tasks.
 
-## Owned MCP fixture interfaces after implementation
+## Owned MCP fixture interfaces
 
 Extend the existing `run_in_vm.py` fixed suite allowlist with `mcp`, retaining its committed-source, cached-build, provenance, ownership, capture and artifact retrieval semantics. Required groups are `transport`, `closed-native`, `closed-lifecycle`, `preservation`, `interruption`, `composed` and `privacy-export`. They are individually runnable; no new workflow engine or requirement for an aggregate historical `all` mode.
 
@@ -337,14 +337,17 @@ The `transport` group uses the actual server executable without authorizing an e
 
 The fixture controls human state/history/race barriers and independent witnesses, not the MCP tool's success verdict. Use fault artifacts separately from production native artifacts; neither fixtures nor their privileged controls may enter an export.
 
-## Real coding-agent clients after implementation
+## Real coding-agent clients
 
-Add two fixed test-only VM-wrapper commands:
+The fixed test-only VM-wrapper commands are:
 
 - `prepare-mcp --revision SHA --run-id ID --artifacts DIR`: prepare an owned synthetic project/session and matched binaries; write source-free target setup, `mcp.json` and `prompt.txt` into the fresh host artifact directory. `mcp.json` is an OMP-native project definition for the fixed relay below, with actual absolute paths/run ID. For an OMP run, attach it as the owned repository checkout's temporary `.omp/mcp.json` only when that path is absent; record ownership/content and remove it after the run only if unchanged. Never overwrite pre-existing config or human changes; use a clean owned checkout of the tested commit when needed. The receipt binds guest inputs/session and the selected host config without authentication secrets.
 - `mcp-stdio --run-id ID`: validate that prepared run and relay stdin/stdout through the existing private Tart channel to its fixed guest MCP executable/registry. No arbitrary guest command, endpoint or host project is accepted. Protocol bytes are not wrapped in helper status output. Setup/relay diagnostics are source-free stderr.
+- `finalize-mcp --run-id ID`: independently verify the prepared workflow and later opening/Save/reparse/rescan/runtime durability, clean up only its owned fixtures, then retrieve private evidence. Relay EOF does not destroy prepared projects; it only drains that MCP connection. Finalize before selecting another committed guest source.
 
 The relay is test apparatus, not a product remote transport. Host clients retain their normal model access; editor/core effects remain in the owned guest. This is the minimal adaptation needed to combine real clients with the existing VM policy.
+
+After each client exits, run `python3 godot-addon/tests/run_in_vm.py finalize-mcp --run-id "$RUN_ID"`. Preserve failed evidence as well as successful evidence. The guest summary reports MCP behavior, not model-visible client acceptance; correlate its call records with actual completed client tool results and subsequent model actions.
 
 Example preparation from the root of a clean, owned host checkout of the tested repository commit (`REPO` is that checkout, not a human Godot project). The OMP preparation must preserve `.omp/lsp.yaml` and normal repository-root launch semantics:
 

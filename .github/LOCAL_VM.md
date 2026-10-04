@@ -159,6 +159,20 @@ not an arbitrary shell executor. Close `sequential`, `composed`, `all` and compl
 are now implemented; [Feature 005 acceptance](../specs/005-close-project-gdscript/quickstart.md#12-t003-cumulative-acceptance-2026-10-02)
 records the focused runs and reviewed historical evidence. Complete campaign
 availability is not a requirement to replay unchanged historical GUI suites.
+
+Feature 007's `run mcp --scenario transport` uses the actual stdio executable.
+For host-owned coding-agent clients, `prepare-mcp --revision SHA --run-id ID
+--artifacts DIR` creates an owned guest fixture and writes private `receipt.json`,
+`mcp.json` and `prompt.txt`. `mcp-stdio --run-id ID` relays only its fixed
+executable/registry over Tart; it accepts no arbitrary guest command or endpoint.
+Keep model credentials on the host and preserve existing project client settings.
+After the client exits, `finalize-mcp --run-id ID` verifies independent effects
+and later durability, cleans up its fixtures and fetches private evidence.
+Connection EOF alone does not tear down the prepared projects. Finalize before
+changing guest source. See the [client workflow](../specs/007-mcp-script-workflow/quickstart.md#real-coding-agent-clients)
+for scoped configuration and the distinction between raw MCP records and actual
+model-visible acceptance.
+
 The host terminal remains available; the Tart process is detached and has no
 viewer. Foreground activation by the inner harness targets guest WindowServer.
 

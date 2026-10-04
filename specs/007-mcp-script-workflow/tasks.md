@@ -2,7 +2,7 @@
 
 **Input:** Design documents in `specs/007-mcp-script-workflow/`: [specification](spec.md), [plan](plan.md), [research](research.md), [data model](data-model.md), [MCP contract](contracts/mcp-interface.md), [execution contract](contracts/execution.md), [closed-edit contract](contracts/closed-edit.md) and [validation guide](quickstart.md).
 
-**Status:** T001 is complete, with [accepted core/native evidence](quickstart.md#t001-execution-evidence-2026-10-04), required checks and implementation-shape review. T002–T004 remain pending. Delivery is the dedicated `task/T001-trusted-script-execution` branch/PR; completion does not authorize dependent implementation before merge or an explicitly approved stacked workflow. The approved remaining obligations and granularity are unchanged.
+**Status:** T001 is complete, with [accepted core/native evidence](quickstart.md#t001-execution-evidence-2026-10-04) and merged delivery in PR #64. Only T002 is selected and in implementation/acceptance on `task/T002-mcp-script-workflow`; T003–T004 remain pending. No T002 completion or real-client interoperability is claimed before its required evidence. Approved remaining obligations and granularity are unchanged.
 
 **Prerequisites:** Review the selected technical plan, complete `/speckit.analyze` after granularity review, and satisfy the repository's implementation prerequisites before selecting exactly one dependency-ready task. Verify the active directory as `specs/007-mcp-script-workflow`; task branch names do not select it.
 
