@@ -601,9 +601,10 @@ class ClosedScriptAcceptanceMixin:
         for mutation in ("same_text", "namespace", "cache_appear", "cache_replace", "target_open", "unrelated_epoch"):
             name = "supplement_" + mutation
             with self.closed_fixture(name, cached=mutation == "cache_replace") as (project, editor, descriptor):
-                self.close_action(editor, "closed_arm", stage="inspect")
+                # Race the recheck against an already captured epoch, not its first observation.
+                self.close_action(editor, "closed_arm", kind="closed_state")
                 pending = self.start_workflow(project, descriptor, "read")
-                self.wait_closed_barrier(editor, "inspect", pending)
+                self.wait_closed_barrier(editor, "response:closed_state", pending)
                 self.closed_transition(project, editor, mutation)
                 before, disks = self.state(editor, project)
                 self.close_action(editor, "closed_release")
