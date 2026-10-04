@@ -220,3 +220,217 @@ fn invalidated_open_evidence_retains_effects_and_public_document_identity() {
     assert!(buffer.get("identity").is_none());
     assert!(buffer["invalidated_evidence"].get("identity").is_none());
 }
+
+fn limited_discovery() -> Value {
+    json!({
+        "schema_version":1,"request_id":"result-boundary","outcome":"limited_listing",
+        "interval":{"started_unix_ms":1,"finished_unix_ms":2,"elapsed_us":1000},
+        "requested_target":{"project_root":"/fixture/project","session_id":null},
+        "resolved_target":null,"diagnostics":[],"selection":null,
+        "inventory":{
+            "scope":{"policy":"project","project_data_directory":".godot","exclusions":[]},
+            "entries":["res://target.gd"],
+            "collection":{"clock_id":"caller","started_tick_us":"0","finished_tick_us":"1000","received_elapsed_us":1000},
+            "coverage":"partial","validity":"observed",
+            "consistency":{"recheck":"completed","stability":"unchanged","atomic":false},
+            "visited_entries":1,"visited_directories":1
+        }
+    })
+}
+
+fn limited_read() -> Value {
+    let mut sources = Map::new();
+    for (name, availability, reason) in [
+        ("disk", "observed", None),
+        (
+            "loaded_resource",
+            "unavailable",
+            Some("resource_unreadable"),
+        ),
+        ("editor_buffer", "not_applicable", Some("not_open")),
+    ] {
+        sources.insert(
+            name.into(),
+            json!({
+                "availability":availability,"current":name == "disk",
+                "equals_source":if name == "disk" { Some(true) } else { None },
+                "text":null,"text_origin":null,"reason":reason,"invalidated":null,"staleness":null
+            }),
+        );
+    }
+    json!({
+        "source":"extends Node\n","revision":null,
+        "state":{
+            "status":"limited_observation","target":null,
+            "requested_target":{"project_root":"/fixture/project","script_path":"res://target.gd","session_id":null},
+            "document":{"lifecycle":"closed","identity":null,"validity":"valid",
+                "validity_reason":null,"invalidated_validity":null,"open_state_reason":null,"invalidated_lifecycle":null},
+            "source_origin":"disk","sources":sources,"dirty":null,"consistency":null,
+            "interval":{"started_unix_ms":1,"finished_unix_ms":2,"elapsed_us":1000},
+            "diagnostics":[],"limitations":["resource_unreadable"],
+            "revision_unavailable_reason":"unavailable_observation",
+            "next_action":"fresh_read","selection":null
+        }
+    })
+}
+
+#[test]
+fn wall_clock_rollback_preserves_observations_and_edit_outcomes() {
+    let mut open = open_unavailable("verified_changed", "applied");
+    open["outcome"]["after"] = open["outcome"]["before"].take();
+    open["outcome"]["after"]["document"]["open_state"]["value"] = json!("open");
+    open["outcome"]["after"]["document"]["open_state"]["reason"] = Value::Null;
+    open["outcome"]["after"]["agreement"] = json!("agree");
+    let rollback = json!({"started_unix_ms":2000,"finished_unix_ms":1000,"elapsed_us":1234});
+    for (operation, mut input, interval_path, is_error) in [
+        (Operation::Discover, limited_discovery(), "/interval", false),
+        (Operation::Read, limited_read(), "/state/interval", false),
+        (Operation::Edit, open, "/outcome/interval", false),
+        (
+            Operation::Edit,
+            closed("verified_changed", "applied"),
+            "/outcome/interval",
+            false,
+        ),
+        (
+            Operation::Edit,
+            closed("verified_unchanged", "not_applied"),
+            "/outcome/interval",
+            false,
+        ),
+        (
+            Operation::Edit,
+            open_unavailable("refused", "not_applied"),
+            "/outcome/interval",
+            true,
+        ),
+    ] {
+        *input.pointer_mut(interval_path).unwrap() = rollback.clone();
+        let original = input.clone();
+        let response = complete(operation, &id(), input, None);
+        assert_eq!(response.is_error, Some(is_error));
+        let object = response.structured_content.unwrap();
+        assert_eq!(object["error"], Value::Null);
+        assert_eq!(object["result"].pointer(interval_path), Some(&rollback));
+        if operation != Operation::Edit {
+            assert_eq!(object["result"], original);
+        } else {
+            assert_eq!(
+                object["result"]["outcome"]["outcome"],
+                original["outcome"]["outcome"]
+            );
+            assert_eq!(
+                object["result"]["outcome"]["application"],
+                original["outcome"]["application"]
+            );
+        }
+    }
+}
+
+#[test]
+fn malformed_intervals_still_fail_without_losing_known_effects() {
+    let mut intervals = vec![
+        json!({"started_unix_ms":1,"finished_unix_ms":2}),
+        json!({"started_unix_ms":1,"finished_unix_ms":2,"elapsed_us":1000,"clock":"wall"}),
+    ];
+    for field in ["started_unix_ms", "finished_unix_ms", "elapsed_us"] {
+        for value in [json!(-1), json!(1.5), json!("1000"), Value::Null] {
+            let mut interval = json!({"started_unix_ms":1,"finished_unix_ms":2,"elapsed_us":1000});
+            interval[field] = value;
+            intervals.push(interval);
+        }
+    }
+    for interval in intervals {
+        for (operation, mut input, interval_path, application) in [
+            (
+                Operation::Discover,
+                limited_discovery(),
+                "/interval",
+                "not_applied",
+            ),
+            (
+                Operation::Read,
+                limited_read(),
+                "/state/interval",
+                "not_applied",
+            ),
+            (
+                Operation::Edit,
+                closed("verified_changed", "applied"),
+                "/outcome/interval",
+                "applied",
+            ),
+        ] {
+            *input.pointer_mut(interval_path).unwrap() = interval.clone();
+            let response = complete(operation, &id(), input, None);
+            assert_eq!(response.is_error, Some(true));
+            let object = response.structured_content.unwrap();
+            assert_eq!(object["result"], Value::Null);
+            assert_eq!(object["error"]["code"], "invalid_output");
+            assert_eq!(object["error"]["application"], application);
+        }
+    }
+}
+
+#[test]
+fn confirmed_closed_buffer_matches_public_contract_for_both_resource_profiles() {
+    for (outcome, application) in [
+        ("verified_changed", "applied"),
+        ("verified_unchanged", "not_applied"),
+    ] {
+        for state in ["absent", "present"] {
+            let mut input = closed(outcome, application);
+            if state == "present" {
+                let resource = json!({"state":"present","edited":false,"sha256":"a".repeat(64),"utf8_bytes":0});
+                input["outcome"]["evidence"]["before"]["resource"] = resource.clone();
+                input["outcome"]["evidence"]["after"]["resource"] = resource;
+                input["outcome"]["evidence"]["resource"] =
+                    json!({"admitted":"present","availability":"observed","state":"present"});
+                input["outcome"]["limitations"] = json!(["loaded_class_not_reloaded"]);
+            }
+            let response = complete(Operation::Edit, &id(), input, None);
+            assert_eq!(response.is_error, Some(false));
+            let object = response.structured_content.unwrap();
+            assert_eq!(object["error"], Value::Null);
+            let outcome = &object["result"]["outcome"];
+            assert_eq!(outcome["history"], "not_applicable_closed");
+            assert_eq!(outcome["evidence"]["buffer"], "not_applicable_closed");
+            assert_eq!(outcome["evidence"]["resource"]["state"], state);
+        }
+    }
+    let schema = Value::Object(schema(Operation::Edit));
+    assert_eq!(
+        schema["$defs"]["ClosedBuffer"]["enum"],
+        json!(["not_applicable_closed", "unavailable"])
+    );
+}
+
+#[test]
+fn unconfirmed_closed_buffer_remains_unavailable_and_rejects_invented_absence() {
+    for final_state in ["open", "unknown"] {
+        for buffer in ["unavailable", "not_applicable", "invented"] {
+            let mut input = closed("application_unknown", "unknown");
+            input["outcome"]["lifecycle"]["final_state"] = json!(final_state);
+            input["outcome"]["evidence"]["buffer"] = json!(buffer);
+            input["outcome"]["evidence"]["after"] = Value::Null;
+            input["outcome"]["evidence"]["independently_verified"] = json!(false);
+            input["outcome"]["next_action"] = json!({"kind":"fresh_read"});
+            let response = complete(Operation::Edit, &id(), input, None);
+            assert_eq!(response.is_error, Some(true));
+            let object = response.structured_content.unwrap();
+            if buffer == "unavailable" {
+                assert_eq!(object["error"], Value::Null);
+                assert_eq!(
+                    object["result"]["outcome"]["evidence"]["buffer"],
+                    "unavailable"
+                );
+                assert_eq!(object["result"]["outcome"]["history"], "unknown");
+                assert_eq!(object["result"]["outcome"]["application"], "unknown");
+            } else {
+                assert_eq!(object["result"], Value::Null);
+                assert_eq!(object["error"]["code"], "invalid_output");
+                assert_eq!(object["error"]["application"], "unknown");
+            }
+        }
+    }
+}

@@ -110,8 +110,15 @@ struct ClosedEvidence<'a> {
     validation: ClosedValidation,
     atomic: bool,
     independently_verified: bool,
-    buffer: &'a str,
+    buffer: ClosedBuffer,
     resource: ResourceApplicability<'a>,
+}
+#[derive(Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[schemars(crate = "rmcp::schemars")]
+#[serde(rename_all = "snake_case")]
+enum ClosedBuffer {
+    NotApplicableClosed,
+    Unavailable,
 }
 #[derive(Deserialize, Serialize, JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
@@ -516,16 +523,12 @@ pub(super) fn validate(value: &Value, id: &str) -> Result<bool, ()> {
 }
 
 fn validate_typed(result: EditResult<'_>, id: &str) -> Result<bool, ()> {
-    let (request_id, interval, outcome, application) = match &result {
-        EditResult::Open { outcome: o } => (&o.request_id, &o.interval, &o.outcome, o.application),
-        EditResult::Closed { outcome: o } => {
-            (&o.request_id, &o.interval, &o.outcome, o.application)
-        }
-        EditResult::Undetermined { outcome: o } => {
-            (&o.request_id, &o.interval, &o.outcome, o.application)
-        }
+    let (request_id, outcome, application) = match &result {
+        EditResult::Open { outcome: o } => (&o.request_id, &o.outcome, o.application),
+        EditResult::Closed { outcome: o } => (&o.request_id, &o.outcome, o.application),
+        EditResult::Undetermined { outcome: o } => (&o.request_id, &o.outcome, o.application),
     };
-    if *request_id != id || !interval.valid() || !terminal(outcome, application) {
+    if *request_id != id || !terminal(outcome, application) {
         return Err(());
     }
     let success = matches!(
@@ -538,6 +541,10 @@ fn validate_typed(result: EditResult<'_>, id: &str) -> Result<bool, ()> {
                 || o.lifecycle.observed_final != LifecycleState::Closed
                     && o.history == History::NotApplicableClosed
                 || o.evidence.as_ref().is_some_and(|e| e.atomic)
+                || o.lifecycle.observed_final != LifecycleState::Closed
+                    && o.evidence
+                        .as_ref()
+                        .is_some_and(|e| e.buffer == ClosedBuffer::NotApplicableClosed)
                 || o.outcome == Outcome::VerifiedUnchanged
                     && (o.effects.authorized
                         || o.effects.resource_entered
@@ -555,7 +562,7 @@ fn validate_typed(result: EditResult<'_>, id: &str) -> Result<bool, ()> {
                                 && e.validation.original
                                 && e.validation.desired
                                 && e.validation.actual
-                                && e.buffer == "not_applicable"
+                                && e.buffer == ClosedBuffer::NotApplicableClosed
                         }))
             {
                 return Err(());

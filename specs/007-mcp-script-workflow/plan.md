@@ -250,3 +250,43 @@ identities. Projection removes those private fields too, while retaining the
 separate public document identity; otherwise valid refusals and post-effect
 evidence became generic `invalid_output`. No public schema, operation, authority,
 mutation route or product deadline changes.
+
+### T002 bounded worker-channel correction
+
+The isolated 512 KiB MCP edit exposed avoidable local IPC delay: source-free
+diagnostics measured 610 ms and 64 polling sleeps sending its 525 KiB startup
+frame, plus 632/638 ms returning pre/post-validation source frames. Serialization
+took only 13–14 ms; the editor's bounded request transfer was about 127 ms.
+The resulting verification timeout is a reachable T002 supported-bound failure,
+not justification to increase deadlines, frame budgets or source limits.
+
+Reuse stock validation's existing bounded blocking Unix-socket pattern for the
+closed worker channel: each read/write waits at most 50 ms or the remaining
+original deadline, whichever is smaller, then checks cancellation/deadline again.
+Both endpoints remain owned off the protocol executor. One shared private
+frame decoder replaces the closed supervisor's sleep-based reader; no dependency,
+unsafe binding, new worker, queue, cache or protocol change is needed. This
+costs a small bounded-read loop and stalled-peer regressions, while removing the
+separate polling path. Cancellation, effect retention, independent verification,
+native mutation, confinement and original monotonic cutoffs remain unchanged
+(Principles I–V, VII, X and XIII).
+
+The final adapter review also found response-delivery races: a client could send
+`initialized` after reading the initialize response but before the SDK processed
+its write acknowledgment, and a blocked receive-side reply prevented cancellation
+or EOF from reaching an active supervisor. Successful writer delivery now owns
+the initialization transition. Receive-side reply retention is bounded by the
+existing eight-ID capacity while cancellation/EOF remain observable; queued
+replies are not queued tool operations. Keeping one awaited reply is simpler but
+cannot meet both normal pipelining and timely cancellation. The additional bounded
+reply state and deterministic channel-ordering regressions are justified by those
+reachable failures; no larger capacity, protocol, operation queue or scheduler is
+introduced.
+
+The output review corrected two contract mismatches without changing the public
+schema decision: wall-clock endpoints may move backwards while elapsed time remains
+monotonic, and confirmed closed B must use `not_applicable_closed`, not the core's
+internal `not_applicable` spelling. Projection now translates that value and keeps
+unconfirmed B unavailable. Strict numeric interval types and post-effect certainty
+remain checked. These are adapter corrections, not new core authority or mutation
+semantics.

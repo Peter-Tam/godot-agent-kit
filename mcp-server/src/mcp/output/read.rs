@@ -302,7 +302,6 @@ pub(super) fn validate(value: &Value) -> Result<bool, ()> {
         || read.revision.is_some() == state.revision_unavailable_reason.is_some()
         || read.source.is_some() != state.source_origin.is_some()
         || state.consistency.as_ref().is_some_and(|c| c.atomic)
-        || !state.interval.valid()
         || state.selection.as_ref().is_some_and(|s| !s.valid())
         || state.requested_target.as_ref().is_some_and(|t| !t.valid())
         || state.target.as_ref().is_some_and(|t| {

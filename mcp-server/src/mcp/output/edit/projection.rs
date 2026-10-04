@@ -182,6 +182,15 @@ pub(in crate::mcp::output) fn project(
             if !closed {
                 outcome.insert("history".into(), json!("unknown"));
             }
+            if let Some(evidence) = outcome.get_mut("evidence").filter(|v| !v.is_null()) {
+                let evidence = object(evidence)?;
+                let buffer = match evidence.get("buffer").and_then(Value::as_str) {
+                    Some("not_applicable") => "not_applicable_closed",
+                    Some("unavailable") => "unavailable",
+                    _ => return Err(()),
+                };
+                evidence.insert("buffer".into(), json!(buffer));
+            }
             Ok(())
         }
         "undetermined" => {

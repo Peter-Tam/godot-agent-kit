@@ -10,6 +10,7 @@ use rmcp::schemars::{generate::SchemaSettings, JsonSchema};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
+// Wall endpoints locate acquisition and may move backwards; elapsed_us is monotonic.
 #[derive(Deserialize, Serialize, JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
 #[serde(deny_unknown_fields)]
@@ -17,11 +18,6 @@ struct Interval {
     started_unix_ms: u64,
     finished_unix_ms: u64,
     elapsed_us: u64,
-}
-impl Interval {
-    fn valid(&self) -> bool {
-        self.finished_unix_ms >= self.started_unix_ms
-    }
 }
 #[derive(Deserialize, Serialize, JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]

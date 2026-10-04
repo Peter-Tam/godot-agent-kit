@@ -126,7 +126,6 @@ pub(super) fn validate(value: &Value, request_id: &str) -> Result<bool, ()> {
     let result = DiscoveryResult::deserialize(value).map_err(|_| ())?;
     if result.schema_version != 1
         || result.request_id != request_id
-        || !result.interval.valid()
         || result
             .requested_target
             .as_ref()

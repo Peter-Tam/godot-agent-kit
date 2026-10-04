@@ -6,7 +6,7 @@ use rmcp::transport::Transport;
 use rmcp::{ErrorData, RoleServer};
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -29,13 +29,20 @@ pub(super) struct OwnedId {
     budget: Duration,
     pub cancelled: Arc<AtomicBool>,
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum InitializeDelivery {
+    NotStarted,
+    Sending,
+    NotifiedWhileSending,
+    Delivered,
+}
 pub(super) struct State {
     pub phase: Connection,
     pub registry: PathBuf,
     pub ids: HashMap<RequestId, OwnedId>,
     pub active: Option<ToolOwner>,
     initialize: Option<RequestId>,
-    initialized_response: bool,
+    initialize_delivery: InitializeDelivery,
 }
 impl State {
     fn stop(&mut self) {
@@ -94,14 +101,30 @@ fn checked_id(value: &Value) -> Option<RequestId> {
 
 // Selected-revision errors require an explicit null id; the modern SDK omits it.
 #[derive(Serialize)]
-struct LegacyError {
+struct LegacyError<'a> {
     jsonrpc: JsonRpcVersion2_0,
-    id: Option<RequestId>,
-    error: ErrorData,
+    id: &'a Option<RequestId>,
+    error: &'a ErrorData,
 }
 struct WriteJob {
     output: ServerJsonRpcMessage,
     complete: oneshot::Sender<io::Result<()>>,
+    initialization: Option<Shared>,
+}
+impl WriteJob {
+    fn publish_delivery(&self, succeeded: bool) {
+        if let Some(shared) = &self.initialization {
+            let mut state = lock(shared);
+            if !succeeded {
+                state.stop();
+            } else if state.phase == Connection::AwaitingInitialize {
+                if state.initialize_delivery == InitializeDelivery::NotifiedWhileSending {
+                    state.phase = Connection::Ready;
+                }
+                state.initialize_delivery = InitializeDelivery::Delivered;
+            }
+        }
+    }
 }
 fn writer() -> io::Result<mpsc::Sender<WriteJob>> {
     let (tx, mut rx) = mpsc::channel::<WriteJob>(1);
@@ -111,13 +134,13 @@ fn writer() -> io::Result<mpsc::Sender<WriteJob>> {
             let mut stdout = io::stdout().lock();
             while let Some(job) = rx.blocking_recv() {
                 let mut bytes = CappedBytes::new(RESPONSE_LIMIT - 1);
-                let serialized = match job.output {
+                let serialized = match &job.output {
                     JsonRpcMessage::Error(message) => serde_json::to_writer(
                         &mut bytes,
                         &LegacyError {
-                            jsonrpc: message.jsonrpc,
-                            id: message.id,
-                            error: message.error,
+                            jsonrpc: JsonRpcVersion2_0,
+                            id: &message.id,
+                            error: &message.error,
                         },
                     )
                     .map_err(|_| io::Error::other("serialization failure")),
@@ -148,6 +171,9 @@ fn writer() -> io::Result<mpsc::Sender<WriteJob>> {
                     .and_then(|_| stdout.write_all(b"\n"))
                     .and_then(|_| stdout.flush());
                 let failed = result.is_err();
+                // Publish successful flush before waking the independently
+                // polled SDK send future; initialized cannot race that task.
+                job.publish_delivery(!failed);
                 let _ = job.complete.send(result);
                 if failed {
                     return;
@@ -160,11 +186,16 @@ async fn deliver(
     writer: &mpsc::Sender<WriteJob>,
     output: ServerJsonRpcMessage,
     remaining: Duration,
+    initialization: Option<Shared>,
 ) -> io::Result<()> {
     let (complete, finished) = oneshot::channel();
     tokio::time::timeout(remaining, async {
         writer
-            .send(WriteJob { output, complete })
+            .send(WriteJob {
+                output,
+                complete,
+                initialization,
+            })
             .await
             .map_err(|_| io::Error::other("delivery failure"))?;
         finished
@@ -178,10 +209,11 @@ fn remaining(clock: AttemptClock, budget: Duration) -> Duration {
     budget.saturating_sub(Duration::from_micros(clock.elapsed_us()))
 }
 
-// Exactly one receive-side reply is owned until consumed-output acknowledgment.
-// reserve() and polling the borrowed receiver are cancellation-safe: dropping
-// receive() never drops the reply or renews its original deadline.
+// Receive-side responses remain bounded while cancellation/EOF is consumed.
+// reserve() and polling borrowed receivers are cancellation-safe: dropping
+// receive() never drops replies or renews their original deadlines.
 struct PendingReply {
+    id: Option<RequestId>,
     job: Option<WriteJob>,
     finished: oneshot::Receiver<io::Result<()>>,
     deadline: tokio::time::Instant,
@@ -193,13 +225,30 @@ struct BoundedTransport {
     partial: Arc<Mutex<Option<Instant>>>,
     shutdown: &'static AtomicBool,
     started: Instant,
-    pending: Option<PendingReply>,
+    pending: VecDeque<PendingReply>,
 }
 impl BoundedTransport {
     fn queue_reply(&mut self, output: ServerJsonRpcMessage, left: Duration) {
+        // Delivery bookkeeping shares the approved eight-ID capacity with SDK
+        // handlers; even a rejection must not retain a ninth owned identity.
+        let at_capacity = lock(&self.shared).ids.len() + self.pending.len() >= 8;
+        if at_capacity {
+            self.fail();
+            return;
+        }
         let (complete, finished) = oneshot::channel();
-        self.pending = Some(PendingReply {
-            job: Some(WriteJob { output, complete }),
+        let id = match &output {
+            JsonRpcMessage::Response(response) => Some(response.id.clone()),
+            JsonRpcMessage::Error(error) => error.id.clone(),
+            _ => None,
+        };
+        self.pending.push_back(PendingReply {
+            id,
+            job: Some(WriteJob {
+                output,
+                complete,
+                initialization: None,
+            }),
             finished,
             deadline: tokio::time::Instant::now() + left,
         });
@@ -212,14 +261,13 @@ impl BoundedTransport {
             .fold(remaining(clock, CONTROL_BUDGET), Duration::min);
         self.queue_reply(ServerJsonRpcMessage::error(error(code), id), left);
     }
-    async fn finish_reply(&mut self) -> io::Result<()> {
-        let Some(pending) = self.pending.as_mut() else {
-            return Ok(());
-        };
+    async fn finish_reply(
+        writer: &mpsc::Sender<WriteJob>,
+        pending: &mut PendingReply,
+    ) -> io::Result<()> {
         tokio::time::timeout_at(pending.deadline, async {
             if pending.job.is_some() {
-                let permit = self
-                    .writer
+                let permit = writer
                     .reserve()
                     .await
                     .map_err(|_| io::Error::other("delivery failure"))?;
@@ -230,15 +278,20 @@ impl BoundedTransport {
                 .map_err(|_| io::Error::other("delivery failure"))?
         })
         .await
-        .map_err(|_| io::Error::other("delivery deadline"))??;
-        self.pending = None;
-        Ok(())
+        .map_err(|_| io::Error::other("delivery deadline"))?
     }
     fn fail(&self) {
         lock(&self.shared).stop();
         eprintln!("mcp connection closed");
     }
     fn timed_out(&self) -> bool {
+        if self
+            .pending
+            .iter()
+            .any(|reply| tokio::time::Instant::now() >= reply.deadline)
+        {
+            return true;
+        }
         let state = lock(&self.shared);
         (state.phase == Connection::AwaitingInitialize && self.started.elapsed() >= CONTROL_BUDGET)
             || match self.partial.lock() {
@@ -297,7 +350,24 @@ impl Transport<RoleServer> for BoundedTransport {
             let delivered = if suppressed {
                 Ok(())
             } else {
-                deliver(&writer, output, left).await
+                let initialization = if matches!(
+                    &output,
+                    JsonRpcMessage::Response(response)
+                        if matches!(response.result, ServerResult::InitializeResult(_))
+                ) {
+                    let mut state = lock(&shared);
+                    if state.phase == Connection::AwaitingInitialize
+                        && state.initialize.as_ref() == id.as_ref()
+                    {
+                        state.initialize_delivery = InitializeDelivery::Sending;
+                        Some(shared.clone())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                deliver(&writer, output, left, initialization).await
             };
             let mut state = lock(&shared);
             if delivered.is_err() {
@@ -311,9 +381,6 @@ impl Transport<RoleServer> for BoundedTransport {
                         .is_some_and(|current| Arc::ptr_eq(&current.cancelled, cancelled))
                 });
                 if same_owner {
-                    if !suppressed && state.initialize.as_ref() == Some(&id) {
-                        state.initialized_response = true;
-                    }
                     state.ids.remove(&id);
                 }
                 state.reap_cancelled();
@@ -337,19 +404,46 @@ impl Transport<RoleServer> for BoundedTransport {
                 self.fail();
                 return None;
             }
-            if self.finish_reply().await.is_err() {
-                self.fail();
-                return None;
+            let waiting_for_initialize_delivery = {
+                let state = lock(&self.shared);
+                state.phase == Connection::AwaitingInitialize
+                    && state.initialize_delivery == InitializeDelivery::NotifiedWhileSending
+            };
+            if waiting_for_initialize_delivery {
+                // Bytes can be visible before flush returns. Retain initialized
+                // but leave the next frame in the bounded reader channel until
+                // successful writer publication, not SDK send-task resumption.
+                // No tool exists yet; the original handshake deadline applies.
+                tokio::time::sleep(Duration::from_millis(5)).await;
+                continue;
             }
-            let input =
-                match tokio::time::timeout(Duration::from_millis(5), self.input.recv()).await {
-                    Ok(Some(input)) => input,
-                    Ok(None) => {
-                        lock(&self.shared).stop();
-                        return None;
+            let input = if let Some(pending) = self.pending.front_mut() {
+                // Both borrowed futures are cancellation-safe. Only delivery
+                // completion releases this reply; input can still stop owned
+                // work while stdout is blocked.
+                tokio::select! {
+                    biased;
+                    result = Self::finish_reply(&self.writer, pending) => {
+                        if result.is_err() {
+                            self.fail();
+                            return None;
+                        }
+                        self.pending.pop_front();
+                        continue;
                     }
+                    input = self.input.recv() => input,
+                    _ = tokio::time::sleep(Duration::from_millis(5)) => continue,
+                }
+            } else {
+                match tokio::time::timeout(Duration::from_millis(5), self.input.recv()).await {
+                    Ok(input) => input,
                     Err(_) => continue,
-                };
+                }
+            };
+            let Some(input) = input else {
+                lock(&self.shared).stop();
+                return None;
+            };
             let (bytes, clock) = match input {
                 Input::Frame(bytes, clock) => (bytes, clock),
                 Input::End => {
@@ -365,7 +459,7 @@ impl Transport<RoleServer> for BoundedTransport {
                 self.fail();
                 return None;
             }
-            let value = match framing::parse(&bytes) {
+            let mut value = match framing::parse(&bytes) {
                 Ok(value) => value,
                 Err(_) => {
                     self.reject(None, -32700, clock);
@@ -393,7 +487,6 @@ impl Transport<RoleServer> for BoundedTransport {
                     "notifications/initialized" => {
                         let mut state = lock(&self.shared);
                         if state.phase == Connection::AwaitingInitialize
-                            && state.initialized_response
                             && object.get("params").is_none_or(|p| {
                                 p.as_object().is_some_and(|p| {
                                     p.keys().all(|key| key == "_meta")
@@ -401,7 +494,14 @@ impl Transport<RoleServer> for BoundedTransport {
                                 })
                             })
                         {
-                            state.phase = Connection::Ready;
+                            match state.initialize_delivery {
+                                InitializeDelivery::Sending => {
+                                    state.initialize_delivery =
+                                        InitializeDelivery::NotifiedWhileSending;
+                                }
+                                InitializeDelivery::Delivered => state.phase = Connection::Ready,
+                                _ => {}
+                            }
                         }
                         continue;
                     }
@@ -436,7 +536,13 @@ impl Transport<RoleServer> for BoundedTransport {
             };
             let code = {
                 let state = lock(&self.shared);
-                if state.ids.contains_key(&id) || state.ids.len() >= 8 {
+                if state.ids.contains_key(&id)
+                    || self
+                        .pending
+                        .iter()
+                        .any(|reply| reply.id.as_ref() == Some(&id))
+                    || state.ids.len() + self.pending.len() >= 8
+                {
                     Some(-32600)
                 } else if !matches!(
                     method,
@@ -491,6 +597,49 @@ impl Transport<RoleServer> for BoundedTransport {
             };
             if !params_valid {
                 self.reject(Some(id), -32602, clock);
+                continue;
+            }
+            if method == "tools/call" && !self.pending.is_empty() {
+                // Backpressure owns delivery capacity, not another execution.
+                // Refuse without invoking or queueing the synchronous runner.
+                let operation = params
+                    .and_then(|p| p.get("name"))
+                    .and_then(Value::as_str)
+                    .and_then(super::handler::Operation::from_name)
+                    .expect("checked tool");
+                match super::handler::new_request_id() {
+                    Ok(domain_id) => {
+                        let arguments = value
+                            .get_mut("params")
+                            .and_then(Value::as_object_mut)
+                            .and_then(|params| params.remove("arguments"))
+                            .and_then(|arguments| match arguments {
+                                Value::Object(arguments) => Some(arguments),
+                                _ => None,
+                            });
+                        // Keep the handler's input-before-capacity precedence,
+                        // moving arguments rather than copying source text.
+                        let result = match super::handler::prepare(
+                            operation,
+                            arguments,
+                            domain_id.clone(),
+                        ) {
+                            Ok(_) => super::handler::failure(
+                                operation,
+                                &domain_id,
+                                super::handler::Failure::Busy,
+                            ),
+                            Err(result) => result,
+                        };
+                        let mut result = ServerResult::CallToolResult(result);
+                        result.strip_result_type_for_legacy_peer();
+                        self.queue_reply(
+                            ServerJsonRpcMessage::response(result, id),
+                            remaining(clock, operation.budget()),
+                        );
+                    }
+                    Err(()) => self.reject(Some(id), -32603, clock),
+                }
                 continue;
             }
             if method == "server/discover" {
@@ -588,7 +737,7 @@ pub fn run(registry: PathBuf, shutdown: &'static AtomicBool) -> io::Result<()> {
             ids: HashMap::new(),
             active: None,
             initialize: None,
-            initialized_response: false,
+            initialize_delivery: InitializeDelivery::NotStarted,
         }));
         let transport = BoundedTransport {
             shared: shared.clone(),
@@ -597,7 +746,7 @@ pub fn run(registry: PathBuf, shutdown: &'static AtomicBool) -> io::Result<()> {
             partial,
             shutdown,
             started: Instant::now(),
-            pending: None,
+            pending: VecDeque::new(),
         };
         let service = rmcp::service::serve_directly(
             McpService {
@@ -664,7 +813,7 @@ mod tests {
             ids: HashMap::new(),
             active: None,
             initialize: None,
-            initialized_response: true,
+            initialize_delivery: InitializeDelivery::Delivered,
         }))
     }
     fn runtime() -> tokio::runtime::Runtime {
@@ -675,6 +824,313 @@ mod tests {
     }
     fn frame(value: Value) -> Input {
         Input::Frame(serde_json::to_vec(&value).unwrap(), AttemptClock::start())
+    }
+
+    #[test]
+    fn initialized_and_catalog_do_not_depend_on_sdk_write_acknowledgment() {
+        runtime().block_on(async {
+            let shared = state();
+            {
+                let mut state = lock(&shared);
+                state.phase = Connection::AwaitingInitialize;
+                state.initialize_delivery = InitializeDelivery::NotStarted;
+            }
+            let (send_input, input) = mpsc::channel(4);
+            let (writer, mut output) = mpsc::channel::<WriteJob>(1);
+            let mut transport = BoundedTransport {
+                shared: shared.clone(),
+                input,
+                writer,
+                partial: Arc::new(Mutex::new(None)),
+                shutdown: &RUNNING,
+                started: Instant::now(),
+                pending: VecDeque::new(),
+            };
+            // A genuinely premature notification cannot enable the catalog.
+            send_input
+                .send(frame(serde_json::json!({
+                    "jsonrpc":"2.0","method":"notifications/initialized"
+                })))
+                .await
+                .unwrap();
+            send_input
+                .send(frame(serde_json::json!({
+                    "jsonrpc":"2.0","id":1,"method":"initialize",
+                    "params":{"protocolVersion":"2025-11-25","capabilities":{},
+                        "clientInfo":{"name":"regression","version":"1"}}
+                })))
+                .await
+                .unwrap();
+            assert!(transport.receive().await.is_some());
+            assert!(lock(&shared).phase == Connection::AwaitingInitialize);
+            let result = {
+                use rmcp::ServerHandler;
+                McpService {
+                    shared: shared.clone(),
+                }
+                .get_info()
+            };
+            let send = transport.send(ServerJsonRpcMessage::response(
+                ServerResult::InitializeResult(result),
+                NumberOrString::Number(1),
+            ));
+            let mut send = std::pin::pin!(send);
+            let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+            assert!(send.as_mut().poll(&mut context).is_pending());
+            let job = output.recv().await.unwrap();
+            // Model response bytes already visible, with flush and SDK ack
+            // independently controlled.
+            send_input
+                .send(frame(serde_json::json!({
+                    "jsonrpc":"2.0","method":"notifications/initialized"
+                })))
+                .await
+                .unwrap();
+            send_input
+                .send(frame(serde_json::json!({
+                    "jsonrpc":"2.0","id":2,"method":"tools/list"
+                })))
+                .await
+                .unwrap();
+            {
+                let mut receive = std::pin::pin!(transport.receive());
+                assert!(receive.as_mut().poll(&mut context).is_pending());
+            }
+            assert!(lock(&shared).phase == Connection::AwaitingInitialize);
+            assert!(lock(&shared).initialize_delivery == InitializeDelivery::NotifiedWhileSending);
+            job.publish_delivery(true);
+            // Catalog request is admitted before the SDK send future is even
+            // acknowledged, and survives its dropped concurrent receive.
+            let request = transport.receive().await.unwrap();
+            assert!(matches!(request, JsonRpcMessage::Request(request)
+                if matches!(request.request, ClientRequest::ListToolsRequest(_))));
+            assert!(lock(&shared).phase == Connection::Ready);
+            job.complete.send(Ok(())).unwrap();
+            send.await.unwrap();
+        });
+    }
+
+    #[test]
+    fn sdk_returns_catalog_while_initialization_send_task_waits_for_ack() {
+        runtime().block_on(async {
+            let shared = state();
+            {
+                let mut state = lock(&shared);
+                state.phase = Connection::AwaitingInitialize;
+                state.initialize_delivery = InitializeDelivery::NotStarted;
+            }
+            let (send_input, input) = mpsc::channel(4);
+            let (writer, mut output) = mpsc::channel::<WriteJob>(1);
+            let transport = BoundedTransport {
+                shared: shared.clone(),
+                input,
+                writer,
+                partial: Arc::new(Mutex::new(None)),
+                shutdown: &RUNNING,
+                started: Instant::now(),
+                pending: VecDeque::new(),
+            };
+            let service = rmcp::service::serve_directly(
+                McpService {
+                    shared: shared.clone(),
+                },
+                transport,
+                None,
+            );
+            send_input
+                .send(frame(serde_json::json!({
+                    "jsonrpc":"2.0","id":1,"method":"initialize",
+                    "params":{"protocolVersion":"2025-11-25","capabilities":{},
+                        "clientInfo":{"name":"regression","version":"1"}}
+                })))
+                .await
+                .unwrap();
+            let initialization = tokio::time::timeout(Duration::from_secs(1), output.recv())
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(
+                matches!(&initialization.output, JsonRpcMessage::Response(response)
+                if matches!(response.result, ServerResult::InitializeResult(_)))
+            );
+            initialization.publish_delivery(true);
+            send_input
+                .send(frame(serde_json::json!({
+                    "jsonrpc":"2.0","method":"notifications/initialized"
+                })))
+                .await
+                .unwrap();
+            send_input
+                .send(frame(serde_json::json!({
+                    "jsonrpc":"2.0","id":2,"method":"tools/list"
+                })))
+                .await
+                .unwrap();
+            // The SDK independently polls receive and response-send tasks. The
+            // initialized notification and following list must work even when
+            // initialization's send task has not received its acknowledgment.
+            let catalog = tokio::time::timeout(Duration::from_secs(1), output.recv())
+                .await
+                .unwrap()
+                .unwrap();
+            let public = serde_json::to_value(&catalog.output).unwrap();
+            assert_eq!(public["id"], 2);
+            assert_eq!(
+                public["result"]["tools"],
+                serde_json::to_value(super::super::schema::tools()).unwrap()
+            );
+            assert!(lock(&shared).phase == Connection::Ready);
+            initialization.complete.send(Ok(())).unwrap();
+            catalog.complete.send(Ok(())).unwrap();
+            drop(send_input);
+            tokio::time::timeout(Duration::from_secs(1), service.waiting())
+                .await
+                .unwrap()
+                .unwrap();
+        });
+    }
+
+    #[test]
+    fn blocked_receive_reply_keeps_cancellation_and_eof_observable() {
+        runtime().block_on(async {
+            for enqueued in [false, true] {
+                for cancel in [false, true] {
+                    let shared = state();
+                    let id = NumberOrString::Number(1);
+                    let cancelled = Arc::new(AtomicBool::new(false));
+                    let (release, blocked) = std::sync::mpsc::channel();
+                    let clock = AttemptClock::start();
+                    {
+                        let mut state = lock(&shared);
+                        state.ids.insert(
+                            id.clone(),
+                            OwnedId {
+                                clock,
+                                budget: CONTROL_BUDGET,
+                                cancelled: cancelled.clone(),
+                            },
+                        );
+                        state.active = Some(ToolOwner {
+                            id: id.clone(),
+                            clock,
+                            budget: CONTROL_BUDGET,
+                            cancelled: cancelled.clone(),
+                            handle: std::thread::spawn(move || {
+                                blocked.recv().unwrap();
+                            }),
+                        });
+                    }
+                    let (send_input, input) = mpsc::channel(4);
+                    let (writer, mut output) = mpsc::channel::<WriteJob>(1);
+                    let mut blocked_finished = None;
+                    if !enqueued {
+                        let (complete, finished) = oneshot::channel();
+                        blocked_finished = Some(finished);
+                        writer
+                            .send(WriteJob {
+                                output: ServerJsonRpcMessage::error(error(-32700), None),
+                                complete,
+                                initialization: None,
+                            })
+                            .await
+                            .unwrap();
+                    }
+                    let mut transport = BoundedTransport {
+                        shared: shared.clone(),
+                        input,
+                        writer,
+                        partial: Arc::new(Mutex::new(None)),
+                        shutdown: &RUNNING,
+                        started: Instant::now(),
+                        pending: VecDeque::new(),
+                    };
+                    send_input
+                        .send(frame(serde_json::json!({
+                            "jsonrpc":"2.0","id":2,"method":"server/discover"
+                        })))
+                        .await
+                        .unwrap();
+                    let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+                    {
+                        let mut receive = std::pin::pin!(transport.receive());
+                        assert!(receive.as_mut().poll(&mut context).is_pending());
+                    }
+                    let deadline = transport.pending.front().unwrap().deadline;
+                    assert_eq!(transport.pending.front().unwrap().job.is_none(), enqueued);
+                    let held = output.recv().await.unwrap();
+                    send_input
+                        .send(frame(serde_json::json!({
+                            "jsonrpc":"2.0","id":3,"method":"tools/call",
+                            "params":{"name":"read_script","arguments":{
+                                "project_root":"/fixture/project","script_path":"res://test.gd"
+                            }}
+                        })))
+                        .await
+                        .unwrap();
+                    send_input
+                        .send(frame(serde_json::json!({
+                            "jsonrpc":"2.0","id":4,"method":"unsupported"
+                        })))
+                        .await
+                        .unwrap();
+                    send_input
+                        .send(frame(serde_json::json!({
+                            "jsonrpc":"2.0","id":5,"method":"tools/call",
+                            "params":{"name":"read_script","arguments":{"project_root":42}}
+                        })))
+                        .await
+                        .unwrap();
+                    {
+                        let mut receive = std::pin::pin!(transport.receive());
+                        assert!(receive.as_mut().poll(&mut context).is_pending());
+                    }
+                    assert_eq!(transport.pending.len(), 4);
+                    let busy = transport.pending[1].job.as_ref().unwrap();
+                    let public = serde_json::to_value(&busy.output).unwrap();
+                    assert_eq!(
+                        public["result"]["structuredContent"]["error"]["code"],
+                        "server_busy"
+                    );
+                    let invalid = transport.pending[3].job.as_ref().unwrap();
+                    let public = serde_json::to_value(&invalid.output).unwrap();
+                    assert_eq!(
+                        public["result"]["structuredContent"]["error"]["category"],
+                        "input"
+                    );
+                    assert_eq!(lock(&shared).ids.len(), 1, "another tool was not admitted");
+                    assert!(!cancelled.load(Ordering::Relaxed));
+                    if cancel {
+                        send_input
+                            .send(frame(serde_json::json!({
+                                "jsonrpc":"2.0","method":"notifications/cancelled",
+                                "params":{"requestId":1}
+                            })))
+                            .await
+                            .unwrap();
+                        {
+                            let mut receive = std::pin::pin!(transport.receive());
+                            assert!(receive.as_mut().poll(&mut context).is_pending());
+                        }
+                        assert!(cancelled.load(Ordering::Relaxed));
+                        assert_eq!(transport.pending.front().unwrap().deadline, deadline);
+                        assert!(lock(&shared).phase == Connection::Ready);
+                    }
+                    send_input.send(Input::End).await.unwrap();
+                    assert!(transport.receive().await.is_none());
+                    assert!(cancelled.load(Ordering::Relaxed));
+                    assert!(lock(&shared).phase == Connection::Closing);
+                    assert!(Arc::ptr_eq(&lock(&shared).ids[&id].cancelled, &cancelled));
+                    assert!(lock(&shared).active.is_some());
+                    // Neither interruption depended on releasing stdout.
+                    held.complete.send(Ok(())).unwrap();
+                    if let Some(finished) = blocked_finished {
+                        finished.await.unwrap().unwrap();
+                    }
+                    release.send(()).unwrap();
+                    lock(&shared).active.take().unwrap().handle.join().unwrap();
+                }
+            }
+        });
     }
 
     #[test]
@@ -691,29 +1147,29 @@ mod tests {
                 writer.send(WriteJob {
                     output: ServerJsonRpcMessage::error(error(-32700), None),
                     complete,
+                    initialization: None,
                 }).await.unwrap();
                 send_input.send(frame(request.clone())).await.unwrap();
-                send_input.send(frame(serde_json::json!({"jsonrpc":"2.0","id":"next","method":"ping"}))).await.unwrap();
                 let mut transport = BoundedTransport {
                     shared: state(), input, writer,
                     partial: Arc::new(Mutex::new(None)), shutdown: &RUNNING,
-                    started: Instant::now(), pending: None,
+                    started: Instant::now(), pending: VecDeque::new(),
                 };
                 {
                     let mut receive = std::pin::pin!(transport.receive());
                     let mut context = std::task::Context::from_waker(std::task::Waker::noop());
                     assert!(receive.as_mut().poll(&mut context).is_pending());
                 }
-                let deadline = transport.pending.as_ref().unwrap().deadline;
-                assert!(transport.pending.as_ref().unwrap().job.is_some());
+                let deadline = transport.pending.front().unwrap().deadline;
+                assert!(transport.pending.front().unwrap().job.is_some());
                 output.recv().await.unwrap().complete.send(Ok(())).unwrap();
                 {
                     let mut receive = std::pin::pin!(transport.receive());
                     let mut context = std::task::Context::from_waker(std::task::Waker::noop());
                     assert!(receive.as_mut().poll(&mut context).is_pending());
                 }
-                assert!(transport.pending.as_ref().unwrap().job.is_none());
-                assert_eq!(transport.pending.as_ref().unwrap().deadline, deadline);
+                assert!(transport.pending.front().unwrap().job.is_none());
+                assert_eq!(transport.pending.front().unwrap().deadline, deadline);
                 let reply = output.recv().await.unwrap();
                 let public = serde_json::to_value(&reply.output).unwrap();
                 assert_eq!(public["id"], "reply");
@@ -724,10 +1180,11 @@ mod tests {
                 }
                 assert!(!public.to_string().contains("private_source"));
                 reply.complete.send(Ok(())).unwrap();
+                send_input.send(frame(serde_json::json!({"jsonrpc":"2.0","id":"next","method":"ping"}))).await.unwrap();
                 let next = transport.receive().await.unwrap();
                 let JsonRpcMessage::Request(next) = next else { panic!("next request lost"); };
                 assert_eq!(next.id, NumberOrString::String("next".into()));
-                assert!(transport.pending.is_none());
+                assert!(transport.pending.is_empty());
                 assert!(output.try_recv().is_err(), "reply must not be duplicated");
             }
         });
@@ -745,14 +1202,64 @@ mod tests {
                 partial: Arc::new(Mutex::new(None)),
                 shutdown: &RUNNING,
                 started: Instant::now(),
-                pending: None,
+                pending: VecDeque::new(),
             };
+            // A later reply cannot inherit the first reply's longer deadline.
+            transport.queue_reply(
+                ServerJsonRpcMessage::error(error(-32600), Some(NumberOrString::Number(1))),
+                CONTROL_BUDGET,
+            );
             transport.queue_reply(
                 ServerJsonRpcMessage::error(error(-32600), None),
                 Duration::ZERO,
             );
             assert!(transport.receive().await.is_none());
             assert!(lock(&transport.shared).phase == Connection::Closing);
+        });
+    }
+
+    #[test]
+    fn backpressured_receive_reply_capacity_is_bounded() {
+        runtime().block_on(async {
+            let shared = state();
+            let (send_input, input) = mpsc::channel(16);
+            let (writer, mut output) = mpsc::channel::<WriteJob>(1);
+            let (complete, _finished) = oneshot::channel();
+            writer
+                .send(WriteJob {
+                    output: ServerJsonRpcMessage::error(error(-32700), None),
+                    complete,
+                    initialization: None,
+                })
+                .await
+                .unwrap();
+            for id in 1..=9 {
+                send_input
+                    .send(frame(serde_json::json!({
+                        "jsonrpc":"2.0","id":id,"method":"unsupported"
+                    })))
+                    .await
+                    .unwrap();
+            }
+            let mut transport = BoundedTransport {
+                shared: shared.clone(),
+                input,
+                writer,
+                partial: Arc::new(Mutex::new(None)),
+                shutdown: &RUNNING,
+                started: Instant::now(),
+                pending: VecDeque::new(),
+            };
+            assert!(transport.receive().await.is_none());
+            assert!(lock(&shared).phase == Connection::Closing);
+            assert_eq!(transport.pending.len(), 8);
+            assert!(lock(&shared).ids.is_empty());
+            assert!(transport.pending.iter().all(|reply| reply.job.is_some()));
+            assert!(matches!(
+                output.recv().await.unwrap().output,
+                JsonRpcMessage::Error(_)
+            ));
+            assert!(output.try_recv().is_err());
         });
     }
 
@@ -770,7 +1277,7 @@ mod tests {
                 let mut transport = BoundedTransport {
                     shared: shared.clone(), input, writer,
                     partial: Arc::new(Mutex::new(None)), shutdown: &RUNNING,
-                    started: Instant::now(), pending: None,
+                    started: Instant::now(), pending: VecDeque::new(),
                 };
                 send_input.send(frame(request)).await.unwrap();
                 assert!(transport.receive().await.is_some());
@@ -829,7 +1336,7 @@ mod tests {
                 let transport = BoundedTransport {
                     shared: shared.clone(), input, writer,
                     partial: Arc::new(Mutex::new(None)), shutdown: &RUNNING,
-                    started: Instant::now(), pending: None,
+                    started: Instant::now(), pending: VecDeque::new(),
                 };
                 let service = rmcp::service::serve_directly(
                     McpService { shared: shared.clone() }, transport, None,
@@ -906,7 +1413,7 @@ mod tests {
                 partial: Arc::new(Mutex::new(None)),
                 shutdown: &RUNNING,
                 started: Instant::now(),
-                pending: None,
+                pending: VecDeque::new(),
             };
             assert!(transport.receive().await.is_some());
             acknowledge.await.unwrap();
@@ -937,7 +1444,7 @@ mod tests {
             send_input.send(frame(serde_json::json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":3}}))).await.unwrap();
             send_input.send(frame(serde_json::json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1}}))).await.unwrap();
             send_input.send(frame(serde_json::json!({"jsonrpc":"2.0","id":3,"method":"ping"}))).await.unwrap();
-            let mut transport = BoundedTransport { shared: shared.clone(), input, writer, partial: Arc::new(Mutex::new(None)), shutdown: &RUNNING, started: Instant::now(), pending: None };
+            let mut transport = BoundedTransport { shared: shared.clone(), input, writer, partial: Arc::new(Mutex::new(None)), shutdown: &RUNNING, started: Instant::now(), pending: VecDeque::new() };
             let received = transport.receive().await.unwrap();
             assert!(matches!(received, JsonRpcMessage::Request(_)));
             assert!(cancelled.load(Ordering::Relaxed));
@@ -1020,14 +1527,6 @@ mod tests {
                     .unwrap();
             }
             send_input.send(Input::End).await.unwrap();
-            let acknowledge = tokio::spawn(async move {
-                let job = output.recv().await.unwrap();
-                let JsonRpcMessage::Error(error) = job.output else {
-                    panic!("capacity must be rejected");
-                };
-                assert_eq!(error.error.code, ErrorCode(-32600));
-                job.complete.send(Ok(())).unwrap();
-            });
             let mut transport = BoundedTransport {
                 shared: shared.clone(),
                 input,
@@ -1035,14 +1534,27 @@ mod tests {
                 partial: Arc::new(Mutex::new(None)),
                 shutdown: &RUNNING,
                 started: Instant::now(),
-                pending: None,
+                pending: VecDeque::new(),
             };
             for _ in 0..8 {
                 assert!(transport.receive().await.is_some());
             }
             assert!(transport.receive().await.is_none());
-            acknowledge.await.unwrap();
-            assert_eq!(lock(&shared).ids.len(), 8);
+            assert!(
+                transport.pending.is_empty(),
+                "ninth ID must not be retained for rejection"
+            );
+            assert!(
+                output.try_recv().is_err(),
+                "capacity failure cannot queue another reply"
+            );
+            let state = lock(&shared);
+            assert!(state.phase == Connection::Closing);
+            assert_eq!(state.ids.len(), 8);
+            assert!(state
+                .ids
+                .values()
+                .all(|owned| owned.cancelled.load(Ordering::Relaxed)));
         });
     }
 
@@ -1060,6 +1572,7 @@ mod tests {
                 &writer,
                 ServerJsonRpcMessage::error(error(-32700), None),
                 Duration::from_millis(10),
+                None,
             )
             .await;
             assert!(result.is_err());
@@ -1081,7 +1594,7 @@ mod tests {
             partial: partial.clone(),
             shutdown: &RUNNING,
             started: Instant::now() - Duration::from_secs(11),
-            pending: None,
+            pending: VecDeque::new(),
         };
         assert!(!transport.timed_out());
         lock(&shared).phase = Connection::AwaitingInitialize;
@@ -1115,11 +1628,11 @@ mod service_tests {
             let shared = Arc::new(Mutex::new(State {
                 phase: Connection::Ready, registry: PathBuf::from("/nonexistent/mcp-regression-registry"),
                 ids: HashMap::new(), active: Some(ToolOwner { id: active_id.clone(), clock, budget: Duration::from_secs(5), cancelled: cancelled.clone(), handle }),
-                initialize: None, initialized_response: true,
+                initialize: None, initialize_delivery: InitializeDelivery::Delivered,
             }));
             let (send_input, input) = mpsc::channel(1);
             let (writer, mut output) = mpsc::channel::<WriteJob>(1);
-            let transport = BoundedTransport { shared: shared.clone(), input, writer, partial: Arc::new(Mutex::new(None)), shutdown: &RUNNING, started: Instant::now(), pending: None };
+            let transport = BoundedTransport { shared: shared.clone(), input, writer, partial: Arc::new(Mutex::new(None)), shutdown: &RUNNING, started: Instant::now(), pending: VecDeque::new() };
             let service = rmcp::service::serve_directly(McpService { shared: shared.clone() }, transport, None);
             send_input.send(Input::Frame(serde_json::to_vec(&serde_json::json!({
                 "jsonrpc":"2.0","id":"busy-call","method":"tools/call",

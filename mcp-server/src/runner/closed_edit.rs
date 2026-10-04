@@ -1,6 +1,6 @@
 //! Bounded owned acquisition/edit workers; parent alone releases irreversible authority.
 use super::stock_validation;
-use super::{AttemptClock, Frames, HostFailure, OwnedWorker, POLL_INTERVAL};
+use super::{AttemptClock, HostFailure, OwnedWorker};
 use crate::bridge::wire::closed_edit as codec;
 use crate::observation::*;
 use crate::project_fs_validation as confined;
@@ -16,7 +16,6 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
 use std::time::{Duration, Instant};
 #[path = "closed_edit/supervisor.rs"]
 mod supervisor;
@@ -108,6 +107,19 @@ enum Control {
         result: Box<stock_validation::ValidationResult>,
     },
 }
+// Match the stock validator's bounded blocking channel. Kernel readiness wakes
+// promptly for large frames; no per-chunk polling sleep consumes the edit budget.
+fn io_timeout(at: Instant, cancel: Option<&AtomicBool>) -> Result<Duration, &'static str> {
+    if cancel.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+        return Err("cancelled");
+    }
+    let remaining = at.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+        return Err("timeout");
+    }
+    Ok(remaining.min(Duration::from_millis(50)))
+}
+
 fn send<T: Serialize>(
     s: &mut UnixStream,
     v: &T,
@@ -122,17 +134,18 @@ fn send<T: Serialize>(
     for part in [&header[..], &bytes[..]] {
         let mut off = 0;
         while off < part.len() {
-            if Instant::now() >= at {
-                return Err("timeout");
-            }
-            if cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
-                return Err("cancelled");
-            }
+            s.set_write_timeout(Some(io_timeout(at, cancel)?))
+                .map_err(|_| "disconnected")?;
             match s.write(&part[off..]) {
                 Ok(0) => return Err("disconnected"),
                 Ok(n) => off += n,
-                Err(e) if e.kind() == io::ErrorKind::WouldBlock => thread::sleep(POLL_INTERVAL),
-                Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        io::ErrorKind::WouldBlock
+                            | io::ErrorKind::TimedOut
+                            | io::ErrorKind::Interrupted
+                    ) => {}
                 Err(_) => return Err("disconnected"),
             }
         }
@@ -142,22 +155,47 @@ fn send<T: Serialize>(
 fn receive<T: for<'de> Deserialize<'de>>(
     s: &mut UnixStream,
     at: Instant,
+    cancel: Option<&AtomicBool>,
 ) -> Result<T, &'static str> {
-    if Instant::now() >= at {
-        return Err("timeout");
-    }
-    s.set_read_timeout(Some(at.saturating_duration_since(Instant::now())))
-        .map_err(|_| "disconnected")?;
     let mut h = [0; 4];
-    s.read_exact(&mut h).map_err(|_| "disconnected")?;
+    receive_exact(s, &mut h, at, cancel)?;
     let len = u32::from_be_bytes(h) as usize;
     if len == 0 || len > LIMIT {
         return Err("protocol_error");
     }
     let mut bytes = vec![0; len];
-    s.read_exact(&mut bytes).map_err(|_| "disconnected")?;
-    serde_json::from_slice(&bytes).map_err(|_| "protocol_error")
+    receive_exact(s, &mut bytes, at, cancel)?;
+    let value = serde_json::from_slice(&bytes).map_err(|_| "protocol_error")?;
+    io_timeout(at, cancel)?;
+    Ok(value)
 }
+
+fn receive_exact(
+    s: &mut UnixStream,
+    bytes: &mut [u8],
+    at: Instant,
+    cancel: Option<&AtomicBool>,
+) -> Result<(), &'static str> {
+    let mut used = 0;
+    while used < bytes.len() {
+        s.set_read_timeout(Some(io_timeout(at, cancel)?))
+            .map_err(|_| "disconnected")?;
+        match s.read(&mut bytes[used..]) {
+            Ok(0) => return Err("disconnected"),
+            Ok(count) => used += count,
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    io::ErrorKind::WouldBlock
+                        | io::ErrorKind::TimedOut
+                        | io::ErrorKind::Interrupted
+                ) => {}
+            Err(_) => return Err("disconnected"),
+        }
+    }
+    Ok(())
+}
+
 fn failure(e: &RoutingFailure) -> &'static str {
     match e.outcome {
         OutcomeKind::DeniedAccess => "denied_access",
@@ -193,4 +231,83 @@ fn valid(
         && r.sources
             .iter()
             .all(|s| s.diagnostics_completed && s.symbols_completed)
+}
+
+#[cfg(test)]
+mod channel_tests {
+    use super::*;
+    use std::sync::{mpsc, Arc};
+    use std::thread;
+
+    #[test]
+    fn source_frames_are_complete_and_keep_the_next_frame_separate() {
+        let source = "𝛌\n".repeat(SOURCE_LIMIT_BYTES / 5) + "abc";
+        assert_eq!(source.len(), SOURCE_LIMIT_BYTES);
+        let (mut sender, mut receiver) = UnixStream::pair().unwrap();
+        let at = Instant::now() + Duration::from_secs(5);
+        thread::scope(|scope| {
+            let writer = scope.spawn(|| {
+                send(&mut sender, &source, at, None).unwrap();
+                send(&mut sender, &7u8, at, None).unwrap();
+            });
+            assert_eq!(receive::<String>(&mut receiver, at, None).unwrap(), source);
+            assert_eq!(receive::<u8>(&mut receiver, at, None).unwrap(), 7);
+            writer.join().unwrap();
+        });
+    }
+
+    #[test]
+    fn incomplete_live_frame_exhausts_the_original_deadline() {
+        let (mut sender, mut receiver) = UnixStream::pair().unwrap();
+        sender.write_all(&3u32.to_be_bytes()).unwrap();
+        sender.write_all(b"\"").unwrap();
+        assert_eq!(
+            receive::<String>(
+                &mut receiver,
+                Instant::now() + Duration::from_millis(30),
+                None,
+            ),
+            Err("timeout"),
+        );
+    }
+
+    #[test]
+    fn stalled_source_delivery_remains_cancellable_after_bytes_are_sent() {
+        let (mut sender, mut receiver) = UnixStream::pair().unwrap();
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let signal = cancelled.clone();
+        let (done, result) = mpsc::channel();
+        let writer = thread::spawn(move || {
+            let source = "x".repeat(2 * SOURCE_LIMIT_BYTES);
+            let outcome = send(
+                &mut sender,
+                &source,
+                Instant::now() + Duration::from_secs(5),
+                Some(&signal),
+            );
+            done.send(outcome).unwrap();
+        });
+        receiver
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        let mut prefix = [0; 5];
+        receiver.read_exact(&mut prefix).unwrap();
+        cancelled.store(true, Ordering::Relaxed);
+        let outcome = result.recv_timeout(Duration::from_secs(1));
+        drop(receiver);
+        writer.join().unwrap();
+        assert_eq!(outcome.unwrap(), Err("cancelled"));
+    }
+
+    #[test]
+    fn invalid_frame_lengths_are_rejected_without_waiting_for_a_body() {
+        for length in [0, LIMIT as u32 + 1] {
+            let (mut sender, mut receiver) = UnixStream::pair().unwrap();
+            sender.write_all(&length.to_be_bytes()).unwrap();
+            assert_eq!(
+                receive::<String>(&mut receiver, Instant::now() + Duration::from_secs(1), None,),
+                Err("protocol_error"),
+            );
+        }
+    }
 }

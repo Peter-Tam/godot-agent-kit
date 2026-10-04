@@ -17,7 +17,6 @@ fn launch(
         .spawn()
         .map_err(|_| HostFailure)?;
     let owner = OwnedWorker(Some(process));
-    parent.set_nonblocking(true).map_err(|_| HostFailure)?;
     send(&mut parent, startup, at, Some(cancelled)).map_err(|_| HostFailure)?;
     Ok((parent, owner))
 }
@@ -39,26 +38,6 @@ fn startup(
         budget_us: budget.as_micros() as u64,
         basis: None,
         source: None,
-    }
-}
-fn next(
-    s: &mut UnixStream,
-    frames: &mut Frames,
-    at: Instant,
-    cancelled: &AtomicBool,
-) -> Result<Message, &'static str> {
-    loop {
-        if cancelled.load(Ordering::Relaxed) {
-            return Err("cancelled");
-        }
-        if Instant::now() >= at {
-            return Err("timeout");
-        }
-        match frames.next_limited(s, LIMIT) {
-            Ok(Some(b)) => return serde_json::from_slice(&b).map_err(|_| "protocol_error"),
-            Ok(None) => thread::sleep(POLL_INTERVAL),
-            Err(_) => return Err("disconnected"),
-        }
     }
 }
 pub(crate) fn acquire(
@@ -130,12 +109,7 @@ fn acquire_until(
         cancelled,
     )
     .map_err(|_| AcquisitionFailure::Host)?;
-    match next(
-        &mut socket,
-        &mut Frames::default(),
-        clock.started + budget,
-        cancelled,
-    ) {
+    match receive(&mut socket, clock.started + budget, Some(cancelled)) {
         Ok(Message::Acquired {
             state,
             changes: captured,
@@ -297,7 +271,6 @@ pub(crate) fn run(
     input.basis = Some(request.basis.clone());
     input.source = Some(request.replacement.as_str().to_owned());
     let (mut socket, _owner) = launch(&input, INTERNAL_WORKER_FLAG, at, cancelled)?;
-    let mut frames = Frames::default();
     let mut helper_phase = 0;
     let mut original_valid = false;
     let mut desired_valid = false;
@@ -308,7 +281,7 @@ pub(crate) fn run(
     let mut denied = false;
     let mut verified = false;
     loop {
-        let message = match next(&mut socket, &mut frames, at, cancelled) {
+        let message = match receive(&mut socket, at, Some(cancelled)) {
             Ok(m) => m,
             Err(e) => {
                 if reason == "incomplete_verification" {

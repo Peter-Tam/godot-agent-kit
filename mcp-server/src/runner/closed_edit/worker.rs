@@ -288,7 +288,7 @@ fn preflight(
         None,
     )
     .map_err(|e| (e, false))?;
-    let control: Control = receive(input, at).map_err(|e| (e, false))?;
+    let control: Control = receive(input, at, None).map_err(|e| (e, false))?;
     let Control::Preflight {
         original,
         desired: proposed,
@@ -336,7 +336,7 @@ fn post_validation(
         None,
     )
     .map_err(|e| (e, false))?;
-    let control: Control = receive(input, at).map_err(|e| (e, false))?;
+    let control: Control = receive(input, at, None).map_err(|e| (e, false))?;
     let Control::Validation { result } = control else {
         return Err(("cancelled", false));
     };
@@ -520,7 +520,7 @@ fn edit(
         let unchanged = desired == context.source;
         if !unchanged {
             send(output, &Message::Ready {}, at, None).map_err(|e| (e, false))?;
-            match receive::<Control>(input, at).map_err(|e| (e, false))? {
+            match receive::<Control>(input, at, None).map_err(|e| (e, false))? {
                 Control::Authorize {} => {}
                 _ => return Err(("cancelled", false)),
             }
@@ -643,7 +643,7 @@ fn dispatch(acquisition: bool) -> Option<i32> {
     let mut output = UnixStream::from(io::stdout().as_fd().try_clone_to_owned().ok()?);
     input.peer_addr().ok()?;
     output.peer_addr().ok()?;
-    let startup: Startup = match receive(&mut input, Instant::now() + EDIT_BUDGET) {
+    let startup: Startup = match receive(&mut input, Instant::now() + EDIT_BUDGET, None) {
         Ok(s) => s,
         Err(_) => return Some(1),
     };
