@@ -43,6 +43,18 @@ class GuestTests(unittest.TestCase):
             self.sync({'tracked.txt': b'replacement'}, 'b' * 40)
         self.assertEqual((self.root / 'workspace/repo/tracked.txt').read_bytes(), b'original')
 
+    def test_all_prepared_controls_refuse_changed_source_before_socket(self):
+        self.sync({'tracked.txt': b'original'})
+        run = self.root / 'runs/owned'
+        run.mkdir(parents=True, mode=0o700)
+        (run / 'prepared.json').write_text(json.dumps({'revision': 'a' * 40}))
+        (self.root / 'workspace/repo/tracked.txt').write_bytes(b'changed')
+        for command in (b'R', b'P', b'F'):
+            with self.subTest(command=command), patch.object(guest.socket, 'socket') as connection:
+                with self.assertRaises(guest.GuestError):
+                    guest._prepared_control(self.root, 'owned', command)
+                connection.assert_not_called()
+
     def test_prepared_export_keeps_private_calls_not_project_or_credentials(self):
         run = self.root / 'runs/owned'
         artifacts = run / 'artifacts'

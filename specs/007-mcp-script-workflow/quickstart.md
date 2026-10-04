@@ -343,20 +343,44 @@ The fixed test-only VM-wrapper commands are:
 
 - `prepare-mcp --revision SHA --run-id ID --artifacts DIR`: prepare an owned synthetic project/session and matched binaries; write source-free target setup, `mcp.json` and `prompt.txt` into the fresh host artifact directory. `mcp.json` is an OMP-native project definition for the fixed relay below, with actual absolute paths/run ID. For an OMP run, attach it as the owned repository checkout's temporary `.omp/mcp.json` only when that path is absent; record ownership/content and remove it after the run only if unchanged. Never overwrite pre-existing config or human changes; use a clean owned checkout of the tested commit when needed. The receipt binds guest inputs/session and the selected host config without authentication secrets.
 - `mcp-stdio --run-id ID`: validate that prepared run and relay stdin/stdout through the existing private Tart channel to its fixed guest MCP executable/registry. No arbitrary guest command, endpoint or host project is accepted. Protocol bytes are not wrapped in helper status output. Setup/relay diagnostics are source-free stderr.
-- `finalize-mcp --run-id ID`: independently verify the prepared workflow and later opening/Save/reparse/rescan/runtime durability, clean up only its owned fixtures, then retrieve private evidence. Relay EOF does not destroy prepared projects; it only drains that MCP connection. Finalize before selecting another committed guest source.
+- `prepare-durability --run-id ID`: for `workflow` only, require the already delivered primary discover/read/no-op/edit/fresh-read evidence before ordinary fixture opening of cached/absent scripts. Keep the owner alive and emit a read-only continuation prompt to stdout. Feed that prompt to a second invocation of the **same selected real client**, using the same fixed relay/config/run ID. This fixture-only action is not a public MCP operation.
+- `finalize-mcp --run-id ID`: require those post-opening actual-client reads, independently verify Save/reparse/rescan/runtime durability, clean up only owned fixtures, then retrieve private evidence. Relay EOF does not destroy prepared projects; it only drains that MCP connection. Finalize before selecting another committed guest source.
 
-Preparation accepts `--profile workflow|sources|bound|observations` (default
-`workflow`). Use a fresh run ID/artifact directory for **each of the four groups
-with each selected client**; one group is not full task acceptance. They cover
-open/cached/absent/known targets, Unicode/empty sources, the isolated 512 KiB
-boundary, and dirty/divergent/unavailable/partial observations respectively.
+Preparation accepts `--profile workflow|known|sources|bound|observations` (default
+`workflow`). Use a fresh run ID/artifact directory and fresh conversation for
+**each of the five groups with each selected client**; one group is not full task
+acceptance. `workflow` covers open/cached/absent targets without any exact script
+locator in its initial prompt. The separate `known` conversation covers direct
+read/edit and stale refusal without discovery; never preload its locator into
+the discovery-first conversation. `sources` covers Unicode/observed-empty source
+and empty desired source; `bound` isolates the 512 KiB boundary.
+`observations` covers dirty/divergent/unavailable/**invalidated**/partial facts.
+For `invalidated`, one actual client read is paused at T001's closed-state
+acquisition barrier, the fixture performs a same-text disk write changing ctime,
+and then releases acquisition. Historical disk source must not be current or
+carry a usable revision. Independent pre/post-transition witnesses distinguish
+that external write from the read's effects; normal no-effect assertions compare
+the read with the post-transition baseline, not with the superseded setup.
 The same groups are directly runnable as `run mcp --scenario transport-workflow`,
-`transport-sources`, `transport-bound` and `transport-observations`.
-`transport` runs them sequentially, never twelve concurrent editors.
+`transport-known`, `transport-sources`, `transport-bound` and
+`transport-observations`. `transport` runs them sequentially. These fixed
+transport drivers also perform post-opening reads but **are not real agents**.
 
 The relay is test apparatus, not a product remote transport. Host clients retain their normal model access; editor/core effects remain in the owned guest. This is the minimal adaptation needed to combine real clients with the existing VM policy.
 
-After each client exits, run `python3 godot-addon/tests/run_in_vm.py finalize-mcp --run-id "$RUN_ID"`. Preserve failed evidence as well as successful evidence. The guest summary reports MCP behavior, not model-visible client acceptance; correlate its call records with actual completed client tool results and subsequent model actions.
+After the primary `workflow` client invocation, run
+`python3 godot-addon/tests/run_in_vm.py prepare-durability --run-id "$RUN_ID" > "$ARTIFACTS/durability-prompt.txt"`.
+Invoke the same selected client again with that prompt and the unchanged relay
+configuration, for read-only consumption of now-open D/R/B. Only then run
+`python3 godot-addon/tests/run_in_vm.py finalize-mcp --run-id "$RUN_ID"`.
+For the other profiles, finalize directly after the client exits. Both controls
+can reach an idle live relay without waiting for client EOF: the existing host
+lock is shared only for relay/prepare-durability/finalization, exclusive for setup
+and source-changing operations. Guest source/provenance and active-owner checks
+remain required. Preserve failed evidence as well as successful evidence.
+The guest summary reports MCP behavior, not model-visible client acceptance;
+correlate call records with actual completed tool results and subsequent model
+actions in both workflow invocations. T004 alone owns full composed conversations.
 
 Example preparation from the root of a clean, owned host checkout of the tested repository commit (`REPO` is that checkout, not a human Godot project). The OMP preparation must preserve `.omp/lsp.yaml` and normal repository-root launch semantics:
 

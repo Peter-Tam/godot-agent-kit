@@ -21,10 +21,11 @@ from close_native_acceptance import documents
 from run_script_close import TARGET, CURRENT, BACKGROUND, SAFE
 
 PROFILE_GROUPS = {
-    'workflow': ('open', 'cached', 'absent', 'known'),
+    'workflow': ('open', 'cached', 'absent'),
+    'known': ('known',),
     'sources': ('unicode', 'empty', 'empty_desired'),
     'bound': ('bound',),
-    'observations': ('dirty', 'divergent', 'limited', 'partial'),
+    'observations': ('dirty', 'divergent', 'limited', 'invalidated', 'partial'),
 }
 
 
@@ -120,7 +121,7 @@ class McpLifecycleMixin:
                     if target['name'] != 'known':
                         tool('discover_scripts')
                     first = tool('read_script', script_path=TARGET)
-                    if target['name'] in ('dirty', 'divergent', 'limited', 'partial'):
+                    if target['name'] in ('dirty', 'divergent', 'limited', 'invalidated', 'partial'):
                         continue
                     second = tool('read_script', script_path=TARGET)
                     observation.require(first['revision'] == second['revision'], 'MCP_stable_revision')
@@ -129,6 +130,13 @@ class McpLifecycleMixin:
                     if target['name'] == 'known':
                         tool('edit_script', script_path=TARGET, revision=first['revision'], replacement_source=target['desired'])
                     tool('read_script', script_path=TARGET)
+                if any(t['name'] in ('cached', 'absent') for t in self.targets.values()):
+                    self.prepare_durability()
+                    for target in self.targets.values():
+                        if target['name'] in ('cached', 'absent'):
+                            call('tools/call', dict(name='read_script', arguments=dict(
+                                project_root=str(target['project']), session_id=target['descriptor']['session_id'],
+                                script_path=TARGET)))
             finally:
                 client.shutdown(socket.SHUT_WR)
                 thread.join(timeout=15)
@@ -186,15 +194,15 @@ class McpLifecycleMixin:
                 item['requested_change'] = ('Keep the current source unchanged and append one comment: "# ", '
                     'enough ASCII x characters to make the complete source exactly 524288 UTF-8 bytes, then one LF.')
             else:
-                item['replacement_source'] = target['desired'] if target['name'] not in ('dirty', 'divergent', 'limited', 'partial') else None
+                item['replacement_source'] = target['desired'] if target['name'] not in ('dirty', 'divergent', 'limited', 'invalidated', 'partial') else None
             targets.append(item)
         return ('Use only the godot_agent_kit MCP tools for project operations; do not use shell, files, '
                 'or other bridges. Only cases present in the target list are in scope; complete each target before starting the next. For open/cached/absent/unicode/empty/empty_desired/bound targets, '
                 'discover, read twice to compare unchanged revisions, submit an already-satisfied edit using '
                 'the exact returned source/revision, edit to the requested replacement, then fresh-read. '
                 'For known, read and edit directly without discovery. Discover partial and explain incomplete '
-                'coverage (never infer absence); read it without editing. Read dirty, divergent and limited targets, '
-                'explain source_origin, document.lifecycle, dirty, consistency, limitations and null revision; '
+                'coverage (never infer absence); read it without editing. Read dirty, divergent, limited and invalidated targets, '
+                'explain source_origin, document.lifecycle, dirty, consistency, limitations, invalidated historical evidence and null revision; '
                 'do not edit them. For known only, after changing it intentionally try the original now-stale '
                 'revision once with the same desired source, explain the refusal/next_action, then fresh-read. '
                 'Explain the source, opaque revisions, lifecycle, and effects you actually observed. '
@@ -215,7 +223,7 @@ class McpLifecycleMixin:
         result = content.get('result')
         state, disks = before
         after, now = self.state(target['editor'], target['project'])
-        if target['name'] in ('absent', 'known', 'unicode', 'empty', 'empty_desired', 'bound'):
+        if not target.get('durability_start') and target['name'] in ('absent', 'known', 'unicode', 'empty', 'empty_desired', 'bound'):
             observation.require(not state['cached_id'] and not after['cached_id'],
                                 'MCP_confirmed_absent_R_through_actual_call')
         if name in ('read_script', 'discover_scripts'):
@@ -225,15 +233,25 @@ class McpLifecycleMixin:
                                 'MCP_target_present_in_discovery_scope')
         if name == 'read_script' and result:
             observation.require(set(result) == {'source', 'revision', 'state'}, 'MCP_exact_read_projection')
-            observation.require(result['source'] == (after['target']['B'] if TARGET in after['open_paths'] else now[TARGET]['text']),
+            if target['name'] != 'invalidated':
+                observation.require(result['source'] == (after['target']['B'] if TARGET in after['open_paths'] else now[TARGET]['text']),
                                 'MCP_independent_source_provenance')
+            if target['name'] == 'invalidated':
+                authority = result['state']['sources']['disk']
+                observation.require(result['source'] is None and result['revision'] is None and
+                                    result['state']['revision_unavailable_reason'] is not None and
+                                    not authority['current'] and authority['invalidated'] is not None and
+                                    authority['invalidated']['current'] is False and
+                                    authority['invalidated']['text'] == target['disks'][TARGET]['text'] and
+                                    result['state']['source_origin'] != 'disk', 'MCP_invalidated_historical_D_not_current_or_empty')
             observation.require(all(a.get('text') is None for a in result['state']['sources'].values()
                                     if a.get('equals_source') is True), 'MCP_no_duplicate_agreeing_source')
             projection = result['state']
             opened = TARGET in after['open_paths']
-            observation.require(projection['document']['lifecycle'] == ('open' if opened else 'closed') and
-                                projection['source_origin'] == ('editor_buffer' if opened else 'disk'),
-                                'MCP_independent_lifecycle_and_authority_origin')
+            if target['name'] != 'invalidated':
+                observation.require(projection['document']['lifecycle'] == ('open' if opened else 'closed') and
+                                    projection['source_origin'] == ('editor_buffer' if opened else 'disk'),
+                                    'MCP_independent_lifecycle_and_authority_origin')
             observation.require(not response['result'].get('isError', False), 'MCP_informative_read_not_execution_error')
             if not opened and target['name'] != 'limited':
                 authority = projection['sources']['loaded_resource']
@@ -296,8 +314,9 @@ class McpLifecycleMixin:
                         finalizer, _ = control_server.accept()
                         finalizer.settimeout(15)
                         try:
-                            if finalizer.recv(1) == b'F':
-                                return finalizer
+                            command = finalizer.recv(1)
+                            if command in (b'F', b'P'):
+                                return finalizer, command
                         except BaseException:
                             finalizer.close()
                             raise
@@ -318,6 +337,7 @@ class McpLifecycleMixin:
                         except (ValueError, UnicodeDecodeError):
                             value = {}
                         if incoming is connection:
+                            invalidating = False
                             params = value.get('params')
                             identity = value.get('id')
                             if value.get('method') == 'initialize':
@@ -340,10 +360,24 @@ class McpLifecycleMixin:
                                     scanned = self.native_action(target['editor'], 'native_edit_scan')
                                     observation.require(scanned['settled'], 'MCP_initial_index_settled')
                                     marker.unlink()
+                                invalidating = target and target['name'] == 'invalidated' and params['name'] == 'read_script'
+                                if invalidating:
+                                    observation.require(not target.get('invalidated_after'), 'single_controlled_invalidated_read')
+                                    self.close_action(target['editor'], 'closed_arm', kind='closed_state')
                                 pending[identity] = (value, self.state(target['editor'], target['project']) if target else None,
                                                      time.monotonic())
                             process.stdin.write(line + b'\n')
                             process.stdin.flush()
+                            if value.get('method') == 'tools/call' and invalidating:
+                                self.wait_closed_barrier(target['editor'], 'response:closed_state',
+                                                         (process, None, 'fixture-no-request'), acquisition=True)
+                                self.closed_transition(target['project'], target['editor'], 'same_text')
+                                external_state, external_disks = self.state(target['editor'], target['project'])
+                                self.record_witness('invalidated-external-change', target['before'], target['disks'],
+                                                    external_state, external_disks, target['editor'])
+                                target['invalidated_after'] = (external_state, external_disks)
+                                pending[identity] = (value, (external_state, external_disks), pending[identity][2])
+                                self.close_action(target['editor'], 'closed_release')
                         else:
                             connection.sendall(line + b'\n')
                             delivered = time.monotonic()
@@ -384,10 +418,15 @@ class McpLifecycleMixin:
             process.stdout.close()
             diagnostics.close()
 
-    def finalize_targets(self):
+    def finalize_targets(self, *, primary_only=False):
         for target in self.targets.values():
             calls = target['calls']
             names = [c['name'] for c in calls]
+            if target.get('durability_start') is not None:
+                primary_calls = calls[:target['durability_start']]
+            else:
+                primary_calls = calls
+            calls = primary_calls
             observation.require('read_script' in names, 'real_client_read_' + target['name'])
             if target['name'] == 'known':
                 observation.require('discover_scripts' not in names, 'direct_known_target_without_discovery')
@@ -397,10 +436,11 @@ class McpLifecycleMixin:
                                     'real_client_partial_discovery')
                 self.assert_no_effect('partial', target['project'], target['editor'], target['before'], target['disks'])
                 continue
-            if target['name'] in ('dirty', 'divergent', 'limited'):
+            if target['name'] in ('dirty', 'divergent', 'limited', 'invalidated'):
                 observation.require(any(c['structuredContent']['result']['revision'] is None for c in calls
                                         if c['name'] == 'read_script'), 'informative_unsafe_null_revision')
-                self.assert_no_effect(target['name'], target['project'], target['editor'], target['before'], target['disks'])
+                baseline = target.get('invalidated_after', (target['before'], target['disks']))
+                self.assert_no_effect(target['name'], target['project'], target['editor'], *baseline)
                 continue
             observation.require('edit_script' in names and (target['name'] == 'known' or 'discover_scripts' in names),
                                 'real_client_positive_sequence_' + target['name'])
@@ -418,12 +458,14 @@ class McpLifecycleMixin:
             if target['name'] != 'known':
                 observation.require(len(reads) >= 3 and reads[0]['revision'] == reads[1]['revision'],
                                     'real_client_unchanged_revision_stability')
-            if target['name'] in ('cached', 'absent'):
-                self.public_open(target['project'], target['descriptor'], 'mcp-later-' + target['name'])
-                durable_read = self.durability_read(target)
-                observation.require(durable_read['source'] == CHANGED and
-                                    durable_read['state']['document']['lifecycle'] == 'open',
-                                    'later_open_actual_fresh_MCP_read')
+            if target['name'] in ('cached', 'absent') and not primary_only:
+                observation.require(target.get('durability_start') is not None, 'fixture_durability_prepared')
+                later = target['calls'][target['durability_start']:]
+                observation.require(later and all(c['name'] == 'read_script' for c in later),
+                                    'post_open_read_only_client_continuation')
+                observation.require(any(c['structuredContent']['result']['source'] == CHANGED and
+                                        c['structuredContent']['result']['state']['document']['lifecycle'] == 'open'
+                                        for c in later), 'later_open_actual_client_fresh_MCP_read')
                 self.native_action(target['editor'], 'native_edit_save_clean')
                 parsed = self.native_action(target['editor'], 'native_edit_reparse')
                 scanned = self.native_action(target['editor'], 'native_edit_scan')
@@ -433,41 +475,28 @@ class McpLifecycleMixin:
                 state, disks = self.state(target['editor'], target['project'])
                 observation.require(state['target']['B'] == state['target']['R'] == disks[TARGET]['text'] == CHANGED,
                                     'later_runtime_D_R_B_durability')
-        self.summary.setdefault('mcp_profiles_verified', []).extend(t['name'] for t in self.targets.values())
+        if not primary_only:
+            self.summary.setdefault('mcp_profiles_verified', []).extend(t['name'] for t in self.targets.values())
 
 
-    def durability_read(self, target):
-        process = subprocess.Popen([str(self.args.mcp_server), '--registry', str(self.registry)],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-        def exchange(identity, method, params):
-            process.stdin.write(json.dumps(dict(jsonrpc='2.0', id=identity, method=method, params=params)).encode() + b'\n')
-            process.stdin.flush()
-            observation.require(bool(select.select([process.stdout], [], [], 10)[0]), 'later_MCP_read_deadline')
-            value = json.loads(process.stdout.readline(64 * 1024 * 1024 + 1))
-            observation.require(value.get('id') == identity and 'error' not in value, 'later_MCP_actual_response')
-            return value['result']
-        try:
-            exchange(1, 'initialize', dict(protocolVersion='2025-11-25', capabilities={},
-                                          clientInfo=dict(name='fixture-durability-witness', version='1')))
-            process.stdin.write(b'{"jsonrpc":"2.0","method":"notifications/initialized"}\n')
-            process.stdin.flush()
-            value = exchange(2, 'tools/call', dict(name='read_script', arguments=dict(
-                project_root=str(target['project']), session_id=target['descriptor']['session_id'], script_path=TARGET)))
-            observation.json_file(self.artifacts / ('later-' + target['name'] + '-mcp.json'),
-                                  dict(evidence_origin='fixture_later_durability', response=value))
-            return value['structuredContent']['result']
-        finally:
-            process.stdin.close()
-            try:
-                process.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                process.terminate()
-                try:
-                    process.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait(timeout=2)
-            process.stdout.close()
+    def prepare_durability(self):
+        observation.require(not any(t.get('durability_start') is not None for t in self.targets.values()),
+                            'durability_prepare_once')
+        observation.require(any(t['name'] in ('cached', 'absent') for t in self.targets.values()),
+                            'durability_workflow_profile_required')
+        self.finalize_targets(primary_only=True)
+        targets = []
+        for target in self.targets.values():
+            if target['name'] in ('cached', 'absent'):
+                target['durability_start'] = len(target['calls'])
+                self.public_open(target['project'], target['descriptor'], 'mcp-later-' + target['name'])
+                state, disks = self.state(target['editor'], target['project'])
+                observation.require(state['target']['B'] == state['target']['R'] == disks[TARGET]['text'] == CHANGED,
+                                    'ordinary_open_preserves_verified_primary_source')
+                targets.append(target_receipt(target['name'], target['project'], target['descriptor']))
+        return ('Use only godot_agent_kit MCP read_script for each target below. Read the now-open script, '
+                'explain source, source_origin, lifecycle and agreement of applicable disk/loaded_resource/editor_buffer. '
+                'Do not edit, discover, use shell/files or other bridges.\n' + json.dumps(targets) + '\n')
 
 
 def serve_prepared(harness, run):
@@ -494,7 +523,7 @@ def serve_prepared(harness, run):
             native_build_id=harness.expected_native_build_id,
             intents=[dict(name=t['name'], replacement_sha256=hashlib.sha256(t['desired'].encode()).hexdigest(),
                           replacement_utf8_bytes=len(t['desired'].encode()),
-                          observation_only=t['name'] in ('dirty', 'divergent', 'limited', 'partial'))
+                          observation_only=t['name'] in ('dirty', 'divergent', 'limited', 'invalidated', 'partial'))
                      for t in harness.targets.values()],
             fixture_driver_sha256=observation.digest(Path(__file__))))
         (run / 'prompt.txt').write_text(harness.prepared_prompt())
@@ -505,14 +534,20 @@ def serve_prepared(harness, run):
                     connection.settimeout(15)
                     command = connection.recv(1)
                     if command == b'R':
-                        finalizer = harness.relay_connection(connection, server)
-                        if finalizer is None:
+                        handed = harness.relay_connection(connection, server)
+                        if handed is None:
                             continue
-                    elif command == b'F':
+                        finalizer, command = handed
+                    elif command in (b'F', b'P'):
                         finalizer = connection
                     else:
                         raise ValueError('invalid prepared control')
                     with finalizer:
+                        if command == b'P':
+                            prompt = harness.prepare_durability()
+                            (run / 'durability-prompt.txt').write_text(prompt)
+                            finalizer.sendall(prompt.encode())
+                            continue
                         harness.finalize_targets()
                         stack.close()
                         harness.cleanup()

@@ -15,11 +15,12 @@ import vm_guest as guest
 
 class PreparedWorkflowTests(unittest.TestCase):
     def test_fixed_commands_accept_no_endpoint_or_command(self):
-        for parser, command in ((host._parser(), 'mcp-stdio'), (guest._parser(), 'mcp-stdio')):
-            args = parser.parse_args([command, '--run-id', 'owned-run'])
-            self.assertEqual(args.run_id, 'owned-run')
-            with self.assertRaises(SystemExit):
-                parser.parse_args([command, '--run-id', 'owned-run', '--command', 'sh'])
+        for parser in (host._parser(), guest._parser()):
+            for command in ('mcp-stdio', 'prepare-durability', 'finalize-mcp'):
+                args = parser.parse_args([command, '--run-id', 'owned-run'])
+                self.assertEqual(args.run_id, 'owned-run')
+                with self.assertRaises(SystemExit):
+                    parser.parse_args([command, '--run-id', 'owned-run', '--command', 'sh'])
 
 
     def test_client_claim_without_tool_evidence_is_not_visibility(self):
@@ -58,7 +59,12 @@ class PreparedWorkflowTests(unittest.TestCase):
                 client.close()
                 owner.close()
 
-    def test_finalization_drains_idle_relay_without_waiting_for_client_eof(self):
+    def test_controls_drain_idle_relay_without_waiting_for_client_eof(self):
+        for command in (b'F', b'P'):
+            with self.subTest(command=command):
+                self.check_control_drains_idle_relay(command)
+
+    def check_control_drains_idle_relay(self, command):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             product = root / 'owned-consumer'
@@ -78,7 +84,7 @@ class PreparedWorkflowTests(unittest.TestCase):
                 listener.listen(1)
                 control.settimeout(3)
                 control.connect(str(root / 'control'))
-                control.sendall(b'F')
+                control.sendall(command)
                 def relay():
                     try:
                         result.put(harness.relay_connection(owner, listener))
@@ -87,10 +93,12 @@ class PreparedWorkflowTests(unittest.TestCase):
                 thread = threading.Thread(target=relay)
                 thread.start()
                 try:
-                    finalizer = result.get(timeout=3)
-                    if isinstance(finalizer, BaseException):
-                        raise finalizer
+                    handed = result.get(timeout=3)
+                    if isinstance(handed, BaseException):
+                        raise handed
+                    finalizer, received_command = handed
                     with finalizer:
+                        self.assertEqual(received_command, command)
                         self.assertEqual(drained.read_text(), 'EOF')
                         harness.cleanup.assert_not_called()
                         finalizer.sendall(b'OK\n')
@@ -106,3 +114,35 @@ class PreparedWorkflowTests(unittest.TestCase):
         run = Path('/Users/admin/.godot-agent-kit-vm/runs') / ('x' * 80)
         self.assertLess(len(str(lifecycle.control_path(run)).encode()), 104)
         self.assertNotEqual(lifecycle.control_path(run), lifecycle.control_path(run.with_name('other')))
+
+    def test_discovery_first_prompt_has_no_known_locator(self):
+        harness = lifecycle.McpLifecycleMixin()
+        harness.targets = {name: dict(name=name, project=Path('/owned') / name,
+            descriptor={'session_id': name}, desired='desired')
+            for name in lifecycle.PROFILE_GROUPS['workflow']}
+        prompt = harness.prepared_prompt()
+        self.assertNotIn(lifecycle.TARGET, prompt)
+
+    def test_failed_primary_validation_cannot_open_or_mark_durability(self):
+        harness = lifecycle.McpLifecycleMixin()
+        harness.targets = {'owned': {'name': 'cached', 'calls': []}}
+        harness.public_open = mock.Mock()
+        with self.assertRaises(lifecycle.observation.Failure):
+            harness.prepare_durability()
+        harness.public_open.assert_not_called()
+        self.assertNotIn('durability_start', harness.targets['owned'])
+
+    def test_durability_requires_post_open_client_read_before_native_checks(self):
+        harness = lifecycle.McpLifecycleMixin()
+        def read(source, revision):
+            return dict(name='read_script', structuredContent={'result': dict(source=source, revision=revision)})
+        def edit(outcome):
+            return dict(name='edit_script', structuredContent={'result': {'outcome': {'outcome': outcome}}})
+        calls = [dict(name='discover_scripts'), read('old', 'r1'), read('old', 'r1'),
+                 edit('verified_unchanged'), edit('verified_changed'), read(lifecycle.CHANGED, 'r2')]
+        target = dict(name='cached', calls=calls, desired=lifecycle.CHANGED, durability_start=len(calls))
+        harness.targets = {'owned': target}
+        harness.native_action = mock.Mock()
+        with self.assertRaises(lifecycle.observation.Failure):
+            harness.finalize_targets()
+        harness.native_action.assert_not_called()

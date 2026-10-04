@@ -49,12 +49,14 @@ impl State {
     }
     fn reap_cancelled(&mut self) {
         if self.active.as_ref().is_some_and(|owner| {
-            (owner.cancelled.load(Ordering::Relaxed) || !self.ids.contains_key(&owner.id))
+            !self
+                .ids
+                .get(&owner.id)
+                .is_some_and(|owned| Arc::ptr_eq(&owned.cancelled, &owner.cancelled))
                 && owner.handle.is_finished()
         }) {
             let owner = self.active.take().expect("finished owner");
             let _ = owner.handle.join();
-            self.ids.remove(&owner.id);
         }
     }
 }
@@ -176,6 +178,14 @@ fn remaining(clock: AttemptClock, budget: Duration) -> Duration {
     budget.saturating_sub(Duration::from_micros(clock.elapsed_us()))
 }
 
+// Exactly one receive-side reply is owned until consumed-output acknowledgment.
+// reserve() and polling the borrowed receiver are cancellation-safe: dropping
+// receive() never drops the reply or renews its original deadline.
+struct PendingReply {
+    job: Option<WriteJob>,
+    finished: oneshot::Receiver<io::Result<()>>,
+    deadline: tokio::time::Instant,
+}
 struct BoundedTransport {
     shared: Shared,
     input: mpsc::Receiver<Input>,
@@ -183,29 +193,46 @@ struct BoundedTransport {
     partial: Arc<Mutex<Option<Instant>>>,
     shutdown: &'static AtomicBool,
     started: Instant,
+    pending: Option<PendingReply>,
 }
 impl BoundedTransport {
-    async fn reject(&mut self, id: Option<RequestId>, code: i32) -> bool {
-        let left = {
-            let state = lock(&self.shared);
-            state
-                .ids
-                .values()
-                .map(|owned| remaining(owned.clock, owned.budget))
-                .min()
-                .unwrap_or(CONTROL_BUDGET)
+    fn queue_reply(&mut self, output: ServerJsonRpcMessage, left: Duration) {
+        let (complete, finished) = oneshot::channel();
+        self.pending = Some(PendingReply {
+            job: Some(WriteJob { output, complete }),
+            finished,
+            deadline: tokio::time::Instant::now() + left,
+        });
+    }
+    fn reject(&mut self, id: Option<RequestId>, code: i32, clock: AttemptClock) {
+        let left = lock(&self.shared)
+            .ids
+            .values()
+            .map(|owned| remaining(owned.clock, owned.budget))
+            .fold(remaining(clock, CONTROL_BUDGET), Duration::min);
+        self.queue_reply(ServerJsonRpcMessage::error(error(code), id), left);
+    }
+    async fn finish_reply(&mut self) -> io::Result<()> {
+        let Some(pending) = self.pending.as_mut() else {
+            return Ok(());
         };
-        let result = deliver(
-            &self.writer,
-            ServerJsonRpcMessage::error(error(code), id),
-            left,
-        )
-        .await;
-        if result.is_err() {
-            self.fail();
-            return false;
-        }
-        true
+        tokio::time::timeout_at(pending.deadline, async {
+            if pending.job.is_some() {
+                let permit = self
+                    .writer
+                    .reserve()
+                    .await
+                    .map_err(|_| io::Error::other("delivery failure"))?;
+                permit.send(pending.job.take().expect("owned reply"));
+            }
+            (&mut pending.finished)
+                .await
+                .map_err(|_| io::Error::other("delivery failure"))?
+        })
+        .await
+        .map_err(|_| io::Error::other("delivery deadline"))??;
+        self.pending = None;
+        Ok(())
     }
     fn fail(&self) {
         lock(&self.shared).stop();
@@ -232,20 +259,28 @@ impl Transport<RoleServer> for BoundedTransport {
     ) -> impl Future<Output = io::Result<()>> + Send + 'static {
         let shared = self.shared.clone();
         let writer = self.writer.clone();
+        let id = match &message {
+            JsonRpcMessage::Response(response) => Some(response.id.clone()),
+            JsonRpcMessage::Error(error) => error.id.clone(),
+            _ => None,
+        };
+        // Snapshot the owner before returning the independently polled send
+        // future. Its completion must never retire a later use of this ID.
+        let owned = id.as_ref().and_then(|id| {
+            lock(&shared)
+                .ids
+                .get(id)
+                .map(|owned| (owned.clock, owned.budget, owned.cancelled.clone()))
+        });
         async move {
-            let id = match &message {
-                JsonRpcMessage::Response(response) => Some(response.id.clone()),
-                JsonRpcMessage::Error(error) => error.id.clone(),
-                _ => None,
-            };
             let left = {
                 let state = lock(&shared);
                 if matches!(state.phase, Connection::Closing | Connection::Closed) {
                     return Err(io::Error::other("connection closing"));
                 }
-                id.as_ref()
-                    .and_then(|id| state.ids.get(id))
-                    .map_or(CONTROL_BUDGET, |owned| remaining(owned.clock, owned.budget))
+                owned.as_ref().map_or(CONTROL_BUDGET, |(clock, budget, _)| {
+                    remaining(*clock, *budget)
+                })
             };
             if let JsonRpcMessage::Response(response) = &mut message {
                 response.result.strip_result_type_for_legacy_peer();
@@ -256,24 +291,32 @@ impl Transport<RoleServer> for BoundedTransport {
                 }
                 message => message,
             };
-            let delivered = deliver(&writer, output, left).await;
+            let suppressed = owned
+                .as_ref()
+                .is_some_and(|(_, _, cancelled)| cancelled.load(Ordering::Relaxed));
+            let delivered = if suppressed {
+                Ok(())
+            } else {
+                deliver(&writer, output, left).await
+            };
             let mut state = lock(&shared);
             if delivered.is_err() {
                 state.stop();
                 eprintln!("mcp delivery failed");
             } else if let Some(id) = id {
-                if state.initialize.as_ref() == Some(&id) {
-                    state.initialized_response = true;
+                let same_owner = owned.as_ref().is_some_and(|(_, _, cancelled)| {
+                    state
+                        .ids
+                        .get(&id)
+                        .is_some_and(|current| Arc::ptr_eq(&current.cancelled, cancelled))
+                });
+                if same_owner {
+                    if !suppressed && state.initialize.as_ref() == Some(&id) {
+                        state.initialized_response = true;
+                    }
+                    state.ids.remove(&id);
                 }
-                state.ids.remove(&id);
-                if state
-                    .active
-                    .as_ref()
-                    .is_some_and(|owner| owner.id == id && owner.handle.is_finished())
-                {
-                    let owner = state.active.take().expect("finished owner");
-                    let _ = owner.handle.join();
-                }
+                state.reap_cancelled();
             }
             delivered
         }
@@ -282,12 +325,19 @@ impl Transport<RoleServer> for BoundedTransport {
         loop {
             {
                 let mut state = lock(&self.shared);
+                // Cancellations are translated locally, not forwarded to rmcp:
+                // every handler completion still reaches send(), including
+                // validation/admission refusals with no supervisor.
                 state.reap_cancelled();
                 if matches!(state.phase, Connection::Closing | Connection::Closed) {
                     return None;
                 }
             }
             if self.shutdown.load(Ordering::Relaxed) || self.timed_out() {
+                self.fail();
+                return None;
+            }
+            if self.finish_reply().await.is_err() {
                 self.fail();
                 return None;
             }
@@ -318,16 +368,12 @@ impl Transport<RoleServer> for BoundedTransport {
             let value = match framing::parse(&bytes) {
                 Ok(value) => value,
                 Err(_) => {
-                    if !self.reject(None, -32700).await {
-                        return None;
-                    }
+                    self.reject(None, -32700, clock);
                     continue;
                 }
             };
             let Some(object) = value.as_object() else {
-                if !self.reject(None, -32600).await {
-                    return None;
-                }
+                self.reject(None, -32600, clock);
                 continue;
             };
             let id = object.get("id").and_then(checked_id);
@@ -338,9 +384,7 @@ impl Transport<RoleServer> for BoundedTransport {
                     .all(|key| matches!(key.as_str(), "jsonrpc" | "id" | "method" | "params"))
                 && (!object.contains_key("id") || id.is_some());
             if !valid {
-                if !self.reject(None, -32600).await {
-                    return None;
-                }
+                self.reject(None, -32600, clock);
                 continue;
             }
             let method = object["method"].as_str().expect("checked method");
@@ -376,23 +420,13 @@ impl Transport<RoleServer> for BoundedTransport {
                         if !valid {
                             continue;
                         }
-                        let known = object
+                        if let Some(cancel_id) = object
                             .get("params")
                             .and_then(|p| p.get("requestId"))
                             .and_then(checked_id)
-                            .is_some_and(|cancel_id| {
-                                let state = lock(&self.shared);
-                                if let Some(owned) = state.ids.get(&cancel_id) {
-                                    owned.cancelled.store(true, Ordering::Relaxed);
-                                    true
-                                } else {
-                                    false
-                                }
-                            });
-                        // Delivery cancellation does not destroy the supervisor owner.
-                        if known {
-                            if let Ok(message) = serde_json::from_value(value) {
-                                return Some(message);
+                        {
+                            if let Some(owned) = lock(&self.shared).ids.get(&cancel_id) {
+                                owned.cancelled.store(true, Ordering::Relaxed);
                             }
                         }
                         continue;
@@ -421,9 +455,7 @@ impl Transport<RoleServer> for BoundedTransport {
                 }
             };
             if let Some(code) = code {
-                if !self.reject(Some(id), code).await {
-                    return None;
-                }
+                self.reject(Some(id), code, clock);
                 continue;
             }
             let params = object.get("params");
@@ -458,9 +490,7 @@ impl Transport<RoleServer> for BoundedTransport {
                 _ => false,
             };
             if !params_valid {
-                if !self.reject(Some(id), -32602).await {
-                    return None;
-                }
+                self.reject(Some(id), -32602, clock);
                 continue;
             }
             if method == "server/discover" {
@@ -475,13 +505,7 @@ impl Transport<RoleServer> for BoundedTransport {
                     DiscoverResult::from_server_info(vec![ProtocolVersion::V_2025_11_25], config);
                 let response =
                     ServerJsonRpcMessage::response(ServerResult::DiscoverResult(result), id);
-                if deliver(&self.writer, response, remaining(clock, CONTROL_BUDGET))
-                    .await
-                    .is_err()
-                {
-                    self.fail();
-                    return None;
-                }
+                self.queue_reply(response, remaining(clock, CONTROL_BUDGET));
                 continue;
             }
             let budget = if method == "tools/call" {
@@ -505,9 +529,7 @@ impl Transport<RoleServer> for BoundedTransport {
             let message: ClientJsonRpcMessage = match serde_json::from_value(value) {
                 Ok(message @ JsonRpcMessage::Request(_)) => message,
                 _ => {
-                    if !self.reject(Some(id), -32602).await {
-                        return None;
-                    }
+                    self.reject(Some(id), -32602, clock);
                     continue;
                 }
             };
@@ -522,9 +544,7 @@ impl Transport<RoleServer> for BoundedTransport {
                 _ => false,
             };
             if !typed {
-                if !self.reject(Some(id), -32602).await {
-                    return None;
-                }
+                self.reject(Some(id), -32602, clock);
                 continue;
             }
             let mut state = lock(&self.shared);
@@ -577,6 +597,7 @@ pub fn run(registry: PathBuf, shutdown: &'static AtomicBool) -> io::Result<()> {
             partial,
             shutdown,
             started: Instant::now(),
+            pending: None,
         };
         let service = rmcp::service::serve_directly(
             McpService {
@@ -657,6 +678,191 @@ mod tests {
     }
 
     #[test]
+    fn receive_replies_survive_dropped_futures_before_and_after_enqueue() {
+        runtime().block_on(async {
+            for request in [
+                serde_json::json!({"jsonrpc":"2.0","id":"reply","method":"server/discover"}),
+                serde_json::json!({"jsonrpc":"2.0","id":"reply","method":"unsupported"}),
+                serde_json::json!({"jsonrpc":"2.0","id":"reply","method":"ping","params":{"private_source":"must not echo"}}),
+            ] {
+                let (send_input, input) = mpsc::channel(2);
+                let (writer, mut output) = mpsc::channel::<WriteJob>(1);
+                let (complete, _finished) = oneshot::channel();
+                writer.send(WriteJob {
+                    output: ServerJsonRpcMessage::error(error(-32700), None),
+                    complete,
+                }).await.unwrap();
+                send_input.send(frame(request.clone())).await.unwrap();
+                send_input.send(frame(serde_json::json!({"jsonrpc":"2.0","id":"next","method":"ping"}))).await.unwrap();
+                let mut transport = BoundedTransport {
+                    shared: state(), input, writer,
+                    partial: Arc::new(Mutex::new(None)), shutdown: &RUNNING,
+                    started: Instant::now(), pending: None,
+                };
+                {
+                    let mut receive = std::pin::pin!(transport.receive());
+                    let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+                    assert!(receive.as_mut().poll(&mut context).is_pending());
+                }
+                let deadline = transport.pending.as_ref().unwrap().deadline;
+                assert!(transport.pending.as_ref().unwrap().job.is_some());
+                output.recv().await.unwrap().complete.send(Ok(())).unwrap();
+                {
+                    let mut receive = std::pin::pin!(transport.receive());
+                    let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+                    assert!(receive.as_mut().poll(&mut context).is_pending());
+                }
+                assert!(transport.pending.as_ref().unwrap().job.is_none());
+                assert_eq!(transport.pending.as_ref().unwrap().deadline, deadline);
+                let reply = output.recv().await.unwrap();
+                let public = serde_json::to_value(&reply.output).unwrap();
+                assert_eq!(public["id"], "reply");
+                if request["method"] == "server/discover" {
+                    assert_eq!(public["result"]["supportedVersions"], serde_json::json!(["2025-11-25"]));
+                } else {
+                    assert!(public.get("error").is_some());
+                }
+                assert!(!public.to_string().contains("private_source"));
+                reply.complete.send(Ok(())).unwrap();
+                let next = transport.receive().await.unwrap();
+                let JsonRpcMessage::Request(next) = next else { panic!("next request lost"); };
+                assert_eq!(next.id, NumberOrString::String("next".into()));
+                assert!(transport.pending.is_none());
+                assert!(output.try_recv().is_err(), "reply must not be duplicated");
+            }
+        });
+    }
+
+    #[test]
+    fn dropped_receive_does_not_renew_reply_deadline() {
+        runtime().block_on(async {
+            let (_send_input, input) = mpsc::channel(1);
+            let (writer, _output) = mpsc::channel::<WriteJob>(1);
+            let mut transport = BoundedTransport {
+                shared: state(),
+                input,
+                writer,
+                partial: Arc::new(Mutex::new(None)),
+                shutdown: &RUNNING,
+                started: Instant::now(),
+                pending: None,
+            };
+            transport.queue_reply(
+                ServerJsonRpcMessage::error(error(-32600), None),
+                Duration::ZERO,
+            );
+            assert!(transport.receive().await.is_none());
+            assert!(lock(&transport.shared).phase == Connection::Closing);
+        });
+    }
+
+    #[test]
+    fn cancelled_non_dispatched_completions_retire_only_their_owner() {
+        runtime().block_on(async {
+            for request in [
+                serde_json::json!({"jsonrpc":"2.0","id":1,"method":"ping"}),
+                serde_json::json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}),
+                serde_json::json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"read_script","arguments":{"project_root":42}}}),
+            ] {
+                let shared = state();
+                let (send_input, input) = mpsc::channel(4);
+                let (writer, mut output) = mpsc::channel::<WriteJob>(1);
+                let mut transport = BoundedTransport {
+                    shared: shared.clone(), input, writer,
+                    partial: Arc::new(Mutex::new(None)), shutdown: &RUNNING,
+                    started: Instant::now(), pending: None,
+                };
+                send_input.send(frame(request)).await.unwrap();
+                assert!(transport.receive().await.is_some());
+                let old = lock(&shared).ids[&NumberOrString::Number(1)].cancelled.clone();
+                send_input.send(frame(serde_json::json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1}}))).await.unwrap();
+                send_input.send(frame(serde_json::json!({"jsonrpc":"2.0","id":2,"method":"ping"}))).await.unwrap();
+                assert!(transport.receive().await.is_some());
+                assert!(old.load(Ordering::Relaxed));
+                let completion = transport.send(ServerJsonRpcMessage::error(error(-32602), Some(NumberOrString::Number(1))));
+                completion.await.unwrap();
+                assert!(!lock(&shared).ids.contains_key(&NumberOrString::Number(1)));
+                assert!(output.try_recv().is_err(), "cancelled completion was delivered");
+                assert!(!transport.timed_out());
+
+                // A delayed old send future owns an Arc, never just the reused ID.
+                lock(&shared).ids.insert(NumberOrString::Number(1), OwnedId {
+                    clock: AttemptClock::start(), budget: CONTROL_BUDGET, cancelled: old,
+                });
+                let delayed = transport.send(ServerJsonRpcMessage::error(error(-32602), Some(NumberOrString::Number(1))));
+                let new = Arc::new(AtomicBool::new(false));
+                lock(&shared).ids.insert(NumberOrString::Number(1), OwnedId {
+                    clock: AttemptClock::start(), budget: CONTROL_BUDGET, cancelled: new.clone(),
+                });
+                delayed.await.unwrap();
+                assert!(Arc::ptr_eq(&lock(&shared).ids[&NumberOrString::Number(1)].cancelled, &new));
+                assert!(output.try_recv().is_err());
+            }
+        });
+    }
+
+    #[test]
+    fn sdk_cancelled_controls_validation_and_busy_calls_leave_connection_usable() {
+        runtime().block_on(async {
+            for request in [
+                serde_json::json!({"jsonrpc":"2.0","id":1,"method":"ping"}),
+                serde_json::json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}),
+                serde_json::json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"read_script","arguments":{"project_root":42}}}),
+                serde_json::json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"read_script","arguments":{"project_root":"/fixture/project","script_path":"res://test.gd"}}}),
+            ] {
+                let shared = state();
+                let active_cancelled = Arc::new(AtomicBool::new(false));
+                let (release, blocked) = std::sync::mpsc::channel();
+                lock(&shared).active = Some(ToolOwner {
+                    id: NumberOrString::String("supervised".into()),
+                    clock: AttemptClock::start(), budget: CONTROL_BUDGET,
+                    cancelled: active_cancelled.clone(),
+                    handle: std::thread::spawn(move || { blocked.recv().unwrap(); }),
+                });
+                let (send_input, input) = mpsc::channel(4);
+                let (writer, mut output) = mpsc::channel::<WriteJob>(1);
+                // Queue before starting the SDK so cancellation is processed
+                // before its independently spawned handler can complete.
+                send_input.try_send(frame(request)).unwrap();
+                send_input.try_send(frame(serde_json::json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1}}))).unwrap();
+                send_input.try_send(frame(serde_json::json!({"jsonrpc":"2.0","id":2,"method":"ping"}))).unwrap();
+                let transport = BoundedTransport {
+                    shared: shared.clone(), input, writer,
+                    partial: Arc::new(Mutex::new(None)), shutdown: &RUNNING,
+                    started: Instant::now(), pending: None,
+                };
+                let service = rmcp::service::serve_directly(
+                    McpService { shared: shared.clone() }, transport, None,
+                );
+                let reply = tokio::time::timeout(Duration::from_secs(1), output.recv()).await.unwrap().unwrap();
+                let public = serde_json::to_value(&reply.output).unwrap();
+                assert_eq!(public["id"], 2);
+                assert_eq!(public["result"], serde_json::json!({}));
+                reply.complete.send(Ok(())).unwrap();
+                tokio::time::timeout(Duration::from_secs(1), async {
+                    while !lock(&shared).ids.is_empty() {
+                        tokio::task::yield_now().await;
+                    }
+                }).await.unwrap();
+                assert!(output.try_recv().is_err());
+                assert!(lock(&shared).active.is_some());
+                assert!(!active_cancelled.load(Ordering::Relaxed));
+                // Reuse the cancelled ID only after its old SDK completion.
+                send_input.send(frame(serde_json::json!({"jsonrpc":"2.0","id":1,"method":"ping"}))).await.unwrap();
+                let reply = tokio::time::timeout(Duration::from_secs(1), output.recv()).await.unwrap().unwrap();
+                let public = serde_json::to_value(&reply.output).unwrap();
+                assert_eq!(public["id"], 1);
+                assert_eq!(public["result"], serde_json::json!({}));
+                reply.complete.send(Ok(())).unwrap();
+                release.send(()).unwrap();
+                lock(&shared).active.take().unwrap().handle.join().unwrap();
+                drop(send_input);
+                tokio::time::timeout(Duration::from_secs(1), service.waiting()).await.unwrap().unwrap();
+            }
+        });
+    }
+
+    #[test]
     fn duplicate_id_preserves_original_cancel_owner() {
         runtime().block_on(async {
             let shared = state();
@@ -700,6 +906,7 @@ mod tests {
                 partial: Arc::new(Mutex::new(None)),
                 shutdown: &RUNNING,
                 started: Instant::now(),
+                pending: None,
             };
             assert!(transport.receive().await.is_some());
             acknowledge.await.unwrap();
@@ -729,15 +936,72 @@ mod tests {
             let (writer, _output) = mpsc::channel(1);
             send_input.send(frame(serde_json::json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":3}}))).await.unwrap();
             send_input.send(frame(serde_json::json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1}}))).await.unwrap();
-            let mut transport = BoundedTransport { shared: shared.clone(), input, writer, partial: Arc::new(Mutex::new(None)), shutdown: &RUNNING, started: Instant::now() };
+            send_input.send(frame(serde_json::json!({"jsonrpc":"2.0","id":3,"method":"ping"}))).await.unwrap();
+            let mut transport = BoundedTransport { shared: shared.clone(), input, writer, partial: Arc::new(Mutex::new(None)), shutdown: &RUNNING, started: Instant::now(), pending: None };
             let received = transport.receive().await.unwrap();
-            assert!(matches!(received, JsonRpcMessage::Notification(_)));
+            assert!(matches!(received, JsonRpcMessage::Request(_)));
             assert!(cancelled.load(Ordering::Relaxed));
             assert!(!lock(&shared).ids[&NumberOrString::Number(2)].cancelled.load(Ordering::Relaxed));
             assert!(lock(&shared).active.is_some());
             release.send(()).unwrap();
             let owner = lock(&shared).active.take().unwrap();
             owner.handle.join().unwrap();
+        });
+    }
+
+    #[test]
+    fn finished_supervisor_waits_for_completion_and_cannot_erase_reused_id() {
+        runtime().block_on(async {
+            let shared = state();
+            let id = NumberOrString::Number(1);
+            let old = Arc::new(AtomicBool::new(true));
+            let clock = AttemptClock::start();
+            {
+                let mut state = lock(&shared);
+                state.ids.insert(
+                    id.clone(),
+                    OwnedId {
+                        clock,
+                        budget: CONTROL_BUDGET,
+                        cancelled: old.clone(),
+                    },
+                );
+                state.active = Some(ToolOwner {
+                    id: id.clone(),
+                    clock,
+                    budget: CONTROL_BUDGET,
+                    cancelled: old,
+                    handle: std::thread::spawn(|| {}),
+                });
+            }
+            tokio::time::timeout(Duration::from_secs(1), async {
+                while !lock(&shared).active.as_ref().unwrap().handle.is_finished() {
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .unwrap();
+            {
+                let mut state = lock(&shared);
+                state.reap_cancelled();
+                assert!(
+                    state.active.is_some(),
+                    "SDK completion still owns the old ID"
+                );
+                assert!(state.ids.contains_key(&id));
+                let new = Arc::new(AtomicBool::new(false));
+                state.ids.insert(
+                    id.clone(),
+                    OwnedId {
+                        clock,
+                        budget: CONTROL_BUDGET,
+                        cancelled: new.clone(),
+                    },
+                );
+                state.reap_cancelled();
+                assert!(state.active.is_none());
+                assert!(Arc::ptr_eq(&state.ids[&id].cancelled, &new));
+            }
         });
     }
 
@@ -771,6 +1035,7 @@ mod tests {
                 partial: Arc::new(Mutex::new(None)),
                 shutdown: &RUNNING,
                 started: Instant::now(),
+                pending: None,
             };
             for _ in 0..8 {
                 assert!(transport.receive().await.is_some());
@@ -816,6 +1081,7 @@ mod tests {
             partial: partial.clone(),
             shutdown: &RUNNING,
             started: Instant::now() - Duration::from_secs(11),
+            pending: None,
         };
         assert!(!transport.timed_out());
         lock(&shared).phase = Connection::AwaitingInitialize;
@@ -853,7 +1119,7 @@ mod service_tests {
             }));
             let (send_input, input) = mpsc::channel(1);
             let (writer, mut output) = mpsc::channel::<WriteJob>(1);
-            let transport = BoundedTransport { shared: shared.clone(), input, writer, partial: Arc::new(Mutex::new(None)), shutdown: &RUNNING, started: Instant::now() };
+            let transport = BoundedTransport { shared: shared.clone(), input, writer, partial: Arc::new(Mutex::new(None)), shutdown: &RUNNING, started: Instant::now(), pending: None };
             let service = rmcp::service::serve_directly(McpService { shared: shared.clone() }, transport, None);
             send_input.send(Input::Frame(serde_json::to_vec(&serde_json::json!({
                 "jsonrpc":"2.0","id":"busy-call","method":"tools/call",

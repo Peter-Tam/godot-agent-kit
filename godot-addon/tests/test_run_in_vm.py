@@ -197,6 +197,37 @@ class SourceAndEvidenceTests(unittest.TestCase):
         sync.assert_not_called()
         self.assertEqual((destination / 'receipt.json').read_text(), 'human-owned evidence')
 
+    def test_wrapper_live_relay_allows_controls_but_excludes_source_setup(self):
+        import threading
+        state = self.root / 'overlap'
+        started, release = threading.Event(), threading.Event()
+        results = []
+        def control(tart, selected_state, args):
+            if args.operation == 'mcp-stdio':
+                started.set()
+                if not release.wait(3):
+                    raise RuntimeError('test relay release deadline')
+            return 0
+        with mock.patch.object(vm, 'Tart'), mock.patch.object(vm, '_mcp_control', side_effect=control), \
+                mock.patch.object(vm, '_prepare_mcp') as prepare:
+            thread = threading.Thread(target=lambda: results.append(vm.main(
+                ['--state', str(state), 'mcp-stdio', '--run-id', 'owned-run'])))
+            thread.start()
+            try:
+                self.assertTrue(started.wait(3))
+                for operation in ('prepare-durability', 'finalize-mcp'):
+                    self.assertEqual(vm.main(['--state', str(state), operation, '--run-id', 'owned-run']), 0)
+                self.assertEqual(vm.main(['--state', str(state), 'prepare-mcp', '--revision', self.commit,
+                                         '--run-id', 'other', '--artifacts', str(self.root)]), 1)
+                prepare.assert_not_called()
+            finally:
+                release.set()
+                thread.join(3)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual(results, [0])
+        with vm._locked(state):
+            self.assertEqual(vm.main(['--state', str(state), 'mcp-stdio', '--run-id', 'owned-run']), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -178,13 +178,18 @@ The first actual MCP fixture run kept twelve owned editors alive concurrently.
 Its 512 KiB changed edit persisted all bytes but exhausted verification time
 (`applied_unverified`, 9.108222 s); other source/lifecycle positives completed.
 Those independent profiles do not require twelve simultaneous editors.
-The existing fixture now runs fixed `workflow`, `sources`, `bound` and
-`observations` groups, with the bound case alone. The preparation command's
-allowlisted `--profile` and `transport-<profile>` scenario selectors reuse the
-same owner/witness/cleanup path. The added cost is four fixed selectors, not a
-new runner or relaxed product deadline; every selected client still owes all
-four groups. The bound prompt describes its exact requested comment instead
-of preloading half a MiB of redundant desired text.
+The fixture now runs fixed `workflow`, `known`, `sources`, `bound` and
+`observations` groups, with the bound case alone. Each selected client owes all
+five groups in separate conversations. Separating `known` removes the shared
+exact locator from discovery-first context (SC-002); its cost is one fixed
+selector/conversation, not a new runner. `observations` includes one actual
+barrier-invalidated read using T001's closed-state barrier and same-text disk
+transition. Historical D and null revision are checked against independent
+pre/post external-change witnesses; read no-effect checks retain the post-change
+baseline. Stable unavailable/dirty cases cannot establish invalidation (US2.3,
+FR-005). Reusing the existing fixture costs one fixed profile and barrier
+handoff, not native production changes or a synthetic MCP result. The bound
+prompt describes the requested comment instead of preloading half a MiB.
 
 The first Codex run exited without tool calls but left an idle guest relay alive.
 Sequential control handling then prevented `finalize-mcp` from reaching the owner;
@@ -194,6 +199,26 @@ validation/fixture cleanup even when the client never supplies EOF. This reuses 
 event loop rather than adding a thread/service or treating client exit as success.
 Its cost is one explicit control handoff and a live-child/socket regression.
 No product deadline, transaction, source authority or mutation behavior changes.
+
+**Acceptance correction:** US2.5 requires the agent, not a helper-only MCP
+client, to read after ordinary fixture opening. `prepare-durability --run-id ID`
+first validates all primary workflow results while cached/absent targets remain
+closed, then opens only those verified targets and emits a read-only prompt.
+The owner persists for a second invocation of the same selected real client.
+Finalization requires recorded post-opening reads before independent
+Save/reparse/rescan/runtime checks and terminal cleanup. Opening cannot manufacture
+primary success; helper-only reads no longer substitute for model consumption.
+This costs one fixed allowlisted fixture action and one read-only invocation per
+client's workflow profile; it reuses receipts/control and does not introduce a
+public lifecycle tool or take T004's composed-conversation scope.
+
+The host's single existing operation lock is shared narrowly for long-lived
+relay/control traffic and exclusive for setup/source-changing operations.
+Exclusive locking of the relay prevented even the fixed finalizer from reaching
+the guest listener; dropping locking entirely would allow source/setup races.
+Shared mode preserves that exclusion at the cost of one mode argument and a
+wrapper-level overlap regression, not new lock infrastructure. Guest immutable
+worker/source/build checks and active-owner exclusion remain intact.
 
 OMP's first model-visible workflow exposed the inherited `scripts/.gdignore`:
 discovery correctly excluded the target, so that fixture could not prove discovery
@@ -207,3 +232,21 @@ after. No Resource is unloaded and no LSP or product guard is disabled. Positive
 prompts supply a filename hint, not an exact script path, as SC-002 requires.
 Repeat affected profiles; earlier carrier/edit observations do not substitute for
 this corrected discover-to-edit acceptance.
+
+### T002 adapter ownership corrections
+
+Review exposed three reachable mismatches with rmcp 3.5.0: `serve_directly`
+left peer state at the requested rather than negotiated revision; SDK cancellation
+suppressed completions needed to retire transport IDs; and its select loop could
+drop receive-side replies while output was backpressured. The adapter now records
+the negotiated revision, translates cancellation into the existing request-owned
+flag while retaining completion/supervisor ownership, and retains one bounded
+receive-side reply through consumed-output acknowledgment. The original deadline
+and `Arc` owner identity survive polling and delayed completion. This costs one
+pending-reply record, not another scheduler, queue or cancellation framework.
+
+Unavailable/invalidated open-edit surfaces legitimately carry null private
+identities. Projection removes those private fields too, while retaining the
+separate public document identity; otherwise valid refusals and post-effect
+evidence became generic `invalid_output`. No public schema, operation, authority,
+mutation route or product deadline changes.

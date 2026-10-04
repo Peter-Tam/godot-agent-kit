@@ -24,6 +24,17 @@ impl ServerHandler for McpService {
     fn supported_protocol_versions(&self) -> Cow<'static, [ProtocolVersion]> {
         Cow::Borrowed(SUPPORTED_VERSIONS)
     }
+    async fn initialize(
+        &self,
+        mut request: InitializeRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<InitializeResult, ErrorData> {
+        let result = self.negotiate_initialize(&request)?;
+        // serve_directly bypasses the SDK handshake's negotiated peer update.
+        request.protocol_version = result.protocol_version.clone();
+        context.peer.set_peer_info(request);
+        Ok(result)
+    }
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_protocol_version(ProtocolVersion::V_2025_11_25)
@@ -107,8 +118,8 @@ impl ServerHandler for McpService {
                 handle,
             });
         }
-        // The transport also translates cancellation before forwarding the SDK
-        // notification. The owner is retained even if the SDK drops this future.
+        // Transport cancellation sets the supervisor's flag without dropping
+        // this handler: its completion must still retire the transport ID.
         let mut receiver = receiver;
         tokio::select! {
             result = &mut receiver => result.map(Into::into).map_err(|_| super::transport::error(-32603)),

@@ -23,9 +23,7 @@ fn remove_private_evidence(value: &mut Value) {
         Value::Object(record) => {
             record.remove("collection");
             record.remove("witness");
-            if record.get("identity").is_some_and(Value::is_object) {
-                record.remove("identity");
-            }
+            record.remove("identity");
             for value in record.values_mut() {
                 remove_private_evidence(value);
             }
@@ -113,18 +111,18 @@ fn open(outcome: &mut Map<String, Value>) -> Result<(), ()> {
     }
     for name in ["before", "after"] {
         if let Some(evidence) = outcome.get_mut(name).filter(|v| !v.is_null()) {
-            let identity = evidence
-                .get_mut("document")
-                .and_then(|d| d.get_mut("identity"))
+            let (identity_key, mut identity) = object(evidence.get_mut("document").ok_or(())?)?
+                .remove_entry("identity")
                 .ok_or(())?;
             if !identity.is_null() {
-                *identity =
-                    Value::String(document_identity(identity, session.as_deref().ok_or(())?)?);
+                identity =
+                    Value::String(document_identity(&identity, session.as_deref().ok_or(())?)?);
             }
             if let Some(saved) = evidence.get_mut("saved_state") {
                 remove_context(saved);
             }
             remove_private_evidence(evidence);
+            object(evidence.get_mut("document").ok_or(())?)?.insert(identity_key, identity);
         }
     }
     for name in ["persistence", "finalization", "context_recheck"] {

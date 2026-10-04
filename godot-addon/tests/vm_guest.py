@@ -513,13 +513,24 @@ def _prepared_control(root, run_id, command):
         if not _regular(path) or _digest(path) != expected:
             raise GuestError('prepared Rust consumer provenance changed')
     with socket.socket(socket.AF_UNIX) as control:
-        control.settimeout(180 if command == b'F' else None)
+        control.settimeout(180 if command in (b'F', b'P') else None)
         socket_path = root / 'tmp' / ('mcp-' + hashlib.sha256(run_id.encode()).hexdigest()[:24] + '.sock')
         control.connect(str(socket_path))
         control.sendall(command)
         if command == b'F':
             if control.recv(16) != b'OK\n':
                 raise GuestError('MCP finalization failed; private evidence retained')
+            return 0
+        if command == b'P':
+            chunks = bytearray()
+            while data := control.recv(65536):
+                chunks.extend(data)
+                if len(chunks) > 65536:
+                    raise GuestError('durability prompt exceeded fixed bound')
+            if not chunks:
+                raise GuestError('MCP durability preparation failed; private evidence retained')
+            sys.stdout.buffer.write(chunks)
+            sys.stdout.buffer.flush()
             return 0
         import threading
         def incoming():
@@ -553,7 +564,7 @@ def _export_paths(run, captures=False):
     proof = _json(provenance)
     mcp_proof = ((run / 'prepared.json').exists() or
                  (proof.get('suite') == 'mcp' and proof.get('scenario') in
-                  ('transport', 'transport-workflow', 'transport-sources', 'transport-bound', 'transport-observations')))
+                  ('transport', 'transport-workflow', 'transport-known', 'transport-sources', 'transport-bound', 'transport-observations')))
     artifacts = run / 'artifacts'
     _private(artifacts)
     capture_directories = set()
@@ -581,8 +592,7 @@ def _export_paths(run, captures=False):
         for name in files:
             allowed = ((permitted and name == 'summary.json') or
                        (mcp_proof and (not relative or (captures and base in capture_directories)) and
-                        (name in ('mcp-calls.jsonl', 'delivery.jsonl', 'protocol.jsonl', 'mcp-stderr.log',
-                                  'later-cached-mcp.json', 'later-absent-mcp.json') or
+                        (name in ('mcp-calls.jsonl', 'delivery.jsonl', 'protocol.jsonl', 'mcp-stderr.log') or
                          name.endswith('-witness.json'))) or
                        (not relative and name == 'manifest.json') or
                        (captures and base in capture_directories and name.endswith('.png')))
@@ -640,8 +650,8 @@ def _parser():
     prepare = commands.add_parser('prepare-mcp')
     prepare.add_argument('--revision', required=True, type=_sha)
     prepare.add_argument('--run-id', required=True, type=_token)
-    prepare.add_argument('--profile', choices=('workflow', 'sources', 'bound', 'observations'), default='workflow')
-    for action in ('mcp-stdio', 'finalize-mcp'):
+    prepare.add_argument('--profile', choices=('workflow', 'known', 'sources', 'bound', 'observations'), default='workflow')
+    for action in ('mcp-stdio', 'prepare-durability', 'finalize-mcp'):
         command = commands.add_parser(action)
         command.add_argument('--run-id', required=True, type=_token)
     return parser
@@ -654,9 +664,9 @@ def main(argv=None):
         if args.action == 'mcp-stdio':
             _guest_guard()
             return _mcp_stdio(ROOT, args.run_id)
-        if args.action == 'finalize-mcp':
+        if args.action in ('prepare-durability', 'finalize-mcp'):
             _guest_guard()
-            return _prepared_control(ROOT, args.run_id, b'F')
+            return _prepared_control(ROOT, args.run_id, b'P' if args.action == 'prepare-durability' else b'F')
         _guest_guard()  # All actions, including sync/export, are guest-only.
         _private(ROOT, create=True)
         _private(ROOT / 'tmp', create=True)

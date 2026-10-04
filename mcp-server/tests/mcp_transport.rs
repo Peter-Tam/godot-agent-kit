@@ -93,6 +93,11 @@ fn negotiation_gating_and_catalog() {
     peer.send(json!({"jsonrpc":"2.0","id":"ping","method":"ping"}));
     assert_eq!(peer.read()["id"], "ping");
     peer.initialize();
+    peer.send(json!({"jsonrpc":"2.0","id":"negotiated-ping","method":"ping"}));
+    let ping = peer.read();
+    assert_eq!(ping["id"], "negotiated-ping");
+    assert_eq!(ping["result"], json!({}));
+    assert!(ping.get("error").is_none());
     peer.send(json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}));
     let response = peer.read();
     let names: Vec<_> = response["result"]["tools"]

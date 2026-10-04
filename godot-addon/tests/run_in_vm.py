@@ -66,13 +66,13 @@ def _identity():
 
 
 @contextmanager
-def _locked(state):
+def _locked(state, *, shared=False):
     state.mkdir(parents=True, exist_ok=True, mode=0o700)
     if state.is_symlink() or state.stat().st_uid != os.getuid() or state.stat().st_mode & 0o077:
         raise VMError("VM state must be an owned, nonsymlink mode-0700 directory.")
     with (state / ".operation.lock").open("a") as lock:
         try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(lock, (fcntl.LOCK_SH if shared else fcntl.LOCK_EX) | fcntl.LOCK_NB)
         except BlockingIOError as error:
             raise VMError("Another VM control operation is active; do not race setup, runs or reset.") from error
         yield
@@ -337,8 +337,11 @@ def _mcp_control(tart, state, args):
         result = _worker(tart, worker, "mcp-stdio", "--run-id", args.run_id,
                          stdin=sys.stdin.buffer, stdout=sys.stdout.buffer, check=False)
     else:
-        result = _worker(tart, worker, "finalize-mcp", "--run-id", args.run_id, check=False, timeout=200)
-        _fetch(tart, state, args.run_id, True, worker)
+        result = _worker(tart, worker, args.operation, "--run-id", args.run_id, check=False, timeout=200)
+        if args.operation == "finalize-mcp":
+            _fetch(tart, state, args.run_id, True, worker)
+        elif result.returncode == 0:
+            sys.stdout.write(result.stdout.decode())
     if result.stderr:
         print("Owned MCP relay/control failed." if result.returncode else "Owned MCP relay diagnostic.",
               file=sys.stderr)
@@ -375,8 +378,8 @@ def _parser():
     prepare.add_argument("--revision", required=True)
     prepare.add_argument("--run-id", required=True, type=_run_id)
     prepare.add_argument("--artifacts", required=True, type=Path)
-    prepare.add_argument("--profile", choices=("workflow", "sources", "bound", "observations"), default="workflow")
-    for name in ("mcp-stdio", "finalize-mcp"):
+    prepare.add_argument("--profile", choices=("workflow", "known", "sources", "bound", "observations"), default="workflow")
+    for name in ("mcp-stdio", "prepare-durability", "finalize-mcp"):
         control = commands.add_parser(name)
         control.add_argument("--run-id", required=True, type=_run_id)
     fetch = commands.add_parser("fetch-artifacts")
@@ -392,11 +395,11 @@ def main(argv=None):
         parser.error("--resume requires the original --run-id")
     state = args.state.expanduser().absolute()
     try:
-        with _locked(state):
+        with _locked(state, shared=args.operation in ("mcp-stdio", "prepare-durability", "finalize-mcp")):
             tart = Tart(state)
             if args.operation == "prepare-mcp":
                 return _prepare_mcp(tart, state, args)
-            if args.operation in ("mcp-stdio", "finalize-mcp"):
+            if args.operation in ("mcp-stdio", "prepare-durability", "finalize-mcp"):
                 return _mcp_control(tart, state, args)
             if args.operation == "setup":
                 _setup(tart, state, args)
