@@ -429,6 +429,8 @@ class ClosedScriptAcceptanceMixin:
                 fresh = self.workflow_read(project, editor, descriptor, mutation + "_fresh", revision=mutation != "context", source=SAFE)
                 if mutation != "context":
                     observation.require(fresh["revision"] != first["revision"], "stable_fact_revision_changed_" + mutation)
+                else:
+                    self.close_action(editor, "close_config", setting="external_editor", value=False)
         # Races after comparison/prepare use product stage barriers, not stale token
         # rejection alone. Hold the original clock while a real actor changes state.
         for stage in ("prepare", "apply", "verify:post_change", "recheck:post_change"):
@@ -476,7 +478,8 @@ class ClosedScriptAcceptanceMixin:
         elif mutation == "reconfigure":
             self.close_action(editor, "closed_reconfigure")
         elif mutation == "context":
-            self.close_action(editor, "close_config", setting="autoload", value=True)
+            # An unused autoload is supported; external-editor mode is not.
+            self.close_action(editor, "close_config", setting="external_editor", value=True)
 
     def closed_effect_faults(self):
         for cached in (False, True):
