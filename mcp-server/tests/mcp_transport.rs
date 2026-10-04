@@ -25,8 +25,12 @@ struct Peer {
 }
 impl Peer {
     fn start() -> Self {
+        Self::start_at(std::path::Path::new("/nonexistent/mcp-regression-registry"))
+    }
+    fn start_at(registry: &std::path::Path) -> Self {
         let mut child = Command::new(env!("CARGO_BIN_EXE_godot-agent-kit-mcp"))
-            .args(["--registry", "/nonexistent/mcp-regression-registry"])
+            .arg("--registry")
+            .arg(registry)
             .env("RUST_LOG", "trace")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -324,4 +328,111 @@ fn depth_overflow_and_nested_duplicate_arguments_never_dispatch() {
     assert_eq!(peer.read()["error"]["code"], -32700);
     peer.send(json!({"jsonrpc":"2.0","id":4,"method":"ping","params":{"_meta":{}}}));
     assert_eq!(peer.read()["id"], 4);
+}
+
+#[test]
+fn active_call_cancel_and_eof_close_only_the_owned_acquisition() {
+    use std::fs::{self, DirBuilder, OpenOptions};
+    use std::io::Read;
+    use std::net::TcpListener;
+    use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+    use std::time::{SystemTime, UNIX_EPOCH};
+    const SESSION: &str = "00112233445566778899aabbccddeeff";
+    for disconnect in [false, true] {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let home = fs::canonicalize(std::env::temp_dir())
+            .unwrap()
+            .join(format!("mcp-owned-{}-{unique}", std::process::id()));
+        DirBuilder::new().mode(0o700).create(&home).unwrap();
+        let project = home.join("project");
+        DirBuilder::new().mode(0o700).create(&project).unwrap();
+        let source = project.join("target.gd");
+        fs::write(&source, "extends Node\n").unwrap();
+        let registry = home.join("registry");
+        godot_agent_kit::project_fs::init_registry(&registry).unwrap();
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let mut descriptor = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(registry.join(format!("{SESSION}.json")))
+            .unwrap();
+        write!(
+            descriptor,
+            "{}",
+            json!({
+                "v":6,"session_id":SESSION,"project_root":project,
+                "godot_version":"4.7.2.stable.official.ed1daf0bf",
+                "engine_hash":"ed1daf0bf001b61586d9930840f2f1394092c079",
+                "host":"127.0.0.1","port":listener.local_addr().unwrap().port(),
+                "token":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+            })
+        )
+        .unwrap();
+        drop(descriptor);
+        let (entered, started) = mpsc::sync_channel(1);
+        let (closed, finished) = mpsc::sync_channel(1);
+        let boundary = std::thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(3);
+            let mut socket = loop {
+                match listener.accept() {
+                    Ok((socket, _)) => break socket,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            Instant::now() < deadline,
+                            "acquisition did not reach the selected endpoint"
+                        );
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                    Err(error) => panic!("{error}"),
+                }
+            };
+            socket.set_nonblocking(false).unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(3)))
+                .unwrap();
+            let mut size = [0; 4];
+            socket.read_exact(&mut size).unwrap();
+            let size = u32::from_be_bytes(size) as usize;
+            assert!(size <= 4096);
+            let mut hello = vec![0; size];
+            socket.read_exact(&mut hello).unwrap();
+            entered.send(()).unwrap();
+            // No authentication response: the actual bounded worker is waiting,
+            // and has acquired no mutation authority.
+            assert_eq!(
+                socket.read(&mut [0]).unwrap(),
+                0,
+                "owned worker kept the endpoint alive after cancellation"
+            );
+            closed.send(()).unwrap();
+        });
+        let mut peer = Peer::start_at(&registry);
+        peer.initialize();
+        peer.send(
+            json!({"jsonrpc":"2.0","id":"active","method":"tools/call","params":{
+                "name":"edit_script","arguments":{"project_root":project,"session_id":SESSION,
+                    "script_path":"res://target.gd","revision":format!("sr1:{}", "a".repeat(64)),
+                    "replacement_source":"extends Node\n# must not apply\n"}
+            }}),
+        );
+        started.recv_timeout(Duration::from_secs(3)).unwrap();
+        if disconnect {
+            peer.input.take();
+            assert!(wait_exit(&mut peer.child, Duration::from_secs(2)).success());
+        } else {
+            peer.send(json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"active"}}));
+            peer.send(json!({"jsonrpc":"2.0","id":"responsive","method":"ping"}));
+            assert_eq!(peer.read()["id"], "responsive");
+        }
+        finished.recv_timeout(Duration::from_secs(2)).unwrap();
+        boundary.join().unwrap();
+        assert_eq!(fs::read_to_string(source).unwrap(), "extends Node\n");
+        drop(peer);
+        fs::remove_dir_all(home).unwrap();
+    }
 }

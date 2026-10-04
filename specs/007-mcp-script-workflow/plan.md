@@ -173,3 +173,15 @@ allowlisted action using the existing receipt/control/cleanup boundary; no arbit
 command/path, product remote mode, new dependency or generic orchestration service
 is introduced. This implements T002's existing bounded-cleanup/independent-witness
 obligations without changing product scope or later task acceptance.
+
+The first actual MCP fixture run kept twelve owned editors alive concurrently.
+Its 512 KiB changed edit persisted all bytes but exhausted verification time
+(`applied_unverified`, 9.108222 s); other source/lifecycle positives completed.
+Those independent profiles do not require twelve simultaneous editors.
+The existing fixture now runs fixed `workflow`, `sources`, `bound` and
+`observations` groups, with the bound case alone. The preparation command's
+allowlisted `--profile` and `transport-<profile>` scenario selectors reuse the
+same owner/witness/cleanup path. The added cost is four fixed selectors, not a
+new runner or relaxed product deadline; every selected client still owes all
+four groups. The bound prompt describes its exact requested comment instead
+of preloading half a MiB of redundant desired text.

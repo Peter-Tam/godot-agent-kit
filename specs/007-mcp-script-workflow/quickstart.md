@@ -345,6 +345,15 @@ The fixed test-only VM-wrapper commands are:
 - `mcp-stdio --run-id ID`: validate that prepared run and relay stdin/stdout through the existing private Tart channel to its fixed guest MCP executable/registry. No arbitrary guest command, endpoint or host project is accepted. Protocol bytes are not wrapped in helper status output. Setup/relay diagnostics are source-free stderr.
 - `finalize-mcp --run-id ID`: independently verify the prepared workflow and later opening/Save/reparse/rescan/runtime durability, clean up only its owned fixtures, then retrieve private evidence. Relay EOF does not destroy prepared projects; it only drains that MCP connection. Finalize before selecting another committed guest source.
 
+Preparation accepts `--profile workflow|sources|bound|observations` (default
+`workflow`). Use a fresh run ID/artifact directory for **each of the four groups
+with each selected client**; one group is not full task acceptance. They cover
+open/cached/absent/known targets, Unicode/empty sources, the isolated 512 KiB
+boundary, and dirty/divergent/unavailable/partial observations respectively.
+The same groups are directly runnable as `run mcp --scenario transport-workflow`,
+`transport-sources`, `transport-bound` and `transport-observations`.
+`transport` runs them sequentially, never twelve concurrent editors.
+
 The relay is test apparatus, not a product remote transport. Host clients retain their normal model access; editor/core effects remain in the owned guest. This is the minimal adaptation needed to combine real clients with the existing VM policy.
 
 After each client exits, run `python3 godot-addon/tests/run_in_vm.py finalize-mcp --run-id "$RUN_ID"`. Preserve failed evidence as well as successful evidence. The guest summary reports MCP behavior, not model-visible client acceptance; correlate its call records with actual completed client tool results and subsequent model actions.

@@ -172,6 +172,11 @@ Connection EOF alone does not tear down the prepared projects. Finalize before
 changing guest source. See the [client workflow](../specs/007-mcp-script-workflow/quickstart.md#real-coding-agent-clients)
 for scoped configuration and the distinction between raw MCP records and actual
 model-visible acceptance.
+Preparation's fixed `--profile workflow|sources|bound|observations` selector
+keeps independent fixtures small; the 512 KiB case runs alone. Full selected-client
+acceptance requires all four groups, with a fresh run ID/artifact directory and
+finalization for each. `run mcp --scenario transport-<profile>` isolates the same
+groups for affected regressions; aggregate `transport` runs them sequentially.
 
 The host terminal remains available; the Tart process is detached and has no
 viewer. Foreground activation by the inner harness targets guest WindowServer.

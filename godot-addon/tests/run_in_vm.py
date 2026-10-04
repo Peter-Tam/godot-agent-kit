@@ -300,7 +300,7 @@ def _prepare_mcp(tart, state, args, repo=_REPO):
     worker, worker_hash = _install_worker(tart)
     _sync(tart, repo, revision, worker)
     result = _worker(tart, worker, "prepare-mcp", "--revision", revision,
-                     "--run-id", args.run_id, timeout=1200)
+                     "--run-id", args.run_id, "--profile", args.profile, timeout=1200)
     prepared = json.loads(result.stdout)
     receipt = prepared["receipt"]
     if receipt["revision"] != revision:
@@ -375,6 +375,7 @@ def _parser():
     prepare.add_argument("--revision", required=True)
     prepare.add_argument("--run-id", required=True, type=_run_id)
     prepare.add_argument("--artifacts", required=True, type=Path)
+    prepare.add_argument("--profile", choices=("workflow", "sources", "bound", "observations"), default="workflow")
     for name in ("mcp-stdio", "finalize-mcp"):
         control = commands.add_parser(name)
         control.add_argument("--run-id", required=True, type=_run_id)

@@ -14,14 +14,14 @@ import run_observation as observation
 from run_script_edit import STOCK_SHA256
 from run_script_close import CloseHarness
 from closed_script_acceptance import ClosedScriptAcceptanceMixin, FIXTURE
-from mcp_lifecycle_acceptance import McpLifecycleMixin, serve_prepared
+from mcp_lifecycle_acceptance import McpLifecycleMixin, PROFILE_GROUPS, serve_prepared
 
 SCENARIOS = ("closed-native", "closed-lifecycle", "closed-positives", "closed-refusals",
              "closed-revisions-and-boundary-races", "closed-effect-faults",
              "closed-acquisition-invalidation-and-selection", "closed-authenticated-wire-boundaries",
              "closed-save-profile-and-shared-slot", "closed-cancel-and-newer-work",
              "closed-later-durability-and-history", "matched-v6-native4-legacy-preservation",
-             "closed-privacy-export", "transport")
+             "closed-privacy-export", "transport", *("transport-" + name for name in PROFILE_GROUPS))
 
 
 class WorkflowHarness(McpLifecycleMixin, ClosedScriptAcceptanceMixin, CloseHarness):
@@ -58,7 +58,7 @@ class WorkflowHarness(McpLifecycleMixin, ClosedScriptAcceptanceMixin, CloseHarne
         }
         self.source_markers.update((b"CLOSED_PRIVATE_TARGET", b"CLOSED_NEWER_WORK",
                                     b"CLOSED_RESOURCE_DIVERGENCE", b"CLOSED_RESOURCE_DIRTY"))
-        if args.scenario == "transport":
+        if args.scenario.startswith("transport"):
             self.summary.update(coverage_scope="T002_actual_MCP_transport_lifecycle",
                                 mcp_acceptance=True, real_client_acceptance=False)
 
@@ -72,6 +72,7 @@ def main():
     parser.add_argument("--mcp-server", type=Path)
     parser.add_argument("--prepared-run", type=Path)
     parser.add_argument("--revision")
+    parser.add_argument("--profile", choices=tuple(PROFILE_GROUPS), default="workflow")
     args = parser.parse_args()
     os.umask(0o077)
     for name in ("godot", "observer", "editor", "stock_validator", "opener", "closer", "discoverer", "workflow"):
@@ -112,6 +113,7 @@ def main():
                 "closed-privacy-export": harness.closed_privacy_export,
                 "transport": harness.mcp_transport,
             }
+            methods.update(("transport-" + name, harness.mcp_transport) for name in PROFILE_GROUPS)
             if args.scenario not in ("closed-native", "closed-lifecycle"):
                 harness.compile_window_probe()
             harness.group(args.scenario, methods[args.scenario])

@@ -19,8 +19,12 @@ from closed_script_acceptance import CHANGED, SOURCE_LIMIT, source_free
 from close_native_acceptance import documents
 from run_script_close import TARGET, CURRENT, BACKGROUND, SAFE
 
-PROFILES = ('open', 'cached', 'absent', 'known', 'unicode', 'empty', 'empty_desired', 'bound',
-            'dirty', 'divergent', 'limited', 'partial')
+PROFILE_GROUPS = {
+    'workflow': ('open', 'cached', 'absent', 'known'),
+    'sources': ('unicode', 'empty', 'empty_desired'),
+    'bound': ('bound',),
+    'observations': ('dirty', 'divergent', 'limited', 'partial'),
+}
 
 
 def target_receipt(name, project, descriptor):
@@ -67,10 +71,16 @@ def review_client_events(events, calls):
 
 class McpLifecycleMixin:
     def mcp_transport(self):
+        selected = self.args.scenario.removeprefix('transport-')
+        groups = PROFILE_GROUPS.values() if selected == 'transport' else [PROFILE_GROUPS[selected]]
+        for profiles in groups:
+            self._mcp_transport_group(profiles)
+
+    def _mcp_transport_group(self, profiles):
         import threading
         observation.require(self.args.mcp_server is not None, 'actual_MCP_binary_required')
         with ExitStack() as stack:
-            self.prepare_targets(stack)
+            self.prepare_targets(stack, profiles)
             client, owner = socket.socketpair()
             stack.callback(client.close)
             stack.callback(owner.close)
@@ -129,9 +139,9 @@ class McpLifecycleMixin:
             self.summary.update(coverage_scope='T002_actual_MCP_transport_lifecycle', mcp_acceptance=True,
                                 real_client_acceptance=False)
 
-    def prepare_targets(self, stack):
+    def prepare_targets(self, stack, profiles=None):
         self.targets = {}
-        for name in PROFILES:
+        for name in profiles if profiles is not None else PROFILE_GROUPS[self.args.profile]:
             source = '' if name == 'empty' else SAFE
             if name == 'open':
                 fixture = self.close_fixture('mcp-' + name, source=source,
@@ -168,10 +178,14 @@ class McpLifecycleMixin:
         targets = []
         for target in self.targets.values():
             item = target_receipt(target['name'], target['project'], target['descriptor'])
-            item['replacement_source'] = target['desired'] if target['name'] not in ('dirty', 'divergent', 'limited', 'partial') else None
+            if target['name'] == 'bound':
+                item['requested_change'] = ('Keep the current source unchanged and append one comment: "# ", '
+                    'enough ASCII x characters to make the complete source exactly 524288 UTF-8 bytes, then one LF.')
+            else:
+                item['replacement_source'] = target['desired'] if target['name'] not in ('dirty', 'divergent', 'limited', 'partial') else None
             targets.append(item)
         return ('Use only the godot_agent_kit MCP tools for project operations; do not use shell, files, '
-                'or other bridges. List its three tools. For open/cached/absent/Unicode/empty/bound targets, '
+                'or other bridges. For the listed targets only, use the three tools. For open/cached/absent/unicode/empty/empty_desired/bound targets, '
                 'discover, read twice to compare unchanged revisions, submit an already-satisfied edit using '
                 'the exact returned source/revision, edit to the requested replacement, then fresh-read. '
                 'For known, read and edit directly without discovery. Discover partial and explain incomplete '
@@ -304,7 +318,8 @@ class McpLifecycleMixin:
                                 if before:
                                     self.observe_call(request, value, before)
                                 with (self.artifacts / 'delivery.jsonl').open('a') as stream:
-                                    stream.write(json.dumps(dict(id=request['id'], relay_elapsed_ms=(delivered-started)*1000))+'\n')
+                                    stream.write(json.dumps(dict(id=request['id'], request_id=result['structuredContent']['request_id'],
+                                                                 relay_elapsed_ms=(delivered-started)*1000))+'\n')
         finally:
             process.stdin.close()
             try:
@@ -368,6 +383,7 @@ class McpLifecycleMixin:
                 state, disks = self.state(target['editor'], target['project'])
                 observation.require(state['target']['B'] == state['target']['R'] == disks[TARGET]['text'] == CHANGED,
                                     'later_runtime_D_R_B_durability')
+        self.summary.setdefault('mcp_profiles_verified', []).extend(t['name'] for t in self.targets.values())
 
 
     def durability_read(self, target):

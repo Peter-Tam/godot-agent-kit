@@ -476,12 +476,13 @@ def _prepare_mcp(root, args):
     run.mkdir(mode=0o700, parents=True, exist_ok=False)
     _private(run / 'artifacts', create=True)
     builds = _build(root, source, provision)
-    _save(run / 'provenance.json', dict(action='prepare-mcp', revision=args.revision,
+    _save(run / 'provenance.json', dict(action='prepare-mcp', revision=args.revision, profile=args.profile,
           archive_sha256=source['archive_sha256'], environment=provision['environment'],
           environment_identity=_execution_identity(provision), builds=builds))
     repo = root / 'workspace/repo'
     argv = [sys.executable, str(repo / 'godot-addon/tests/run_mcp.py'), '--scenario', 'transport',
-            '--prepared-run', str(run), '--revision', args.revision, '--artifacts', str(run / 'artifacts'),
+            '--prepared-run', str(run), '--revision', args.revision, '--profile', args.profile,
+            '--artifacts', str(run / 'artifacts'),
             *_runner_options(root, 'mcp')]
     with (run / 'owner.log').open('ab') as log:
         process = subprocess.Popen(argv, cwd=repo, env=_environment(_execution_identity(provision)),
@@ -549,8 +550,10 @@ def _export_paths(run, captures=False):
     if not _regular(provenance):
         raise GuestError('run provenance unavailable or unsafe')
     result = [provenance]
+    proof = _json(provenance)
     mcp_proof = ((run / 'prepared.json').exists() or
-                 (_json(provenance).get('suite') == 'mcp' and _json(provenance).get('scenario') == 'transport'))
+                 (proof.get('suite') == 'mcp' and proof.get('scenario') in
+                  ('transport', 'transport-workflow', 'transport-sources', 'transport-bound', 'transport-observations')))
     artifacts = run / 'artifacts'
     _private(artifacts)
     capture_directories = set()
@@ -637,6 +640,7 @@ def _parser():
     prepare = commands.add_parser('prepare-mcp')
     prepare.add_argument('--revision', required=True, type=_sha)
     prepare.add_argument('--run-id', required=True, type=_token)
+    prepare.add_argument('--profile', choices=('workflow', 'sources', 'bound', 'observations'), default='workflow')
     for action in ('mcp-stdio', 'finalize-mcp'):
         command = commands.add_parser(action)
         command.add_argument('--run-id', required=True, type=_token)
