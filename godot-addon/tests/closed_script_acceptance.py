@@ -280,7 +280,7 @@ class ClosedScriptAcceptanceMixin:
         effects = outcome["effects"]
         observation.require(outcome["evidence"]["resource"] == {
                                 "admitted": "present" if before["cached_id"] else "absent",
-                                "availability": "observed",
+                                "availability": "observed" if after["cached_id"] else "not_applicable",
                                 "state": "present" if after["cached_id"] else "absent"} and
                             ("loaded_class_not_reloaded" in outcome["limitations"] if before["cached_id"] else
                              "loaded_class_not_reloaded" not in outcome["limitations"]),
