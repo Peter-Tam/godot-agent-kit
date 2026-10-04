@@ -60,7 +60,7 @@ fn capture(request: &ObservationRequest) -> Result<confined::Captured, Failure> 
                 ("disk_unavailable", false)
             }
         })?
-        .ok_or(("missing_script", false))
+        .ok_or(("missing_target", false))
 }
 fn budget(at: Instant) -> Result<u64, Failure> {
     let ms = at

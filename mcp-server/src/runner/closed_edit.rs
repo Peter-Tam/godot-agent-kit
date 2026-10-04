@@ -167,7 +167,7 @@ fn failure(e: &RoutingFailure) -> &'static str {
         OutcomeKind::UnsupportedObservation => "unsupported_capability",
         OutcomeKind::DisconnectedEditor => "disconnected",
         OutcomeKind::ProtocolError => "protocol_error",
-        OutcomeKind::MissingTarget => "missing_script",
+        OutcomeKind::MissingTarget => "missing_target",
         OutcomeKind::InvalidTarget => "invalid_target",
         OutcomeKind::InvalidRequest => "invalid_request",
         _ => "editor_unavailable",

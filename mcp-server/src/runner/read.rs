@@ -56,11 +56,12 @@ fn acquire(
                     Some("cancelled") => Some(TerminalFailure::Cancelled),
                     Some("protocol_error") => Some(TerminalFailure::ProtocolError),
                     Some("unsupported_capability") => Some(TerminalFailure::UnsupportedObservation),
-                    Some("missing_script") => Some(TerminalFailure::MissingTarget),
                     Some("invalid_target") => Some(TerminalFailure::InvalidTarget),
                     Some("invalid_request") => Some(TerminalFailure::InvalidRequest),
                     _ => None,
                 };
+                // A missing D file can coexist with a valid retained Script.
+                // Preserve that observation; missing_target still refuses the edit below.
                 if !acquisition.changes.is_empty()
                     || acquisition.lifecycle_changed
                     || failure.is_some()
