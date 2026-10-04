@@ -140,15 +140,18 @@ class McpLifecycleMixin:
                                 real_client_acceptance=False)
 
     def prepare_targets(self, stack, profiles=None):
+        def discoverable(project):
+            (project / 'scripts/.gdignore').unlink()
+
         self.targets = {}
         for name in profiles if profiles is not None else PROFILE_GROUPS[self.args.profile]:
             source = '' if name == 'empty' else SAFE
             if name == 'open':
                 fixture = self.close_fixture('mcp-' + name, source=source,
-                    paths=[TARGET, CURRENT, BACKGROUND], selected=TARGET)
+                    paths=[TARGET, CURRENT, BACKGROUND], selected=TARGET, setup=discoverable)
             else:
                 fixture = self.closed_fixture('mcp-' + name, cached=name in ('cached', 'dirty', 'divergent'),
-                                              source=source, faults=name == 'limited')
+                                              source=source, faults=name == 'limited', setup=discoverable)
             project, editor, descriptor = stack.enter_context(fixture)
             if name in ('dirty', 'divergent'):
                 self.close_action(editor, 'closed_resource', mutation=name)
@@ -213,6 +216,9 @@ class McpLifecycleMixin:
         after, now = self.state(target['editor'], target['project'])
         if name in ('read_script', 'discover_scripts'):
             observation.require(source_free(state, disks) == source_free(after, now), 'MCP_observation_no_native_effect')
+        if name == 'discover_scripts' and result and target['name'] != 'partial':
+            observation.require(TARGET in (result.get('inventory') or {}).get('entries', []),
+                                'MCP_target_present_in_discovery_scope')
         if name == 'read_script' and result:
             observation.require(set(result) == {'source', 'revision', 'state'}, 'MCP_exact_read_projection')
             observation.require(result['source'] == (after['target']['B'] if TARGET in after['open_paths'] else now[TARGET]['text']),

@@ -194,3 +194,11 @@ validation/fixture cleanup even when the client never supplies EOF. This reuses 
 event loop rather than adding a thread/service or treating client exit as success.
 Its cost is one explicit control handoff and a live-child/socket regression.
 No product deadline, transaction, source authority or mutation behavior changes.
+
+OMP's first model-visible workflow exposed the inherited `scripts/.gdignore`:
+discovery correctly excluded the target, so that fixture could not prove discovery
+of the edited script. MCP preparation now follows the existing discovery fixture
+by removing that marker before editor startup, and requires the target in the
+returned inventory. Independent cached/absent-resource admission checks remain
+unchanged. Repeat the affected profiles; the earlier carrier/edit observations do
+not substitute for the corrected discover-to-edit acceptance.
