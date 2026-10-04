@@ -235,6 +235,31 @@ fn acquire_until(
         _ => Ok(unavailable("protocol_error", vec![])),
     }
 }
+fn preflight(
+    original: stock_validation::ValidationRequest,
+    desired: stock_validation::ValidationRequest,
+    clock: AttemptClock,
+    cancelled: &AtomicBool,
+) -> Result<
+    (
+        stock_validation::ValidationResult,
+        stock_validation::ValidationResult,
+    ),
+    &'static str,
+> {
+    std::thread::scope(|scope| {
+        let original = std::thread::Builder::new()
+            .name("closed-original-validation".into())
+            .spawn_scoped(scope, || {
+                stock_validation::validate(original, clock, cancelled)
+            })
+            .map_err(|_| "validation_unavailable")?;
+        let desired = stock_validation::validate(desired, clock, cancelled);
+        let original = original.join().map_err(|_| "validation_unavailable")?;
+        Ok((original, desired))
+    })
+}
+
 pub(crate) fn run(
     request: CheckedClosedRequest,
     registry: &Path,
@@ -302,47 +327,27 @@ pub(crate) fn run(
                 context,
                 source,
             } => {
-                let (purpose, expected) = match role.as_str() {
-                    "original" if helper_phase == 0 && !effects.authorized => (
-                        stock_validation::Purpose::Preflight,
-                        request.basis.state.file_revision.sha256.as_str(),
-                    ),
-                    "desired" if helper_phase == 1 && original_valid && !effects.authorized => {
-                        (stock_validation::Purpose::Preflight, desired_hash.as_str())
+                let preflight = role == "preflight";
+                if context.source.len() > SOURCE_LIMIT_BYTES
+                    || if preflight {
+                        helper_phase != 0
+                            || effects.authorized
+                            || source.as_deref() != Some(request.replacement.as_str())
+                            || confined::hex_sha256(context.source.as_bytes())
+                                != request.basis.state.file_revision.sha256
+                    } else {
+                        role != "post"
+                            || helper_phase != 2
+                            || !original_valid
+                            || !desired_valid
+                            || !(effects.authorized || unchanged)
+                            || source.is_some()
                     }
-                    "post"
-                        if helper_phase == 2
-                            && desired_valid
-                            && (effects.authorized || unchanged) =>
-                    {
-                        (
-                            if unchanged {
-                                stock_validation::Purpose::Unchanged
-                            } else {
-                                stock_validation::Purpose::PostChange
-                            },
-                            desired_hash.as_str(),
-                        )
-                    }
-                    _ => {
-                        reason = "protocol_error".into();
-                        break;
-                    }
-                };
-                let source_ok = match role.as_str() {
-                    "original" => source
-                        .as_ref()
-                        .is_some_and(|s| confined::hex_sha256(s.as_bytes()) == expected),
-                    "desired" => source.as_deref() == Some(request.replacement.as_str()),
-                    "post" => source.is_none(),
-                    _ => false,
-                };
-                if !source_ok || context.source.len() > SOURCE_LIMIT_BYTES {
+                {
                     reason = "protocol_error".into();
                     break;
                 }
-                helper_phase += 1;
-                let result = stock_validation::validate(
+                let make_request = |source, purpose, warnings, global_classes, official_binary| {
                     stock_validation::ValidationRequest {
                         request_id: request.id.clone(),
                         session_id: session.clone(),
@@ -351,42 +356,103 @@ pub(crate) fn run(
                         source,
                         purpose,
                         open_context: None,
-                        warnings: context.validation.warnings,
-                        global_classes: context.validation.global_classes,
-                        official_binary: context.validation.executable,
-                    },
-                    clock,
-                    cancelled,
-                );
-                let accepted = valid(
-                    &result,
-                    request.id.as_str(),
-                    &request.basis.session,
-                    &request.basis.path,
-                    expected,
-                );
-                denied |= matches!(
-                    result.reason.as_deref(),
-                    Some("denied_access" | "unsafe_project" | "unsafe_path" | "source_unreadable")
-                );
-                if role == "original" {
-                    original_valid = accepted;
-                } else if role == "desired" {
-                    desired_valid = accepted;
+                        warnings,
+                        global_classes,
+                        official_binary,
+                    }
+                };
+                let control = if preflight {
+                    let original = make_request(
+                        Some(context.source),
+                        stock_validation::Purpose::Preflight,
+                        context.validation.warnings.clone(),
+                        context.validation.global_classes.clone(),
+                        context.validation.executable.clone(),
+                    );
+                    let desired = make_request(
+                        source,
+                        stock_validation::Purpose::Preflight,
+                        context.validation.warnings,
+                        context.validation.global_classes,
+                        context.validation.executable,
+                    );
+                    let (original, desired) =
+                        match self::preflight(original, desired, clock, cancelled) {
+                            Ok(results) => results,
+                            Err(error) => {
+                                reason = error.into();
+                                break;
+                            }
+                        };
+                    original_valid = valid(
+                        &original,
+                        request.id.as_str(),
+                        &request.basis.session,
+                        &request.basis.path,
+                        &request.basis.state.file_revision.sha256,
+                    );
+                    desired_valid = valid(
+                        &desired,
+                        request.id.as_str(),
+                        &request.basis.session,
+                        &request.basis.path,
+                        &desired_hash,
+                    );
+                    denied |= [&original, &desired].iter().any(|result| {
+                        matches!(
+                            result.reason.as_deref(),
+                            Some(
+                                "denied_access"
+                                    | "unsafe_project"
+                                    | "unsafe_path"
+                                    | "source_unreadable"
+                            )
+                        )
+                    });
+                    helper_phase = 2;
+                    Control::Preflight {
+                        original: Box::new(original),
+                        desired: Box::new(desired),
+                    }
                 } else {
-                    post_valid = accepted;
+                    let result = stock_validation::validate(
+                        make_request(
+                            None,
+                            if unchanged {
+                                stock_validation::Purpose::Unchanged
+                            } else {
+                                stock_validation::Purpose::PostChange
+                            },
+                            context.validation.warnings,
+                            context.validation.global_classes,
+                            context.validation.executable,
+                        ),
+                        clock,
+                        cancelled,
+                    );
+                    post_valid = valid(
+                        &result,
+                        request.id.as_str(),
+                        &request.basis.session,
+                        &request.basis.path,
+                        &desired_hash,
+                    );
                     post_context = result.context_sha256.clone();
-                }
-                if send(
-                    &mut socket,
-                    &Control::Validation {
+                    denied |= matches!(
+                        result.reason.as_deref(),
+                        Some(
+                            "denied_access"
+                                | "unsafe_project"
+                                | "unsafe_path"
+                                | "source_unreadable"
+                        )
+                    );
+                    helper_phase = 3;
+                    Control::Validation {
                         result: Box::new(result),
-                    },
-                    at,
-                    Some(cancelled),
-                )
-                .is_err()
-                {
+                    }
+                };
+                if send(&mut socket, &control, at, Some(cancelled)).is_err() {
                     reason = "disconnected".into();
                     break;
                 }

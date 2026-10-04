@@ -255,33 +255,79 @@ fn dependencies(selected: &SelectedSession, r: &stock_validation::ValidationResu
                 })
         })
 }
-fn helper(
+#[derive(Serialize)]
+struct HelperFrame<'a> {
+    kind: &'static str,
+    role: &'static str,
+    context: &'a codec::Context,
+    source: Option<&'a str>,
+}
+fn preflight(
     io: (&mut UnixStream, &mut UnixStream),
     selected: &SelectedSession,
     request: &ObservationRequest,
-    role: &str,
     context: &codec::Context,
-    source: Option<&str>,
+    desired: &str,
     at: Instant,
-) -> Result<stock_validation::ValidationResult, Failure> {
+) -> Result<
+    (
+        stock_validation::ValidationResult,
+        stock_validation::ValidationResult,
+    ),
+    Failure,
+> {
     let (input, output) = io;
-    let expected = source
-        .map(|s| confined::hex_sha256(s.as_bytes()))
-        .unwrap_or_else(|| confined::hex_sha256(context.source.as_bytes()));
-    #[derive(Serialize)]
-    struct HelperFrame<'a> {
-        kind: &'static str,
-        role: &'a str,
-        context: &'a codec::Context,
-        source: Option<&'a str>,
-    }
     send(
         output,
         &HelperFrame {
             kind: "Helper",
-            role,
+            role: "preflight",
             context,
-            source,
+            source: Some(desired),
+        },
+        at,
+        None,
+    )
+    .map_err(|e| (e, false))?;
+    let control: Control = receive(input, at).map_err(|e| (e, false))?;
+    let Control::Preflight {
+        original,
+        desired: proposed,
+    } = control
+    else {
+        return Err(("cancelled", false));
+    };
+    check_validation(
+        &original,
+        selected,
+        request,
+        context,
+        &confined::hex_sha256(context.source.as_bytes()),
+    )?;
+    check_validation(
+        &proposed,
+        selected,
+        request,
+        context,
+        &confined::hex_sha256(desired.as_bytes()),
+    )?;
+    Ok((*original, *proposed))
+}
+fn post_validation(
+    io: (&mut UnixStream, &mut UnixStream),
+    selected: &SelectedSession,
+    request: &ObservationRequest,
+    context: &codec::Context,
+    at: Instant,
+) -> Result<stock_validation::ValidationResult, Failure> {
+    let (input, output) = io;
+    send(
+        output,
+        &HelperFrame {
+            kind: "Helper",
+            role: "post",
+            context,
+            source: None,
         },
         at,
         None,
@@ -291,12 +337,30 @@ fn helper(
     let Control::Validation { result } = control else {
         return Err(("cancelled", false));
     };
+    check_validation(
+        &result,
+        selected,
+        request,
+        context,
+        &confined::hex_sha256(context.source.as_bytes()),
+    )?;
+    Ok(*result)
+}
+fn check_validation(
+    result: &stock_validation::ValidationResult,
+    selected: &SelectedSession,
+    request: &ObservationRequest,
+    context: &codec::Context,
+    expected: &str,
+) -> Result<(), Failure> {
     if result.status != "valid" {
         return Err((
             if result.status == "invalid" {
                 "parse_error"
             } else if result.reason.as_deref() == Some("cancelled") {
                 "cancelled"
+            } else if result.reason.as_deref() == Some("deadline") {
+                "timeout"
             } else {
                 "validation_unavailable"
             },
@@ -307,17 +371,17 @@ fn helper(
         ));
     }
     if !valid(
-        &result,
+        result,
         request.request_id().as_str(),
         selected.target().session_id().as_str(),
         request.script_path().as_str(),
-        &expected,
+        expected,
     ) || current_context(selected, context).as_ref() != result.context_sha256.as_ref()
-        || !dependencies(selected, &result)
+        || !dependencies(selected, result)
     {
         return Err(("validation_failed", false));
     }
-    Ok(*result)
+    Ok(())
 }
 fn sample_inner(
     selected: &mut SelectedSession,
@@ -425,23 +489,13 @@ fn edit(
         if context.source != initial.text {
             return Err(("revision_mismatch", false));
         }
-        let original = helper(
-            (&mut *input, &mut *output),
-            &selected,
-            request,
-            "original",
-            &context,
-            Some(&initial.text),
-            at,
-        )?;
         drop(initial);
-        let desired_result = helper(
+        let (original, desired_result) = preflight(
             (&mut *input, &mut *output),
             &selected,
             request,
-            "desired",
             &context,
-            Some(desired),
+            desired,
             at,
         )?;
         let (guard, guard_context) = sample(&mut selected, request, "preflight", started, at)?;
@@ -523,13 +577,11 @@ fn edit(
         {
             return Err(("source_changed", false));
         }
-        let post_validation = helper(
+        let post_validation = post_validation(
             (&mut *input, &mut *output),
             &selected,
             request,
-            "post",
             &post_context,
-            None,
             at,
         )?;
         let (final_state, final_context) = sample(&mut selected, request, purpose, started, at)?;

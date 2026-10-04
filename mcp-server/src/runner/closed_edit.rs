@@ -100,6 +100,10 @@ enum Message {
 enum Control {
     Authorize {},
     Abort {},
+    Preflight {
+        original: Box<stock_validation::ValidationResult>,
+        desired: Box<stock_validation::ValidationResult>,
+    },
     Validation {
         result: Box<stock_validation::ValidationResult>,
     },

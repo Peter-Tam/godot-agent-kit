@@ -76,6 +76,24 @@ restart/re-enable for a new authenticated session. Rebuild production and separa
 fixture-fault native artifacts; never install the latter for ordinary use.
 Old v5/revision-3 sessions and bases have no fallback.
 
+### T001 validation scheduling review
+
+The first exact-512-KiB VM edit applied all bytes but returned
+`applied_unverified` after 9.079435 seconds because actual-source validation was
+unavailable. Original and desired preflight validation were serialized, each
+starting the existing isolated stock validator. Keep both checks, but run these
+independent preflight validations concurrently under the same attempt clock and
+cancellation flag; neither can authorize effects alone. Post-effect validation
+and the native main-thread sequence remain independent and unchanged.
+
+The simpler serial route failed this supported boundary. A new multi-source LSP
+protocol would add more state and compatibility work than reusing two existing
+bounded workers. The current cost is one scoped coordination thread and at most
+two simultaneous isolated validation children, with their existing provenance,
+cleanup and deadlines. No new dependency, extended lease or retained validator
+service is introduced. Scoped VM acceptance must confirm the scheduling change.
+
+
 ## Owned MCP fixture interfaces after implementation
 
 Extend the existing `run_in_vm.py` fixed suite allowlist with `mcp`, retaining its committed-source, cached-build, provenance, ownership, capture and artifact retrieval semantics. Required groups are `transport`, `closed-native`, `closed-lifecycle`, `preservation`, `interruption`, `composed` and `privacy-export`. They are individually runnable; no new workflow engine or requirement for an aggregate historical `all` mode.
