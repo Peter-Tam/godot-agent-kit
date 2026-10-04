@@ -697,7 +697,7 @@ class ClosedScriptAcceptanceMixin:
     def closed_exchange(self, stream, descriptor, request_id, operation, *tail):
         stream.sendall(observation.packet([6, operation, request_id, descriptor["session_id"],
                                            descriptor["project_root"], TARGET, *tail]))
-        reply, _ = observation.receive(stream)
+        reply, _ = observation.receive(stream, 12 * 1024 * 1024)
         observation.require(all(reply[key] == value for key, value in
                                 {"v": 6, "request_id": request_id, "session_id": descriptor["session_id"],
                                  "project_root": descriptor["project_root"], "script_path": TARGET}.items()),
