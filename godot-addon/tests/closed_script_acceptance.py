@@ -180,10 +180,8 @@ class ClosedScriptAcceptanceMixin:
                                     (("dirty" if after["cached_edited"] else "clean") if after["cached_id"] else None),
                                     "closed_read_actual_R_dirty_even_without_revision_" + name)
                 resource = state["sources"]["loaded_resource"]
-                observation.require(resource["availability"] == ("observed" if after["cached_id"] else "not_applicable"),
-                                    "closed_read_actual_R_source_availability_" + name)
                 if after["cached_id"]:
-                    observation.require(resource["current"] and
+                    observation.require(resource["availability"] == "observed" and resource["current"] and
                                         resource["equals_source"] == (after["cached_R"] == result["source"]) and
                                         (resource["text"] == after["cached_R"] if after["cached_R"] != result["source"]
                                          else resource["text"] is None),
@@ -191,6 +189,10 @@ class ClosedScriptAcceptanceMixin:
                     observation.require(state["consistency"]["comparisons"]["disk_resource"] ==
                                         ("equal" if after["cached_R"] == now[TARGET]["text"] else "different"),
                                         "closed_read_independent_D_R_comparison_" + name)
+                else:
+                    observation.require(not resource["current"] and resource["text"] is None and
+                                        resource["equals_source"] is None,
+                                        "absent_R_never_invents_current_source_" + name)
             if name == "missing_cache_getters_read":
                 observation.require(resource_dirty["availability"] == "unavailable" and resource_dirty["state"] is None,
                                     "missing_getters_never_fabricate_R_dirty_facts")
