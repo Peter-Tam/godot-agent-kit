@@ -9,6 +9,7 @@ from contextlib import ExitStack
 import json
 import hashlib
 from pathlib import Path
+import re
 import select
 import socket
 import subprocess
@@ -319,6 +320,13 @@ class McpLifecycleMixin:
                         if incoming is connection:
                             params = value.get('params')
                             identity = value.get('id')
+                            if value.get('method') == 'initialize':
+                                version = params.get('protocolVersion') if isinstance(params, dict) else None
+                                record = dict(event='initialize_request', protocol_version=version
+                                              if isinstance(version, str) and re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}', version)
+                                              else None)
+                                with (self.artifacts / 'protocol.jsonl').open('a') as stream:
+                                    stream.write(json.dumps(record) + '\n')
                             if (value.get('method') == 'tools/call' and isinstance(params, dict) and
                                     params.get('name') in ('discover_scripts', 'read_script', 'edit_script') and
                                     isinstance(params.get('arguments'), dict) and type(identity) in (str, int) and
@@ -341,6 +349,18 @@ class McpLifecycleMixin:
                             delivered = time.monotonic()
                             identity = value.get('id')
                             result = value.get('result')
+                            control = None
+                            if isinstance(result, dict):
+                                if 'protocolVersion' in result:
+                                    control = dict(event='initialized', protocol_version=result['protocolVersion'],
+                                                   capabilities=result.get('capabilities'))
+                                elif 'tools' in result:
+                                    control = dict(event='catalog', tools=result['tools'])
+                                elif 'supportedVersions' in result:
+                                    control = dict(event='version_discovery', supported_versions=result['supportedVersions'])
+                            if control is not None:
+                                with (self.artifacts / 'protocol.jsonl').open('a') as stream:
+                                    stream.write(json.dumps(control) + '\n')
                             owned = (pending.pop(identity, None) if type(identity) in (str, int) and
                                      isinstance(result, dict) and isinstance(result.get('structuredContent'), dict) else None)
                             if owned:

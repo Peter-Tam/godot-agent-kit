@@ -581,7 +581,7 @@ def _export_paths(run, captures=False):
         for name in files:
             allowed = ((permitted and name == 'summary.json') or
                        (mcp_proof and (not relative or (captures and base in capture_directories)) and
-                        (name in ('mcp-calls.jsonl', 'delivery.jsonl', 'mcp-stderr.log',
+                        (name in ('mcp-calls.jsonl', 'delivery.jsonl', 'protocol.jsonl', 'mcp-stderr.log',
                                   'later-cached-mcp.json', 'later-absent-mcp.json') or
                          name.endswith('-witness.json'))) or
                        (not relative and name == 'manifest.json') or

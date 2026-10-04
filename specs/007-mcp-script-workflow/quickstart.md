@@ -407,10 +407,14 @@ Project MCP discovery is additive to user/profile/imported definitions; this com
 
 Keep OMP JSONL stdout and stderr separate in private evidence. `message_end` carries completed messages; correlate actual tool execution/call/result events and subsequent model actions with relay/server records and independent guest witnesses. Raw `details.structuredContent`, a catalog listing or an assistant's unsupported success claim is not proof the model obtained the required fields.
 
-Codex's observed exec/config interface permits a separate invocation, retaining normal authentication but not changing user configuration:
+The guest's private `protocol.jsonl` records the actual requested/selected revision,
+version discovery and returned static catalog without client metadata or raw
+requests. `delivery.jsonl` correlates consumed-output timing by domain request ID.
+
+Codex's observed exec/config interface permits read-only checks with normal host authentication and no user-configuration changes. The available GPT-5.5 model uses direct tools; the other listed models require a companion code-mode host that did not start in this environment.
 
 ```sh
-codex exec --ignore-user-config --ephemeral --sandbox read-only --json \
+codex exec --ignore-user-config --ephemeral --sandbox read-only --json --model gpt-5.5 \
   -c 'mcp_servers.godot_agent_kit.command="python3"' \
   -c "mcp_servers.godot_agent_kit.args=[\"$REPO/godot-addon/tests/run_in_vm.py\",\"mcp-stdio\",\"--run-id\",\"$RUN_ID\"]" \
   -c 'mcp_servers.godot_agent_kit.startup_timeout_sec=10' \
@@ -419,6 +423,30 @@ codex exec --ignore-user-config --ephemeral --sandbox read-only --json \
 ```
 
 Use a fresh prepared run for the second client and retain actual tool-call/result transcripts. Client timeout exceeds the server contract so it does not hide the server's deadline result. Deny direct file/shell/private-bridge substitutions; any such substitution invalidates that agent workflow proof. The guest fixture is not a host workspace file path. Do not use global permission-bypass flags. The fixture harness must separately assert state; model claims are not acceptance.
+
+In the exercised environment, `exec` refused an edit because its approval policy
+was `never`. Full mutation acceptance therefore uses the ordinary interactive
+CLI with `--ask-for-approval on-request --sandbox read-only --model gpt-5.5`.
+Obtain human authorization for the owned fixture edits, inspect each requested
+target/change, and select **Allow** for that call. Do not select **Always allow**
+or use a permission-bypass flag.
+
+Keep directory trust invocation-scoped too. The tested TUI accepted a top-level
+inline TOML override, `-c 'projects={"/absolute/owned/checkout"={trust_level="untrusted"}}'`;
+include the canonical checkout path and, for a worktree, its displayed primary
+repository root as applicable. This deliberately leaves project-local
+configuration/hooks untrusted and leaves the normal MCP approval prompts enabled.
+Do not accept a prompt that would persist trust in personal configuration.
+Quoted path segments in dotted `-c` keys did not set the intended entry in the
+exercised client; the inline table did.
+
+`--no-alt-screen` retains the ordinary TUI surface. Its official
+`CODEX_TUI_RECORD_SESSION=1` and `CODEX_TUI_SESSION_LOG_PATH` controls can retain
+private approval-event evidence. Preserve the selected thread's completed
+`mcpToolCall` and `agentMessage` items from the client's normal local history,
+without reading unrelated threads or authentication files. Correlate those
+results, subsequent model arguments/state interpretations and the independent
+guest witnesses; a raw result or a success claim alone still is not acceptance.
 
 For T002, **each client** must actually connect, discover the exact three-tool catalog and perform `discover → read → edit → fresh read` for an eligible open script, cached-clean-R closed script and confirmed-absent-R closed script. Also cover known-target editing without mandatory discovery, unchanged intent and representative informative dirty/limited/non-editable reads. Model-visible source/revision/state and lifecycle-preserving independent postconditions are required, not deferred to a separate acceptance PR. Later opening of a successfully closed-edited target witnesses durability only. T003 adds adversarial/refusal/partial/unknown result interpretation; at least one real-agent conversation supplies T004's full composed A–E. If selected-version negotiation or required result visibility fails, report the actual limitation before claiming support; do not fall back to a custom SDK client or silently drop OMP.
 
