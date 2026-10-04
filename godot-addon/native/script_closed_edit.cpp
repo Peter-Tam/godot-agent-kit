@@ -48,8 +48,8 @@ bool equal(Value a, const Value &b) {
     if (a.type() == GDEXTENSION_VARIANT_TYPE_NIL) { return true; }
     if (a.type() == GDEXTENSION_VARIANT_TYPE_BOOL) { return truth(a) == truth(b); }
     if (a.type() == GDEXTENSION_VARIANT_TYPE_INT) { int64_t x = 0, y = 0; return number(a, x) && number(b, y) && x == y; }
-    Value result;
-    return a.type() == GDEXTENSION_VARIANT_TYPE_DICTIONARY && checked_invoke(result, a, "recursive_equal", {&b}) && truth(result);
+    Value result, depth = integer(0);
+    return a.type() == GDEXTENSION_VARIANT_TYPE_DICTIONARY && checked_invoke(result, a, "recursive_equal", {&b, &depth}) && truth(result);
 }
 bool same_revision(const struct stat &a, const struct stat &b) {
     return same(a, b) && a.st_size == b.st_size && a.st_mode == b.st_mode && a.st_uid == b.st_uid &&
