@@ -164,7 +164,7 @@ class McpLifecycleMixin:
             before, disks = self.state(editor, project)
             desired = CHANGED
             if name == 'unicode':
-                desired += '# café 雪 🐳\n'
+                desired += '# café 雪 \U00010400\n'
             if name == 'empty':
                 desired = SAFE
             if name == 'empty_desired':
