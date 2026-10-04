@@ -292,7 +292,7 @@ fn run_worker(
     )?;
     // No source-bearing preparation before unique authentication and exact native family.
     if !selected.capabilities().edit_open_gdscript
-        || selected.native_api_revision() != 3
+        || selected.native_api_revision() != 4
         || selected.native_build_id().len() != 64
     {
         return Err(error(Reason::UnsupportedEngine));
@@ -647,7 +647,7 @@ pub fn worker_main() -> Option<i32> {
         type Startup = (u32, String, String, Option<String>, String, String, u64);
         let (v, id, root, session, path, registry, elapsed): Startup =
             serde_json::from_slice(&frame).map_err(|_| protocol_failure())?;
-        if v != 5
+        if v != 6
             || elapsed >= 9_500_000
             || registry.len() > 1024
             || !Path::new(&registry).is_absolute()

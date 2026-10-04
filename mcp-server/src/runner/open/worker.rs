@@ -171,7 +171,7 @@ fn attempt(
     ))
     .map_err(|_| protocol_failure())?;
     send(output, &binding)?;
-    if !selected.capabilities().open_gdscript || selected.native_api_revision() != 3 {
+    if !selected.capabilities().open_gdscript || selected.native_api_revision() != 4 {
         return Err(failure(Reason::UnsupportedCapability));
     }
     let mut state = rpc(
@@ -304,7 +304,7 @@ pub fn worker_main() -> Option<i32> {
     type Startup = (u32, String, String, Option<String>, String, String, u64);
     let (v, id, root, session, path, registry, elapsed): Startup =
         serde_json::from_slice(&startup).ok()?;
-    if v != 5
+    if v != 6
         || elapsed >= 9_500_000
         || registry.len() > 1024
         || !Path::new(&registry).is_absolute()

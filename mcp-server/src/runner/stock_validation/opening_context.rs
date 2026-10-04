@@ -57,7 +57,7 @@ enum ContextKind {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Projection {
+pub(crate) struct Projection {
     request_id: String,
     session_id: String,
     project_root: String,
@@ -196,6 +196,7 @@ impl OpeningContext {
         let (projection, _) = self.current().ok()?;
         Some(projection.binding(self.sha256.as_deref()?))
     }
+
     pub(super) fn close_facts(&self) -> Option<(OpeningValidationBinding, usize, String)> {
         let (p, _, bytes) = self.current_with_metadata().ok()?;
         let mut guard = Guard::new();
@@ -297,7 +298,48 @@ impl OpeningValidationBinding {
     }
 }
 impl Projection {
+    pub(crate) fn closed_resource_matches(
+        &self,
+        instance: Option<&str>,
+        edited: Option<bool>,
+    ) -> bool {
+        self.script_id == instance.unwrap_or("0") && self.resource_edited == edited.unwrap_or(false)
+    }
+    fn closed_observed_source(&self, source: &str, sha256: &str) -> bool {
+        self.check_mode(true).is_ok()
+            && source.len() <= SOURCE_LIMIT_BYTES
+            && self.source_sha256 == confined::hex_sha256(source.as_bytes())
+            && decimal(&self.source_length).ok() == Some(source.len() as u64)
+            && self.encoding().is_ok_and(|e| e.finish() == sha256)
+            && source_profile(source, self).is_ok()
+    }
+    pub(crate) fn closed_context_matches(
+        &self,
+        source: &str,
+        sha256: &str,
+        request: &ObservationRequest,
+        target: &ResolvedTarget,
+        warnings: &WarningSettings,
+        classes: &[String],
+    ) -> bool {
+        self.closed_observed_source(source, sha256)
+            && self.request_id == request.request_id().as_str()
+            && self.session_id == target.session_id().as_str()
+            && self.project_root == target.project_root().as_str()
+            && self.project_device == target.project_file_id().device().as_str()
+            && self.project_inode == target.project_file_id().inode().as_str()
+            && self.path == target.script_path().as_str()
+            && self.warnings.enable == warnings.enable
+            && self.warnings.levels == warnings.levels
+            && self.warnings.directory_rules == warnings.directory_rules
+            && self.global_classes == classes
+            && warnings.provenance.project_root == self.project_root
+            && warnings.provenance.session_id == self.session_id
+    }
     fn check(&self) -> Result<(), &'static str> {
+        self.check_mode(false)
+    }
+    fn check_mode(&self, closed: bool) -> Result<(), &'static str> {
         RequestId::new(self.request_id.clone()).map_err(|_| "opening_context_mismatch")?;
         SessionId::new(self.session_id.clone()).map_err(|_| "opening_context_mismatch")?;
         ProjectRoot::new(self.project_root.clone()).map_err(|_| "opening_context_mismatch")?;
@@ -315,9 +357,20 @@ impl Projection {
         ] {
             decimal(counter)?;
         }
-        if [&self.script_id, &self.editor_id, &self.buffer_id]
-            .iter()
-            .any(|id| id.as_str() == "0")
+        let wrong_identity = if closed {
+            self.editor_id != "0"
+                || self.buffer_id != "0"
+                || self.version != "0"
+                || self.saved_version != "0"
+                || self.dirty
+                || self.has_undo
+                || self.has_redo
+        } else {
+            [&self.script_id, &self.editor_id, &self.buffer_id]
+                .iter()
+                .any(|id| id.as_str() == "0")
+        };
+        if wrong_identity
             || !hash(&self.source_sha256)
             || self.script_base_id != "0"
             || self.tool
@@ -782,6 +835,36 @@ pub(super) fn check_receipt(request: &WireRequest, result: &mut ValidationResult
 mod tests {
     use super::super::tests::{admission, project};
     use super::*;
+
+    #[test]
+    fn closed_zero_identifiers_do_not_weaken_open_guard() {
+        let (_temp, request) = project();
+        let mut ctx = context(&request);
+        let p = ctx.projection.as_mut().unwrap();
+        p.editor_id = "0".into();
+        p.buffer_id = "0".into();
+        p.version = "0".into();
+        p.saved_version = "0".into();
+        p.dirty = false;
+        p.resource_edited = false;
+        p.has_undo = false;
+        p.has_redo = false;
+        ctx.sha256 = Some(p.encoding().unwrap().finish());
+        assert!(ctx.checked_binding().is_none());
+        let source = ctx.source.as_deref().unwrap();
+        let hash = ctx.sha256.as_deref().unwrap();
+        assert!(ctx
+            .projection
+            .as_ref()
+            .unwrap()
+            .closed_observed_source(source, hash));
+        ctx.projection.as_mut().unwrap().dirty = true;
+        assert!(!ctx
+            .projection
+            .as_ref()
+            .unwrap()
+            .closed_observed_source(source, hash));
+    }
 
     const CURRENT: &str = "extends RefCounted\nvar value: int = 1 # café\n";
 

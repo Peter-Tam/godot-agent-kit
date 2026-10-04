@@ -58,13 +58,13 @@ The loader checks the running engine version/full commit and executable SHA-256.
 `configure(session_id)` binds the actual project and existing 32-lowercase-hex
 bridge or owned-fixture session; `close()` and editor shutdown release state.
 Unmatched or missing binaries fail closed without changing observation.
-Bridge v5 authenticates nine capability bits and the installed revision-3 native
+Bridge v6 authenticates ten capability bits and the installed revision-4 native
 build. Editing, opening and closing require their matched complete native and
 transport families; public observation/edit/open/discovery stay v1. The distinct
 `close-gdscript` caller uses the authenticated `close_gdscript` capability.
 The read-only discovery/observation owners do not require native mutation
 availability. Rebuild/install Rust, addon and native peers together, then
-restart the editor; v4 peers and revision-2 bundles have no fallback.
+restart the editor; v5 peers and revision-3 bundles have no fallback.
 
 The editor-local `godot_agent_kit_native` metadata exposes `configure`, `close`,
 `api_revision`, `build_id`, read-only `edit_inspect`, `edit_prepare`,
@@ -72,11 +72,11 @@ The editor-local `godot_agent_kit_native` metadata exposes `configure`, `close`,
 `open_inspect`, `open_prepare`, `open_advance`, `open_verify`, `open_recheck`,
 `open_finish`, `open_abort` and `open_expire`. The closing family is
 `close_inspect`, `close_prepare`, `close_advance`, `close_status`, `close_verify`,
-`close_recheck`, `close_finish`, `close_abort` and `close_expire`. Revision `3`
+`close_recheck`, `close_finish`, `close_abort` and `close_expire`. Revision `4`
 and the matched build ID are authenticated; unavailable tooling cannot
 advertise editing or opening. Stock validation stays in the supervised Rust
 helper, never a native fallback.
-`session.cpp` owns one edit/open/close session owner; `document_guard` owns shared
+`session.cpp` owns one shared edit/open/close/closed-edit session slot; `document_guard` owns shared
 read/identity/document checks. Editing and its Save-format/write/T0/saved-state
 steps remain in `script_document.cpp`; opening stages remain in `script_open.cpp`.
 Shared source/effective/compiled-context acquisition belongs to `editor_context`,
@@ -86,6 +86,51 @@ in `extension.cpp`. The [closing native contract](../../specs/005-close-project-
 [opening native contract](../../specs/003-open-project-gdscript/contracts/native-integration.md)
 and [editing contract](../../specs/002-edit-open-gdscript/contracts/native-integration.md#7-current-private-implementation-boundary)
 distinguish stage facts from independent verification.
+
+The closed-source family is `closed_inspect(path, correlation)`,
+`closed_prepare(path, expected, desired, correlation)`,
+`closed_apply(request, source_sha256, context_sha256)`,
+`closed_verify(request, purpose)`, `closed_recheck(request, purpose)`,
+`closed_finish(request)`, `closed_abort(request)` and `closed_expire()`.
+`edit_closed_gdscript` is the appended authenticated capability. The read supplement
+claims no retained mutation slot and never loads a target. Preparation retains only
+an actually present clean cached GDScript; agreeing passive getters establish absent
+R without creating a Resource. An owned public `script_close` callback advances the
+session close epoch on every notification, including unrelated scripts; reconfiguration
+advances rather than resets it and overflow disables closed bases.
+
+`script_closed_edit.cpp` owns confined original/replacement admission, exact file
+revision and cache/roster/epoch guards, retained descriptors and the synchronous
+source-only effect boundary. Present R uses explicit `Script.set_source_code`, not
+the reload property. Both branches persist with same-fd bounded pwrite, truncate,
+fsync and independent pread, then restore original mtime with atime omitted and
+new ctime preserved. Every stage repeats guards; newer work stops the attempt without
+rollback or repair. There is no buffer/history operation, Save, dirty clearing, reload,
+open or close. An equal intent follows validation and independent observation without
+effect entry. Loaded class/runtime code is not refreshed or certified by this operation.
+Native receipts report entry and completed steps, never a public success verdict.
+
+Closed state is `{project_device, project_inode, file_revision, close_epoch,
+lifecycle, resource}`. File revision contains `{device, inode, utf8_bytes, sha256,
+mtime, ctime}`; times contain signed decimal `seconds` and integer `nanoseconds`.
+Resource contains `{state, instance_id, path, source, edited, profile_sha256}`.
+Absent resources have null optional facts. Expected state excludes lifecycle and
+replaces resource source with `source_sha256`/`utf8_bytes`. Identifiers and lengths
+are canonical decimal strings. Context reuses the existing warning/global-class,
+effective/compiled and isolated-stock-validator projection; closed buffer identifiers
+are zero/not-applicable, never evidence of an invented editor. Wire context adds the
+existing validator capture as `validation` alongside `{projection, source, sha256}`.
+Private tuples and the independent verification obligations are specified in the
+[closed transaction contract](../../specs/007-mcp-script-workflow/contracts/closed-edit.md).
+
+Only separately built `--fixture-faults` artifacts expose `closed_fixture_fault`
+and `closed_fixture_state`. An empty request arms the next inspect/prepare; an owned
+prepared request arms that attempt. Faults include missing cache/roster/context,
+epoch reset/overflow, partial/lost write, failed mtime and before/after-effect expiry.
+Fixture callback metadata `godot_agent_kit_closed_fixture_callback` receives request
+and stage at `before_apply`, `after_resource`, `before_write`, `after_write`,
+`after_mtime` and `before_verify`. Production builds contain neither fixture exports
+nor callback calls; the builder requires a separate fixture output directory.
 
 The native directory has `.gdignore`: the editor plugin loads its installed
 manifest explicitly through `GDExtensionManager`, while an unbuilt checkout
@@ -97,7 +142,7 @@ or a dangling runtime extension dependency.
 ## Guarded caller integration
 
 Build `observe-gdscript` and `edit-gdscript` from `mcp-server/` with locked
-resolution. Restart the editor with the updated addon to create a new v5 session, obtain a
+resolution. Restart the editor with the updated addon to create a new v6 session, obtain a
 fresh observation, and submit the complete basis plus replacement source through
 stdin using the [caller contract](../../specs/002-edit-open-gdscript/contracts/edit-api.md).
 The caller owns validation supervision and a 9.5-second operation budget with
@@ -216,7 +261,7 @@ only admitted sources, checks the exact official binary and its loopback listene
 requires each URI's diagnostics before its shaped symbol response, discards all
 raw child output and owns teardown. Effective editor context must be freshly
 acquired and rechecked by the trusted integration through authenticated
-bridge-v5 ProjectSettings observations, not inferred from disk configuration.
+bridge-v6 ProjectSettings observations, not inferred from disk configuration.
 Unsupported context and incomplete evidence remain unavailable, not invalid or
 valid by omission. The stock endpoint's documented inherited limitation remains;
 private staging is context isolation, not an OS sandbox.

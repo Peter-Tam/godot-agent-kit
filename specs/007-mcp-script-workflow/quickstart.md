@@ -1,6 +1,6 @@
 # Quickstart: Validate the Trusted MCP Script Workflow
 
-**Status:** Planning/validation contract only. The MCP binary, new closed transaction and MCP runner commands below are **implementation deliverables, not present commands at this planning head**. Existing availability checks are identified separately. This guide defines their exact intended invocation and expected evidence; it does not implement them or claim they ran.
+**Status:** T001 implementation and integrated verification are in progress. Its supervised fixture consumer and `closed-native`/`closed-lifecycle` runners exist; real-editor acceptance is not yet recorded. The MCP binary, transport group and real-client commands below remain T002 deliverables, not available product commands or interoperability claims.
 
 Read [plan.md](plan.md), [data-model.md](data-model.md) and [the public contract](contracts/mcp-interface.md). Follow [TEST_POLICY.md](../../TEST_POLICY.md) for scope, evidence reuse and the existing [VM boundary](../../.github/LOCAL_VM.md). No command authorizes a feature task before its own approved tasks/analysis and one-task-one-PR prerequisites.
 
@@ -45,6 +45,36 @@ cargo +1.98.1 doc --no-deps --locked
 ```
 
 Retain default doctests. Native/bridge changes also require their directly affected build/loading/boundary evidence. Do not run these product commands merely because planning documentation changed.
+
+## T001 protocol-independent consumer
+
+T001 adds `script_read::{ScriptRevision, ScriptEditRequest, ScriptReadResult}`
+and supervised `runner::read::{run, edit}`. Read returns exact permitted source,
+useful editor state and a nullable `sr1:` revision. Edit freshly authenticates and
+acquires state, compares that revision, then freezes the matching open or closed
+basis under the original clock. The legacy open-only caller still refuses closed
+targets. Loaded Script source coherence does not imply class or runtime hot reload.
+
+The example is acceptance apparatus, not a new product CLI or MCP adapter:
+
+```sh
+cd mcp-server
+cargo +1.98.1 build --locked --lib --bins --example script_workflow_fixture
+printf '%s\n' '{"operation":"read","request_id":"read-example"}' |
+  ./target/debug/examples/script_workflow_fixture \
+    --registry "$REGISTRY" --project "$PROJECT" --script "$SCRIPT" --session "$SESSION"
+```
+
+An intentional edit supplies only `operation: "edit"`, a new `request_id`,
+the returned non-null `revision` and exact `replacement_source`, with the same
+explicit selectors. A null revision or failed/uncertain edit is not permission
+to retry or change document lifecycle. Native RPCs and private captures are not
+fixture consumer arguments.
+
+Install matched Rust/addon **bridge v6/native revision 4** peers together and
+restart/re-enable for a new authenticated session. Rebuild production and separate
+fixture-fault native artifacts; never install the latter for ordinary use.
+Old v5/revision-3 sessions and bases have no fallback.
 
 ## Owned MCP fixture interfaces after implementation
 

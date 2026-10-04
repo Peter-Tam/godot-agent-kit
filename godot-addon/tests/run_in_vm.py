@@ -298,7 +298,7 @@ def _parser():
                        help="explicitly acknowledge deletion of guest workspaces and evidence")
     for operation in ("run", "campaign"):
         run = commands.add_parser(operation)
-        run.add_argument("suite", choices=(*_SUITES, "all") if operation == "campaign" else _SUITES)
+        run.add_argument("suite", choices=(*_SUITES, "all") if operation == "campaign" else (*_SUITES, "mcp"))
         run.add_argument("--revision", help="committed revision; default HEAD requires a clean worktree")
         run.add_argument("--run-id", type=_run_id)
         run.add_argument("--captures", action="store_true", help="retrieve private source-bearing guest screenshots too")

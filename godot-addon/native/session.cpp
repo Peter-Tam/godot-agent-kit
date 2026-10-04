@@ -178,12 +178,15 @@ void close(Session &session) {
     if (session.call_state != Session::CallState::Idle) {
         open_closing(session);
         close_closing(session);
+        closed_closing(session);
         session.call_state = Session::CallState::Closing;
         return;
     }
     edit_cleanup(session);
     open_cleanup(session);
     close_cleanup(session);
+    closed_cleanup(session);
+    closed_disconnect(session);
     if (session.project_fd >= 0) { ::close(session.project_fd); }
     session.project_fd = -1;
     session.project_path.clear();
@@ -214,6 +217,7 @@ bool configure(Session &session, const std::string &session_id) {
     session.device = device;
     session.inode = inode;
     session.session_id = session_id;
+    if (!closed_configure(session)) { close(session); return false; }
     return true;
 }
 

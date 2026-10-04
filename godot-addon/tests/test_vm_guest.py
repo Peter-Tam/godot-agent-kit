@@ -77,19 +77,29 @@ class GuestTests(unittest.TestCase):
         script = (b'import json,sys\nfrom pathlib import Path\n'
                   b'p=Path(sys.argv[sys.argv.index("--artifacts")+1])\n'
                   b'(p/"summary.json").write_text(json.dumps({"status":"failed"}))\n'
+                  b'(p/"private.json").write_text(json.dumps({"source":"never-export"}))\n'
                   b'raise SystemExit(3)\n')
-        self.sync({'godot-addon/tests/run_script_edit.py': script})
         environment = {'gui': 'available'}
         guest._save(self.root / 'provision.json', {'environment': environment, 'identity': 'stable', 'generation': 'generation'})
-        args = argparse.Namespace(action='run', revision='a' * 40, run_id='failed', suite='edit', scenario='clean-open')
         import subprocess
-        with patch.object(guest, '_snapshot', return_value=environment), patch.object(guest, '_build', return_value={}), patch.object(guest, '_runner_options', return_value=[]), patch.object(guest, '_command', return_value=subprocess.CompletedProcess([], 1, '', '')), patch('sys.stdout', new=io.StringIO()):
-            status = guest._run(self.root, args)
-        self.assertEqual(status, 3)
-        run = self.root / 'runs/failed'
-        self.assertEqual(json.loads((run / 'provenance.json').read_text())['exit_code'], 3)
-        self.assertEqual(json.loads((run / 'artifacts/summary.json').read_text()), {'status': 'failed'})
-        self.assertEqual(os.stat(run).st_mode & 0o777, 0o700)
+        for suite, runner, scenario in (('edit', 'run_script_edit.py', 'clean-open'),
+                                        ('mcp', 'run_mcp.py', 'closed-native')):
+            with self.subTest(suite=suite):
+                self.sync({'godot-addon/tests/' + runner: script})
+                args = argparse.Namespace(action='run', revision='a' * 40, run_id=suite,
+                                          suite=suite, scenario=scenario)
+                with patch.object(guest, '_snapshot', return_value=environment), patch.object(guest, '_build', return_value={}), patch.object(guest, '_runner_options', return_value=[]), patch.object(guest, '_command', return_value=subprocess.CompletedProcess([], 1, '', '')), patch('sys.stdout', new=io.StringIO()):
+                    status = guest._run(self.root, args)
+                self.assertEqual(status, 3)
+                run = self.root / 'runs' / suite
+                provenance = json.loads((run / 'provenance.json').read_text())
+                self.assertEqual(provenance['exit_code'], 3)
+                self.assertEqual(provenance['revision'], 'a' * 40)
+                self.assertEqual(provenance['suite'], suite)
+                self.assertEqual(json.loads((run / 'artifacts/summary.json').read_text()), {'status': 'failed'})
+                self.assertEqual(os.stat(run).st_mode & 0o777, 0o700)
+                exported = {p.relative_to(run).as_posix() for p in guest._export_paths(run)}
+                self.assertEqual(exported, {'provenance.json', 'artifacts/summary.json'})
 
     def test_archive_traversal_and_symlink_are_rejected(self):
         for name in ('../escape', '/escape', 'a/../escape', 'a\\escape'):
@@ -199,6 +209,7 @@ class GuestTests(unittest.TestCase):
         for argv in (['exec', 'id'], ['export', '--run-id', '../private'],
                      ['run', '--revision', 'HEAD', '--run-id', 'ok', '--suite', 'edit', '--scenario', 'clean-open'],
                      ['run', '--revision', 'a' * 40, '--run-id', 'ok', '--suite', 'edit', '--scenario', 'clean-open;id'],
+                     ['campaign', '--revision', 'a' * 40, '--run-id', 'ok', '--suite', 'mcp'],
                      ['campaign', '--revision', 'a' * 40, '--run-id', 'ok', '--suite', 'edit', '--headless']):
             with self.subTest(argv=argv), self.assertRaises(SystemExit), patch('sys.stderr', new=io.StringIO()):
                 parser.parse_args(argv)

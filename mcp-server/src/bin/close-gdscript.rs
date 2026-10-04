@@ -154,6 +154,17 @@ fn deliver(value: godot_agent_kit::script_close::ClosingOutcome) -> i32 {
 fn main() -> ExitCode {
     let clock = AttemptClock::start();
     let args: Vec<_> = env::args_os().skip(1).collect();
+    if matches!(args.as_slice(), [arg] if arg == runner::closed_edit::INTERNAL_WORKER_FLAG) {
+        if let Some(code) = runner::closed_edit::worker_main() {
+            return ExitCode::from(code as u8);
+        }
+    }
+    if matches!(args.as_slice(), [arg] if arg == runner::closed_edit::INTERNAL_ACQUISITION_WORKER_FLAG)
+    {
+        if let Some(code) = runner::closed_edit::acquisition_worker_main() {
+            return ExitCode::from(code as u8);
+        }
+    }
     if matches!(args.as_slice(),[arg] if arg==runner::close::INTERNAL_WORKER_FLAG) {
         if let Some(code) = runner::close::worker_main() {
             return ExitCode::from(code as u8);

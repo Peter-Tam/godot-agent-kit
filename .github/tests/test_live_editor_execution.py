@@ -104,7 +104,7 @@ elif name == "python3" and args[0] == "godot-addon/native/build.py":
     target.mkdir(parents=True, exist_ok=True)
     (target / "libeditor_integration.macos.arm64.dylib").write_text("fixture" if is_fixture else "product")
     (target / "build-manifest.json").write_text(json.dumps({
-        "fixture_only": is_fixture, "native_api_revision": 3, "native_family": "editor_integration",
+        "fixture_only": is_fixture, "native_api_revision": 4, "native_family": "editor_integration",
         "native_library": "libeditor_integration.macos.arm64.dylib",
         "entry_symbol": "editor_integration_library_init",
         "native_build_id": "f" * 64 if is_fixture else "e" * 64}))

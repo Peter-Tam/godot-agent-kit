@@ -17,7 +17,7 @@ HERE = Path(__file__).resolve().parent
 ADDON = HERE.parent / "addons" / "godot_agent_kit" / "native"
 BUILD = HERE / "build"
 SOURCES = ("extension.cpp", "session.cpp", "document_guard.cpp", "script_document.cpp",
-           "editor_context.cpp", "open_context.cpp", "script_open.cpp", "script_close.cpp")
+           "editor_context.cpp", "open_context.cpp", "script_open.cpp", "script_close.cpp", "script_closed_edit.cpp")
 HEADERS = ("native.hpp", "document_guard.hpp", "editor_context.hpp", "open_context.hpp")
 DESCRIPTOR = """[configuration]
 entry_symbol = "editor_integration_library_init"
@@ -238,7 +238,7 @@ def main(argv=None):
     manifest = {
         "base_commit": BASE, "engine_version": version, "engine_binary": str(engine), "engine_sha256": engine_sha,
         "fixture_only": args.fixture,
-        "native_api_revision": 3, "native_family": "editor_integration",
+        "native_api_revision": 4, "native_family": "editor_integration",
         "native_library": output.name, "entry_symbol": "editor_integration_library_init",
         "abi_sha256": digest(abi_json), "api_sha256": digest(api_json), "header_sha256": digest(header),
         "native_build_id": build_id, "native_library_sha256": digest(output),

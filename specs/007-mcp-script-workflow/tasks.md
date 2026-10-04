@@ -2,7 +2,7 @@
 
 **Input:** Design documents in `specs/007-mcp-script-workflow/`: [specification](spec.md), [plan](plan.md), [research](research.md), [data model](data-model.md), [MCP contract](contracts/mcp-interface.md), [execution contract](contracts/execution.md), [closed-edit contract](contracts/closed-edit.md) and [validation guide](quickstart.md).
 
-**Status:** Revised to four coherent pending implementation tasks at the maintainer's request. The previous six-task decomposition is superseded; no Feature 007 implementation task had started or completed. The renewed granularity review is recorded below. Consistency analysis and implementation have not run; no implementation task is selected or authorized by this correction.
+**Status:** Four approved implementation tasks following the renewed granularity review and [passed consistency analysis](analysis.md). The implementation-prerequisite check found exact matching fingerprints and no semantic design drift. Only T001 is selected and in progress on `task/T001-trusted-script-execution`; integrated verification must finish before its checkbox is marked complete. T002–T004 remain pending.
 
 **Prerequisites:** Review the selected technical plan, complete `/speckit.analyze` after granularity review, and satisfy the repository's implementation prerequisites before selecting exactly one dependency-ready task. Verify the active directory as `specs/007-mcp-script-workflow`; task branch names do not select it.
 

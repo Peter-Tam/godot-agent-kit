@@ -8,9 +8,11 @@
 
 pub mod observation;
 pub mod script_close;
+pub(crate) mod script_closed_edit;
 pub mod script_discovery;
 pub mod script_edit;
 pub mod script_open;
+pub mod script_read;
 
 pub mod bridge;
 pub mod project_fs;

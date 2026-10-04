@@ -86,9 +86,11 @@ bool engine_revision() {
 enum class Action { Configure, Close, Revision, BuildId, Inspect, Prepare, Advance, Cancel, Expire,
     OpenInspect, OpenPrepare, OpenAdvance, OpenVerify, OpenRecheck, OpenFinish, OpenAbort, OpenExpire,
     CloseInspect, ClosePrepare, CloseAdvance, CloseStatus, CloseVerify, CloseRecheck, CloseFinish, CloseAbort, CloseExpire,
+    ClosedInspect, ClosedPrepare, ClosedApply, ClosedVerify, ClosedRecheck, ClosedFinish, ClosedAbort, ClosedExpire,
 #if GAK_FIXTURE
     FixtureFault, OpenFixtureFault, OpenFixtureState,
     CloseFixtureFault, CloseFixtureState,
+    ClosedFixtureFault, ClosedFixtureState,
 #endif
 };
 
@@ -102,7 +104,7 @@ void native_callback(void *userdata, const GDExtensionConstVariantPtr *arguments
     }
     if (action == Action::Revision) {
         if (count == 0 && std::this_thread::get_id() == session.main_thread && engine_revision()) {
-            copy_into(destination, integer(3));
+            copy_into(destination, integer(4));
         } else { copy_into(destination, integer(0)); }
         return;
     }
@@ -203,6 +205,26 @@ void native_callback(void *userdata, const GDExtensionConstVariantPtr *arguments
         }
         copy_into(destination, result);
     }
+    if (action >= Action::ClosedInspect && action <= Action::ClosedExpire) {
+        Value result;
+        if (std::this_thread::get_id() == session.main_thread) {
+            if (action == Action::ClosedExpire && count == 0) { result = closed_expire(session); }
+            else if (action == Action::ClosedInspect && count == 2) {
+                Value path(arguments[0]), correlation(arguments[1]); result = closed_inspect(session, path, correlation);
+            } else if (action == Action::ClosedPrepare && count == 4) {
+                Value path(arguments[0]), expected(arguments[1]), desired(arguments[2]), correlation(arguments[3]);
+                result = closed_prepare(session, path, expected, desired, correlation);
+            } else if (action == Action::ClosedApply && count == 3) {
+                Value request(arguments[0]), source(arguments[1]), context(arguments[2]); result = closed_apply(session, request, source, context);
+            } else if ((action == Action::ClosedVerify || action == Action::ClosedRecheck) && count == 2) {
+                Value request(arguments[0]), purpose(arguments[1]);
+                result = action == Action::ClosedVerify ? closed_verify(session, request, purpose) : closed_recheck(session, request, purpose);
+            } else if ((action == Action::ClosedFinish || action == Action::ClosedAbort) && count == 1) {
+                Value request(arguments[0]); result = action == Action::ClosedFinish ? closed_finish(session, request) : closed_abort(session, request);
+            }
+        }
+        copy_into(destination, result);
+    }
 #if GAK_FIXTURE
     if (action == Action::FixtureFault) {
         Value result;
@@ -219,6 +241,19 @@ void native_callback(void *userdata, const GDExtensionConstVariantPtr *arguments
                 Value request(arguments[0]), fault(arguments[1]); result = open_fixture_fault(session, request, fault);
             } else if (action == Action::OpenFixtureState && count == 1) {
                 Value request(arguments[0]); result = open_fixture_state(session, request);
+            }
+        }
+        copy_into(destination, result);
+    }
+#endif
+#if GAK_FIXTURE
+    if (action == Action::ClosedFixtureFault || action == Action::ClosedFixtureState) {
+        Value result;
+        if (std::this_thread::get_id() == session.main_thread) {
+            if (action == Action::ClosedFixtureFault && count == 2) {
+                Value request(arguments[0]), fault(arguments[1]); result = closed_fixture_fault(session, request, fault);
+            } else if (action == Action::ClosedFixtureState && count == 1) {
+                Value request(arguments[0]); result = closed_fixture_state(session, request);
             }
         }
         copy_into(destination, result);
@@ -249,10 +284,14 @@ Action open_finish_action = Action::OpenFinish, open_abort_action = Action::Open
 Action close_inspect_action = Action::CloseInspect, close_prepare_action = Action::ClosePrepare, close_advance_action = Action::CloseAdvance;
 Action close_status_action = Action::CloseStatus, close_verify_action = Action::CloseVerify, close_recheck_action = Action::CloseRecheck;
 Action close_finish_action = Action::CloseFinish, close_abort_action = Action::CloseAbort, close_expire_action = Action::CloseExpire;
+Action closed_inspect_action = Action::ClosedInspect, closed_prepare_action = Action::ClosedPrepare, closed_apply_action = Action::ClosedApply;
+Action closed_verify_action = Action::ClosedVerify, closed_recheck_action = Action::ClosedRecheck;
+Action closed_finish_action = Action::ClosedFinish, closed_abort_action = Action::ClosedAbort, closed_expire_action = Action::ClosedExpire;
 #if GAK_FIXTURE
 Action fault_action = Action::FixtureFault;
 Action open_fault_action = Action::OpenFixtureFault, open_state_action = Action::OpenFixtureState;
 Action close_fault_action = Action::CloseFixtureFault, close_state_action = Action::CloseFixtureState;
+Action closed_fault_action = Action::ClosedFixtureFault, closed_state_action = Action::ClosedFixtureState;
 #endif
 
 Value callable(Action &action) {
@@ -315,12 +354,22 @@ void editor_initialize(void *, GDExtensionInitializationLevel level) {
     put(metadata, "close_finish", callable(close_finish_action));
     put(metadata, "close_abort", callable(close_abort_action));
     put(metadata, "close_expire", callable(close_expire_action));
+    put(metadata, "closed_inspect", callable(closed_inspect_action));
+    put(metadata, "closed_prepare", callable(closed_prepare_action));
+    put(metadata, "closed_apply", callable(closed_apply_action));
+    put(metadata, "closed_verify", callable(closed_verify_action));
+    put(metadata, "closed_recheck", callable(closed_recheck_action));
+    put(metadata, "closed_finish", callable(closed_finish_action));
+    put(metadata, "closed_abort", callable(closed_abort_action));
+    put(metadata, "closed_expire", callable(closed_expire_action));
 #if GAK_FIXTURE
     put(metadata, "edit_fixture_fault", callable(fault_action));
     put(metadata, "open_fixture_fault", callable(open_fault_action));
     put(metadata, "open_fixture_state", callable(open_state_action));
     put(metadata, "close_fixture_fault", callable(close_fault_action));
     put(metadata, "close_fixture_state", callable(close_state_action));
+    put(metadata, "closed_fixture_fault", callable(closed_fault_action));
+    put(metadata, "closed_fixture_state", callable(closed_state_action));
 #endif
     Value done = call(engine, "Object", "set_meta", 3776071444ULL, {&key, &metadata});
     (void)done;

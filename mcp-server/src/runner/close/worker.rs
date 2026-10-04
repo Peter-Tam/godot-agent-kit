@@ -197,7 +197,7 @@ fn attempt(
         ))
         .map_err(|_| protocol_failure())?,
     )?;
-    if !selected.capabilities().close_gdscript || selected.native_api_revision() != 3 {
+    if !selected.capabilities().close_gdscript || selected.native_api_revision() != 4 {
         return Err(RoutingFailure::new(
             OutcomeKind::UnsupportedObservation,
             DiagnosticCode::UnsupportedCapability,
@@ -334,7 +334,7 @@ pub fn worker_main() -> Option<i32> {
         Ok(startup) => startup,
         Err(_) => return Some(1),
     };
-    if v != 5
+    if v != 6
         || elapsed >= 9_500_000
         || registry.len() > 1024
         || !Path::new(&registry).is_absolute()

@@ -55,7 +55,7 @@ pub(crate) fn encode_control(
     }
     let bytes = if control == Control::Begin {
         serde_json::to_vec(&(
-            5,
+            6,
             control.opcode(),
             request.request_id().as_str(),
             &target.session_id,
@@ -64,7 +64,7 @@ pub(crate) fn encode_control(
         ))
     } else {
         serde_json::to_vec(&(
-            5,
+            6,
             control.opcode(),
             request.request_id().as_str(),
             &target.session_id,
@@ -101,7 +101,7 @@ fn bound(
     target: &DiscoveryTarget,
     advertised: &str,
 ) -> bool {
-    v == 5
+    v == 6
         && kind == expected
         && id == request.request_id().as_str()
         && session == target.session_id
@@ -214,7 +214,7 @@ pub(crate) fn binding_changed(
         _ => None,
     };
     fields.is_some_and(|(v, kind, id, session, root)| {
-        v == 5
+        v == 6
             && kind == expected_kind
             && id == request.request_id().as_str()
             && target.valid(request)

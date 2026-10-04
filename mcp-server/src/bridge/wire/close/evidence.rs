@@ -177,7 +177,7 @@ pub(crate) fn decode_reply(
     macro_rules! base {
         ($r:expr) => {{
             let r = $r;
-            if r.v != 5
+            if r.v != 6
                 || r.kind != kind
                 || r.request_id != request.request_id().as_str()
                 || r.session_id != target.session_id().as_str()
@@ -195,7 +195,7 @@ pub(crate) fn decode_reply(
                 if n.request_id != request.request_id().as_str()
                     || n.session_id != target.session_id().as_str()
                     || n.script_path != request.script_path().as_str()
-                    || n.native_api_revision != 3
+                    || n.native_api_revision != 4
                     || n.native_build_id.is_empty()
                     || n.native_build_id.len() > 128
                     || ![

@@ -743,7 +743,7 @@ class CloseNativeAcceptanceMixin:
             for opcode in ("edit_prepare", "open_begin"):
                 stream, peer_id = self.authenticated_peer(descriptor)
                 try:
-                    request = [5, opcode, peer_id, descriptor["session_id"], descriptor["project_root"], TARGET]
+                    request = [6, opcode, peer_id, descriptor["session_id"], descriptor["project_root"], TARGET]
                     if opcode == "open_begin":
                         request.append(9000)
                     else:

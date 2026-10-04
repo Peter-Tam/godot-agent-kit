@@ -280,6 +280,7 @@ mod ownership;
 #[path = "stock_validation/protocol.rs"]
 mod protocol;
 use admission::*;
+pub(crate) use opening_context::Projection as ClosedContextProjection;
 pub use opening_context::{OpeningContext, OpeningValidationBinding};
 use ownership::*;
 use protocol::*;

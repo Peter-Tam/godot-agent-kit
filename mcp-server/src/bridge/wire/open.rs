@@ -430,7 +430,7 @@ fn relation(v: &str) -> Result<&'static str, RoutingFailure> {
 }
 macro_rules! base {
     ($v:ident,$kind:expr,$request:expr,$target:expr,$advertised:expr,$receipt:expr) => {{
-        if $v.v != 5
+        if $v.v != 6
             || $v.kind != $kind
             || $v.request_id != $request.request_id().as_str()
             || $v.session_id != $target.session_id().as_str()
@@ -674,7 +674,7 @@ fn exchange(
     if selected.target().request_id() != request.request_id()
         || selected.target().script_path() != request.script_path()
         || !selected.capabilities().open_gdscript
-        || selected.native_api_revision() != 3
+        || selected.native_api_revision() != 4
     {
         return Err(bad(Stage::ReadEditor));
     }
@@ -705,7 +705,7 @@ pub(crate) fn call(
         Text(&'a str),
     }
     let mut tuple = vec![
-        Item::Number(5),
+        Item::Number(6),
         Item::Text(opcode),
         Item::Text(request.request_id().as_str()),
         Item::Text(selected.target().session_id().as_str()),
@@ -764,7 +764,7 @@ pub(crate) fn release(
     let local = Instant::now() + Duration::from_millis(20);
     let deadline = at.min(local);
     let Ok(bytes) = serde_json::to_vec(&(
-        5,
+        6,
         if abort { "open_abort" } else { "open_finish" },
         request.request_id().as_str(),
         selected.target().session_id().as_str(),

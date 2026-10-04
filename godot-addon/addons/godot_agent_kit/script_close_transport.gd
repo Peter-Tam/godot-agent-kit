@@ -107,7 +107,7 @@ func _envelope(peer: Dictionary, kind: String, started: int, result: Dictionary)
 		native = {}
 		for key in NATIVE_FIELDS:
 			native[key] = facts.get(key)
-	return {"v": 5, "kind": kind, "request_id": peer.request_id,
+	return {"v": 6, "kind": kind, "request_id": peer.request_id,
 		"session_id": peer.get("close_session", _bridge.get("_session")),
 		"project_root": peer.get("close_project", _bridge.get("_project")),
 		"script_path": peer.get("close_path", ""),
@@ -162,7 +162,7 @@ func handle(peer: Dictionary, value: Array, size: int) -> void:
 			_refuse(peer, path, "slot_busy")
 			return
 		var owner: Variant = _bridge.get("_close_owner")
-		if not peer.auth_capabilities.close_gdscript or peer.auth_native_revision != 3 \
+		if not peer.auth_capabilities.close_gdscript or peer.auth_native_revision != 4 \
 				or peer.auth_native_build_id != _bridge.get("_native_build_id") or not is_instance_valid(owner):
 			_refuse(peer, path, "unsupported_capability")
 			return
@@ -213,7 +213,7 @@ func _recheck(peer: Dictionary, result: Dictionary, started: int) -> Dictionary:
 	var observed: Variant = result.get("recheck")
 	if observed is Dictionary:
 		return observed
-	return {"v": 5, "kind": "recheck", "request_id": peer.request_id,
+	return {"v": 6, "kind": "recheck", "request_id": peer.request_id,
 		"session_id": peer.close_session, "project_root": peer.close_project, "script_path": peer.close_path,
 		"collection": _bridge.call("_editor_stamp", started), "checks": "unavailable",
 		"detected_changes": [], "reason": "unavailable"}

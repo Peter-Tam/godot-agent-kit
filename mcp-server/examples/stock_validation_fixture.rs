@@ -176,6 +176,12 @@ fn close_fixture(input: CloseFixture) {
 }
 fn main() {
     let clock = AttemptClock::start();
+    if let Some(code) = godot_agent_kit::runner::closed_edit::worker_main() {
+        std::process::exit(code);
+    }
+    if let Some(code) = godot_agent_kit::runner::closed_edit::acquisition_worker_main() {
+        std::process::exit(code);
+    }
     if std::env::args().len() == 2
         && std::env::args().nth(1).as_deref() == Some(stock_validation::INTERNAL_FLAG)
     {

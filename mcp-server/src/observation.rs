@@ -2253,6 +2253,55 @@ pub struct ObservationOutcome {
     selection: Option<Selection>,
 }
 impl ObservationOutcome {
+    pub(crate) fn supplement_recheck(
+        &self,
+        request: ObservationRequest,
+        interval: ObservationInterval,
+        changes: Vec<DetectedChange>,
+        failure: Option<TerminalFailure>,
+        lifecycle_changed: bool,
+    ) -> Result<Self, EvidenceError> {
+        let evidence = self
+            .snapshot
+            .as_ref()
+            .map(|s| {
+                let mut document = s.document.clone();
+                let mut sources = s.sources.clone();
+                let mut dirty = s.dirty.clone();
+                if lifecycle_changed {
+                    document.open_state.invalidate(FactReason::IdentityChanged);
+                    sources.buffer.invalidate(SourceReason::IdentityChanged)?;
+                    dirty.invalidate(DirtyReason::IdentityChanged)?;
+                }
+                let changes = s
+                    .consistency
+                    .detected_changes
+                    .iter()
+                    .copied()
+                    .chain(changes)
+                    .collect();
+                let recheck = match s.consistency.recheck_reason {
+                    Some(reason) => Recheck::partial(reason, changes),
+                    None => Recheck::performed(changes),
+                };
+                Ok::<_, EvidenceError>(ObservationEvidence::new(
+                    s.target.clone(),
+                    document,
+                    sources,
+                    dirty,
+                    recheck,
+                ))
+            })
+            .transpose()?;
+        Self::classify(
+            request,
+            interval,
+            self.resolved_target.clone(),
+            evidence,
+            failure.into_iter().collect(),
+            self.diagnostics.clone(),
+        )
+    }
     /// Reduce one attempt's trusted evidence and explicit terminal signals. Signals are
     /// ordered by safety precedence, not arrival order. Denial and ambiguity suppress
     /// *all* source, including previously invalidated evidence. An interrupted attempt

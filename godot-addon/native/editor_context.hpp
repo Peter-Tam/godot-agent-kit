@@ -38,6 +38,11 @@ const char *editor_context(const Session &session, const std::string &request,
         const OpeningEffective &effective, const Binding &document, OpeningContext &out,
         const OpeningContext *retained = nullptr, size_t metadata_budget = 256 * 1024,
         bool emit_projection = true);
+// Closed targets have no document/buffer. Inspect the retained passive Script
+// and reuse the same effective, compiled and validator projection conventions.
+const char *closed_context(const Session &session, const std::string &request,
+        const std::string &path, const std::string &source, const OpeningEffective &effective,
+        const Value &script, OpeningContext &out, std::string &profile_hash);
 bool opening_bindings_equal(const std::vector<NativeBinding> &left, const std::vector<NativeBinding> &right);
 Value opening_context_reply(const OpeningContext &context);
 } // namespace gak

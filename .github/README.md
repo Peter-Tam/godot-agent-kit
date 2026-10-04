@@ -26,11 +26,13 @@ portions serially with private artifacts. The campaign utility below retains
 evidence at existing scenario boundaries.
 
 Project-script discovery retains its authenticated read-only scope boundary.
-Current peers use [private bridge v5](../specs/005-close-project-gdscript/contracts/bridge-protocol.md).
-Rebuild Rust consumers and the matched native revision-3 bundle, install the
-matching addon and restart owned editors; older peers/native revision 2 have
-no fallback. `close_gdscript` now requires the installed complete close transport
-and matched native family; it is not inferred from observation, edit or opening.
+Current development peers use [private bridge v6](../specs/007-mcp-script-workflow/contracts/execution.md#4-private-bridge-v6-and-native-family-revision-4).
+Rebuild Rust consumers and the matched native revision-4 bundle, install the
+matching addon and restart owned editors. Discard old session descriptors and
+revision bases; v5/revision-3 peers have no fallback. Each mutation capability
+requires its complete installed transport and matched native family, including
+the new `edit_closed_gdscript` family. Ordinary observation/discovery remain
+available when native mutation support is unavailable.
 The ordinary Rust job also builds `discover-gdscripts`. Its
 [eight-group acceptance runner](../specs/004-discover-project-gdscript/quickstart.md#4-owned-discovery-runner-after-implementation)
 runs through the public caller with independent inventory and editor witnesses,
