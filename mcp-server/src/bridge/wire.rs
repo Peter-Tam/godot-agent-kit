@@ -13,6 +13,7 @@ pub const RESULT_LIMIT: usize = 12 * 1024 * 1024;
 const COLLECTION_LIMIT: usize = 64;
 
 pub mod close;
+pub(crate) mod closed_edit;
 pub(crate) mod discovery;
 pub mod edit;
 pub mod open;
@@ -176,7 +177,7 @@ impl<'de> Deserialize<'de> for TextIn {
 macro_rules! names {
     ($ty:ident { $($variant:ident => $name:literal),+ $(,)? }) => {
         #[allow(non_snake_case)]
-        fn $ty(v: $ty) -> &'static str { match v { $($ty::$variant => $name),+ } }
+        pub(crate) fn $ty(v: $ty) -> &'static str { match v { $($ty::$variant => $name),+ } }
     };
 }
 // Enum strings are explicit wire values, not derived from Rust Debug spelling.
@@ -800,7 +801,7 @@ impl SampleIn {
         receipt: u64,
         stage: Stage,
     ) -> Result<EditorSample, RoutingFailure> {
-        if self.v != 5
+        if self.v != 6
             || self.kind != "sample"
             || self.request_id != request.request_id().as_str()
             || self.session_id != target.session_id().as_str()
@@ -1109,7 +1110,7 @@ impl RecheckIn {
         stage: Stage,
         original: &CollectionStamp,
     ) -> Result<Recheck, RoutingFailure> {
-        if self.v != 5
+        if self.v != 6
             || self.kind != "recheck"
             || self.request_id != request.request_id().as_str()
             || self.session_id != target.session_id().as_str()
@@ -1254,7 +1255,7 @@ impl EditorFailureIn {
         advertised_root: &str,
         stage: Stage,
     ) -> Result<RoutingFailure, RoutingFailure> {
-        if self.v != 5
+        if self.v != 6
             || self.kind != "failure"
             || self.request_id != request.request_id().as_str()
             || self.session_id != target.session_id().as_str()
@@ -1317,7 +1318,7 @@ pub fn observe(
     send_editor(
         socket,
         (
-            5,
+            6,
             "observe",
             request.request_id().as_str(),
             target.session_id().as_str(),
@@ -1364,7 +1365,7 @@ pub fn recheck(
     send_editor(
         socket,
         (
-            5,
+            6,
             "recheck",
             request.request_id().as_str(),
             target.session_id().as_str(),
@@ -1969,7 +1970,7 @@ fn encode_ipc<T: Serialize>(dto: T) -> Result<Vec<u8>, RoutingFailure> {
 }
 fn envelope<'a, T>(request_id: &'a RequestId, kind: &'static str, payload: T) -> EventOut<'a, T> {
     EventOut {
-        v: 5,
+        v: 6,
         request_id: request_id.as_str(),
         kind,
         payload,
@@ -2082,7 +2083,7 @@ pub fn encode_event(event: &Event, request_id: &RequestId) -> Result<Vec<u8>, Ro
             ))
         }
         Event::Done => encode_ipc(DoneOut {
-            v: 5,
+            v: 6,
             request_id: request_id.as_str(),
             kind: "done",
         }),
@@ -2330,7 +2331,7 @@ pub fn decode_event(
         | EventIn::Failed { v, request_id, .. }
         | EventIn::Done { v, request_id } => (*v, request_id),
     };
-    if version != 5 || id != request.request_id().as_str() {
+    if version != 6 || id != request.request_id().as_str() {
         return Err(bad(stage));
     }
     if let Some(target) = target {

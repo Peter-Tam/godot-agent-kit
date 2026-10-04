@@ -1,4 +1,4 @@
-//! Private mutually authenticated version-five editor bridge and observation wire boundary.
+//! Private mutually authenticated version-six editor bridge and observation wire boundary.
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream};
 use std::time::{Duration, Instant};
@@ -29,6 +29,7 @@ pub struct Capabilities {
     pub open_gdscript: bool,
     pub discover_gdscripts: bool,
     pub close_gdscript: bool,
+    pub edit_closed_gdscript: bool,
 }
 
 #[derive(Deserialize)]
@@ -47,7 +48,7 @@ pub(crate) struct Descriptor {
 impl Descriptor {
     pub(crate) fn parse(bytes: &[u8], filename: &str) -> Result<Self, RoutingFailure> {
         let descriptor: Self = serde_json::from_slice(bytes).map_err(|_| invalid_frame())?;
-        if descriptor.v != 5
+        if descriptor.v != 6
             || descriptor.session_id.len() != 32
             || !lower_hex(&descriptor.session_id, 32)
             || filename != format!("{}.json", descriptor.session_id)
@@ -168,7 +169,7 @@ fn transcript(
     server: &[u8; 32],
 ) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(512);
-    field(&mut bytes, b"godot-agent-kit/editor-bridge/v5");
+    field(&mut bytes, b"godot-agent-kit/editor-bridge/v6");
     field(&mut bytes, request.as_bytes());
     field(
         &mut bytes,
@@ -187,6 +188,7 @@ fn transcript(
         caps.open_gdscript,
         caps.discover_gdscripts,
         caps.close_gdscript,
+        caps.edit_closed_gdscript,
     ] {
         field(&mut bytes, &[u8::from(value)]);
     }
@@ -280,7 +282,7 @@ fn check_message(
     nonce: &str,
     kind: &str,
 ) -> Result<(), RoutingFailure> {
-    if message.v != 5
+    if message.v != 6
         || message.kind != kind
         || message.request_id != request
         || message.session_id != descriptor.session_id
@@ -289,11 +291,12 @@ fn check_message(
         || message.engine_hash != descriptor.engine_hash
         || message.client_nonce != nonce
         || !lower_hex(&message.server_nonce, 64)
-        || !matches!(message.native_api_revision, 0 | 3)
+        || !matches!(message.native_api_revision, 0 | 4)
         || ((message.capabilities.edit_open_gdscript
             || message.capabilities.open_gdscript
-            || message.capabilities.close_gdscript)
-            && message.native_api_revision != 3)
+            || message.capabilities.close_gdscript
+            || message.capabilities.edit_closed_gdscript)
+            && message.native_api_revision != 4)
         || if message.native_api_revision == 0 {
             !message.native_build_id.is_empty()
         } else {
@@ -324,7 +327,7 @@ pub(crate) fn authenticate(
     send(
         &mut socket,
         &(
-            5,
+            6,
             "hello",
             request,
             &descriptor.session_id,
@@ -364,7 +367,7 @@ pub(crate) fn authenticate(
     send(
         &mut socket,
         &(
-            5,
+            6,
             "authenticate",
             request,
             &descriptor.session_id,
@@ -413,7 +416,7 @@ mod tests {
     use super::*;
     #[test]
     fn agreed_proof_vectors() {
-        let descriptor = Descriptor::parse(br#"{"v":5,"session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","godot_version":"4.7.2.stable.official.ed1daf0bf","engine_hash":"ed1daf0bf001b61586d9930840f2f1394092c079","host":"127.0.0.1","port":53124,"token":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"}"#, "00112233445566778899aabbccddeeff.json").unwrap();
+        let descriptor = Descriptor::parse(br#"{"v":6,"session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","godot_version":"4.7.2.stable.official.ed1daf0bf","engine_hash":"ed1daf0bf001b61586d9930840f2f1394092c079","host":"127.0.0.1","port":53124,"token":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"}"#, "00112233445566778899aabbccddeeff.json").unwrap();
         let caps = Capabilities {
             observe_gdscript: true,
             open_enumeration: true,
@@ -424,6 +427,7 @@ mod tests {
             open_gdscript: false,
             discover_gdscripts: true,
             close_gdscript: false,
+            edit_closed_gdscript: true,
         };
         let client: [u8; 32] = std::array::from_fn(|i| (i + 32) as u8);
         let server: [u8; 32] = std::array::from_fn(|i| (i + 64) as u8);
@@ -431,7 +435,7 @@ mod tests {
             &descriptor,
             "example-1",
             &caps,
-            3,
+            4,
             &"a".repeat(64),
             &client,
             &server,
@@ -443,15 +447,15 @@ mod tests {
         for (role, expected) in [
             (
                 b"server".as_slice(),
-                "9b1722d6ddf5512be7600ba5f265857729af70b66cd17a49ae51cfefc10f807d",
+                "d2a96afa1fb5d7e0ba4112a28821ad228d9638163aea1a93dc53bc5eaa2efee7",
             ),
             (
                 b"client",
-                "42c0e079bde980b620dbc221e1f21592cafe252cc5af57b03aaf7554ab718e79",
+                "170e659132943ea2b1781100e1578bbe69b7098b1b23d845c6773a34129efb8e",
             ),
             (
                 b"finish",
-                "9c5fabfdc618902d7223a52fdd5a6a0983076b922fb7445583c735ddc5681742",
+                "517376d65fa85e79852f21faefafa5286a0213b280cc5c9dcaf3fa1df135cfed",
             ),
         ] {
             assert_eq!(
@@ -459,12 +463,27 @@ mod tests {
                 expected
             );
         }
+        let mut changed = caps.clone();
+        changed.edit_closed_gdscript = false;
+        let changed_bytes = transcript(
+            &descriptor,
+            "example-1",
+            &changed,
+            4,
+            &"a".repeat(64),
+            &client,
+            &server,
+        );
+        assert_ne!(bytes, changed_bytes);
+        let original_proof =
+            encode_hex(hmac::sign(&key, &role_transcript(b"server", &bytes)).as_ref());
+        assert!(!verify(&key, b"server", &changed_bytes, &original_proof));
     }
 
     #[test]
     fn native_metadata_cannot_advertise_an_unmatched_family() {
         let descriptor = Descriptor {
-            v: 5,
+            v: 6,
             session_id: "00112233445566778899aabbccddeeff".into(),
             project_root: "/fixture/project".into(),
             godot_version: GODOT_VERSION.into(),
@@ -474,7 +493,7 @@ mod tests {
             token: "00".repeat(32),
         };
         let mut message = ProofMessage {
-            v: 5,
+            v: 6,
             kind: "challenge".into(),
             request_id: "metadata-check".into(),
             session_id: descriptor.session_id.clone(),
@@ -491,6 +510,7 @@ mod tests {
                 open_gdscript: false,
                 discover_gdscripts: true,
                 close_gdscript: false,
+                edit_closed_gdscript: false,
             },
             native_api_revision: 0,
             native_build_id: String::new(),
@@ -510,7 +530,7 @@ mod tests {
             .is_ok()
         };
         assert!(accepted(&message));
-        for revision in [1, 2, u32::MAX] {
+        for revision in [1, 2, 3, u32::MAX] {
             message.native_api_revision = revision;
             assert!(!accepted(&message));
         }
@@ -524,9 +544,12 @@ mod tests {
         message.capabilities.close_gdscript = true;
         assert!(!accepted(&message));
         message.capabilities.close_gdscript = false;
+        message.capabilities.edit_closed_gdscript = true;
+        assert!(!accepted(&message));
+        message.capabilities.edit_closed_gdscript = false;
         message.native_build_id = "a".repeat(64);
         assert!(!accepted(&message));
-        message.native_api_revision = 3;
+        message.native_api_revision = 4;
         assert!(accepted(&message));
         message.capabilities.edit_open_gdscript = true;
         assert!(accepted(&message));
@@ -534,24 +557,26 @@ mod tests {
         assert!(accepted(&message));
         message.capabilities.close_gdscript = true;
         assert!(accepted(&message));
+        message.capabilities.edit_closed_gdscript = true;
+        assert!(accepted(&message));
         for build in [String::new(), "a".repeat(63), "A".repeat(64)] {
             message.native_build_id = build;
             assert!(!accepted(&message));
         }
         message.native_build_id = "a".repeat(64);
-        for version in [1, 2, 3, 4] {
+        for version in [1, 2, 3, 4, 5] {
             message.v = version;
             assert!(!accepted(&message));
         }
     }
 
     #[test]
-    fn capability_record_requires_all_nine_exact_boolean_fields() {
+    fn capability_record_requires_all_ten_exact_boolean_fields() {
         let record = serde_json::json!({
             "observe_gdscript": true, "open_enumeration": true, "buffer_attribution": true,
             "unsaved_paths": true, "cached_resource_lookup": true,
             "edit_open_gdscript": true, "open_gdscript": false, "discover_gdscripts": true,
-            "close_gdscript": false
+            "close_gdscript": false, "edit_closed_gdscript": false
         });
         for name in [
             "observe_gdscript",
@@ -563,6 +588,7 @@ mod tests {
             "open_gdscript",
             "discover_gdscripts",
             "close_gdscript",
+            "edit_closed_gdscript",
         ] {
             let mut missing = record.clone();
             missing.as_object_mut().unwrap().remove(name);

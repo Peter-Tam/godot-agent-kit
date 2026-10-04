@@ -360,12 +360,12 @@ func _dispatch_close_request(request: Dictionary) -> void:
 			var manifest: Variant = JSON.parse_string(FileAccess.get_file_as_string(prefix + "build-manifest.json"))
 			var library := prefix + "libeditor_integration.macos.arm64.dylib"
 			response.ok = manifest is Dictionary and manifest.get("fixture_only") == true and \
-				manifest.get("native_api_revision") == 3 and manifest.get("native_family") == "editor_integration" and \
+				manifest.get("native_api_revision") == 4 and manifest.get("native_family") == "editor_integration" and \
 				manifest.get("native_library_sha256") == FileAccess.get_sha256(library) and \
 				owner != null and bridge != null and api.has_all(["close_fixture_fault", "close_fixture_state", "api_revision", "build_id"]) and \
-				api.api_revision.call() == 3 and api.build_id.call() == manifest.get("native_build_id")
+				api.api_revision.call() == 4 and api.build_id.call() == manifest.get("native_build_id")
 			if response.ok:
-				bridge.attach_close(owner, 3, api.build_id.call())
+				bridge.attach_close(owner, 4, api.build_id.call())
 				response.ok = bridge.get("_close_owner") == owner
 		"close_setup":
 			_close_release_target_refs()

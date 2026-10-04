@@ -25,7 +25,8 @@ ENGINE = 'ed1daf0bf001b61586d9930840f2f1394092c079'
 VERSION = '4.7.2.stable.official.ed1daf0bf'
 RUST = '1.98.1'
 SUITES = ('observation', 'edit', 'open', 'discovery', 'close')
-RUNNERS = {'observation': 'run_observation.py', **{s: 'run_script_' + s + '.py' for s in SUITES[1:]}}
+RUNNERS = {'observation': 'run_observation.py', **{s: 'run_script_' + s + '.py' for s in SUITES[1:]},
+           'mcp': 'run_mcp.py'}
 BINS = ('observe-gdscript', 'edit-gdscript', 'open-gdscript', 'discover-gdscripts', 'close-gdscript')
 COMPONENTS = ('rustfmt', 'clippy', 'rust-analyzer', 'rust-src')
 
@@ -337,12 +338,16 @@ def _build(root, source, provision):
     env = _environment(_execution_identity(provision))
     receipts = {}
     cargo = repo / 'mcp-server'
-    rust_outputs = [cargo / 'target/debug' / name for name in BINS] + [cargo / 'target/debug/examples/stock_validation_fixture', cargo / 'target/debug/libgodot_agent_kit.rlib']
+    rust_outputs = [cargo / 'target/debug' / name for name in BINS] + [
+        cargo / 'target/debug/examples/stock_validation_fixture',
+        cargo / 'target/debug/examples/script_workflow_fixture',
+        cargo / 'target/debug/libgodot_agent_kit.rlib']
     rust_key = _cache_key(source['files'], ('mcp-server/',), tools)
     cache_path = root / 'cache/rust.json'
     old = _json(cache_path) if cache_path.exists() else None
     if not _cache_valid(old, rust_key, rust_outputs):
-        _command(['/Users/admin/.cargo/bin/cargo', '+' + RUST, 'build', '--locked', '--lib', '--bins', '--example', 'stock_validation_fixture'], cwd=cargo, env=env)
+        _command(['/Users/admin/.cargo/bin/cargo', '+' + RUST, 'build', '--locked', '--lib', '--bins',
+                  '--example', 'stock_validation_fixture', '--example', 'script_workflow_fixture'], cwd=cargo, env=env)
         if not rust_outputs or not all(_regular(p) for p in rust_outputs):
             raise GuestError('Rust build did not produce required executables/library')
         _save(cache_path, {'key': rust_key, 'outputs': {str(p): _digest(p) for p in rust_outputs}})
@@ -375,16 +380,20 @@ def _runner_options(root, suite):
     target = root / 'workspace/repo/mcp-server/target/debug'
     values = {'godot': _godot(root), 'observer': target / BINS[0], 'editor': target / BINS[1],
               'opener': target / BINS[2], 'discoverer': target / BINS[3], 'closer': target / BINS[4],
-              'stock-validator': target / 'examples/stock_validation_fixture', 'native-fault-addon': root / 'build/fixture-native'}
+              'stock-validator': target / 'examples/stock_validation_fixture',
+              'workflow': target / 'examples/script_workflow_fixture',
+              'native-fault-addon': root / 'build/fixture-native'}
     names = ['godot', 'observer']
     if suite != 'observation':
         names += ['editor', 'stock-validator', 'native-fault-addon']
-    if suite in ('open', 'discovery', 'close', 'all'):
+    if suite in ('open', 'discovery', 'close', 'mcp', 'all'):
         names.append('opener')
-    if suite in ('discovery', 'close', 'all'):
+    if suite in ('discovery', 'close', 'mcp', 'all'):
         names.append('discoverer')
-    if suite in ('close', 'all'):
+    if suite in ('close', 'mcp', 'all'):
         names.append('closer')
+    if suite == 'mcp':
+        names.append('workflow')
     return [item for name in names for item in ('--' + name, str(values[name]))]
 
 
@@ -467,7 +476,7 @@ def _export_paths(run, captures=False):
             if (base / name).is_symlink():
                 raise GuestError('refusing artifact export with symlinks')
         relative = base.relative_to(artifacts).parts
-        permitted = not relative or (len(relative) == 3 and relative[0] in SUITES and re.fullmatch(r'[a-z][a-z0-9-]*', relative[1]) and re.fullmatch(r'attempt-[0-9]{3,}', relative[2]))
+        permitted = not relative or (len(relative) == 3 and relative[0] in RUNNERS and re.fullmatch(r'[a-z][a-z0-9-]*', relative[1]) and re.fullmatch(r'attempt-[0-9]{3,}', relative[2]))
         if captures and permitted:
             capture_directories.add(base)
             summary = base / 'summary.json'
@@ -528,7 +537,7 @@ def _parser():
         command = commands.add_parser(action)
         command.add_argument('--revision', required=True, type=_sha)
         command.add_argument('--run-id', required=True, type=_token)
-        command.add_argument('--suite', required=True, choices=SUITES if action == 'run' else (*SUITES, 'all'))
+        command.add_argument('--suite', required=True, choices=tuple(RUNNERS) if action == 'run' else (*SUITES, 'all'))
         if action == 'run':
             command.add_argument('--scenario', required=True, type=_token)
         else:

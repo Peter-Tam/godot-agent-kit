@@ -123,7 +123,7 @@ Value ledger(const CloseAttempt &a) {
 Value facts(const CloseAttempt &a) {
     Value out = dict();
     put_string(out, "request_id", a.request); put_string(out, "session_id", a.session); put_string(out, "script_path", a.path);
-    put_string(out, "native_build_id", GAK_BUILD_ID); put(out, "native_api_revision", integer(3));
+    put_string(out, "native_build_id", GAK_BUILD_ID); put(out, "native_api_revision", integer(4));
     put_string(out, "phase", phase(a.phase));
     put(out, "script_instance_id", a.rid ? string(std::to_string(a.rid)) : Value());
     put(out, "editor_instance_id", a.eid ? string(std::to_string(a.eid)) : Value());

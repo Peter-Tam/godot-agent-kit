@@ -73,7 +73,7 @@ impl Fixture {
         file.write_all(bytes).unwrap();
     }
     fn valid_descriptor(&self, id: &str) -> Vec<u8> {
-        serde_json::to_vec(&json!({"v":5,"session_id":id,"project_root":self.project,"godot_version":"4.7.2.stable.official.ed1daf0bf","engine_hash":"ed1daf0bf001b61586d9930840f2f1394092c079","host":"127.0.0.1","port":self.listener.local_addr().unwrap().port(),"token":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"})).unwrap()
+        serde_json::to_vec(&json!({"v":6,"session_id":id,"project_root":self.project,"godot_version":"4.7.2.stable.official.ed1daf0bf","engine_hash":"ed1daf0bf001b61586d9930840f2f1394092c079","host":"127.0.0.1","port":self.listener.local_addr().unwrap().port(),"token":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"})).unwrap()
     }
 }
 impl Drop for Fixture {
@@ -123,7 +123,7 @@ fn field(bytes: &mut Vec<u8>, value: &[u8]) {
 fn proof(role: &[u8], hello: &Value, capabilities: &Value) -> String {
     let mut transcript = Vec::new();
     field(&mut transcript, role);
-    field(&mut transcript, b"godot-agent-kit/editor-bridge/v5");
+    field(&mut transcript, b"godot-agent-kit/editor-bridge/v6");
     field(&mut transcript, hello[2].as_str().unwrap().as_bytes());
     field(&mut transcript, &decoded(hello[3].as_str().unwrap()));
     field(&mut transcript, hello[4].as_str().unwrap().as_bytes());
@@ -139,6 +139,7 @@ fn proof(role: &[u8], hello: &Value, capabilities: &Value) -> String {
         "open_gdscript",
         "discover_gdscripts",
         "close_gdscript",
+        "edit_closed_gdscript",
     ] {
         field(
             &mut transcript,
@@ -171,11 +172,11 @@ fn select(f: &Fixture, locator: &str) -> (target::SelectedSession, thread::JoinH
             .set_write_timeout(Some(Duration::from_secs(2)))
             .unwrap();
         let hello = receive(&mut socket);
-        let capabilities = json!({"observe_gdscript":false,"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false,"edit_open_gdscript":false,"open_gdscript":false,"discover_gdscripts":false,"close_gdscript":false});
+        let capabilities = json!({"observe_gdscript":false,"open_enumeration":true,"buffer_attribution":false,"unsaved_paths":false,"cached_resource_lookup":false,"edit_open_gdscript":false,"open_gdscript":false,"discover_gdscripts":false,"close_gdscript":false,"edit_closed_gdscript":false});
         frame(
             &mut socket,
             &json!({
-                "v":5,"kind":"challenge","request_id":hello[2],"session_id":hello[3],
+                "v":6,"kind":"challenge","request_id":hello[2],"session_id":hello[3],
                 "project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,
                 "capabilities":capabilities,"client_nonce":hello[5],"server_nonce":SERVER_NONCE,
                 "native_api_revision":0,"native_build_id":"",
@@ -188,7 +189,7 @@ fn select(f: &Fixture, locator: &str) -> (target::SelectedSession, thread::JoinH
         frame(
             &mut socket,
             &json!({
-                "v":5,"kind":"hello","request_id":hello[2],"session_id":hello[3],
+                "v":6,"kind":"hello","request_id":hello[2],"session_id":hello[3],
                 "project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,
                 "capabilities":capabilities,"client_nonce":hello[5],"server_nonce":SERVER_NONCE,
                 "native_api_revision":0,"native_build_id":"",

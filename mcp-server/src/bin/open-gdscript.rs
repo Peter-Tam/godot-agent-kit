@@ -108,6 +108,17 @@ fn deliver(outcome: OpeningOutcome, clock: AttemptClock) -> i32 {
 fn main() -> ExitCode {
     let clock = AttemptClock::start();
     let args: Vec<_> = env::args_os().skip(1).collect();
+    if matches!(args.as_slice(), [arg] if arg == runner::closed_edit::INTERNAL_WORKER_FLAG) {
+        if let Some(code) = runner::closed_edit::worker_main() {
+            return ExitCode::from(code as u8);
+        }
+    }
+    if matches!(args.as_slice(), [arg] if arg == runner::closed_edit::INTERNAL_ACQUISITION_WORKER_FLAG)
+    {
+        if let Some(code) = runner::closed_edit::acquisition_worker_main() {
+            return ExitCode::from(code as u8);
+        }
+    }
     if matches!(args.as_slice(),[arg] if arg==runner::open::INTERNAL_WORKER_FLAG) {
         if let Some(code) = runner::open::worker_main() {
             return ExitCode::from(code as u8);

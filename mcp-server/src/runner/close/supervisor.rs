@@ -361,7 +361,7 @@ pub fn run(
     let result = (|| -> Result<(), &'static str> {
         let r = &attempt.request;
         let startup = serde_json::to_vec(&(
-            5,
+            6,
             r.request_id().as_str(),
             r.project_root().as_str(),
             r.session_id().map(SessionId::as_str),
@@ -620,7 +620,7 @@ pub fn run(
             let args = [json!(guard), receipts];
             let control=serde_json::to_vec(&json!({"v":1,"kind":"authorize_close","request_id":attempt.request.request_id().as_str(),"arguments":args})).map_err(|_|"protocol_error")?;
             let native_tuple = json!([
-                5,
+                6,
                 "close_advance",
                 attempt.request.request_id().as_str(),
                 target.session_id().as_str(),

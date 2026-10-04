@@ -6,6 +6,7 @@ const ExportGuardScript = preload("res://addons/godot_agent_kit/export_guard.gd"
 const ScriptEditScript = preload("res://addons/godot_agent_kit/script_edit.gd")
 const ScriptOpenScript = preload("res://addons/godot_agent_kit/script_open.gd")
 const ScriptCloseScript = preload("res://addons/godot_agent_kit/script_close.gd")
+const ScriptClosedEditScript = preload("res://addons/godot_agent_kit/script_closed_edit.gd")
 const NATIVE_EXTENSION := "res://addons/godot_agent_kit/native/editor_integration.gdextension"
 const NATIVE_LIBRARY := "res://addons/godot_agent_kit/native/libeditor_integration.macos.arm64.dylib"
 const NATIVE_MANIFEST := "res://addons/godot_agent_kit/native/build-manifest.json"
@@ -17,6 +18,7 @@ var _native: Dictionary = {}
 var _edit: Node
 var _open: Node
 var _close: Node
+var _closed: Node
 
 
 func _load_native() -> void:
@@ -39,11 +41,13 @@ func _native_api() -> Dictionary:
 			"edit_prepare", "edit_advance", "edit_cancel", "edit_expire", "open_inspect",
 			"open_prepare", "open_advance", "open_verify", "open_recheck", "open_finish",
 			"open_abort", "open_expire", "close_inspect", "close_prepare", "close_advance",
-			"close_status", "close_verify", "close_recheck", "close_finish", "close_abort", "close_expire"]:
+			"close_status", "close_verify", "close_recheck", "close_finish", "close_abort", "close_expire",
+			"closed_inspect", "closed_prepare", "closed_apply", "closed_verify", "closed_recheck",
+			"closed_finish", "closed_abort", "closed_expire"]:
 		if not candidate.has(operation) or not (candidate[operation] is Callable) \
 				or not candidate[operation].is_custom() or not candidate[operation].is_valid():
 			return {}
-	if candidate["api_revision"].call() != 3:
+	if candidate["api_revision"].call() != 4:
 		return {}
 	var build_id: Variant = candidate["build_id"].call()
 	if not (build_id is String) or build_id.length() != 64 or not build_id.is_valid_hex_number() \
@@ -70,6 +74,10 @@ func _enter_tree() -> void:
 		_close.name = "GodotAgentKitScriptClose"
 		add_child(_close)
 		_close.configure(family, null)
+		_closed = ScriptClosedEditScript.new()
+		_closed.name = "GodotAgentKitScriptClosedEdit"
+		add_child(_closed)
+		_closed.configure(family, null)
 	if not OS.has_environment("GODOT_AGENT_KIT_REGISTRY"):
 		return
 	var registry := OS.get_environment("GODOT_AGENT_KIT_REGISTRY")
@@ -92,10 +100,13 @@ func _enter_tree() -> void:
 			_open.configure(_native, _bridge)
 		if _close != null:
 			_close.configure(_native, _bridge)
+		if _closed != null:
+			_closed.configure(_native, _bridge)
 		var build_id := _matched_build_id(_native)
-		_bridge.attach_edit(_edit if not build_id.is_empty() else null, 3 if not build_id.is_empty() else 0, build_id)
-		_bridge.attach_open(_open if not build_id.is_empty() else null, 3 if not build_id.is_empty() else 0, build_id)
-		_bridge.attach_close(_close if not build_id.is_empty() else null, 3 if not build_id.is_empty() else 0, build_id)
+		_bridge.attach_edit(_edit if not build_id.is_empty() else null, 4 if not build_id.is_empty() else 0, build_id)
+		_bridge.attach_open(_open if not build_id.is_empty() else null, 4 if not build_id.is_empty() else 0, build_id)
+		_bridge.attach_close(_close if not build_id.is_empty() else null, 4 if not build_id.is_empty() else 0, build_id)
+		_bridge.attach_closed(_closed if not build_id.is_empty() else null, 4 if not build_id.is_empty() else 0, build_id)
 
 
 func _matched_build_id(candidate: Dictionary) -> String:
@@ -110,7 +121,7 @@ func _matched_build_id(candidate: Dictionary) -> String:
 	var manifest: Dictionary = parser.data
 	var build_id: Variant = candidate["build_id"].call()
 	if manifest.get("fixture_only") != false or manifest.get("generated_from_exact_binary") != true \
-			or manifest.get("native_api_revision") != 3 \
+			or manifest.get("native_api_revision") != 4 \
 			or manifest.get("native_family") != "editor_integration" \
 			or manifest.get("native_library") != "libeditor_integration.macos.arm64.dylib" \
 			or manifest.get("entry_symbol") != "editor_integration_library_init" \
@@ -146,6 +157,12 @@ func _exit_tree() -> void:
 		if not entered:
 			_close.free()
 		_close = null
+	if _closed != null:
+		var entered: bool = _closed.is_active_stage()
+		remove_child(_closed)
+		if not entered:
+			_closed.free()
+		_closed = null
 	var api := _native if not _native.is_empty() else _native_api()
 	if not api.is_empty():
 		api["close"].call()

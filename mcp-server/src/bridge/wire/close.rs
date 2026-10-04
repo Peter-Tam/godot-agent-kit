@@ -329,13 +329,13 @@ pub(crate) fn call(
     };
     if args.len() != arity
         || !selected.capabilities().close_gdscript
-        || selected.native_api_revision() != 3
+        || selected.native_api_revision() != 4
         || selected.target().request_id() != request.request_id()
     {
         return Err(bad(Stage::ReadEditor));
     }
     let mut tuple = vec![
-        json!(5),
+        json!(6),
         json!(opcode),
         json!(request.request_id().as_str()),
         json!(selected.target().session_id().as_str()),

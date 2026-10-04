@@ -472,6 +472,36 @@ const char *editor_context(const Session &session, const std::string &request, c
     out.kind = OpeningContext::Current;
     return nullptr;
 }
+const char *closed_context(const Session &session, const std::string &request,
+        const std::string &path, const std::string &source, const OpeningEffective &effective,
+        const Value &script, OpeningContext &out, std::string &profile_hash) {
+    out.path = path; out.source = source; out.source_hash = sha256(source);
+    out.document.script = script; out.document.script_ptr = object_ptr(script);
+    out.document.script_id = id(script);
+    if (const char *reason = opening_source_profile(source, effective, out.bindings)) { return reason; }
+    if (object_ptr(script)) {
+        Value edited;
+        if (!checked_call(edited, singleton("EditorInterface"), "EditorInterface", "is_object_edited", GAK_HASH_IS_EDITED, {&script}) ||
+                edited.type() != GDEXTENSION_VARIANT_TYPE_BOOL) { return "resource_edited_unavailable"; }
+        out.edited = truth(edited);
+        if (const char *reason = compiled(out)) { return reason; }
+    }
+    GuardDigest digest;
+    digest.frame("godot-agent-kit/closed-profile/v1");
+    digest.frame(effective.fingerprint);
+    digest.collection('a', out.properties.size());
+    for (const auto &p : out.properties) {
+        digest.frame(p.name); digest.frame(p.hint_string); digest.frame(p.class_name);
+        digest.natural(p.type); digest.natural(p.hint); digest.natural(p.usage);
+    }
+    digest_names(digest, out.methods);
+    profile_hash = digest.finish();
+    if (profile_hash.empty() || !project(session, request, effective, out, true, 256 * 1024)) {
+        return "closed_context_unavailable";
+    }
+    out.kind = OpeningContext::Current;
+    return nullptr;
+}
 
 bool opening_bindings_equal(const std::vector<NativeBinding> &a, const std::vector<NativeBinding> &b) {
     return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), [](const auto &x, const auto &y) {

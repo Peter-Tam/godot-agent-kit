@@ -150,8 +150,12 @@ python3 godot-addon/tests/run_in_vm.py stop
 ```
 
 Use `run observation`, `edit`, `open`, `discovery` or `close` with the existing
-`--scenario` name. This is a fixed runner allowlist, not an arbitrary shell
-executor. Close `sequential`, `composed`, `all` and complete close/all campaigns
+`--scenario` name. `run mcp --scenario closed-native` and `closed-lifecycle`
+exercise the protocol-independent read/revision/closed-edit fixture consumer;
+these groups do not claim MCP or real-agent interoperability. The wrapper
+builds `script_workflow_fixture` and supplies only its fixed guest path.
+No `mcp` campaign is registered. This remains a fixed runner allowlist,
+not an arbitrary shell executor. Close `sequential`, `composed`, `all` and complete close/all campaigns
 are now implemented; [Feature 005 acceptance](../specs/005-close-project-gdscript/quickstart.md#12-t003-cumulative-acceptance-2026-10-02)
 records the focused runs and reviewed historical evidence. Complete campaign
 availability is not a requirement to replay unchanged historical GUI suites.

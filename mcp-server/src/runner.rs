@@ -37,6 +37,11 @@ pub mod open;
 #[path = "runner/discovery.rs"]
 pub mod discovery;
 
+#[path = "runner/closed_edit.rs"]
+pub mod closed_edit;
+#[path = "runner/read.rs"]
+pub mod read;
+
 /// The caller creates this before parsing flags or doing any filesystem/selection work.
 #[derive(Clone, Copy)]
 pub struct AttemptClock {
@@ -475,7 +480,32 @@ pub fn run(
     clock: AttemptClock,
     cancelled: &AtomicBool,
 ) -> Result<ObservationOutcome, HostFailure> {
-    if cancelled.load(Ordering::Relaxed) || clock.started.elapsed() >= COLLECTION_BUDGET {
+    run_with_budget(request, registry, clock, cancelled, COLLECTION_BUDGET)
+}
+
+pub(crate) fn run_for_edit(
+    request: ObservationRequest,
+    registry: &Path,
+    clock: AttemptClock,
+    cancelled: &AtomicBool,
+) -> Result<ObservationOutcome, HostFailure> {
+    run_with_budget(
+        request,
+        registry,
+        clock,
+        cancelled,
+        Duration::from_millis(9500),
+    )
+}
+
+fn run_with_budget(
+    request: ObservationRequest,
+    registry: &Path,
+    clock: AttemptClock,
+    cancelled: &AtomicBool,
+    budget: Duration,
+) -> Result<ObservationOutcome, HostFailure> {
+    if cancelled.load(Ordering::Relaxed) || clock.started.elapsed() >= budget {
         let mut state = Collected::new();
         state.fail(if cancelled.load(Ordering::Relaxed) {
             failure(
@@ -502,13 +532,14 @@ pub fn run(
     let worker = OwnedWorker(Some(child));
     // The tuple avoids optional/duplicate object-key ambiguity on private startup.
     let payload = serde_json::to_vec(&(
-        1u32,
+        6u32,
         request.request_id().as_str(),
         request.project_root().as_str(),
         request.session_id().map(SessionId::as_str),
         request.script_path().as_str(),
         registry.to_str().ok_or(HostFailure)?,
         clock.elapsed_us(),
+        budget.as_micros() as u64,
     ))
     .map_err(|_| HostFailure)?;
     if payload.len() > CONTROL_LIMIT {
@@ -522,7 +553,7 @@ pub fn run(
     }
     let header = (payload.len() as u32).to_be_bytes();
     let mut sent = 0;
-    let deadline = clock.started + COLLECTION_BUDGET;
+    let deadline = clock.started + budget;
     while sent < 4 + payload.len()
         && Instant::now() < deadline
         && !cancelled.load(Ordering::Relaxed)
@@ -540,7 +571,7 @@ pub fn run(
             Err(_) => return Err(HostFailure),
         }
     }
-    supervise(parent, worker, request, clock, cancelled)
+    supervise_with_budget(parent, worker, request, clock, cancelled, budget)
 }
 
 #[derive(Default)]
@@ -597,12 +628,24 @@ impl Frames {
         Ok(None)
     }
 }
+#[cfg(test)]
 fn supervise(
+    input: UnixStream,
+    worker: OwnedWorker,
+    request: ObservationRequest,
+    clock: AttemptClock,
+    cancelled: &AtomicBool,
+) -> Result<ObservationOutcome, HostFailure> {
+    supervise_with_budget(input, worker, request, clock, cancelled, COLLECTION_BUDGET)
+}
+
+fn supervise_with_budget(
     mut input: UnixStream,
     worker: OwnedWorker,
     request: ObservationRequest,
     clock: AttemptClock,
     cancelled: &AtomicBool,
+    budget: Duration,
 ) -> Result<ObservationOutcome, HostFailure> {
     let mut state = Collected::new();
     let mut frames = Frames::default();
@@ -615,7 +658,7 @@ fn supervise(
             ));
             break;
         }
-        if clock.started.elapsed() >= COLLECTION_BUDGET {
+        if clock.started.elapsed() >= budget {
             state.fail(timeout_failure(if state.target.is_none() {
                 Stage::ResolveTarget
             } else {
@@ -626,13 +669,13 @@ fn supervise(
         match frames.next(&mut input) {
             Ok(Some(bytes)) => {
                 // Bytes arriving after the collection cutoff never become evidence.
-                if clock.started.elapsed() >= COLLECTION_BUDGET {
+                if clock.started.elapsed() >= budget {
                     state.fail(timeout_failure(Stage::Finalize));
                     break;
                 }
                 let event =
                     wire::decode_event(&bytes, &request, state.target.as_ref(), clock.elapsed_us());
-                if clock.started.elapsed() >= COLLECTION_BUDGET {
+                if clock.started.elapsed() >= budget {
                     state.fail(timeout_failure(Stage::Finalize));
                     break;
                 }
@@ -808,11 +851,21 @@ pub fn worker_main() -> Option<i32> {
         }
         let mut bytes = vec![0; length];
         input.read_exact(&mut bytes).map_err(|_| ())?;
-        type Startup = (u32, String, String, Option<String>, String, String, u64);
-        let (version, id, root, session, locator, registry, elapsed): Startup =
+        type Startup = (
+            u32,
+            String,
+            String,
+            Option<String>,
+            String,
+            String,
+            u64,
+            u64,
+        );
+        let (version, id, root, session, locator, registry, elapsed, budget_us): Startup =
             serde_json::from_slice(&bytes).map_err(|_| ())?;
-        if version != 1
-            || elapsed > 4_500_000
+        if version != 6
+            || !matches!(budget_us, 4_500_000 | 9_500_000)
+            || elapsed >= budget_us
             || registry.len() > 1024
             || !Path::new(&registry).is_absolute()
         {
@@ -824,9 +877,9 @@ pub fn worker_main() -> Option<i32> {
             session.map(SessionId::new).transpose().map_err(|_| ())?,
             ResourcePath::new(locator).map_err(|_| ())?,
         );
-        Ok((request, registry, elapsed))
+        Ok((request, registry, elapsed, Duration::from_micros(budget_us)))
     };
-    let Ok((request, registry, elapsed)) = receive() else {
+    let Ok((request, registry, elapsed, budget)) = receive() else {
         return Some(1);
     };
     // The offset establishes this worker's request-local caller tick origin. Supervisor
@@ -835,8 +888,11 @@ pub fn worker_main() -> Option<i32> {
     let started = now
         .checked_sub(Duration::from_micros(elapsed))
         .unwrap_or(now);
-    let deadline = started + COLLECTION_BUDGET;
-    let _ = output.set_write_timeout(Some(COLLECTION_BUDGET));
+    let deadline = started + budget;
+    let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+        return Some(1);
+    };
+    let _ = output.set_write_timeout(Some(remaining));
     match collect(
         &request,
         Path::new(&registry),
@@ -895,6 +951,43 @@ mod tests {
         let outcome = supervise(parent, worker, request(), clock, &AtomicBool::new(true)).unwrap();
         assert_eq!(outcome.outcome(), OutcomeKind::Cancelled);
         assert!(clock.started.elapsed() < Duration::from_secs(1));
+    }
+    #[test]
+    fn edit_acquisition_uses_its_original_cutoff_without_renewal() {
+        let budget = Duration::from_millis(9500);
+        let mut clock = AttemptClock::start();
+        clock.started -= budget;
+        let (parent, _peer, worker) = blocked();
+        let outcome = supervise_with_budget(
+            parent,
+            worker,
+            request(),
+            clock,
+            &AtomicBool::new(false),
+            budget,
+        )
+        .unwrap();
+        assert_eq!(outcome.outcome(), OutcomeKind::Timeout);
+        assert!(outcome.interval().elapsed_us() >= 9_500_000);
+    }
+    #[test]
+    fn edit_acquisition_does_not_inherit_the_read_only_cutoff() {
+        let mut clock = AttemptClock::start();
+        clock.started -= Duration::from_secs(6);
+        let (parent, mut peer, worker) = blocked();
+        send_event(&mut peer, &Event::Done, request().request_id()).unwrap();
+        let outcome = supervise_with_budget(
+            parent,
+            worker,
+            request(),
+            clock,
+            &AtomicBool::new(false),
+            Duration::from_millis(9500),
+        )
+        .unwrap();
+        // The premature terminal frame remains invalid evidence, but is consumed
+        // under the edit cutoff rather than discarded at the read-only cutoff.
+        assert_eq!(outcome.outcome(), OutcomeKind::ProtocolError);
     }
     #[test]
     fn malformed_or_premature_worker_frames_cannot_become_success() {

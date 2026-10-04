@@ -4,7 +4,7 @@
 
 **Input:** Maintainer-approved discover/read/edit requirements, including constitution v1.2.0 alignment in FR-022/SC-009.
 
-**Status:** Research/design and the revised [four-task decomposition](tasks.md) are available for review. T002 includes the complete positive real-agent workflow; T003 combines adversarial preservation and interrupted effects. The renewed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) governs this list; all tasks remain pending. Consistency analysis and implementation have not started. Requirements/constitution approval is distinct from technical-plan/task review and implementation or merge authorization.
+**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. T001 is complete with [core/native acceptance and implementation review](quickstart.md#t001-execution-evidence-2026-10-04). T002–T004 remain pending. This delivery/status update does not change approved remaining obligations or claim MCP interoperability, feature completion or Phase 3 exit.
 
 ## Summary
 
@@ -55,7 +55,7 @@ Read preserves Feature 001 observation semantics while presenting source, an opa
 | X — actionable truthful diagnostics | Preserve outcome/stage/application, independent availability/invalidation and safe next action. Post-effect private protocol/host failure is not malformed input; disclosure denial is sticky. |
 | XI — independent compatible implementation | Public pinned engine source/behavior, released official SDK and concrete clients, license/provenance/advisory findings. No unrelated implementation copied or dependency/support pass invented. |
 | XIII — justified complexity | Narrow closed owner/epoch, bounded transport and test-only stdio relay address specified failures; rationale/cost below. No transaction/workflow/retry/cancellation/redaction/tracing/metadata framework. |
-| Compatibility / workflow | Existing local v1 APIs/refusals stay valid; coordinated private v6/native revision 4 cutover and new MCP schema 1. Task derivation and granularity review are complete; analysis and implementation have not started. PR remains draft and unmerged. |
+| Compatibility / workflow | Existing local v1 APIs/refusals stay valid; coordinated private v6/native revision 4 cutover and new MCP schema 1. Design analysis is complete; only T001 is selected. Its implementation, review and required acceptance remain one task/PR. |
 
 **Threat/evidence boundary:** Retain existing normal-local-user threat model; hostile same-UID software and malicious code already running inside Godot are not newly claimed isolated. No atomic filesystem exclusion, universal callback purity or live bytecode refresh is claimed. Unknown safety facts refuse. The observed source setter's old compiled constants are explicitly not used as new-source runtime evidence.
 
@@ -104,7 +104,7 @@ specs/007-mcp-script-workflow/
     └── closed-edit.md
 ```
 
-[tasks.md](tasks.md) now derives four coherent implementation increments: protocol-independent trusted read/revision/closed editing; complete external MCP MVP with both clients' positive workflows; combined adversarial preservation/interrupted-effect behavior; composed real-agent A–E and cumulative acceptance. Direct tests/docs are bundled with their implementation, and separately runnable groups do not create extra task IDs. The renewed granularity/coverage review is recorded there. Consistency analysis is the next separately authorized stage; no implementation task is selected.
+[tasks.md](tasks.md) derives four coherent implementation increments: protocol-independent trusted read/revision/closed editing; complete external MCP MVP with both clients' positive workflows; combined adversarial preservation/interrupted-effect behavior; composed real-agent A–E and cumulative acceptance. Direct tests/docs remain bundled with their implementation, and separately runnable groups do not create extra task IDs. T001 is complete; T002–T004 remain pending under the one-task-one-PR sequencing rule.
 
 ### Source code (repository root)
 

@@ -69,7 +69,7 @@ fn facts(hello: &Value, stage: &str, next: &str, recognition: bool, invalid: boo
     json!({"request_id":hello[2],"stage":stage,"next_stage":next,"cache_binding":if bound{"new_resource_published"}else{"not_started"},"initial_compilation":if compiled{if invalid{"completed_invalid"}else{"completed_valid"}}else{"not_started"},"document_open":if opened{"association_obtained"}else{"not_started"},"target_parse_code":if compiled{Some(if invalid{43}else{0})}else{None},"script_instance_id":if bound||recognition{Some("9007199254740993")}else{None},"editor_instance_id":if opened||recognition{Some("9007199254740994")}else{None},"buffer_instance_id":if opened||recognition{Some("9007199254740995")}else{None},"target_open":opened||recognition,"terminal_discard":false,"entered":true,"mode":if stage=="inspected"{None}else{Some("cold")},"protection":null,"selection":if opened||recognition{"requested_target"}else{"no_source"}})
 }
 fn reply(hello: &Value, kind: &str, status: &str, tick: u64, native: Value) -> Value {
-    json!({"v":5,"kind":kind,"request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":PATH,"collection":stamp(hello,tick),"status":status,"reason":"","native":native,"resource_edited":false,"expiry_tick_us":"8000000"})
+    json!({"v":6,"kind":kind,"request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":PATH,"collection":stamp(hello,tick),"status":status,"reason":"","native":native,"resource_edited":false,"expiry_tick_us":"8000000"})
 }
 fn serve_open(f: &Fixture, mode: OpenMode) -> thread::JoinHandle<()> {
     let listener = listener();
@@ -84,16 +84,16 @@ fn serve_open(f: &Fixture, mode: OpenMode) -> thread::JoinHandle<()> {
             .set_write_timeout(Some(Duration::from_secs(3)))
             .unwrap();
         let hello = read_frame(&mut socket);
-        let caps = json!({"observe_gdscript":true,"open_enumeration":true,"buffer_attribution":true,"unsaved_paths":true,"cached_resource_lookup":true,"edit_open_gdscript":true,"open_gdscript":true,"discover_gdscripts":false,"close_gdscript":false});
+        let caps = json!({"observe_gdscript":true,"open_enumeration":true,"buffer_attribution":true,"unsaved_paths":true,"cached_resource_lookup":true,"edit_open_gdscript":true,"open_gdscript":true,"discover_gdscripts":false,"close_gdscript":false,"edit_closed_gdscript":false});
         frame(
             &mut socket,
-            &json!({"v":5,"kind":"challenge","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,"capabilities":caps,"native_api_revision":3,"native_build_id":NATIVE_BUILD_ID,"client_nonce":hello[5],"server_nonce":SERVER_NONCE,"server_proof":proof(b"server",&hello,&caps,SECRET)}),
+            &json!({"v":6,"kind":"challenge","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,"capabilities":caps,"native_api_revision":4,"native_build_id":NATIVE_BUILD_ID,"client_nonce":hello[5],"server_nonce":SERVER_NONCE,"server_proof":proof(b"server",&hello,&caps,SECRET)}),
         );
         let authentication = read_frame(&mut socket);
         assert_eq!(authentication[7], proof(b"client", &hello, &caps, SECRET));
         frame(
             &mut socket,
-            &json!({"v":5,"kind":"hello","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,"capabilities":caps,"native_api_revision":3,"native_build_id":NATIVE_BUILD_ID,"client_nonce":hello[5],"server_nonce":SERVER_NONCE,"finish_proof":proof(b"finish",&hello,&caps,SECRET)}),
+            &json!({"v":6,"kind":"hello","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"godot_version":VERSION,"engine_hash":HASH,"capabilities":caps,"native_api_revision":4,"native_build_id":NATIVE_BUILD_ID,"client_nonce":hello[5],"server_nonce":SERVER_NONCE,"finish_proof":proof(b"finish",&hello,&caps,SECRET)}),
         );
         let begin = read_frame(&mut socket);
         assert_eq!(begin.as_array().unwrap().len(), 7);
@@ -260,7 +260,7 @@ fn serve_open(f: &Fixture, mode: OpenMode) -> thread::JoinHandle<()> {
         assert_eq!(
             verify,
             json!([
-                5,
+                6,
                 "open_verify",
                 hello[2],
                 hello[3],
@@ -332,7 +332,7 @@ fn serve_open(f: &Fixture, mode: OpenMode) -> thread::JoinHandle<()> {
         assert_eq!(
             recheck,
             json!([
-                5,
+                6,
                 "open_recheck",
                 hello[2],
                 hello[3],
@@ -353,7 +353,7 @@ fn serve_open(f: &Fixture, mode: OpenMode) -> thread::JoinHandle<()> {
             "unchanged"
         });
         checked["selection"] = json!("requested_target");
-        checked["recheck"] = json!({"v":5,"kind":"recheck","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":PATH,"collection":stamp(&hello,700),"checks":"performed","detected_changes":[],"reason":null});
+        checked["recheck"] = json!({"v":6,"kind":"recheck","request_id":hello[2],"session_id":hello[3],"project_root":hello[4],"script_path":PATH,"collection":stamp(&hello,700),"checks":"performed","detected_changes":[],"reason":null});
         if matches!(mode, OpenMode::RecognitionChanged) {
             checked["recheck"]["detected_changes"] =
                 json!([{"surface":"R","code":"source_changed"}]);

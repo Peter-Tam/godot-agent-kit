@@ -126,6 +126,17 @@ fn parse(args: &[OsString], id: &RequestId) -> Result<(ObservationRequest, PathB
 fn main() -> ExitCode {
     let clock = AttemptClock::start();
     let args: Vec<_> = env::args_os().skip(1).collect();
+    if matches!(args.as_slice(), [arg] if arg == runner::closed_edit::INTERNAL_WORKER_FLAG) {
+        if let Some(code) = runner::closed_edit::worker_main() {
+            return ExitCode::from(code as u8);
+        }
+    }
+    if matches!(args.as_slice(), [arg] if arg == runner::closed_edit::INTERNAL_ACQUISITION_WORKER_FLAG)
+    {
+        if let Some(code) = runner::closed_edit::acquisition_worker_main() {
+            return ExitCode::from(code as u8);
+        }
+    }
     if matches!(args.as_slice(), [arg] if arg == runner::INTERNAL_WORKER_FLAG) {
         if let Some(code) = runner::worker_main() {
             return ExitCode::from(code as u8);

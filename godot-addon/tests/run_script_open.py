@@ -181,10 +181,10 @@ class OpeningHarness(CumulativeOpenAcceptanceMixin, ComposedOpenAcceptanceMixin,
             descriptor = observation.wait_for(lambda: next(iter(self.descriptors(project)), None),
                                               "selected_open_editor_session")
             info = self.open_action(editor, "open_info")
-            observation.require(info["open_installed"] and info["api_revision"] == 3 and
+            observation.require(info["open_installed"] and info["api_revision"] == 4 and
                                 info["build_id"] == self.expected_native_build_id and
-                                info["session_id"] == descriptor["session_id"] and descriptor["v"] == 5,
-                                "actual_native_owner_selected_v5_revision3")
+                                info["session_id"] == descriptor["session_id"] and descriptor["v"] == 6,
+                                "actual_native_owner_selected_v6_revision4")
             if faults:
                 observation.require(info["fixture_faults"], "fixture_fault_controls_separate_binary")
                 self.native_action(editor, "native_edit_fixture_activate")
@@ -192,7 +192,7 @@ class OpeningHarness(CumulativeOpenAcceptanceMixin, ComposedOpenAcceptanceMixin,
             stream, challenge = self.challenge(descriptor)
             stream.close()
             observation.require(challenge["capabilities"]["open_gdscript"] is True and
-                                challenge["native_api_revision"] == 3,
+                                challenge["native_api_revision"] == 4,
                                 "actual_authenticated_matched_product_opener")
             if not no_current:
                 self.open_action(editor, "open_setup", paths=[BACKGROUND])
@@ -781,7 +781,7 @@ class OpeningHarness(CumulativeOpenAcceptanceMixin, ComposedOpenAcceptanceMixin,
             self.case("scope_refused_during_real_open_owner", reason="busy", context_observed=False)
             stream, peer_id = self.authenticated_peer(descriptor)
             try:
-                stream.sendall(observation.packet([5, "observe", peer_id, descriptor["session_id"],
+                stream.sendall(observation.packet([6, "observe", peer_id, descriptor["session_id"],
                                                     descriptor["project_root"], TARGET]))
                 refusal, raw = observation.receive(stream)
                 observation.require(refusal.get("kind") == "failure" and

@@ -24,10 +24,10 @@ fn stamp(start: &str, end: &str) -> Value {
     json!({"clock_id":"editor:00112233445566778899aabbccddeeff","started_tick_us":start,"finished_tick_us":end,"received_elapsed_us":0})
 }
 fn native() -> Value {
-    json!({"request_id":"close-test","session_id":"00112233445566778899aabbccddeeff","script_path":"res://subject.gd","native_build_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","native_api_revision":3,"phase":"returned","script_instance_id":"3","editor_instance_id":"4","buffer_instance_id":"5","entry_collection":stamp("1","1"),"return_collection":stamp("2","2"),"entered":true,"close_error":0,"old_document_removed":true,"selection":{"before":"target","after":"no_source_editor","request_effect":"native_fallback"},"target_buffer":"disposed","protection":{"status":"preserved","revalidation":"not_applicable","required_count":0,"completed_count":0,"reason":null},"continuation":{"state":"not_applicable","reason":null,"required_editor_ids":[],"completed_editor_ids":[],"collections":[]},"invalidated":false,"reason":null,"terminal_discard":false})
+    json!({"request_id":"close-test","session_id":"00112233445566778899aabbccddeeff","script_path":"res://subject.gd","native_build_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","native_api_revision":4,"phase":"returned","script_instance_id":"3","editor_instance_id":"4","buffer_instance_id":"5","entry_collection":stamp("1","1"),"return_collection":stamp("2","2"),"entered":true,"close_error":0,"old_document_removed":true,"selection":{"before":"target","after":"no_source_editor","request_effect":"native_fallback"},"target_buffer":"disposed","protection":{"status":"preserved","revalidation":"not_applicable","required_count":0,"completed_count":0,"reason":null},"continuation":{"state":"not_applicable","reason":null,"required_editor_ids":[],"completed_editor_ids":[],"collections":[]},"invalidated":false,"reason":null,"terminal_discard":false})
 }
 fn progress() -> Value {
-    json!({"v":5,"kind":"close_progress","request_id":"close-test","session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","script_path":"res://subject.gd","collection":stamp("3","4"),"status":"returned","reason":null,"native":native(),"expiry_tick_us":"100"})
+    json!({"v":6,"kind":"close_progress","request_id":"close-test","session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","script_path":"res://subject.gd","collection":stamp("3","4"),"status":"returned","reason":null,"native":native(),"expiry_tick_us":"100"})
 }
 fn decode_progress(value: &Value) -> bool {
     let (r, t) = fixture();
@@ -423,7 +423,7 @@ fn reopened_survivor_sample_does_not_replace_historical_buffer_effects() {
     let prior: Value =
         serde_json::from_slice(&super::super::encode_outcome(&public_prior()).unwrap()).unwrap();
     let snapshot = &prior["snapshot"];
-    let mut sample = json!({"v":5,"kind":"sample","request_id":"close-test","session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","script_path":"res://subject.gd","collection":stamp("20","21"),"document":snapshot["document"],"R":snapshot["sources"]["R"],"B":snapshot["sources"]["B"],"dirty":snapshot["dirty"],"diagnostics":[]});
+    let mut sample = json!({"v":6,"kind":"sample","request_id":"close-test","session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","script_path":"res://subject.gd","collection":stamp("20","21"),"document":snapshot["document"],"R":snapshot["sources"]["R"],"B":snapshot["sources"]["B"],"dirty":snapshot["dirty"],"diagnostics":[]});
     // Live editor acquisition does not claim Rust's independently read D identity.
     sample["document"]["identity"]["disk_file_id"] = Value::Null;
     for pointer in [
@@ -531,7 +531,7 @@ fn recheck_purpose_is_not_interchangeable_with_survivor_collection() {
     frame["kind"] = json!("close_rechecked");
     frame["status"] = json!("rechecked");
     frame["purpose"] = json!("pre_close");
-    frame["recheck"] = json!({"v":5,"kind":"recheck","request_id":"close-test","session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","script_path":"res://subject.gd","collection":stamp("3","4"),"checks":"performed","detected_changes":[],"reason":null});
+    frame["recheck"] = json!({"v":6,"kind":"recheck","request_id":"close-test","session_id":"00112233445566778899aabbccddeeff","project_root":"/fixture/project","script_path":"res://subject.gd","collection":stamp("3","4"),"checks":"performed","detected_changes":[],"reason":null});
     for key in ["protection", "selection", "resource_state"] {
         frame[key] = Value::Null;
     }

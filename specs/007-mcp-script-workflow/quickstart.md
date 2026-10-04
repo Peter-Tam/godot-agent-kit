@@ -1,6 +1,6 @@
 # Quickstart: Validate the Trusted MCP Script Workflow
 
-**Status:** Planning/validation contract only. The MCP binary, new closed transaction and MCP runner commands below are **implementation deliverables, not present commands at this planning head**. Existing availability checks are identified separately. This guide defines their exact intended invocation and expected evidence; it does not implement them or claim they ran.
+**Status:** T001 is **complete** with [accepted protocol-independent core/native evidence](#t001-execution-evidence-2026-10-04). Its supervised fixture consumer and closed native/lifecycle groups are implemented and verified. T002–T004 remain pending; the MCP binary, transport group and real-client commands below are future task deliverables, not available product commands or interoperability claims.
 
 Read [plan.md](plan.md), [data-model.md](data-model.md) and [the public contract](contracts/mcp-interface.md). Follow [TEST_POLICY.md](../../TEST_POLICY.md) for scope, evidence reuse and the existing [VM boundary](../../.github/LOCAL_VM.md). No command authorizes a feature task before its own approved tasks/analysis and one-task-one-PR prerequisites.
 
@@ -45,6 +45,276 @@ cargo +1.98.1 doc --no-deps --locked
 ```
 
 Retain default doctests. Native/bridge changes also require their directly affected build/loading/boundary evidence. Do not run these product commands merely because planning documentation changed.
+
+## T001 protocol-independent consumer
+
+T001 adds `script_read::{ScriptRevision, ScriptEditRequest, ScriptReadResult}`
+and supervised `runner::read::{run, edit}`. Read returns exact permitted source,
+useful editor state and a nullable `sr1:` revision. Edit freshly authenticates and
+acquires state, compares that revision, then freezes the matching open or closed
+basis under the original clock. The legacy open-only caller still refuses closed
+targets. Loaded Script source coherence does not imply class or runtime hot reload.
+
+The example is acceptance apparatus, not a new product CLI or MCP adapter:
+
+```sh
+cd mcp-server
+cargo +1.98.1 build --locked --lib --bins --example script_workflow_fixture
+printf '%s\n' '{"operation":"read","request_id":"read-example"}' |
+  ./target/debug/examples/script_workflow_fixture \
+    --registry "$REGISTRY" --project "$PROJECT" --script "$SCRIPT" --session "$SESSION"
+```
+
+An intentional edit supplies only `operation: "edit"`, a new `request_id`,
+the returned non-null `revision` and exact `replacement_source`, with the same
+explicit selectors. A null revision or failed/uncertain edit is not permission
+to retry or change document lifecycle. Native RPCs and private captures are not
+fixture consumer arguments.
+
+Install matched Rust/addon **bridge v6/native revision 4** peers together and
+restart/re-enable for a new authenticated session. Rebuild production and separate
+fixture-fault native artifacts; never install the latter for ordinary use.
+Old v5/revision-3 sessions and bases have no fallback.
+
+### T001 validation scheduling review
+
+The first exact-512-KiB VM edit applied all bytes but returned
+`applied_unverified` after 9.079435 seconds because actual-source validation was
+unavailable. Original and desired preflight validation were serialized, each
+starting the existing isolated stock validator. Keep both checks, but run these
+independent preflight validations concurrently under the same attempt clock and
+cancellation flag; neither can authorize effects alone. Post-effect validation
+and the native main-thread sequence remain independent and unchanged.
+
+The simpler serial route failed this supported boundary. A new multi-source LSP
+protocol would add more state and compatibility work than reusing two existing
+bounded workers. The current cost is one scoped coordination thread and at most
+two simultaneous isolated validation children, with their existing provenance,
+cleanup and deadlines. No new dependency, extended lease or retained validator
+service is introduced. Exact unchanged intent validates the shared original/desired
+source once during preflight; both parties require byte equality before reusing
+that verdict. The accepted positive group verified all 30 cases; the exact-512-KiB
+changed edit completed in 8.638174 seconds with independently observed postconditions.
+
+Focused reruns also expose the existing named subgroups through the runner's
+fixed scenario table. A getter-only failure otherwise replayed 30 already-passing
+positive cases before reaching its own group; the two aggregate selectors could
+not isolate that failure. This reuses the existing close-runner dispatch, capture,
+provenance and cleanup conventions, costing one fixed selector table rather than
+a new campaign/resume mechanism. It neither skips assertions nor changes the
+requirements for cumulative coverage.
+
+## T001 execution evidence (2026-10-04)
+
+T001 is complete on `task/T001-trusted-script-execution`. **324 accepted cases**
+across the 11 groups below cover the task-owned core/native behavior. Counts exclude
+repeated runner bootstrap checks. No MCP SDK/server, selected-client model session,
+MCP accepted-frame timing, composed real-agent A–E or Phase 3 exit is claimed.
+
+Every run used `godot-addon/tests/run_in_vm.py run mcp --scenario … --captures`
+with committed source and owned synthetic projects. All listed subgroup names are
+also directly runnable through the fixed scenario selector. Artifacts are under
+`~/.local/state/godot-agent-kit-vm/artifacts/<run>/<snapshot>/`, containing
+`provenance.json`, `artifacts/summary.json` and retrieved owned-window captures.
+Raw source-bearing records and independent detailed witnesses remain in the private
+guest run directory; they are not committed or published as protocol output.
+
+| Accepted group | Cases | Tested source | Run / snapshot |
+| --- | ---: | --- | --- |
+| `closed-positives` | 30 | `ca4d3024c476` | `t001-closed-native-6` / `20261004T132114Z-562393ac67b4` |
+| `closed-refusals` | 39 | `7e6fc2206baa` | `t001-closed-refusals-1` / `20261004T133125Z-03de857cf09b` |
+| `closed-revisions-and-boundary-races` | 75 | `6535c292f0d2` | `t001-closed-revisions-2` / `20261004T134417Z-fd5314a7631c` |
+| `closed-effect-faults` | 22 | `edf8c3a1768a` | `t001-closed-effects-2` / `20261004T140058Z-012c5f31d339` |
+| `closed-acquisition-invalidation-and-selection` | 12 | `2c815415e873` | `t001-closed-acquisition-3` / `20261004T141603Z-eeed4317f2fe` |
+| `closed-authenticated-wire-boundaries` | 22 | `5b5953b3f967` | `t001-closed-wire-4` / `20261004T142855Z-4d13c467e9d1` |
+| `closed-save-profile-and-shared-slot` | 7 | `5b5953b3f967` | `t001-closed-slot-1` / `20261004T142943Z-be4ea725ff4b` |
+| `closed-cancel-and-newer-work` | 74 | `5b5953b3f967` | `t001-closed-lifecycle-1` / `20261004T143844Z-98bda4f0a650` |
+| `closed-later-durability-and-history` | 8 | `4143e73b9507` | `t001-closed-durability-1` / `20261004T144452Z-fc2fd54287b1` |
+| `matched-v6-native4-legacy-preservation` | 13 | `4143e73b9507` | `t001-closed-legacy-1` / `20261004T144541Z-770c22205993` |
+| `closed-privacy-export` | 22 | `4143e73b9507` | `t001-closed-privacy-1` / `20261004T144834Z-f4888f57fcfc` |
+
+The positive and cancellation groups completed before later groups failed in their
+aggregate runs. Only their completed group records are reused; neither failed
+aggregate is represented as a passing run. Every failed group was subsequently
+corrected and executed successfully in its own scope.
+
+### Environment, provenance and timings
+
+- Guest: macOS **26.6.2 / 25G83**, arm64 `VirtualMac2,1`, four CPUs, 6 GiB;
+  Godot **4.7.2.stable.official.ed1daf0bf**,
+  engine commit `ed1daf0bf001b61586d9930840f2f1394092c079`.
+- Official binary SHA-256:
+  `c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`;
+  export-template SHA-256:
+  `88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`.
+- Rust/Cargo **1.98.1**; Apple clang **21.0.0**, SDK **26.5**. The generated API,
+  ABI/header, native manifests, binaries, fixtures and runner hashes are retained
+  in each run's existing provenance/summary, including cache receipts.
+- Final production native build:
+  `7203d78018cae3b6b507efbefac688100dd8dd4f8032ab10a6ccfc2f3941ad71`;
+  library SHA-256 `03911a9420ddb663b3717fa1de8cd15c6ac1700bd7469022400dd0c58050dbcb`.
+  Separate fixture build:
+  `66df032e755067eb46b18a498bee023e63975d74d8a615170ee4c839a4f2dba6`;
+  library SHA-256 `d97489b0d6b1b30e9b89503725fb7c4d12ff7595b884b16ba0ce3b1b88f6538a`.
+- Across accepted groups, 152 supervised reads completed in **0.260089–1.515744 s**
+  and 135 supervised edits/refusals in **0.004107–9.516107 s**. The longest edit
+  was the deliberate silent-editor refusal; the longest verified success was the
+  **512 KiB** changed edit at **8.638174 s**. Existing 5/10-second caller bounds,
+  4.5/9.5-second work cutoffs and nine-second native lease remain unchanged.
+- Actual captures show the target remaining closed during mutation, then visible
+  `return 83` after later opening/Save/reparse/rescan while the unrelated human
+  script remains dirty. Fresh runtime separately returned 83. Real Undo/Redo was
+  exercised on the preserved human document, not manufactured for closed editing.
+  Owned editors/helpers were cleaned up; the dedicated Tart VM was stopped and
+  `status` confirmed `running: false`, `state: stopped`.
+
+### Required checks and resolved regressions
+
+Formatting and Clippy (`--all-targets --locked -- -D warnings`) passed.
+`cargo test --locked -- --test-threads=1` passed **406 tests across 20 suites**,
+including the default doctest targets. Rustdoc and actual library, binary and
+example builds passed with locked resolution. The ordinary parallel test run hit
+the existing open late-compilation test's ten-second wall-clock assertion; its
+isolated execution and the complete serial baseline passed without changing the
+assertion, deadlines or production timing semantics.
+
+The affected VM/native-build tests passed **38 tests**, and workflow execution/gate
+fixtures passed **22 tests**. Changed Python entrypoints compiled and the actual
+runner help/selection surface was exercised. No unrelated workflow/CI configuration
+changed, so no new Actionlint or hosted-provider gate was introduced.
+
+Executed regression work corrected the native dictionary-comparison ABI call,
+serialized preflight cost at the source limit, getter failures falsely reported
+as source/lifecycle changes, missing disk coexisting with a retained Script,
+partial-source evidence incorrectly requiring a still-admissible profile, and
+sticky disclosure after earlier native failure. The incomplete-profile model
+regression failed before correction and passed afterward; it still rejects such
+evidence as mutation authority. Existing guards were not weakened to obtain passes.
+
+Fixture corrections preserve the actual contracts: absent R has no invented source;
+a revision is not a parse verdict; unused autoload names alone are supported by the
+source profile; epoch races occur after the first captured epoch; fresh acquisition
+uses a distinct request ID; ordinary-read busy behavior retains its existing v1
+meaning; human idle parsing settles before preservation baselines. Strict tuples,
+real effect prefixes and independent witnesses remain enforced.
+
+### Currentness, implementation shape and constitutional review
+
+Evidence reuse follows [TEST_POLICY.md](../../TEST_POLICY.md#reusing-evidence-across-commits),
+not a literal-final-commit replay. Later getter/missing-disk repairs affect refusal
+and acquisition paths, which were rerun. The native partial-state correction leaves
+normal admission/effect guards intact and adds read-only terminal collection;
+partial effects were rerun, and the final native build also executed successful
+slot-owner edits, cancellation, durability, legacy operations and exports. Later
+fixture changes affect only the specifically rerun wire/acquisition/durability
+cases. In particular, clearing stale barrier files does not alter earlier exact-ID
+barrier assertions. Documentation/status changes do not invalidate these inputs.
+No full historical observation/edit/open/discovery/close campaign was replayed.
+
+The implementation-shape review found cohesive owners: `script_read` owns checked
+intent/revision/presentation; `runner/read` owns fresh acquisition and fixed branch
+selection; closed model/effect reduction, strict wire codecs, supervisor and worker
+are separate. The 760-line closed worker was explicitly reviewed: its capture,
+validation, native sequencing and disclosure helpers belong to one owned child
+execution boundary. A further split would add visibility/import surface without
+reducing the next adapter task's review cost. The read coordinator remains one
+210-line module rather than creating an unused `runner/read/` directory.
+
+The native owner and addon lifecycle use existing session/operation admission.
+Effect flags describe independently observable progress, not interchangeable
+lifecycle booleans. Raw captures, worker controls and effect authority remain
+private/crate-private; public declarations have current supervised consumers.
+Typed failure paths retain missing/unsafe evidence rather than panicking. Existing
+profile/validator/confinement machinery is reused, with no duplicated feature
+infrastructure, speculative hooks, extra dependency or compatibility fallback.
+
+Constitutional review preserves independent D/R/B applicability, human work,
+stale/lifecycle refusal, canonical native mutation, independently observed success,
+sticky partial/unknown effects and late denial, local routing/confinement and
+enabled/disabled/hook-only export isolation. Closed history remains not applicable;
+loaded class/runtime hot reload is not promised. Existing open native history and
+Phase 1 A–E evidence remain valid, supplemented by the affected matched-peer/open
+workflow witnesses. The new composed MCP A–E and both real-client obligations remain
+T002–T004 work. Complexity additions and their present justification are recorded
+in the scheduling review above. Only T001 is marked complete.
+
+### Post-review correction: stable detected-change projection
+
+`ScriptReadResult::encode` now presents `state.consistency.detected_changes` as
+the established observation-v1 array of `{"surface": "...", "code": "..."}`
+objects, using an exhaustive local match rather than Rust `Debug` strings:
+
+| Internal change | `surface` | `code` |
+| --- | --- | --- |
+| `Source(D)` | `D` | `source_changed` |
+| `Source(R)` | `R` | `source_changed` |
+| `Source(B)` | `B` | `source_changed` |
+| `Dirty` | `dirty` | `source_changed` |
+| `DocumentClosed` | `document` | `document_closed` |
+| `DocumentIdentityReplaced` | `document` | `identity_changed` |
+| `SessionReplaced` | `session` | `identity_changed` |
+| `SessionEnded` | `session` | `session_ended` |
+| `DiskIdentityReplaced` | `D` | `identity_changed` |
+
+This supersedes the pre-review Debug-string projection on this **unmerged T001**
+delivery; it is not a legacy v1 or revision-contract change. The private
+`bridge/wire.rs::change_out` remains unchanged and private. The smallest local
+mapping satisfies Principles IX/XIII without a generic schema layer, added
+dependency or wider public visibility. Only the caller-facing encoder and
+deterministic regression additions change code; hashing/commitment, private
+matching input, source disclosure, acquisition, branch selection and effect
+state remain unchanged.
+
+The **324 accepted cases**, **406 Rust tests** and **38 + 22 (60) Python tests**
+above remain historical evidence, not newly executed results for this correction.
+The retained `t001-closed-legacy-1/20261004T144541Z-770c22205993/provenance.json`
+and `artifacts/summary.json` were reviewed: they retain the tested revision,
+native/API/ABI hashes, environment, fixture/runner/acceptance hashes and the
+13-case matched-v6-native4 legacy group. Their production native library hash
+matches the native provenance recorded above. The prior 324-case/native evidence
+is reusable for its existing guarantees because production mutation/acquisition,
+native/addon/ABI, authentication/routing, fixtures/witnesses, runner/environment
+and acceptance inputs are unchanged by this projection-only correction; it does
+not establish the corrected JSON shape. No VM/native campaign is rerun, and no
+new MCP/T002 scope or acceptance claim is introduced.
+
+Focused validation passed under Rust 1.98.1: both new detected-change regressions
+(all nine values, accumulated change ordering and encoded Debug-name rejection),
+all **13** `script_read` library tests and the public `script_read` integration test.
+A throwaway harness reused the existing authenticated boundary peer to launch the
+actual rebuilt `script_workflow_fixture` consumer in four read scenarios: changed
+R, changed B/dirty, document closure and document replacement. Its stdout contained
+the exact structured change arrays, limited state and null revisions; fixture disk
+source was unchanged. This is deterministic caller/serialization smoke, not new
+real-Godot evidence. The harness and executable were removed.
+
+`cargo +1.98.1 fmt --all -- --check`,
+`cargo +1.98.1 clippy --all-targets --locked -- -D warnings`,
+`cargo +1.98.1 doc --no-deps --locked` and
+`cargo +1.98.1 build --locked --lib --bins --examples` passed. LSP diagnostics
+reported no issues in either changed Rust file.
+
+**Task-specific Rust baseline exception:** The normal
+`cargo +1.98.1 test --locked` was attempted again and **failed (exit 101)**:
+`script_open::a_late_compilation_result_cannot_upgrade_a_delivered_known_partial_timeout`
+hit the unchanged `elapsed <= Duration::from_secs(10)` assertion at
+`tests/bridge_boundary/open.rs:807`; that boundary suite had 62 passes and one
+failure. Its preceding outcome/effect assertions passed. `invoke_open` measures
+process launch through consumed output; under default parallel execution that
+wall-clock interval exceeded ten seconds. The isolated exact test passed, then
+the complete `cargo +1.98.1 test --locked -- --test-threads=1` baseline passed
+**408 tests across 20 suites**, including the default doctest targets.
+Parallel contention is the inferred scheduling cause, not a measured scheduler
+diagnosis or a claim that the failed run passed.
+
+This applies the concrete-exception provision in [TEST_POLICY.md § Rust](../../TEST_POLICY.md#rust)
+to the [T001 Rust completion requirement](tasks.md#verification-and-completion-rules-for-every-task):
+the same unchanged timing/effect assertion passes in isolation and in the complete
+serial suite, while the affected projection receives exhaustive deterministic and
+actual-caller evidence. Those results provide equivalent behavioral coverage for
+this serialization-only correction; the earlier parallel failure remains historical
+development evidence. No test assertion, production timeout, operation deadline
+or lease was relaxed. This is not a global serial-test rule for future tasks.
 
 ## Owned MCP fixture interfaces after implementation
 

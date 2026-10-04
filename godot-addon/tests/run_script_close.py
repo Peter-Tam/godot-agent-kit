@@ -121,10 +121,10 @@ class CloseHarness(CumulativeCloseAcceptanceMixin, CallerCloseAcceptanceMixin,
             descriptor = observation.wait_for(lambda: next(iter(self.descriptors(project)), None),
                                               "owned_close_editor_session")
             info = self.close_action(editor, "close_info")
-            observation.require(info["api_revision"] == 3 and
+            observation.require(info["api_revision"] == 4 and
                                 info["build_id"] == self.expected_native_build_id and
-                                info["session_id"] == descriptor["session_id"] and descriptor["v"] == 5,
-                                "matched_native_revision3_bridge5")
+                                info["session_id"] == descriptor["session_id"] and descriptor["v"] == 6,
+                                "matched_native_revision4_bridge6")
             if faults:
                 observation.require(info["fixture_faults"], "separate_native_fault_artifact")
                 self.native_action(editor, "native_edit_fixture_activate")

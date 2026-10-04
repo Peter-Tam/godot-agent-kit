@@ -397,7 +397,7 @@ mod tests {
     fn reply(tick: u64, visit: u64, completed: Option<u64>) -> codec::Reply {
         let native = serde_json::from_value(json!({
             "request_id":"close-test", "session_id":SESSION, "script_path":"res://subject.gd",
-            "native_build_id":"a".repeat(64), "native_api_revision":3, "phase":"settling",
+            "native_build_id":"a".repeat(64), "native_api_revision":4, "phase":"settling",
             "script_instance_id":"3", "editor_instance_id":"4", "buffer_instance_id":"5",
             "entry_collection":stamp(1), "return_collection":stamp(10), "entered":true,
             "close_error":0, "old_document_removed":true, "selection":null,

@@ -114,14 +114,16 @@ class SourceAndEvidenceTests(unittest.TestCase):
         self.assertEqual((self.root / "duplicate/summary.json").read_bytes(), b"failure")
 
     def test_missing_vm_is_error_without_source_or_host_runner_execution(self):
-        with (mock.patch.object(vm, "Tart", side_effect=vm.VMError("VM is stopped")),
-              mock.patch.object(vm, "_sync") as sync,
-              contextlib.redirect_stderr(io.StringIO()) as errors):
-            status = vm.main(["--state", str(self.root / "state"), "run", "close",
-                              "--scenario", "preservation"])
-        self.assertEqual(status, 1)
-        self.assertIn("No host Godot fallback", errors.getvalue())
-        sync.assert_not_called()
+        for suite, scenario in (("close", "preservation"), ("mcp", "closed-native")):
+            with (self.subTest(suite=suite),
+                  mock.patch.object(vm, "Tart", side_effect=vm.VMError("VM is stopped")),
+                  mock.patch.object(vm, "_sync") as sync,
+                  contextlib.redirect_stderr(io.StringIO()) as errors):
+                status = vm.main(["--state", str(self.root / "state"), "run", suite,
+                                  "--scenario", scenario])
+            self.assertEqual(status, 1)
+            self.assertIn("No host Godot fallback", errors.getvalue())
+            sync.assert_not_called()
 
     def test_reachable_vm_without_completed_readiness_cannot_run_acceptance(self):
         tart = mock.Mock()
@@ -158,6 +160,7 @@ class SourceAndEvidenceTests(unittest.TestCase):
         for arguments in (["run", "/bin/sh", "-c", "true"],
                           ["run", "close", "--scenario", "preservation", "--godot", "/host/Godot"],
                           ["campaign", "open", "--resume"],
+                          ["campaign", "mcp", "--run-id", "not-a-campaign"],
                           ["fetch-artifacts", "../other"], ["reset"]):
             with self.subTest(arguments=arguments), contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit) as failure:

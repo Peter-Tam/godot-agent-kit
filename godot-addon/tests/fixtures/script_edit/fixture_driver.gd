@@ -156,7 +156,7 @@ func _dispatch_native_request(request: Dictionary) -> void:
 		response.ok = bridge != null and owner != null and typeof(manifest) == TYPE_DICTIONARY \
 			and manifest.get("fixture_only") == true and FileAccess.file_exists(dylib) \
 			and manifest.get("native_library_sha256") == FileAccess.get_sha256(dylib) \
-			and manifest.get("native_api_revision") == 3 \
+			and manifest.get("native_api_revision") == 4 \
 			and manifest.get("native_family") == "editor_integration" \
 			and manifest.get("native_library") == "libeditor_integration.macos.arm64.dylib" \
 			and manifest.get("entry_symbol") == "editor_integration_library_init" \
@@ -165,10 +165,11 @@ func _dispatch_native_request(request: Dictionary) -> void:
 				"open_inspect", "open_prepare", "open_advance", "open_verify", "open_recheck",
 				"open_finish", "open_abort", "open_expire", "close_inspect", "close_prepare",
 				"close_advance", "close_status", "close_verify", "close_recheck", "close_finish",
-				"close_abort", "close_expire"]) \
-			and api.api_revision.call() == 3 and manifest.get("native_build_id") == api.build_id.call()
+				"close_abort", "close_expire", "closed_inspect", "closed_prepare", "closed_apply",
+				"closed_verify", "closed_recheck", "closed_finish", "closed_abort", "closed_expire"]) \
+			and api.api_revision.call() == 4 and manifest.get("native_build_id") == api.build_id.call()
 		if response.ok:
-			bridge.attach_edit(owner, 3, api.build_id.call())
+			bridge.attach_edit(owner, 4, api.build_id.call())
 	elif action == "native_edit_probe_entered":
 		var bridge: Node = get_tree().get_first_node_in_group("godot_agent_kit_session_bridge")
 		var doc := _document("res://scripts/subject.gd")
