@@ -1,6 +1,6 @@
 # Quickstart: Validate the Trusted MCP Script Workflow
 
-**Status:** T001 implementation and integrated verification are in progress. Its supervised fixture consumer and `closed-native`/`closed-lifecycle` runners exist; real-editor acceptance is not yet recorded. The MCP binary, transport group and real-client commands below remain T002 deliverables, not available product commands or interoperability claims.
+**Status:** T001 is **complete** with [accepted protocol-independent core/native evidence](#t001-execution-evidence-2026-10-04). Its supervised fixture consumer and closed native/lifecycle groups are implemented and verified. T002–T004 remain pending; the MCP binary, transport group and real-client commands below are future task deliverables, not available product commands or interoperability claims.
 
 Read [plan.md](plan.md), [data-model.md](data-model.md) and [the public contract](contracts/mcp-interface.md). Follow [TEST_POLICY.md](../../TEST_POLICY.md) for scope, evidence reuse and the existing [VM boundary](../../.github/LOCAL_VM.md). No command authorizes a feature task before its own approved tasks/analysis and one-task-one-PR prerequisites.
 
@@ -93,7 +93,8 @@ two simultaneous isolated validation children, with their existing provenance,
 cleanup and deadlines. No new dependency, extended lease or retained validator
 service is introduced. Exact unchanged intent validates the shared original/desired
 source once during preflight; both parties require byte equality before reusing
-that verdict. Scoped VM acceptance must confirm this optimization.
+that verdict. The accepted positive group verified all 30 cases; the exact-512-KiB
+changed edit completed in 8.638174 seconds with independently observed postconditions.
 
 Focused reruns also expose the existing named subgroups through the runner's
 fixed scenario table. A getter-only failure otherwise replayed 30 already-passing
@@ -102,6 +103,140 @@ not isolate that failure. This reuses the existing close-runner dispatch, captur
 provenance and cleanup conventions, costing one fixed selector table rather than
 a new campaign/resume mechanism. It neither skips assertions nor changes the
 requirements for cumulative coverage.
+
+## T001 execution evidence (2026-10-04)
+
+T001 is complete on `task/T001-trusted-script-execution`. **324 accepted cases**
+across the 11 groups below cover the task-owned core/native behavior. Counts exclude
+repeated runner bootstrap checks. No MCP SDK/server, selected-client model session,
+MCP accepted-frame timing, composed real-agent A–E or Phase 3 exit is claimed.
+
+Every run used `godot-addon/tests/run_in_vm.py run mcp --scenario … --captures`
+with committed source and owned synthetic projects. All listed subgroup names are
+also directly runnable through the fixed scenario selector. Artifacts are under
+`~/.local/state/godot-agent-kit-vm/artifacts/<run>/<snapshot>/`, containing
+`provenance.json`, `artifacts/summary.json` and retrieved owned-window captures.
+Raw source-bearing records and independent detailed witnesses remain in the private
+guest run directory; they are not committed or published as protocol output.
+
+| Accepted group | Cases | Tested source | Run / snapshot |
+| --- | ---: | --- | --- |
+| `closed-positives` | 30 | `ca4d3024c476` | `t001-closed-native-6` / `20261004T132114Z-562393ac67b4` |
+| `closed-refusals` | 39 | `7e6fc2206baa` | `t001-closed-refusals-1` / `20261004T133125Z-03de857cf09b` |
+| `closed-revisions-and-boundary-races` | 75 | `6535c292f0d2` | `t001-closed-revisions-2` / `20261004T134417Z-fd5314a7631c` |
+| `closed-effect-faults` | 22 | `edf8c3a1768a` | `t001-closed-effects-2` / `20261004T140058Z-012c5f31d339` |
+| `closed-acquisition-invalidation-and-selection` | 12 | `2c815415e873` | `t001-closed-acquisition-3` / `20261004T141603Z-eeed4317f2fe` |
+| `closed-authenticated-wire-boundaries` | 22 | `5b5953b3f967` | `t001-closed-wire-4` / `20261004T142855Z-4d13c467e9d1` |
+| `closed-save-profile-and-shared-slot` | 7 | `5b5953b3f967` | `t001-closed-slot-1` / `20261004T142943Z-be4ea725ff4b` |
+| `closed-cancel-and-newer-work` | 74 | `5b5953b3f967` | `t001-closed-lifecycle-1` / `20261004T143844Z-98bda4f0a650` |
+| `closed-later-durability-and-history` | 8 | `4143e73b9507` | `t001-closed-durability-1` / `20261004T144452Z-fc2fd54287b1` |
+| `matched-v6-native4-legacy-preservation` | 13 | `4143e73b9507` | `t001-closed-legacy-1` / `20261004T144541Z-770c22205993` |
+| `closed-privacy-export` | 22 | `4143e73b9507` | `t001-closed-privacy-1` / `20261004T144834Z-f4888f57fcfc` |
+
+The positive and cancellation groups completed before later groups failed in their
+aggregate runs. Only their completed group records are reused; neither failed
+aggregate is represented as a passing run. Every failed group was subsequently
+corrected and executed successfully in its own scope.
+
+### Environment, provenance and timings
+
+- Guest: macOS **26.6.2 / 25G83**, arm64 `VirtualMac2,1`, four CPUs, 6 GiB;
+  Godot **4.7.2.stable.official.ed1daf0bf**,
+  engine commit `ed1daf0bf001b61586d9930840f2f1394092c079`.
+- Official binary SHA-256:
+  `c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`;
+  export-template SHA-256:
+  `88df5e2e6fee99088699be66e6d42e4da4fb0c5619d054297d755a49558a4792`.
+- Rust/Cargo **1.98.1**; Apple clang **21.0.0**, SDK **26.5**. The generated API,
+  ABI/header, native manifests, binaries, fixtures and runner hashes are retained
+  in each run's existing provenance/summary, including cache receipts.
+- Final production native build:
+  `7203d78018cae3b6b507efbefac688100dd8dd4f8032ab10a6ccfc2f3941ad71`;
+  library SHA-256 `03911a9420ddb663b3717fa1de8cd15c6ac1700bd7469022400dd0c58050dbcb`.
+  Separate fixture build:
+  `66df032e755067eb46b18a498bee023e63975d74d8a615170ee4c839a4f2dba6`;
+  library SHA-256 `d97489b0d6b1b30e9b89503725fb7c4d12ff7595b884b16ba0ce3b1b88f6538a`.
+- Across accepted groups, 152 supervised reads completed in **0.260089–1.515744 s**
+  and 135 supervised edits/refusals in **0.004107–9.516107 s**. The longest edit
+  was the deliberate silent-editor refusal; the longest verified success was the
+  **512 KiB** changed edit at **8.638174 s**. Existing 5/10-second caller bounds,
+  4.5/9.5-second work cutoffs and nine-second native lease remain unchanged.
+- Actual captures show the target remaining closed during mutation, then visible
+  `return 83` after later opening/Save/reparse/rescan while the unrelated human
+  script remains dirty. Fresh runtime separately returned 83. Real Undo/Redo was
+  exercised on the preserved human document, not manufactured for closed editing.
+  Owned editors/helpers were cleaned up; the dedicated Tart VM was stopped and
+  `status` confirmed `running: false`, `state: stopped`.
+
+### Required checks and resolved regressions
+
+Formatting and Clippy (`--all-targets --locked -- -D warnings`) passed.
+`cargo test --locked -- --test-threads=1` passed **406 tests across 20 suites**,
+including the default doctest targets. Rustdoc and actual library, binary and
+example builds passed with locked resolution. The ordinary parallel test run hit
+the existing open late-compilation test's ten-second wall-clock assertion; its
+isolated execution and the complete serial baseline passed without changing the
+assertion, deadlines or production timing semantics.
+
+The affected VM/native-build tests passed **38 tests**, and workflow execution/gate
+fixtures passed **22 tests**. Changed Python entrypoints compiled and the actual
+runner help/selection surface was exercised. No unrelated workflow/CI configuration
+changed, so no new Actionlint or hosted-provider gate was introduced.
+
+Executed regression work corrected the native dictionary-comparison ABI call,
+serialized preflight cost at the source limit, getter failures falsely reported
+as source/lifecycle changes, missing disk coexisting with a retained Script,
+partial-source evidence incorrectly requiring a still-admissible profile, and
+sticky disclosure after earlier native failure. The incomplete-profile model
+regression failed before correction and passed afterward; it still rejects such
+evidence as mutation authority. Existing guards were not weakened to obtain passes.
+
+Fixture corrections preserve the actual contracts: absent R has no invented source;
+a revision is not a parse verdict; unused autoload names alone are supported by the
+source profile; epoch races occur after the first captured epoch; fresh acquisition
+uses a distinct request ID; ordinary-read busy behavior retains its existing v1
+meaning; human idle parsing settles before preservation baselines. Strict tuples,
+real effect prefixes and independent witnesses remain enforced.
+
+### Currentness, implementation shape and constitutional review
+
+Evidence reuse follows [TEST_POLICY.md](../../TEST_POLICY.md#reusing-evidence-across-commits),
+not a literal-final-commit replay. Later getter/missing-disk repairs affect refusal
+and acquisition paths, which were rerun. The native partial-state correction leaves
+normal admission/effect guards intact and adds read-only terminal collection;
+partial effects were rerun, and the final native build also executed successful
+slot-owner edits, cancellation, durability, legacy operations and exports. Later
+fixture changes affect only the specifically rerun wire/acquisition/durability
+cases. In particular, clearing stale barrier files does not alter earlier exact-ID
+barrier assertions. Documentation/status changes do not invalidate these inputs.
+No full historical observation/edit/open/discovery/close campaign was replayed.
+
+The implementation-shape review found cohesive owners: `script_read` owns checked
+intent/revision/presentation; `runner/read` owns fresh acquisition and fixed branch
+selection; closed model/effect reduction, strict wire codecs, supervisor and worker
+are separate. The 760-line closed worker was explicitly reviewed: its capture,
+validation, native sequencing and disclosure helpers belong to one owned child
+execution boundary. A further split would add visibility/import surface without
+reducing the next adapter task's review cost. The read coordinator remains one
+210-line module rather than creating an unused `runner/read/` directory.
+
+The native owner and addon lifecycle use existing session/operation admission.
+Effect flags describe independently observable progress, not interchangeable
+lifecycle booleans. Raw captures, worker controls and effect authority remain
+private/crate-private; public declarations have current supervised consumers.
+Typed failure paths retain missing/unsafe evidence rather than panicking. Existing
+profile/validator/confinement machinery is reused, with no duplicated feature
+infrastructure, speculative hooks, extra dependency or compatibility fallback.
+
+Constitutional review preserves independent D/R/B applicability, human work,
+stale/lifecycle refusal, canonical native mutation, independently observed success,
+sticky partial/unknown effects and late denial, local routing/confinement and
+enabled/disabled/hook-only export isolation. Closed history remains not applicable;
+loaded class/runtime hot reload is not promised. Existing open native history and
+Phase 1 A–E evidence remain valid, supplemented by the affected matched-peer/open
+workflow witnesses. The new composed MCP A–E and both real-client obligations remain
+T002–T004 work. Complexity additions and their present justification are recorded
+in the scheduling review above. Only T001 is marked complete.
 
 ## Owned MCP fixture interfaces after implementation
 

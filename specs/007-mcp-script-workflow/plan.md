@@ -4,7 +4,7 @@
 
 **Input:** Maintainer-approved discover/read/edit requirements, including constitution v1.2.0 alignment in FR-022/SC-009.
 
-**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md), and design PR #63 is merged. The implementation prerequisite recognized the current pass without rerunning analysis. Only T001 is authorized and undergoing implementation/verification on `task/T001-trusted-script-execution`; T002–T004 remain pending. No MCP interoperability or feature/phase completion is claimed.
+**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. T001 is complete with [core/native acceptance and implementation review](quickstart.md#t001-execution-evidence-2026-10-04). T002–T004 remain pending. This delivery/status update does not change approved remaining obligations or claim MCP interoperability, feature completion or Phase 3 exit.
 
 ## Summary
 
@@ -104,7 +104,7 @@ specs/007-mcp-script-workflow/
     └── closed-edit.md
 ```
 
-[tasks.md](tasks.md) derives four coherent implementation increments: protocol-independent trusted read/revision/closed editing; complete external MCP MVP with both clients' positive workflows; combined adversarial preservation/interrupted-effect behavior; composed real-agent A–E and cumulative acceptance. Direct tests/docs are bundled with their implementation, and separately runnable groups do not create extra task IDs. Granularity review and consistency analysis passed; only T001 is in progress.
+[tasks.md](tasks.md) derives four coherent implementation increments: protocol-independent trusted read/revision/closed editing; complete external MCP MVP with both clients' positive workflows; combined adversarial preservation/interrupted-effect behavior; composed real-agent A–E and cumulative acceptance. Direct tests/docs remain bundled with their implementation, and separately runnable groups do not create extra task IDs. T001 is complete; T002–T004 remain pending under the one-task-one-PR sequencing rule.
 
 ### Source code (repository root)
 

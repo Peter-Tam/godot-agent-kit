@@ -123,6 +123,19 @@ existing validator capture as `validation` alongside `{projection, source, sha25
 Private tuples and the independent verification obligations are specified in the
 [closed transaction contract](../../specs/007-mcp-script-workflow/contracts/closed-edit.md).
 
+Terminal partial-state collection is read-only and separate from mutation admission:
+failed persistence can leave observable source that no longer has an admissible
+profile. Its profile may be null, but checked edit bases still require a valid
+profile, clean matching Resource source and all normal guards. Getter unavailability
+does not fabricate absence or source/lifecycle changes. The caller retains causal
+failure and known effects, and suppresses source evidence after later disclosure
+denial.
+
+The [T001 execution record](../../specs/007-mcp-script-workflow/quickstart.md#t001-execution-evidence-2026-10-04)
+covers both closed Resource branches, unchanged intent, boundaries, partial effects,
+real human history, later durability, matched legacy operations and all three export
+configurations. This is core/native evidence, not MCP or real-client acceptance.
+
 Only separately built `--fixture-faults` artifacts expose `closed_fixture_fault`
 and `closed_fixture_state`. An empty request arms the next inspect/prepare; an owned
 prepared request arms that attempt. Faults include missing cache/roster/context,
