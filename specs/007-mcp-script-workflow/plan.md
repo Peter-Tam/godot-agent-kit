@@ -185,3 +185,12 @@ same owner/witness/cleanup path. The added cost is four fixed selectors, not a
 new runner or relaxed product deadline; every selected client still owes all
 four groups. The bound prompt describes its exact requested comment instead
 of preloading half a MiB of redundant desired text.
+
+The first Codex run exited without tool calls but left an idle guest relay alive.
+Sequential control handling then prevented `finalize-mcp` from reaching the owner;
+the 180-second control wait failed. The existing relay's `select` now also watches
+the fixed control listener, so finalization drains the owned MCP process before
+validation/fixture cleanup even when the client never supplies EOF. This reuses one
+event loop rather than adding a thread/service or treating client exit as success.
+Its cost is one explicit control handoff and a live-child/socket regression.
+No product deadline, transaction, source authority or mutation behavior changes.

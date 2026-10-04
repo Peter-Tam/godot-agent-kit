@@ -185,7 +185,7 @@ class McpLifecycleMixin:
                 item['replacement_source'] = target['desired'] if target['name'] not in ('dirty', 'divergent', 'limited', 'partial') else None
             targets.append(item)
         return ('Use only the godot_agent_kit MCP tools for project operations; do not use shell, files, '
-                'or other bridges. For the listed targets only, use the three tools. For open/cached/absent/unicode/empty/empty_desired/bound targets, '
+                'or other bridges. Only cases present in the target list are in scope. For open/cached/absent/unicode/empty/empty_desired/bound targets, '
                 'discover, read twice to compare unchanged revisions, submit an already-satisfied edit using '
                 'the exact returned source/revision, edit to the requested replacement, then fresh-read. '
                 'For known, read and edit directly without discovery. Discover partial and explain incomplete '
@@ -266,7 +266,7 @@ class McpLifecycleMixin:
         with (self.artifacts / 'mcp-calls.jsonl').open('a') as stream:
             stream.write(json.dumps(record, ensure_ascii=False) + '\n')
 
-    def relay_connection(self, connection):
+    def relay_connection(self, connection, control_server=None):
         connection.settimeout(15)
         diagnostics = (self.artifacts / 'mcp-stderr.log').open('ab')
         process = subprocess.Popen([str(self.args.mcp_server), '--registry', str(self.registry)],
@@ -276,9 +276,23 @@ class McpLifecycleMixin:
         buffers = {connection: bytearray(), process.stdout: bytearray()}
         try:
             while True:
-                ready, _, _ = select.select(list(buffers), [], [], 15 if pending else None)
+                readers = list(buffers)
+                if control_server is not None:
+                    readers.append(control_server)
+                ready, _, _ = select.select(readers, [], [], 15 if pending else None)
                 observation.require(bool(ready), 'MCP_consumed_output_deadline')
                 for incoming in ready:
+                    if incoming is control_server:
+                        finalizer, _ = control_server.accept()
+                        finalizer.settimeout(15)
+                        try:
+                            if finalizer.recv(1) == b'F':
+                                return finalizer
+                        except BaseException:
+                            finalizer.close()
+                            raise
+                        finalizer.close()
+                        continue
                     data = incoming.recv(65536) if incoming is connection else __import__('os').read(incoming.fileno(), 65536)
                     if not data:
                         return
@@ -455,8 +469,14 @@ def serve_prepared(harness, run):
                     connection.settimeout(15)
                     command = connection.recv(1)
                     if command == b'R':
-                        harness.relay_connection(connection)
+                        finalizer = harness.relay_connection(connection, server)
+                        if finalizer is None:
+                            continue
                     elif command == b'F':
+                        finalizer = connection
+                    else:
+                        raise ValueError('invalid prepared control')
+                    with finalizer:
                         harness.finalize_targets()
                         stack.close()
                         harness.cleanup()
@@ -466,10 +486,8 @@ def serve_prepared(harness, run):
                                                model_visibility_review_required=True)
                         harness.summary['passed_case_count'] = len(harness.cases)
                         observation.json_file(harness.artifacts / 'summary.json', harness.summary)
-                        connection.sendall(b'OK\n')
+                        finalizer.sendall(b'OK\n')
                         return
-                    else:
-                        raise ValueError('invalid prepared control')
         finally:
             if harness.summary.get('status') != 'passed':
                 harness.summary['status'] = 'failed'
