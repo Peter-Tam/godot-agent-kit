@@ -377,7 +377,28 @@ impl ScriptReadResult {
         let target = self.observation.resolved_target().map(|t| serde_json::json!({"project_root":t.project_root().as_str(),"script_path":t.script_path().as_str(),"session_id":t.session_id().as_str(),"kind":t.script_path().kind().map(|k|k.as_str())}));
         let resource_dirty = self.closed_observed.as_ref().map(|s| serde_json::json!({"availability":match s.resource.state.as_str() {"present"=>"observed","absent"=>"not_applicable",_=>"unavailable"},"state":s.resource.edited.map(|edited|if edited{"dirty"}else{"clean"})})).unwrap_or_else(||serde_json::json!({"availability":"unavailable","state":null}));
         let dirty = snapshot.map(|s| serde_json::json!({"buffer":{"availability":s.dirty().availability().as_str(),"state":s.dirty().state().map(|v|v.as_str()),"reason":s.dirty().reason().map(|v|v.as_str()),"invalidated":s.dirty().invalidated_evidence().map(|v|serde_json::json!({"state":v.state().as_str(),"reason":v.reason().as_str()}))},"loaded_resource":resource_dirty}));
-        let consistency = snapshot.map(|s| serde_json::json!({"atomic":false,"checks":s.consistency().checks().as_str(),"stability":s.consistency().stability().as_str(),"recheck_reason":s.consistency().recheck_reason().map(|v|v.as_str()),"detected_changes":s.consistency().detected_changes().iter().map(|v|format!("{v:?}")).collect::<Vec<_>>(),"comparisons":{"disk_resource":s.comparisons().disk_resource().as_str(),"disk_buffer":s.comparisons().disk_buffer().as_str(),"resource_buffer":s.comparisons().resource_buffer().as_str()},"agreement":s.agreement().as_str()}));
+        let consistency = snapshot.map(|s| {
+            let detected_changes: Vec<_> = s
+                .consistency()
+                .detected_changes()
+                .iter()
+                .map(|change| {
+                    let (surface, code) = match *change {
+                        DetectedChange::Source(Authority::D) => ("D", "source_changed"),
+                        DetectedChange::Source(Authority::R) => ("R", "source_changed"),
+                        DetectedChange::Source(Authority::B) => ("B", "source_changed"),
+                        DetectedChange::Dirty => ("dirty", "source_changed"),
+                        DetectedChange::DocumentClosed => ("document", "document_closed"),
+                        DetectedChange::DocumentIdentityReplaced => ("document", "identity_changed"),
+                        DetectedChange::SessionReplaced => ("session", "identity_changed"),
+                        DetectedChange::SessionEnded => ("session", "session_ended"),
+                        DetectedChange::DiskIdentityReplaced => ("D", "identity_changed"),
+                    };
+                    serde_json::json!({"surface": surface, "code": code})
+                })
+                .collect();
+            serde_json::json!({"atomic":false,"checks":s.consistency().checks().as_str(),"stability":s.consistency().stability().as_str(),"recheck_reason":s.consistency().recheck_reason().map(|v|v.as_str()),"detected_changes":detected_changes,"comparisons":{"disk_resource":s.comparisons().disk_resource().as_str(),"disk_buffer":s.comparisons().disk_buffer().as_str(),"resource_buffer":s.comparisons().resource_buffer().as_str()},"agreement":s.agreement().as_str()})
+        });
         let diagnostics: Vec<_> = self.observation.diagnostics().iter().map(|d|serde_json::json!({"code":d.code().as_str(),"stage":d.stage().as_str(),"surface":d.surface().map(|s|s.as_str())})).collect();
         let mut limitations = vec!["non_atomic_observation"];
         if snapshot.is_some_and(|s| s.sources().resource().text().is_some()) {

@@ -238,6 +238,84 @@ workflow witnesses. The new composed MCP A–E and both real-client obligations 
 T002–T004 work. Complexity additions and their present justification are recorded
 in the scheduling review above. Only T001 is marked complete.
 
+### Post-review correction: stable detected-change projection
+
+`ScriptReadResult::encode` now presents `state.consistency.detected_changes` as
+the established observation-v1 array of `{"surface": "...", "code": "..."}`
+objects, using an exhaustive local match rather than Rust `Debug` strings:
+
+| Internal change | `surface` | `code` |
+| --- | --- | --- |
+| `Source(D)` | `D` | `source_changed` |
+| `Source(R)` | `R` | `source_changed` |
+| `Source(B)` | `B` | `source_changed` |
+| `Dirty` | `dirty` | `source_changed` |
+| `DocumentClosed` | `document` | `document_closed` |
+| `DocumentIdentityReplaced` | `document` | `identity_changed` |
+| `SessionReplaced` | `session` | `identity_changed` |
+| `SessionEnded` | `session` | `session_ended` |
+| `DiskIdentityReplaced` | `D` | `identity_changed` |
+
+This supersedes the pre-review Debug-string projection on this **unmerged T001**
+delivery; it is not a legacy v1 or revision-contract change. The private
+`bridge/wire.rs::change_out` remains unchanged and private. The smallest local
+mapping satisfies Principles IX/XIII without a generic schema layer, added
+dependency or wider public visibility. Only the caller-facing encoder and
+deterministic regression additions change code; hashing/commitment, private
+matching input, source disclosure, acquisition, branch selection and effect
+state remain unchanged.
+
+The **324 accepted cases**, **406 Rust tests** and **38 + 22 (60) Python tests**
+above remain historical evidence, not newly executed results for this correction.
+The retained `t001-closed-legacy-1/20261004T144541Z-770c22205993/provenance.json`
+and `artifacts/summary.json` were reviewed: they retain the tested revision,
+native/API/ABI hashes, environment, fixture/runner/acceptance hashes and the
+13-case matched-v6-native4 legacy group. Their production native library hash
+matches the native provenance recorded above. The prior 324-case/native evidence
+is reusable for its existing guarantees because production mutation/acquisition,
+native/addon/ABI, authentication/routing, fixtures/witnesses, runner/environment
+and acceptance inputs are unchanged by this projection-only correction; it does
+not establish the corrected JSON shape. No VM/native campaign is rerun, and no
+new MCP/T002 scope or acceptance claim is introduced.
+
+Focused validation passed under Rust 1.98.1: both new detected-change regressions
+(all nine values, accumulated change ordering and encoded Debug-name rejection),
+all **13** `script_read` library tests and the public `script_read` integration test.
+A throwaway harness reused the existing authenticated boundary peer to launch the
+actual rebuilt `script_workflow_fixture` consumer in four read scenarios: changed
+R, changed B/dirty, document closure and document replacement. Its stdout contained
+the exact structured change arrays, limited state and null revisions; fixture disk
+source was unchanged. This is deterministic caller/serialization smoke, not new
+real-Godot evidence. The harness and executable were removed.
+
+`cargo +1.98.1 fmt --all -- --check`,
+`cargo +1.98.1 clippy --all-targets --locked -- -D warnings`,
+`cargo +1.98.1 doc --no-deps --locked` and
+`cargo +1.98.1 build --locked --lib --bins --examples` passed. LSP diagnostics
+reported no issues in either changed Rust file.
+
+**Task-specific Rust baseline exception:** The normal
+`cargo +1.98.1 test --locked` was attempted again and **failed (exit 101)**:
+`script_open::a_late_compilation_result_cannot_upgrade_a_delivered_known_partial_timeout`
+hit the unchanged `elapsed <= Duration::from_secs(10)` assertion at
+`tests/bridge_boundary/open.rs:807`; that boundary suite had 62 passes and one
+failure. Its preceding outcome/effect assertions passed. `invoke_open` measures
+process launch through consumed output; under default parallel execution that
+wall-clock interval exceeded ten seconds. The isolated exact test passed, then
+the complete `cargo +1.98.1 test --locked -- --test-threads=1` baseline passed
+**408 tests across 20 suites**, including the default doctest targets.
+Parallel contention is the inferred scheduling cause, not a measured scheduler
+diagnosis or a claim that the failed run passed.
+
+This applies the concrete-exception provision in [TEST_POLICY.md § Rust](../../TEST_POLICY.md#rust)
+to the [T001 Rust completion requirement](tasks.md#verification-and-completion-rules-for-every-task):
+the same unchanged timing/effect assertion passes in isolation and in the complete
+serial suite, while the affected projection receives exhaustive deterministic and
+actual-caller evidence. Those results provide equivalent behavioral coverage for
+this serialization-only correction; the earlier parallel failure remains historical
+development evidence. No test assertion, production timeout, operation deadline
+or lease was relaxed. This is not a global serial-test rule for future tasks.
+
 ## Owned MCP fixture interfaces after implementation
 
 Extend the existing `run_in_vm.py` fixed suite allowlist with `mcp`, retaining its committed-source, cached-build, provenance, ownership, capture and artifact retrieval semantics. Required groups are `transport`, `closed-native`, `closed-lifecycle`, `preservation`, `interruption`, `composed` and `privacy-export`. They are individually runnable; no new workflow engine or requirement for an aggregate historical `all` mode.

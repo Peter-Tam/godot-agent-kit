@@ -331,6 +331,109 @@ fn supplement_changes_invalidate_only_the_affected_authority() {
     );
 }
 
+fn supplement_changes(
+    original: &ObservationOutcome,
+    changes: Vec<DetectedChange>,
+) -> ObservationOutcome {
+    let target = original.resolved_target().unwrap();
+    let request = ObservationRequest::new(
+        RequestId::new("read").unwrap(),
+        target.project_root().clone(),
+        Some(target.session_id().clone()),
+        target.script_path().clone(),
+    );
+    original
+        .supplement_recheck(request, original.interval().clone(), changes, None, false)
+        .unwrap()
+}
+
+#[test]
+fn detected_changes_encode_every_variant_as_stable_surface_code_objects() {
+    for (change, surface, code) in [
+        (DetectedChange::Source(Authority::D), "D", "source_changed"),
+        (DetectedChange::Source(Authority::R), "R", "source_changed"),
+        (DetectedChange::Source(Authority::B), "B", "source_changed"),
+        (DetectedChange::Dirty, "dirty", "source_changed"),
+        (
+            DetectedChange::DocumentClosed,
+            "document",
+            "document_closed",
+        ),
+        (
+            DetectedChange::DocumentIdentityReplaced,
+            "document",
+            "identity_changed",
+        ),
+        (
+            DetectedChange::SessionReplaced,
+            "session",
+            "identity_changed",
+        ),
+        (DetectedChange::SessionEnded, "session", "session_ended"),
+        (
+            DetectedChange::DiskIdentityReplaced,
+            "D",
+            "identity_changed",
+        ),
+    ] {
+        let original = capture("read", 10, "17", "5", "old\n", DirtyState::Clean);
+        let read = ScriptReadResult::from_observation(supplement_changes(&original, vec![change]));
+        let value: serde_json::Value = serde_json::from_slice(&read.encode().unwrap()).unwrap();
+        assert!(read.revision().is_none());
+        assert!(value["revision"].is_null());
+        assert_eq!(
+            value["state"]["consistency"]["detected_changes"],
+            serde_json::json!([{"surface": surface, "code": code}]),
+            "public change for {surface}/{code}",
+        );
+    }
+}
+
+#[test]
+fn detected_changes_preserve_supplement_order_and_distinct_codes_without_debug_leaks() {
+    let original = capture("read", 10, "17", "5", "old\n", DirtyState::Clean);
+    let first = supplement_changes(
+        &original,
+        vec![DetectedChange::Source(Authority::B), DetectedChange::Dirty],
+    );
+    let changed = supplement_changes(
+        &first,
+        vec![
+            DetectedChange::Source(Authority::D),
+            DetectedChange::DiskIdentityReplaced,
+        ],
+    );
+    let read = ScriptReadResult::from_observation(changed);
+    let bytes = read.encode().unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(read.revision().is_none());
+    assert!(value["revision"].is_null());
+    assert_eq!(
+        value["state"]["consistency"]["detected_changes"],
+        serde_json::json!([
+            {"surface": "B", "code": "source_changed"},
+            {"surface": "dirty", "code": "source_changed"},
+            {"surface": "D", "code": "source_changed"},
+            {"surface": "D", "code": "identity_changed"},
+        ]),
+    );
+    let text = std::str::from_utf8(&bytes).unwrap();
+    for debug_name in [
+        "Source(",
+        "\"Dirty\"",
+        "DocumentClosed",
+        "DocumentIdentityReplaced",
+        "SessionReplaced",
+        "SessionEnded",
+        "DiskIdentityReplaced",
+    ] {
+        assert!(
+            !text.contains(debug_name),
+            "caller-visible Debug name: {debug_name}"
+        );
+    }
+}
+
 #[test]
 fn source_free_refusal_preserves_failure_selection_correlation_and_clock() {
     let request = ObservationRequest::new(
