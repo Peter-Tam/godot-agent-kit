@@ -4,7 +4,7 @@
 
 **Input:** Maintainer-approved discover/read/edit requirements, including constitution v1.2.0 alignment in FR-022/SC-009.
 
-**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. T001–T003 are complete and delivered in PRs #64–#66 with core/native, positive MCP/two-client and adversarial acceptance. Only T004 is selected; composed real-agent and cumulative privacy/export verification is in progress. No feature completion or Phase 3 exit is claimed.
+**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. Feature 007 and T001–T004 are complete. T001–T003 were delivered in PRs #64–#66; T004's [actual-agent composed/cumulative acceptance](quickstart.md#t004-execution-evidence-2026-10-05) and implementation-shape review are complete on `task/T004-mcp-composed-acceptance`. Phase 3 exit and release are not claimed.
 
 ## Summary
 
@@ -55,7 +55,7 @@ Read preserves Feature 001 observation semantics while presenting source, an opa
 | X — actionable truthful diagnostics | Preserve outcome/stage/application, independent availability/invalidation and safe next action. Post-effect private protocol/host failure is not malformed input; disclosure denial is sticky. |
 | XI — independent compatible implementation | Public pinned engine source/behavior, released official SDK and concrete clients, license/provenance/advisory findings. No unrelated implementation copied or dependency/support pass invented. |
 | XIII — justified complexity | Narrow closed owner/epoch, bounded transport and test-only stdio relay address specified failures; rationale/cost below. No transaction/workflow/retry/cancellation/redaction/tracing/metadata framework. |
-| Compatibility / workflow | Existing local v1 APIs/refusals stay valid; private v6/native revision 4 and MCP schema 1 are unchanged. Analysis remains current after cumulative T001–T003 delivery-only drift. Only T004 is selected after merged T003; one task/PR. |
+| Compatibility / workflow | Existing local v1 APIs/refusals stay valid; private v6/native revision 4 and MCP schema 1 are unchanged. The native-documentation correction passed fresh analysis; later completion evidence changes no obligation. T001–T004 are complete, delivered one task/PR. |
 
 **Threat/evidence boundary:** Retain existing normal-local-user threat model; hostile same-UID software and malicious code already running inside Godot are not newly claimed isolated. No atomic filesystem exclusion, universal callback purity or live bytecode refresh is claimed. Unknown safety facts refuse. The observed source setter's old compiled constants are explicitly not used as new-source runtime evidence.
 
@@ -104,7 +104,7 @@ specs/007-mcp-script-workflow/
     └── closed-edit.md
 ```
 
-[tasks.md](tasks.md) derives four coherent implementation increments: protocol-independent trusted read/revision/closed editing; complete external MCP MVP with both clients' positive workflows; combined adversarial preservation/interrupted-effect behavior; composed real-agent A–E and cumulative acceptance. Direct tests/docs remain bundled with their implementation. T001–T003 are complete; T004 is selected and verification is in progress.
+[tasks.md](tasks.md) derives four coherent implementation increments: protocol-independent trusted read/revision/closed editing; complete external MCP MVP with both clients' positive workflows; combined adversarial preservation/interrupted-effect behavior; composed real-agent A–E and cumulative acceptance. Direct tests/docs remain bundled with their implementation. All four tasks are complete.
 
 ### Source code (repository root)
 
@@ -669,3 +669,39 @@ startup failure/cancellation and owned cleanup. Rerun affected public edit paths
 and required composed interaction, not historical campaigns whose relevant
 behavior is unchanged. This preserves Principles I–V, VII–X and XII–XIII; no
 mutation, support, acceptance or public tool-schema guarantee changes.
+
+#### T004 implementation-shape and constitutional review
+
+Static review of `3067fc6` found no current-task implementation defect or new
+constitutional conflict. The two review slices covered preparation/validator
+ownership and composed/privacy witnesses; neither review is runtime acceptance.
+
+`native_docs.rs` owns the bounded source-free snapshot lifecycle: preparation,
+strict receipt, private artifact binding, borrowing and disposal. Registration
+and reply enums distinguish unavailable/preparing/ready/lost states without
+speculative public variants. Existing `ownership.rs` retains process/namespace
+mechanics, `stock_validation.rs` retains fresh source/context/fence validation,
+and the MCP entry/transport owns only deployment configuration and startup.
+Interfaces use current-consumer visibility; filesystem access borrows paths
+rather than manufacturing a disposable owner. No parser pool, cached verdict,
+request-clock renewal, configured-preparation fallback or new dependency was
+found. The existing stock-loopback limitation is unchanged, not a newly imposed
+sandbox requirement.
+
+The composed, privacy and preparation-fault mixins each own one acceptance
+responsibility and reuse the existing editor/history/export/relay machinery.
+The composed state machine requires 8/6/6 changed edits, current read bases,
+three dirty and three stale refusals, independent intended source/saved-state
+witnesses, real history transitions, serial fixture ownership and later
+durability. Ordinary fixture actions do not repair a reported product success.
+Source-bearing transcripts remain private. Full-frame disclosure checks and
+actual exported-artifact/runtime witnesses remain distinct from client evidence.
+
+This shape is proportionate to the measured failure and current acceptance
+requirements under Principle XIII. It preserves independent authorities and
+verification (I/IV/VI), human work/native history (II/III), local confinement and
+export separation (V/VIII), protocol-independent core ownership (VII), truthful
+lean results (IX/X), source provenance (XI) and focused quality gates (XII).
+The actual-agent SC-005/SC-009 interaction and cumulative evidence disposition
+were subsequently [completed with independent runtime and client evidence](quickstart.md#t004-execution-evidence-2026-10-05);
+static review alone was not treated as acceptance.

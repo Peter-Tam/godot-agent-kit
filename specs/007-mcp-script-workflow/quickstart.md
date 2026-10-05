@@ -1,6 +1,6 @@
 # Quickstart: Validate the Trusted MCP Script Workflow
 
-**Status:** T001–T003 are **complete**, with [core/native evidence](#t001-execution-evidence-2026-10-04), [positive MCP/two-client acceptance](#t002-execution-evidence-2026-10-05), and [adversarial safety/two-client failure acceptance](#t003-execution-evidence-2026-10-05). T004 is selected and composed/cumulative verification is in progress. Failed or incomplete runs are not acceptance; feature completion and Phase 3 exit are not claimed.
+**Status:** Feature 007 and T001–T004 are **complete**, with [core/native evidence](#t001-execution-evidence-2026-10-04), [positive MCP/two-client acceptance](#t002-execution-evidence-2026-10-05), [adversarial safety/two-client failure acceptance](#t003-execution-evidence-2026-10-05), and [actual-agent composed/cumulative acceptance](#t004-execution-evidence-2026-10-05). Failed or incomplete runs remain excluded. Phase 3 exit, release and broader support are not claimed.
 
 Read [plan.md](plan.md), [data-model.md](data-model.md) and [the public contract](contracts/mcp-interface.md). Follow [TEST_POLICY.md](../../TEST_POLICY.md) for scope, evidence reuse and the existing [VM boundary](../../.github/LOCAL_VM.md). No command authorizes a feature task before its own approved tasks/analysis and one-task-one-PR prerequisites.
 
@@ -1012,11 +1012,11 @@ After an owned run, retrieve artifacts and stop the VM using the existing wrappe
 
 Planning ran static documentation checks, repository/LSP and released-source research, installed client version/help checks, VM status/start/stop, and the scoped [closed-source mechanics probe](research.md#owned-stock-editor-observations) with visual inspection and fresh-runtime persistence witness. The two incomplete probe attempts remain excluded from the completed observation. Those planning-only checks did not establish MCP interoperability, product-suite/native-build acceptance, A–E coverage, release or Phase 3 exit; later implementation evidence is recorded above.
 
-**Historical public-contract probe:** The [earlier correction](research.md#7-public-contract-correction-evidence) inspected Codex result conversion and attempted an isolated synthetic carrier probe with the then-selected Codex + Claude pair. Expired Claude OAuth and an unavailable Codex code-mode tool path prevented model-visible results. Those failures remain excluded; Claude is no longer a current acceptance requirement. The [Codex + OMP planning correction](research.md#8-codex-and-omp-client-correction-evidence) was source/configuration research, not runtime acceptance. [T002 positive workflows](#t002-execution-evidence-2026-10-05) and [T003 adversarial interpretation](#t003-execution-evidence-2026-10-05) are now complete. T004 composed/cumulative acceptance remains pending.
+**Historical public-contract probe:** The [earlier correction](research.md#7-public-contract-correction-evidence) inspected Codex result conversion and attempted an isolated synthetic carrier probe with the then-selected Codex + Claude pair. Expired Claude OAuth and an unavailable Codex code-mode tool path prevented model-visible results. Those failures remain excluded; Claude is no longer a current acceptance requirement. The [Codex + OMP planning correction](research.md#8-codex-and-omp-client-correction-evidence) was source/configuration research, not runtime acceptance. [T002 positive workflows](#t002-execution-evidence-2026-10-05), [T003 adversarial interpretation](#t003-execution-evidence-2026-10-05) and [T004 composed/cumulative acceptance](#t004-execution-evidence-2026-10-05) now supply the completed implementation evidence.
 
 ## T004 serial verification (2026-10-05)
 
-**Incomplete:** T004 remains selected, not complete. The composed fixture now
+**Historical incomplete attempt:** T004 was not complete at this point. The composed fixture
 creates exactly one live target editor at a time; future profiles are not prepared
 until the preceding final client read, durability witnesses and owned shutdown.
 Original/desired product preflight concurrency and all 5/10-second bounds remain
@@ -1160,10 +1160,159 @@ the parallel 63-test bridge group; its no-source-editor path does not invoke the
 changed validator. The same case passed in isolation under its unchanged
 ten-second assertion; the other 62 bridge cases and 237 library tests had already
 passed, and the remaining 173 consumer tests were then executed successfully.
-This is not a claimed single all-green parallel-suite run or a deadline waiver;
-the initial timing failure is retained. The affected Python checks passed **32
-tests**.
+This retains the [existing concrete timing-case exception](#focused-review-correction-recovery-summary-alignment)
+under TEST_POLICY's Rust rule, not a claimed all-green aggregate run or deadline
+waiver. No production open-path or timing-test input changed, and no scheduling
+cause is newly asserted. The initial failure is retained. The affected Python
+checks passed **32 tests**.
 
-This evidence does not complete SC-005: the full required actual-agent composed
-interaction remains to be demonstrated. The earlier failed serial run remains
-failed evidence, not a pass or a deadline exception.
+These focused probes alone did not complete SC-005. The full actual-agent
+interaction below supplies that remaining evidence; the earlier failed serial
+run remains failed evidence, not a pass or a deadline exception.
+
+## T004 execution evidence (2026-10-05)
+
+**Complete:** T004 and Feature 007 satisfy their approved acceptance, cumulative
+coverage and implementation-shape gates. Only T004 is completed in this delivery.
+This is not a Phase 3 exit assessment, release candidate or support expansion.
+
+### Actual-agent composed interaction
+
+The actual **OMP 18.5.1 / openai-codex gpt-6-astra** conversation ran against
+source `3067fc690f1b08e28bf7a296468c8105c4122ea1`, from the clean owned repository
+checkout with its unchanged `.omp/lsp.yaml`, ordinary `write` approval mode and
+the fixed VM relay. No global client configuration or credential was changed.
+The client exited successfully; stderr was empty.
+
+Private evidence beneath `~/.local/state/godot-agent-kit-vm/artifacts/`:
+
+- Client: `t004-omp-prepared-20261005T140507Z-4cdg2m6j`, including the original
+  `omp.jsonl`, completed `model-visible.jsonl`, prompt/config/receipt and
+  `client-launch.json`.
+- VM: `t004-omp-prepared-20261005T140507Z/20261005T142357Z-81078c012cfa`,
+  including `summary.json`, `mcp-calls.jsonl`, `delivery.jsonl`, `protocol.jsonl`,
+  independent authority/history/lifecycle records and owned captures.
+
+The VM finalizer passed **75 records**. The single actual conversation completed
+**68 MCP operations**: three discoveries, 39 reads and 26 edit attempts.
+Twenty attempts returned `verified_changed`: **8 open, 6 cached-R closed and
+6 absent-R closed**. The other six were exactly three `revision_mismatch` and
+three `dirty_buffer` refusals, all without application or history participation.
+Every changed edit used the latest eligible model-visible read revision and
+changed only the requested return value while preserving all other source.
+All 68 model-visible public objects and submitted argument objects exactly match
+the retained actual MCP calls by request ID. No missing result, retry, substituted
+operation or skipped change was counted.
+
+The harness correctly keeps `real_client_acceptance: false`: its records alone
+cannot establish model visibility. Actual completed client messages and subsequent
+arguments/interpretations provide that separate evidence. The only non-operation
+calls were three ordinary `xd://` reads of the MCP tool descriptions; all project
+operations were writes to the actual MCP tool devices, not file/shell/private
+bridge substitutes.
+
+**A/B:** Independent intended D/R/B and saved state were checked for open changes,
+including native Save retaining the pre-Save intended buffer. Dirty and
+equal-text-dirty attempts preserved human work. The agent consumed the unsaved
+read, then the deliberately saved read before the next intentional edit.
+
+**C:** Real Undo → Save → Redo → Save produced respectively:
+`B/R=47, D=101, dirty`; `D/R/B=47, clean`; `B/R=101, D=47, dirty`;
+`D/R/B=101, clean`. The agent's four reads and explanations distinguish unsaved
+history from persisted source; neither dirty history state was edited. Existing
+human/prior history remained reachable. No replacement edit simulated Undo/Redo.
+
+**D/E:** Ordinary later close/reopen, reparse, rescan and fresh runtimes preserved
+final values **108, 206 and 306**, with independent live authority witnesses and
+actual agent reads. Closed targets stayed closed through all twelve edits:
+cached R remained coherent, absent R remained absent, and no buffer/history
+participation was invented. Later opening witnessed already-verified persistence.
+Owned captures show the final open `108` with all three human comment lines and
+the later-opened `306`; unrelated deliberate invalid-fixture notifications during
+rescan are not target-script failures. Exactly one target editor ran per profile
+(guest PIDs 6414, 10742 and 11869); each was closed before its successor started.
+
+### Complete-response timing and provenance
+
+Native-document preparation reported **2.555010 seconds** before protocol input.
+Each source pass still used a fresh process, with its launch, source-specific
+preflight and independent actual-source validation inside the original request
+clock. All 68 consumed public responses met their unchanged 5/10-second bounds:
+
+| Operation/profile | Count | Minimum seconds | Median seconds | Maximum seconds |
+| --- | ---: | ---: | ---: | ---: |
+| Discovery | 3 | 0.109344 | 0.211909 | 0.239333 |
+| Read | 39 | 0.193979 | 0.316140 | 0.778521 |
+| Verified open edit | 8 | 5.301578 | 5.455083 | 6.048600 |
+| Verified cached-R closed edit | 6 | 4.914247 | 5.251846 | 6.512634 |
+| Verified absent-R closed edit | 6 | 5.095378 | 5.258931 | 6.189207 |
+| Stale refusal | 3 | 0.333200 | 0.586823 | 0.698425 |
+| Dirty refusal | 3 | 0.277179 | 0.335193 | 0.353716 |
+
+These are complete forwarding-to-consumed-response measurements, not durations
+with startup subtracted. The [matched diagnostic before/after samples](#full-request-and-effect-safety-evidence)
+remain the scoped optimization comparison; one successful composed run is not an
+arbitrary-load latency guarantee. Exhaustion still reports truthful non-success.
+
+The environment remains macOS **26.6.2 (25G83), arm64, four vCPUs, 6 GiB** and
+official Godot **4.7.2.stable.official.ed1daf0bf**. Execution identity is
+`5be872888a3eacb7798de40e70d66e1f438d908e00cf714575d65b2632596ced`.
+The MCP executable SHA-256 is
+`332243aab6d9a76432f2968dc225022bc7a93662e83e880cf04b3bc264174047`.
+Engine, API/ABI and native provenance remain exact; production native library
+SHA-256 is unchanged from T003:
+`b1d10e9ed714dacb2ccc4cb614e146d8ea2059003c52813f4acdd8ff91ee76c1`,
+build ID `67d0e5a3ea5e7b73019ef159cb8ac664da54fe5de2a944c4b150ecc9460fc05e`.
+No Rust binary equivalence is presumed: the changed actual executable was exercised.
+Finalization retrieved the witnesses and removed owned fixture sessions; temporary
+profiling/client scaffolds were removed and the VM was stopped.
+
+### Cumulative evidence disposition
+
+The [acceptance matrix](#acceptance-coverage) covers all **26 scenarios,
+FR-001–FR-022 and SC-001–SC-009** with these current dispositions:
+
+| Matrix row / obligations | Current evidence and validity |
+| --- | --- |
+| Transport / US1.1–US1.4; FR-001–004, 012–017, 021; SC-001, 004, 006–007 | Reuse T002/T003 negotiated catalog, schema/carrier, routing, failure and both-client evidence. Those interfaces and ownership semantics are unchanged. New deployment-option/startup/worker-loss checks and the actual prepared conversation cover the new startup path. |
+| Lean interface / US1.5; FR-002, 022; SC-009 | Reuse both selected clients' representative/carrier evidence; newly inspect all completed composed messages, arguments and recovery interpretations as described below. |
+| Closed native/lifecycle / US2.1, US2.3–US2.5, US5.5; FR-005–011, 014, 018–020; SC-002–006, 008 | Reuse T001–T003 guard, absence/cache, no-op, namespace/epoch and fault evidence. Native/source-mutation semantics and ABI are unchanged. Newly execute prepared cached/absent edits, snapshot failures and later durability; cold/prepared compiler diagnostics match for the selected root/dependency/warning/exclusion cases. |
+| Preservation / US2.2, US3.1–US3.4, US3.7; FR-004–010, 018–020; SC-002–003, 008 | Reuse T003 dirty/stale/lifecycle/confinement evidence. Newly execute open/closed revision smoke and composed A/B/C/E; intended post-Save witness and complete-frame disclosure corrections have focused failing-before/passing-after regressions. |
+| Interruption / US3.5–US3.6, US4.1–US4.4; FR-003–004, 007, 010–017, 020; SC-003–004, 006–007 | Reuse T003 cancellation, output loss, no late effects, no rollback and actual-client uncertainty evidence: call clocks, authorization and outcome reduction are unchanged. Newly exercise preparation EOF/signals/deadline/worker loss and snapshot loss before/after mutation; the 13-record effects group preserves truthful refusal versus applied-unverified. |
+| Actual composed A–E / US5.1–US5.4; FR-019–020; SC-001–005, 008–009 | Newly executed complete actual-agent interaction and 75-record independent finalizer above. No earlier failed composed run is promoted to a pass. |
+| Privacy/export / FR-016–018, 020–021; SC-007–008 | Complete authorized/startup/help/worker/error subgroup, strengthened complete-frame denied/ambiguous/interrupted groups, all three production export modes, new startup privacy checks and unchanged local v1 contracts, detailed below. |
+
+Privacy evidence retains the **17 completed records** in
+`t004-worker-diagnostic-1/20261005T085241Z-77a7de8f8860` (source `e01a741`) under
+`privacy-authorized-startup-help-worker-error`. Its enclosing run failed later
+in the next selection group; that failed/incomplete group is not reused.
+Authorized selection, source/inventory/credential redaction and error carriers
+are unchanged. The [18-record selection and 10-record interruption groups](#t004-serial-verification-2026-10-05)
+replace their earlier insufficient/incomplete checks. The enabled/disabled/hook-only
+production exports at `t004-privacy-exports-1/20261005T094744Z-4c0df4a622f2`
+retain actual ZIP/pack hashes, zero runtime exit and zero listeners. Native/export
+inputs and artifacts are unchanged; native-document preparation is not exported.
+No broader historical campaign or export replay was required by the changed
+validator path.
+
+**Qualitative FR-022/SC-009:** The prompt supplied targets, desired values and
+ordinary human history/conflict intent, without private architecture instructions.
+The model used the three static descriptions, preserved source/comments, carried
+opaque current revisions, explained both refusal categories, read before further
+intentional changes, distinguished dirty history from persistence and correctly
+reported closed/absent lifecycle limitations. It did not infer running-class
+reload from source agreement. The single structured carrier was sufficient;
+no schema/description expansion, full-text duplication or numeric prose budget
+was added.
+
+**Completion review:** The [implementation-shape/constitutional review](plan.md#t004-implementation-shape-and-constitutional-review),
+473 distinct passing Rust tests with the documented existing timing-case exception,
+32 affected Python tests, actual builds, compiler-equivalence/loss probes,
+complete composed interaction and valid retained privacy/export evidence satisfy
+T004's gates. Later completion prose changes no executable input or obligation.
+The `efe38b3` design analysis remains the semantic baseline; delivery-only evidence
+does not require fingerprint-only renewal. The closed-buffer history surface is
+inapplicable because no document exists, not because an observation was missing;
+its absence was independently witnessed. Exact support, no host GUI fallback,
+no telemetry, no forced reconciliation and all prior local v1 contracts remain.
+Phase 3 exit and release require their own decisions and are not inferred here.

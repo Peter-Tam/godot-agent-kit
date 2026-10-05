@@ -224,9 +224,7 @@ fn preflight(
                 stock_validation::validate(original, clock, cancelled)
             })
             .map_err(|_| "validation_unavailable")?;
-
         let desired = stock_validation::validate(desired, clock, cancelled);
-
         let original = original.join().map_err(|_| "validation_unavailable")?;
         Ok((original, desired))
     })

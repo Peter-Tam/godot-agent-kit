@@ -1,5 +1,4 @@
 use super::*;
-
 use crate::target::SelectedSession;
 type Failure = (&'static str, bool);
 fn disclosure_failure(cause: Failure, current: Result<(), Failure>) -> Failure {
@@ -479,7 +478,6 @@ fn edit(
             started,
             at,
         )?;
-
         admitted(&prepared, "prepared")?;
         if prepared
             .state
@@ -495,7 +493,6 @@ fn edit(
             return Err(("revision_mismatch", false));
         }
         drop(initial);
-
         let (original, desired_result) = preflight(
             (&mut *input, &mut *output),
             &selected,
@@ -504,7 +501,6 @@ fn edit(
             desired,
             at,
         )?;
-
         let (guard, guard_context) = sample(&mut selected, request, "preflight", started, at)?;
         if !basis.state.matches(&guard)
             || guard_context.sha256 != context.sha256
@@ -521,7 +517,6 @@ fn edit(
         {
             return Err(("revision_mismatch", false));
         }
-
         let unchanged = desired == context.source;
         if !unchanged {
             send(output, &Message::Ready {}, at, None).map_err(|e| (e, false))?;
@@ -529,7 +524,6 @@ fn edit(
                 Control::Authorize {} => {}
                 _ => return Err(("cancelled", false)),
             }
-
             let applied = native(
                 &mut selected,
                 request,
@@ -537,7 +531,6 @@ fn edit(
                 started,
                 at,
             )?;
-
             if let Some(mut receipt) = applied.native {
                 // The authenticated envelope's failure is causal even if the
                 // effect receipt has no separate reason; never drop it.
@@ -587,14 +580,12 @@ fn edit(
         } else {
             "post_change"
         };
-
         let (post, post_context) = sample(&mut selected, request, purpose, started, at)?;
         if post.file_revision.sha256 != confined::hex_sha256(desired.as_bytes())
             || post_context.source != desired
         {
             return Err(("source_changed", false));
         }
-
         let post_validation = post_validation(
             (&mut *input, &mut *output),
             &selected,
@@ -602,7 +593,6 @@ fn edit(
             &post_context,
             at,
         )?;
-
         let (final_state, final_context) = sample(&mut selected, request, purpose, started, at)?;
         let ctx = current_context(&selected, &final_context)
             .ok_or(("validation_context_unavailable", false))?;
@@ -610,7 +600,6 @@ fn edit(
             && final_context.sha256 == post_context.sha256
             && Some(&ctx) == post_validation.context_sha256.as_ref()
             && dependencies(&selected, &post_validation);
-
         let finished = native(
             &mut selected,
             request,
@@ -618,7 +607,6 @@ fn edit(
             started,
             at,
         )?;
-
         admitted(&finished, "finished")?;
         send(
             output,
@@ -648,7 +636,6 @@ fn edit(
             disclose_selected(&selected, request, at),
         ));
     }
-
     work
 }
 fn dispatch(acquisition: bool) -> Option<i32> {
