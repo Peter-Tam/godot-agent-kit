@@ -1,6 +1,6 @@
 # Quickstart: Validate the Trusted MCP Script Workflow
 
-**Status:** T001 and T002 are **complete**, with [core/native evidence](#t001-execution-evidence-2026-10-04) and [actual MCP/two-client acceptance](#t002-execution-evidence-2026-10-05). Codex CLI 0.153.4 and OMP 18.5.1 completed all five positive profiles. Only T003 is selected for adversarial implementation/acceptance; T004 remains pending. Feature completion and Phase 3 exit are not claimed.
+**Status:** T001–T003 are **complete**, with [core/native evidence](#t001-execution-evidence-2026-10-04), [positive MCP/two-client acceptance](#t002-execution-evidence-2026-10-05), and [adversarial safety/two-client failure acceptance](#t003-execution-evidence-2026-10-05). Codex CLI 0.153.4 and OMP 18.5.1 completed their positive and failure/reconnect profiles. T004 remains pending and unselected; feature completion and Phase 3 exit are not claimed.
 
 Read [plan.md](plan.md), [data-model.md](data-model.md) and [the public contract](contracts/mcp-interface.md). Follow [TEST_POLICY.md](../../TEST_POLICY.md) for scope, evidence reuse and the existing [VM boundary](../../.github/LOCAL_VM.md). No command authorizes a feature task before its own approved tasks/analysis and one-task-one-PR prerequisites.
 
@@ -509,7 +509,189 @@ operation enum pairs structured and text guidance for the two existing error
 branches. No new public API, generic policy/framework, retry or tool-description
 change was introduced. This applies Principle IX and FR-022/SC-009 without
 weakening effect truthfulness (IV/X, FR-003/FR-011/FR-012) or adding speculative
-complexity (XIII). T002 remains complete; T003–T004 remain pending and unselected.
+complexity (XIII). This T002 completion did not itself satisfy T003 or T004.
+
+## T003 execution evidence (2026-10-05)
+
+The adversarial implementation on `task/T003-mcp-adversarial-safety` has
+**941 accepted records across 30 focused groups**: 272 preservation, 642
+interruption, 14 fixed failure/reconnect transport-driver and 13 representative
+legacy records. These are acceptance records, not 941 edits or coding-agent calls.
+The final matrix/client source is
+`d3d2adbf413c952995816970a62401e7746ef65a`; the production correction is
+`19a132d052e7562e6818a577223c2a29785ccfcf`.
+
+Artifacts remain private under
+`~/.local/state/godot-agent-kit-vm/artifacts/<run-id>/<snapshot>/`.
+Each accepted group's `summary.json` and `provenance.json` retain its exact
+commit/archive, fixtures, binaries, native inputs, environment and independent
+witnesses. Completed named groups in an earlier aggregate run remain valid;
+that run's later failed group is excluded, not promoted to a pass.
+
+| Group | Records | Accepted run ID |
+| --- | ---: | --- |
+| `preservation-open-history` | 12 | `t003-preservation-1` |
+| `preservation-prior-native-history` | 4 | `t003-native-history-after-1` |
+| `preservation-revisions` | 18 | `t003-preservation-1` |
+| `preservation-identities` | 39 | `t003-identities-3` |
+| `preservation-cache-absence` | 3 | `t003-cache-absence-1` |
+| `preservation-resource-safety` | 27 | `t003-resource-safety-1` |
+| `preservation-session-replacement` | 4 | `t003-session-replacement-1` |
+| `preservation-source-context` | 32 | `t003-source-context-2` |
+| `preservation-active-reconfigure` | 2 | `t003-active-reconfigure-1` |
+| `preservation-equality-races` | 75 | `t003-equality-races-3` |
+| `preservation-late-resource-dirty` | 18 | `t003-late-resource-after-2` |
+| `preservation-native-entry` | 16 | `t003-native-entry-1` |
+| `preservation-selection-privacy` | 17 | `t003-selection-privacy-2` |
+| `preservation-shared-slot` | 5 | `t003-shared-slot-2` |
+| `interruption-cancellation` | 45 | `t003-cancellation-2` |
+| `interruption-original-deadline` | 45 | `t003-deadline-2` |
+| `interruption-acquisition-clock` | 18 | `t003-acquisition-clock-2` |
+| `interruption-unresponsive-editor` | 15 | `t003-unresponsive-1` |
+| `interruption-disconnect-and-signals` | 81 | `t003-shutdown-1` |
+| `interruption-editor-channels` | 75 | `t003-editor-channels-1` |
+| `interruption-known-effects` | 45 | `t003-known-effects-2` |
+| `interruption-newer-work` | 132 | `t003-newer-work-1` |
+| `interruption-sticky-denial` | 9 | `t003-sticky-denial-1` |
+| `interruption-lost-output` | 63 | `t003-lost-output-1` |
+| `interruption-worker-loss` | 27 | `t003-worker-loss-1` |
+| `interruption-blocked-output` | 63 | `t003-blocked-output-1` |
+| `interruption-malformed-private-reply` | 24 | `t003-malformed-private-1` |
+| `transport-failures` | 10 | `t003-transport-failures-1` |
+| `transport-reconnect` | 4 | `t003-transport-reconnect-1` |
+| `matched-v6-native4-legacy-preservation` | 13 | `t003-native-legacy-after-1` |
+
+### Fault-revealed correction and independently observed effects
+
+At `9fa7e4fca42a72f6d6f932c41e8cda7c253bdf14`, changing an open Script's
+Resource to equal-text-but-dirty after preparation allowed buffer removal before
+the native guard noticed the dirty Resource. The failing
+`t003-late-resource-before/20261005T031633Z-6fa6ee8bdae0` witness records an
+empty B and R, unchanged D, and newly altered buffer history. MCP truthfully
+reported partial application, but the native precondition should have prevented it.
+
+`script_document.cpp::guard` now checks the existing public per-Resource edited
+state before every native stage, including the first removal. The six-stage
+regression passes: pre-effect dirtiness refuses without changing D/R/B/history;
+later dirtiness stops subsequent native stages and retains truthful known effects.
+Clean native edits, prior real Undo/Redo history and the existing local caller
+also pass with the rebuilt library. Captures were inspected, including the
+unchanged visible `return 47` and preserved unrelated dirty document.
+
+After an already-entered B effect, normal ScriptEditor validation can still copy
+that visible B into R after the native request stops. Raw witnesses retain this
+transition; they do not force reconciliation or claim zero effects. The bounded
+comparison permits only that exact R transition while preserving D/B, dirty flags,
+history, identities, roster and selection. It also covers fixture-controlled newer
+human B typing; it does not permit replacing an independently changed R with an
+arbitrary source. A deterministic regression rejects hidden disk/metadata writes,
+buffer/history loss, identity changes, unrelated changes and a third R source.
+
+### Timing, environment and native provenance
+
+Consumed focused-driver maxima were **4.509811 s read**, **4.510608 s discover**
+and **9.520930 s edit**, including unresponsive-editor cases. Acquisition handoff
+spent 1.160/1.630/1.798 seconds before release and reached open/cached/absent apply
+at 4.347/4.995/5.282 seconds; terminal output still arrived at
+9.510/9.503/9.504 seconds from the original call. No renewed work budget,
+5/10-second limit increase or output-reserve change was used.
+
+Blocked/lost output records unavailable delivery and bounded owned cleanup,
+not a consumed-output performance pass or rollback. Real partial writes, R-only
+effects, lost acknowledgments, failed timestamp restoration, malformed private
+replies and late permission denial were independently witnessed. Unknown/duplicate
+cancel IDs did not disturb another owner; shared-slot rejection was not queued.
+The existing observation-side occupied-slot refusal remains
+`unsupported_observation`, rather than inventing a new legacy outcome.
+
+Environment remains the documented Godot **4.7.2.stable.official.ed1daf0bf**,
+macOS **26.6.2 / 25G83 arm64** VM, Rust/Cargo **1.98.1**, Apple clang **21.0.0**
+and SDK **26.5**. Engine/template hashes match the T001 record above.
+Both rebuilt native artifacts retain API SHA-256
+`d0e4c08c03b165156dabe6bfb6a906baf0069189f62035341230a246c86d6986`
+and ABI SHA-256
+`7d8c0a039d9743eb8ebf88681ae0c641d8d3aa5ffca11081745a84da803e09a1`.
+
+- Production build: `67d0e5a3ea5e7b73019ef159cb8ac664da54fe5de2a944c4b150ecc9460fc05e`;
+  library `b1d10e9ed714dacb2ccc4cb614e146d8ea2059003c52813f4acdd8ff91ee76c1`.
+- Separate fixture build: `62078cac2c041df08244c03e47c482f87e717a4073d66bb8057ff72afcd48335`;
+  library `e1be513a1fd33332489e52aec87b7081d4700f94452aa6ec1423c04cbea1ebc6`.
+
+### Actual selected clients and their limits
+
+Both pinned clients used **gpt-6-astra** and the unchanged structured-content plus
+terse-summary carrier. Four fresh profile runs produced **31 independent records**,
+**25 correlated model-visible results**, and **two deliberately undelivered edit
+results**. Every intentional edit used its actual preceding read revision.
+
+| Client/profile | Independent records | Model-visible results | VM snapshot |
+| --- | ---: | ---: | --- |
+| Codex 0.153.4, failures | 11 | 10 | `t003-codex-failures-1/20261005T053503Z-bb2b0553d64a` |
+| Codex 0.153.4, reconnect | 4 | 2 | `t003-codex-reconnect-1/20261005T054203Z-ffcba96131d1` |
+| OMP 18.5.1, failures | 11 | 10 | `t003-omp-failures-1/20261005T054725Z-7d8f5ce7d85b` |
+| OMP 18.5.1, reconnect | 5 | 3 | `t003-omp-reconnect-1/20261005T055120Z-a68c84586021` |
+
+Private transcript directories are `t003-codex-failures-1-5h9s9zrv`,
+`t003-codex-reconnect-1-rzgpv1x2`, `t003-omp-failures-1-ttl3hcmk` and
+`t003-omp-reconnect-1-_bazw0rg` under the same artifact root. They retain actual
+terminal items/JSONL and normalized model-facing content, not only raw server
+details. Codex history was read only for threads
+`01a10a8a-8c76-7443-9591-e11f21148478` and
+`01a10a90-ba23-72d1-867f-98a2e0f259f4`.
+
+Both models distinguished null revision/unavailable R dirtiness, zero-effect stale
+refusal, a 38-byte partial disk write with divergent R, and an unknown operation
+whose later read observed the complete replacement. Neither claimed runtime/class
+reload or retroactive verified transaction success. No intentional edit was replayed
+or repaired. All failure-profile responses were fully visible; no output spill,
+JSON text duplication or source truncation was needed.
+
+Codex used ordinary on-request, one-call **Allow** decisions and read-only sandboxing.
+It did **not** automatically reconnect after the dropped public response: both the
+edit and immediate read reported `Transport closed`. Closing/resuming the same
+conversation with unchanged MCP configuration restored the connection for one
+read-only recovery. The model kept the missing edit response distinct from the
+new observation. There was no edit resend.
+
+OMP used normal `write` approval mode and preserved `.omp/lsp.yaml`. Its client
+internally reconnected and resent the identical edit once, although the model
+issued only one edit action. The original verified result was not delivered;
+the duplicate reached unchanged revision guards and was refused. The model saw
+that refusal, not the hidden delivery loss, then read the replacement and correctly
+left its causal attribution uncertain. An automatic resend is not a new intentional
+edit or fresh read, and this does not establish exactly-once client behavior.
+The kit added no retry, queue, compensation or persistent outcome mechanism.
+
+Real-client delivered-output maximum was **6.260048 s**. Temporary project MCP
+configuration was removed after exact ownership comparison, the owned client
+worktree was removed, and VM `stop`/`status` confirmed `running: false`.
+No host editor was controlled or closed.
+
+### Checks, reuse and completion scope
+
+The task's Rust checks passed: formatting, Clippy, **465 default tests** including
+the default doctest targets, rustdoc and locked library/binary/example builds.
+The focused output and process/tool checks passed **19** and **17** tests;
+the output tests were rechecked after deleting incidental wording assertions.
+The final affected Python/native-build command passed **61 tests**. Actual runner
+dispatch, production/fixture native loading, CLI tool calls and visible editor
+surfaces were exercised; unit tests are not substituted for those runs.
+
+Relevant-input review retains unchanged T001/T002 direct guards, positive clients,
+512 KiB/source-bound, durability and export evidence. The only production change
+is the repeated open-native dirty-Resource guard; its affected clean/refusal/history
+and interruption paths were newly exercised. Closed mutation, protocol/ABI,
+authentication, carrier/schema, stock validation and export isolation are unchanged.
+Rebuilt libraries are not claimed byte-identical: the source/ABI review and actual
+matched loading/legacy/closed/open behavior establish relevant equivalence.
+Fixture corrections affect only their named groups; failed executions remain
+excluded. No historical full campaign was replayed merely to obtain a final SHA.
+
+The [implementation-shape and constitutional review](plan.md#t003-implementation-shape-and-constitutional-review)
+preserves independent authorities, newer human work, native history, truthful
+effect/delivery distinctions, confinement and lean interfaces. This completes
+T003 acceptance, not T004's composed A–E/cumulative interaction, Feature 007,
+Phase 3 exit or release.
 
 ## Owned MCP fixture interfaces
 
@@ -570,7 +752,12 @@ the mutation. `reconnect` drops one actual public edit response after independen
 effect observation; the undelivered server result is not model-visible evidence.
 Record any client reconnect/resend separately, require existing stale-state guards
 on that duplicate, and correlate the client's subsequent fresh read and explanation.
-Neither profile opens a document or weakens approval. Finalize directly afterward.
+Neither profile opens a document or weakens approval. After the required recovery
+read, finalize without the positive profile's durability continuation. Codex's
+observed closed transport required ordinary same-thread CLI resume with unchanged
+MCP configuration and a read-only recovery request; do not replay the edit.
+OMP's automatic resend and model-visible limits are recorded in
+[the actual-client evidence](#actual-selected-clients-and-their-limits).
 
 `transport-failures` and `transport-reconnect` exercise the same fixture/relay with
 a bounded protocol driver, **not a coding agent**. `preservation` and `interruption`
@@ -749,4 +936,4 @@ After an owned run, retrieve artifacts and stop the VM using the existing wrappe
 
 Planning ran static documentation checks, repository/LSP and released-source research, installed client version/help checks, VM status/start/stop, and the scoped [closed-source mechanics probe](research.md#owned-stock-editor-observations) with visual inspection and fresh-runtime persistence witness. The two incomplete probe attempts remain excluded from the completed observation. Those planning-only checks did not establish MCP interoperability, product-suite/native-build acceptance, A–E coverage, release or Phase 3 exit; later implementation evidence is recorded above.
 
-**Historical public-contract probe:** The [earlier correction](research.md#7-public-contract-correction-evidence) inspected Codex result conversion and attempted an isolated synthetic carrier probe with the then-selected Codex + Claude pair. Expired Claude OAuth and an unavailable Codex code-mode tool path prevented model-visible results. Those failures remain excluded; Claude is no longer a current acceptance requirement. The [Codex + OMP planning correction](research.md#8-codex-and-omp-client-correction-evidence) ran only installed version/help/configuration and public/installed-source research plus documentation validation; it was not runtime acceptance. [T002's later positive two-client evidence](#t002-execution-evidence-2026-10-05) is now complete. Adversarial interpretation and composed/cumulative acceptance remain T003–T004 obligations.
+**Historical public-contract probe:** The [earlier correction](research.md#7-public-contract-correction-evidence) inspected Codex result conversion and attempted an isolated synthetic carrier probe with the then-selected Codex + Claude pair. Expired Claude OAuth and an unavailable Codex code-mode tool path prevented model-visible results. Those failures remain excluded; Claude is no longer a current acceptance requirement. The [Codex + OMP planning correction](research.md#8-codex-and-omp-client-correction-evidence) was source/configuration research, not runtime acceptance. [T002 positive workflows](#t002-execution-evidence-2026-10-05) and [T003 adversarial interpretation](#t003-execution-evidence-2026-10-05) are now complete. T004 composed/cumulative acceptance remains pending.

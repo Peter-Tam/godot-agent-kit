@@ -4,7 +4,7 @@
 
 **Input:** Maintainer-approved discover/read/edit requirements, including constitution v1.2.0 alignment in FR-022/SC-009.
 
-**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. T001 is complete and merged in PR #64 with [core/native acceptance](quickstart.md#t001-execution-evidence-2026-10-04). T002 is complete with [actual MCP/two-client acceptance and implementation-shape review](quickstart.md#t002-execution-evidence-2026-10-05); its delivery branch is `task/T002-mcp-script-workflow`. T003–T004 remain pending. These implementation/evidence notes do not change approved remaining obligations or claim feature completion or Phase 3 exit.
+**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. T001 and T002 are complete and delivered in PRs #64/#65 with [core/native acceptance](quickstart.md#t001-execution-evidence-2026-10-04) and [positive MCP/two-client acceptance](quickstart.md#t002-execution-evidence-2026-10-05). T003 is complete with [adversarial acceptance and shape review](quickstart.md#t003-execution-evidence-2026-10-05); its delivery branch is `task/T003-mcp-adversarial-safety`. T004 remains pending and unselected. These implementation/evidence notes do not change approved remaining obligations or claim feature completion or Phase 3 exit.
 
 ## Summary
 
@@ -104,7 +104,7 @@ specs/007-mcp-script-workflow/
     └── closed-edit.md
 ```
 
-[tasks.md](tasks.md) derives four coherent implementation increments: protocol-independent trusted read/revision/closed editing; complete external MCP MVP with both clients' positive workflows; combined adversarial preservation/interrupted-effect behavior; composed real-agent A–E and cumulative acceptance. Direct tests/docs remain bundled with their implementation, and separately runnable groups do not create extra task IDs. T001 is complete; T002–T004 remain pending under the one-task-one-PR sequencing rule.
+[tasks.md](tasks.md) derives four coherent implementation increments: protocol-independent trusted read/revision/closed editing; complete external MCP MVP with both clients' positive workflows; combined adversarial preservation/interrupted-effect behavior; composed real-agent A–E and cumulative acceptance. Direct tests/docs remain bundled with their implementation, and separately runnable groups do not create extra task IDs. T001–T003 are complete; T004 remains pending and unselected under the one-task-one-PR sequencing rule.
 
 ### Source code (repository root)
 
@@ -364,3 +364,45 @@ B, retaining strict D/B, dirty-state, history, roster and identity equality;
 raw observations/results remain unchanged. Waiting for or forcing reconciliation
 would hide the transition instead of witnessing it. This is one bounded comparison
 used by the dirty-Resource and interruption cases, not a new safety policy.
+
+### T003 implementation-shape and constitutional review
+
+The production change remains in the native open transaction's existing guard:
+repeat the already-required per-Resource dirty check before every stage instead
+of adding an adapter refusal after damage. It introduces no declaration, public
+visibility, lifecycle boolean, speculative variant, dependency or allocation
+layer. The native module's coherent responsibility remains the open document
+transaction; this small change does not justify splitting unrelated existing code.
+
+Test ownership is explicit: `mcp_peer.py` owns the real stdio peer, correlation,
+public result review and independent comparison; preservation and interruption
+modules own their separate adversarial behaviors; `mcp_failure_acceptance.py`
+owns the two prepared real-client fault profiles through the existing relay.
+Fixture-only callbacks perturb/witness real effects and remain separate from
+production native artifacts. No generic cancellation, retry, recovery, outcome
+storage or new workflow service was introduced. Helpers have current consumers;
+no production API is exposed for T004. The longer interruption module contains
+one related scenario family, not a new production transport/state/persistence layer.
+
+Runtime review corrected fixture assumptions instead of changing valid product
+contracts: cache disappearance must be real; an occupied native owner cannot be
+reconfigured; acquisition/legacy deadline names retain their existing meaning;
+normal editor B-to-R propagation is not a subsequent native stage; and output
+failure is held at the genuine partial apply receipt. Raw outcomes/witnesses
+remain intact. A focused witness regression rejects unrelated/third-source
+changes rather than masking arbitrary differences.
+
+New evidence applies Principles I/IV/VI to independent D/R/B or closed authorities;
+II/III to dirty/newer work, lifecycle and usable native history; V/VIII to local
+authority, confinement and unchanged export separation; VII to the unchanged
+adapter/core/integration boundary; IX/X to meaningful structured uncertainty and
+source-free diagnostics; XI to unchanged public-API/dependency provenance; and
+XII/XIII to a concrete fault-driven guard repair and reused test boundaries.
+Observed client reconnect limitations are documented, not hidden by a product
+retry or prompt-based safety mechanism.
+
+All task-owned preservation/interruption groups and both clients' failure/reconnect
+profiles passed with [exact evidence and relevant-input review](quickstart.md#t003-execution-evidence-2026-10-05).
+The public contract, approved remaining requirements and task granularity are
+unchanged. These implementation/evidence updates do not invalidate the original
+analysis attestation or authorize T004, broader support, release or Phase 3 exit.
