@@ -143,6 +143,10 @@ class McpPrivacyAcceptanceMixin(McpAdversarialMixin):
                 marker.unlink()
             witnesses = [(owner, root, *self.state(owner, root)) for owner, root in
                          ((editor, project), (other_editor, other_project))]
+            self.close_action(editor, 'closed_timeline_start')
+            stack.callback(lambda: observation.json_file(
+                self.artifacts / 'diagnostic-witness.json',
+                self.close_action(editor, 'closed_timeline_stop')))
             self._privacy_entrypoints(sources, inventory)
             with _PrivacyPeer(self, 'privacy-authorized') as peer:
                 assert_disclosure(peer.received[0], 'privacy-initialize', secrets=self.secrets,
