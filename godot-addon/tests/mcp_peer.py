@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import re
 import secrets
 import select
@@ -38,7 +37,6 @@ class McpPeer:
         self.process = None
         self.buffer = bytearray()
         self.diagnostics = None
-        self.last_response = None
         self.pending = {}
 
     def __enter__(self):
@@ -136,7 +134,6 @@ class McpPeer:
                               delivery='unavailable', application='unavailable',
                               mcp_acceptance=True, real_client_acceptance=False)
             self.pending.pop(call['id'], None)
-            self.last_response = None
             return None
         except TimeoutError as error:
             raise observation.Failure('MCP_consumed_output_deadline_' + label) from error
@@ -172,7 +169,6 @@ class McpPeer:
         self.harness.last_workflow_request = request_id
         if call['operation'] == 'edit_script' and content['result'] is not None:
             self.harness.last_workflow_edit = content['result']
-        self.last_response = response
         self.pending.pop(call['id'], None)
         return content
 

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import secrets
 
 import run_observation as observation
@@ -40,20 +39,19 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
             self.group(name, getattr(self, method))
 
     def _preservation_refusal(self, peer, project, editor, descriptor, revision,
-                              label, replacement=CHANGED, arguments=None):
+                              label, replacement=CHANGED, arguments=None, input_error=False):
         before, disks = self.state(editor, project)
         args = selectors(project, descriptor)
         args.update(revision=revision, replacement_source=replacement)
         if arguments is not None:
             args = arguments
         obj = peer.call("edit_script", args, label)
-        if obj["result"] is not None:
-            result = self.mcp_review_edit(obj, label, "refused")
-            observation.require(result["outcome"]["application"] == "not_applied",
-                                "refusal_proves_no_application_" + label)
+        if input_error:
+            observation.require(obj["result"] is None and obj["error"]["category"] == "input" and
+                                obj["error"]["application"] == "not_applied",
+                                "invalid_arguments_refuse_before_dispatch_" + label)
         else:
-            observation.require(obj["error"]["application"] == "not_applied",
-                                "adapter_refusal_proves_no_dispatch_" + label)
+            self.mcp_review_edit(obj, label, "refused")
         self.assert_no_effect(label, project, editor, before, disks)
         # A real editor event fence, not a delay, catches queued/late work.
         self.close_action(editor, "close_idle", frames=16)
@@ -110,10 +108,12 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                                     "revision_is_target_bound_" + label)
                 for name, token in (("malformed", "sr1:bogus"), ("fabricated", "sr1:" + sha(SAFE)),
                                     ("wrong_target", wrong["revision"])):
-                    self._preservation_refusal(peer, project, editor, descriptor, token, label + "_" + name)
+                    self._preservation_refusal(peer, project, editor, descriptor, token, label + "_" + name,
+                                              input_error=name == "malformed")
                 args = selectors(project, descriptor)
                 args["replacement_source"] = CHANGED
-                self._preservation_refusal(peer, project, editor, descriptor, None, label + "_missing", arguments=args)
+                self._preservation_refusal(peer, project, editor, descriptor, None, label + "_missing",
+                                          arguments=args, input_error=True)
                 before, disks = self.state(editor, project)
                 self.mcp_edit(peer, project, descriptor, basis["revision"], CHANGED, label + "_first", "verified_changed")
                 if not opened:
@@ -207,8 +207,13 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                 self._preservation_dirty_unrelated(editor)
                 basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=SAFE)
                 for name, replacement in replacements.items():
-                    self._preservation_refusal(peer, project, editor, descriptor, basis["revision"], label + "_" + name, replacement)
-                self.close_action(editor, "close_config", setting="external_editor", value=True)
+                    self._preservation_refusal(peer, project, editor, descriptor, basis["revision"], label + "_" + name,
+                                              replacement, input_error=name in ("over_bound", "nul", "cr", "bom"))
+                if opened:
+                    context = self.native_action(editor, "native_edit_unsupported_warning_context")
+                    observation.require(context["type"] == 4, "actual_unreproducible_open_warning_context")
+                else:
+                    self.close_action(editor, "close_config", setting="external_editor", value=True)
                 self._preservation_refusal(peer, project, editor, descriptor, basis["revision"], label + "_context")
                 self._preservation_refusal(peer, project, editor, descriptor, "sr1:" + sha(SAFE), label + "_context_digest")
         for name, source in (("original_tool", "@tool\n" + SAFE),
