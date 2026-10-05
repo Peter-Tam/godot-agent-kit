@@ -184,6 +184,7 @@ class McpPrivacyAcceptanceMixin(McpAdversarialMixin):
                 self._privacy_response('privacy-input-error', sources=sources, inventory=inventory)
                 for owner, root, before, disks in witnesses:
                     self.assert_no_effect('privacy-nonmutating-paths', root, owner, before, disks)
+                self.present_editor(editor)
                 before, disks = self.state(editor, project)
                 self.mcp_edit(peer, project, descriptor, basis['revision'], proposed,
                               'privacy-authorized-edit', 'verified_changed')
