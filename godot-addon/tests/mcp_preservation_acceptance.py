@@ -363,7 +363,7 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
         result = obj["result"]
         if isinstance(result, dict) and "inventory" in result:
             observation.require(result["inventory"] is None, "no_unauthorized_candidate_inventory_" + label)
-        if isinstance(result, dict) and "outcome" in result:
+        if obj["operation"] == "edit_script" and isinstance(result, dict):
             self.mcp_review_edit(obj, label, "refused")
             observation.require(result["outcome"]["application"] == "not_applied",
                                 "unresolved_or_denied_target_has_no_application_" + label)
