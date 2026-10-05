@@ -20,7 +20,7 @@ DEFAULT_IMAGE = "ghcr.io/cirruslabs/macos-tahoe-base@sha256:1b093499716409d29e8b
 BACKEND_VERSION = "2.40.1"
 DEFAULT_STATE = Path.home() / ".local/state/godot-agent-kit-vm"
 READY_TIMEOUT = 180.0
-_PROFILE = {"cpu": 4, "memory_mib": 6144, "display": "1280x800"}
+_PROFILE = {"cpu": 6, "memory_mib": 6144, "display": "1280x800"}
 
 
 class VMError(RuntimeError):

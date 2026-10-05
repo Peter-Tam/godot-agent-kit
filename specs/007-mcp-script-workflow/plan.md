@@ -475,3 +475,23 @@ instead of losing the diagnostic evidence. Individually runnable privacy groups
 reuse the existing scenario-selector pattern so failures do not replay completed
 export or interruption work. Temporary source-free diagnostics are removed;
 no production API, policy, timeout, schema or native transaction changed.
+
+#### T004 VM CPU comparison
+
+The unchanged four-vCPU guest returned bounded, truthful post-validation
+non-successes during the composed sequence. Source-free measurements attributed
+3.7–4.8 seconds to concurrent preflight engine startup, about 40–52 milliseconds
+to listener ownership, and about two seconds to the post-change engine startup.
+The compatibility-renderer experiment did not improve those measurements and was
+removed with the temporary diagnostics.
+
+Compare the existing owned profile at six vCPUs, retaining 6 GiB RAM, the same
+guest OS/engine/native inputs, graphical isolation and the existing readiness
+barrier. The host has eight CPUs and 16 GiB RAM. This adds two virtual CPUs during
+local runs, not a service, dependency, product prerequisite or minimum supported
+hardware claim. It is justified as a bounded resource comparison for SC-005's
+twenty-edit interaction: repeated unchanged runs have already failed, and neither
+longer product deadlines nor weaker success assertions are acceptable alternatives.
+The guest's existing environment receipt must be renewed from actual observations;
+old four-vCPU evidence keeps its original identity. Preserve the owned base snapshot
+and retained artifacts. Keep the allocation only if actual execution supports it.
