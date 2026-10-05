@@ -322,6 +322,10 @@ fn run_child(
     let arguments = vec![
         "--headless".into(),
         "--editor".into(),
+        "--rendering-method".into(),
+        "gl_compatibility".into(),
+        "--rendering-driver".into(),
+        "opengl3".into(),
         "--path".into(),
         project.to_string_lossy().into_owned(),
         "--lsp-port".into(),
