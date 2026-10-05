@@ -536,3 +536,136 @@ No retries, deadline extensions, weaker acceptance or support expansion is allow
 Any selected mechanism must record its measured requirement and Principle XIII
 tradeoff here before implementation; run only its affected verification and the
 required T004 composed interaction afterward.
+
+#### Timing boundary and readiness requirements
+
+The edit response contract remains **ten seconds from the original accepted
+complete request frame through delivery of the complete trustworthy response**.
+That clock includes argument/admission checks, fresh state/revision acquisition,
+all source-specific preflight, mutation, independent actual-source verification,
+cleanup and output. Preflight is not an untimed preparation phase. Work started
+after request receipt is never subtracted, and a pending request is not reaccepted
+under a new clock.
+
+Validator readiness is a distinct lifecycle, not a different name for preflight.
+If cold initialization is removed from the edit critical path, it must finish
+before edit admission, under the existing **ten-second initialization/control
+bound**. Readiness includes official-binary verification, isolated process and
+namespace creation, compiler initialization and an observed usable channel.
+Failure or expiry means unavailable readiness, not permission to mutate and
+initialize later. Requests arriving before readiness may not be hidden in an
+unbounded queue or silently retried. A one-shot caller that initializes only
+after invocation must continue counting that initialization in its total bound.
+
+Record two intervals separately: **readiness start → observed ready/failure**
+and **accepted steady-state edit → complete trustworthy response**. The latter
+is meaningful only when the required validators were already ready before the
+request arrived. Retain full cold end-to-end timings for any cold caller; do not
+label a duration with startup subtracted as measured steady-state latency.
+
+The current implementation has no such readiness lifecycle. Its fresh processes
+are launched inside each request and all their time is correctly still counted.
+Source `4c61e16`, diagnostic run
+`validation-profile-1/20261005T110624Z-2ec94b1f9888`, measured serial isolated open
+and closed edits on the settled four-vCPU VM:
+
+| Phase (seconds) | Open | Closed |
+| --- | ---: | ---: |
+| Proposed-source preflight / concurrent original+desired preflight span | 2.280 | 3.629 |
+| Cold Godot spawn → owned connection inside that preflight | 1.918 | 3.068 (both concurrent children) |
+| Native mutation | 0.542 | 0.028 |
+| Independent actual-state acquisition | 0.203 | 0.056 |
+| Actual-source validation | 1.770 | 2.168 |
+| Cold Godot spawn → owned connection inside actual validation | 1.470 | 1.795 |
+| Final independent acquisition plus finish | 0.191 | 0.055 |
+| Complete public edit response | 5.783 | 6.478 |
+
+Both operations verified in this diagnostic run; it does not erase the retained
+serial composed failure or prove stable latency. The original/desired closed
+validators started together. The profiling record contains no project source,
+source hashes, project paths or credentials. Temporary instrumentation is not a
+product telemetry interface.
+
+The measured repeated initialization justifies examining bounded ready isolated
+compilers instead of a larger VM or a stopwatch adjustment. The simplest existing
+alternative is still one-shot validation with all cold work counted. A replacement
+must prove fresh root **and dependency** parser/resource generations, exact current
+warning policy, per-request isolation, source disposal, cancellation and worker
+loss behavior, and independent actual-source post-verification. A fresh LSP root
+parser or a matching preflight digest alone is not that proof. No persistent
+compiler architecture is selected solely because its startup cost would be lower;
+its concrete reset/configuration mechanism and current-consumer integration must
+be justified before implementation.
+
+#### Selected optimization: prepared native documentation, fresh validators
+
+Keep fresh official-stock Godot processes for every source-validation pass. Cold
+process launch after receipt remains inside the original edit deadline. Do not
+introduce persistent parser/dependency/resource state or subtract startup from
+the reported request interval.
+
+The smaller reusable artifact is stock Godot's **native documentation cache**.
+The pinned [`EditorHelp::_gen_doc_thread`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/doc/editor_help.cpp#L3056-L3086)
+excludes extension classes and writes native documentation before loading script
+documentation. A source-free, empty private project can therefore prepare that
+artifact without observing a target project. The artifact's binary encoding is
+not byte-reproducible across generations; bind each prepared snapshot by its own
+observed SHA-256 rather than inventing a universal cache hash.
+
+Add optional host setup `--validator-engine ABSOLUTE_PATH`, accepting only the
+already-supported exact official binary after the existing provenance check.
+This is not a tool argument, arbitrary executable permission, editor selector
+or target-editor launch. Existing `--registry`-only and one-shot CLI callers keep
+their fully timed cold path. The documented long-lived MCP configuration and
+actual-client acceptance use preparation explicitly.
+
+Preparation runs once, in an owned same-binary worker and isolated stock child,
+before protocol input is consumed. Its **ten-second total bound** includes binary
+verification, empty-project creation, observed owned LSP initialization, child
+reaping and receipt delivery. Failure prevents startup for explicitly configured
+preparation; there is no silent retry or success fallback. Record a source-free
+readiness duration separately from operation results. No target script, project
+settings, addon, extension, global class, scene, dependency or verdict enters this
+prepared snapshot.
+
+The host retains one process-lifetime, private native-documentation snapshot,
+with bounded size and SHA-256 binding, and removes it on normal shutdown. A weak
+process-local registration lets existing validator supervisors borrow its owned
+lifetime without coupling domain requests to MCP or adding configuration to
+every operation API. Worker requests carry only the private snapshot descriptor.
+Each fresh validator verifies and copies that snapshot into its own private HOME
+before launch. A missing/changed prepared artifact is unavailable, not an
+unverified cache hit. The validator never publishes data back into the snapshot.
+All source admission, current warning policy, root/dependency completion fences,
+fresh revision/state guards, post-change actual-source validation, process-group
+ownership and clone disposal remain unchanged. Original/desired validation stays
+concurrent.
+
+**Measured basis:** owned four-vCPU startup probes recorded 2.116 seconds to
+initialize a fresh unseeded helper and 1.311 seconds with only native documentation
+copied in; concurrent seeded helpers initialized in 1.812/1.834 seconds. These are
+mechanism measurements, not composed acceptance. The snapshot was approximately
+3.27 MB. Disabling rendering did not establish a useful improvement. The faster
+Dummy text driver is rejected: pinned
+[`GDScriptParser`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/gdscript_parser.cpp#L2827-L2831)
+uses TextServer Unicode-security support for `confusable_identifier`; removing
+that support would weaken authoritative warning validation.
+
+**Principle XIII:** the current failure is verification exhaustion in the
+retained 9.465-second composed edit. The simplest alternative regenerates the
+same native documentation in each isolated process. A mutable warm-compiler
+service would require an unproved cache reset and a larger lifecycle surface.
+One bounded preparation worker plus a read-only, owned snapshot avoids those
+costs. Its present costs are startup configuration, approximately 3.27 MB of
+private temporary storage, bounded copy/hash I/O per validation, and focused
+startup/cleanup/privacy and compiler-equivalence evidence. No service, dependency,
+queue, background replenishment, new tool or longer deadline is added.
+
+**Verification:** measure readiness independently, then full request latency with
+all fresh-child launch time still included; do not call the helpers prewarmed.
+Exercise valid/invalid source, fresh dependency bytes, changed warning policy
+(including Unicode-security warnings), prepared-artifact loss/tampering,
+startup failure/cancellation and owned cleanup. Rerun affected public edit paths
+and required composed interaction, not historical campaigns whose relevant
+behavior is unchanged. This preserves Principles I–V, VII–X and XII–XIII; no
+mutation, support, acceptance or public tool-schema guarantee changes.

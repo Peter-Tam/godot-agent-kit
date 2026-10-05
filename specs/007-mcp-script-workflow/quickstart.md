@@ -33,7 +33,7 @@ cargo +1.98.1 build --locked --bin godot-agent-kit-mcp
 ./target/debug/godot-agent-kit-mcp --version
 ```
 
-Expected: no editor effect, no source/credential output. For ordinary developer use with an already-configured local editor/registry, the client starts that binary with `--registry "$REGISTRY"`. Registry setup/addon enablement/editor startup remain deliberate developer actions. The server does not infer a project from cwd or start Godot.
+Expected: no editor effect, no source/credential output. For ordinary long-lived use with an already-configured local editor/registry, start the binary with `--registry "$REGISTRY" --validator-engine "$GODOT"`, where `$GODOT` is the absolute path to the pinned official executable. This optionally prepares only native documentation in a source-free helper before accepting protocol input, under a ten-second startup bound; a source-free readiness duration goes to stderr. Preparation failure is startup failure, not a retried operation. `--registry` alone retains the fully timed cold path. Registry setup/addon enablement/target-editor startup remain deliberate developer actions. The server does not infer a project from cwd or start the target editor. Fresh per-validation helper launch, source checks and cleanup remain inside each accepted request's unchanged response bound.
 
 For implementation verification, start with the smallest affected test target. At Rust-affecting task completion run the applicable baseline from `mcp-server/`:
 
