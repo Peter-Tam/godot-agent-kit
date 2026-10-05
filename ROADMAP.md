@@ -146,6 +146,12 @@ weaker mutation path.
 
 ## Phase 3 — MCP adapter MVP
 
+**Status:** **Complete** — exit criteria satisfied on the
+[documented support profile](PHASE_3_EXIT.md), including the explicit
+[three-tool surface interpretation](PHASE_3_EXIT.md#roadmap-interpretation-and-public-surface)
+and current real-agent A–E evidence. Phase 3 completion does **not** automatically
+authorize Phase 4 or a v0.1 release; this closure selects no next feature.
+
 **Purpose:** Make the proven script workflow usable by real coding agents through the
 first external adapter.
 
