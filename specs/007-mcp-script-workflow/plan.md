@@ -328,3 +328,28 @@ confinement (V), core/native safety ownership (VII), fixture export separation
 implementation/dependency provenance (XI). No weaker guarantee or expanded support
 is selected; concrete behavior, not additional process ceremony, earns acceptance
 (XII/XIII).
+
+### T003 native dirty-Resource race correction
+
+The actual MCP `apply`-barrier case changed an open Script's Resource to
+equal-text-but-dirty after preparation. The native guard checked that flag only
+after finalization; its separate removal callback guard detected it only after
+buffer removal. The delivered result was truthfully `applied_unverified` /
+`partly_applied`, but a known dirty Resource requires refusal before the first
+effect (T003 US3.1/US3.4, FR-007/FR-008, Principles II–IV).
+
+The correction belongs in the existing native open-edit guard, not MCP policy,
+an alternate writer or a new observer service. Check the actual Resource dirty
+state at the guarded mutation boundaries; retain the same target/version/source,
+descriptor, context and synchronous callback protections. A focused real-editor
+regression records independent surviving D/R/B, dirty state and history before
+asserting the outcome, including later-stage dirty transitions and sticky effects.
+The change adds no API, native family, dependency, replay or permission surface.
+
+Rebuild/load both production and separate fixture native artifacts. Newly prove
+the failing guard, affected clean open edits/native history, pre-effect races and
+open interruption stages, plus a representative existing local open-edit caller.
+Closed native mutation, transport, authentication, ABI and export mechanisms are
+unchanged; review relevant equivalence and retain their valid coverage rather than
+automatically replaying historical suites. Subsequent T003 closed cases also
+exercise matched loading against the rebuilt native bundle.

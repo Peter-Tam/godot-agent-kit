@@ -28,6 +28,7 @@ PRESERVATION_GROUPS = {
     "preservation-source-context": "mcp_preservation_source_context",
     "preservation-equality-races": "mcp_preservation_equality_races",
     "preservation-active-reconfigure": "mcp_preservation_active_reconfigure",
+    "preservation-late-resource-dirty": "mcp_preservation_late_resource_dirty",
     "preservation-native-entry": "mcp_preservation_native_entry",
     "preservation-selection-privacy": "mcp_preservation_selection_privacy",
     "preservation-shared-slot": "mcp_preservation_shared_slot",
@@ -257,6 +258,8 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                     self.mcp_survivor_read(peer, project, editor, descriptor, label + "_survivor")
         for stage in ("prepare", "apply"):
             for mutation in ("same_text", "dirty_equal", "reopen", "close", "resource_edited"):
+                if stage == "apply" and mutation == "resource_edited":
+                    continue  # The focused native dirty-state regression owns this boundary.
                 label = "mcp_open_race_" + stage + "_" + mutation
                 with self.close_fixture(label) as (project, editor, descriptor), McpPeer(self, label) as peer:
                     basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=SAFE)
@@ -287,6 +290,33 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                                                     before, disks, CHANGED, changed=True)
             self.close_action(editor, "close_idle", frames=16)
             self.assert_no_effect("active_reconfigure_terminal", project, editor, after, now)
+
+    def mcp_preservation_late_resource_dirty(self):
+        for stage in ("apply", "buffer_applied", "resource_applied", "content_persisted", "mtime_restored", "edited_cleared"):
+            label = "mcp_late_R_dirty_" + stage
+            with self.close_fixture(label) as (project, editor, descriptor), McpPeer(self, label) as peer:
+                self._preservation_dirty_unrelated(editor)
+                basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=SAFE)
+                self.native_action(editor, "native_edit_hold", stage=stage)
+                call = peer.start("edit_script", dict(selectors(project, descriptor),
+                                                     revision=basis["revision"], replacement_source=CHANGED))
+                self.wait_mcp_barrier(editor, "edit:" + stage, peer, call)
+                prior, _ = self.state(editor, project)
+                observation.require(prior["cached_edited"] is False, "native_owned_prefix_has_clean_R_" + stage)
+                self.close_action(editor, "close_human", path=TARGET, mutation="resource_edited")
+                before, disks = self.state(editor, project)
+                observation.require(before["cached_edited"] is True and
+                                    before["cached_R"] == prior["cached_R"], "actual_late_equal_text_dirty_R_" + stage)
+                self.native_action(editor, "native_edit_release")
+                root = peer.finish(call, label)
+                after, now = self.state(editor, project)
+                self.record_witness(label, before, disks, after, now, editor)
+                self.mcp_review_edit(root, label, "refused" if stage == "apply" else "applied_unverified")
+                observation.require(source_free(before, disks) == source_free(after, now),
+                                    "late_dirty_R_preserves_all_authorities_and_history_" + stage)
+                self.close_action(editor, "close_idle", frames=16)
+                self.assert_no_effect(label + "_terminal", project, editor, before, disks)
+                self.mcp_survivor_read(peer, project, editor, descriptor, label + "_fresh")
 
     def mcp_preservation_native_entry(self):
         for action in ("open", "aba", "newer_resource", "cache_appear", "cache_replace", "equal_dirty", "profile", "context"):
