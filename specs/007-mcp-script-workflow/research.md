@@ -96,7 +96,7 @@ Public advisory research reviewed SDK [session leak](https://github.com/modelcon
 
 Select [Codex CLI 0.153.4](https://github.com/openai/codex/releases/tag/rust-v0.153.4) and [Oh My Pi (OMP) 18.5.1](https://registry.npmjs.org/@oh-my-pi/pi-coding-agent/18.5.1). The correction re-observed `codex-cli 0.153.4` and `omp/18.5.1`, their help and OMP package/source; these are the currently installed executable versions, not inferred from repository configuration. Codex 0.153.4 remains available in this environment; upstream [0.160.0](https://github.com/openai/codex/releases/tag/rust-v0.160.0) is newer, so the retained environment version is not described as the latest release. No client was upgraded. [Codex MCP guidance](https://developers.openai.com/codex/mcp) and [OMP MCP configuration](https://github.com/can1357/oh-my-pi/blob/main/docs/mcp-config.md) describe the supported setup; §8 verifies OMP's actual installed implementation. Both are real coding agents, but source/help/version checks are not actual model-access or interoperability acceptance.
 
-Use invocation-scoped Codex overrides and run-scoped OMP project configuration as specified in [quickstart](quickstart.md#real-coding-agent-clients-after-implementation); do not mutate global personal configuration. Actual agent calls use the guest server over the **fixed test-only stdio relay** through the existing owned Tart channel; Godot, core, registry and synthetic projects stay in the guest while model credentials remain on the host. OMP project discovery is additive, not an exclusive server-config flag; record the actual selected relay and tool origins rather than claim unrelated discovery is disabled. Preserve pre-existing project config, using a clean owned checkout if needed. This reuses the selected fixture/relay boundary, not an arbitrary remote-execution product, new service or client framework.
+Use invocation-scoped Codex overrides and run-scoped OMP project configuration as specified in [quickstart](quickstart.md#real-coding-agent-clients); do not mutate global personal configuration. Actual agent calls use the guest server over the **fixed test-only stdio relay** through the existing owned Tart channel; Godot, core, registry and synthetic projects stay in the guest while model credentials remain on the host. OMP project discovery is additive, not an exclusive server-config flag; record the actual selected relay and tool origins rather than claim unrelated discovery is disabled. Preserve pre-existing project config, using a clean owned checkout if needed. This reuses the selected fixture/relay boundary, not an arbitrary remote-execution product, new service or client framework.
 
 ## 5. SDK boundary findings and selected remedies
 
@@ -172,3 +172,39 @@ Three observed client implementation limits must remain explicit in acceptance:
 - OMP can reconnect and resend a tool call once after retryable transport closure (`src/mcp/tool-bridge.ts` lines 743–765; `src/mcp/transports/stdio.ts` marks EOF/closed failures retryable). Do not claim that OMP provides no-retry or exactly-once delivery. T003 must record actual duplicate requests and enforce unchanged server stale/dirty/lifecycle/admission guards; a retry is not a fresh read, new revision, rollback proof or a new intentional edit for acceptance counts. The adapter itself still never automatically retries, queues or compensates. This is client behavior to witness, not permission to add a replay framework or weaken product requirements.
 
 **Suitability disposition:** No source-established blocker prevents OMP 18.5.1 from being the requested independent MCP coding-agent client for local stdio, selected-version negotiation, discovery/calls and structured-result use. No model/client interoperability pass is claimed. Both selected clients must still complete T002's full positive workflows, T003's result/uncertainty interpretation and T004's applicable real-agent composition. The old incomplete Codex tool-host probe remains non-acceptance evidence; the superseded second client's authentication is not a current prerequisite.
+
+## 9. T002 locked dependency review (2026-10-04)
+
+The implemented manifest retains the approved exact `rmcp =3.5.0` and
+`tokio =1.53.1` selections and existing direct pins. `cargo fetch` resolved
+55 additional packages; `cargo metadata --locked` reports 115 packages including
+the application. Registry packages retain crates.io provenance and exact checksums
+in `Cargo.lock`; rmcp's downloaded `.cargo_vcs_info.json` names
+`0cde3c5cf3e6aff0cc852ce6045f107e95991f48`.
+
+The effective rmcp feature set is `server`, `schemars`, `transport-async-rw`,
+`uuid`. The SDK's Tokio dependency also enables Tokio's `macros`; the application
+adds no tool macros, `rmcp-macros`, HTTP/OAuth/TLS transport or client SDK.
+`tracing` is transitive SDK machinery, but the executable installs no subscriber
+and ignores `RUST_LOG` for message tracing. Concrete DTO schemas use the SDK's
+existing schemars re-export; no schema-generation framework or new dependency
+was added.
+
+The complete locked metadata's software-license choices are permissive MIT,
+Apache-2.0, ISC, Unlicense/MIT, LLVM-exception alternatives and Unicode-3.0
+notices. `r-efi` offers MIT/Apache-2.0 alternatives to LGPL; no LGPL-only
+dependency was selected. The application still has no declared package license;
+this task does not invent one or authorize distribution.
+
+The rmcp archive does not include its upstream `LICENSE`. Its
+[pinned repository license](https://github.com/modelcontextprotocol/rust-sdk/blob/0cde3c5cf3e6aff0cc852ce6045f107e95991f48/LICENSE)
+retains the MIT-to-Apache transition described above. The package's
+`license = Apache-2.0` metadata is therefore not a sufficient all-Apache notice
+claim; distribution must retain both applicable software notices. No upstream
+implementation or documentation was copied into the kit.
+
+`cargo audit` 0.22.2 inspected all 115 locked packages against RustSec database
+commit `ef6173cbc5c50ec8166f9a5b28f07834144373ee` (1,290 advisories,
+updated 2026-10-03). Result: **zero reported vulnerabilities and zero warnings**,
+with no ignored advisories or target filtering. This is the observed database
+result, not a guarantee against undisclosed vulnerabilities.

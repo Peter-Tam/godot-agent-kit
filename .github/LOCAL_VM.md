@@ -159,6 +159,33 @@ not an arbitrary shell executor. Close `sequential`, `composed`, `all` and compl
 are now implemented; [Feature 005 acceptance](../specs/005-close-project-gdscript/quickstart.md#12-t003-cumulative-acceptance-2026-10-02)
 records the focused runs and reviewed historical evidence. Complete campaign
 availability is not a requirement to replay unchanged historical GUI suites.
+
+Feature 007's `run mcp --scenario transport` uses the actual stdio executable.
+For host-owned coding-agent clients, `prepare-mcp --revision SHA --run-id ID
+--artifacts DIR` creates an owned guest fixture and writes private `receipt.json`,
+`mcp.json` and `prompt.txt`. `mcp-stdio --run-id ID` relays only its fixed
+executable/registry over Tart; it accepts no arbitrary guest command or endpoint.
+Keep model credentials on the host and preserve existing project client settings.
+For `workflow`, run `prepare-durability --run-id ID` after the primary client
+invocation, then feed its read-only prompt to the same selected client using the
+unchanged relay. This first validates primary success, then opens the verified
+cached/absent targets for an actual agent read. `finalize-mcp --run-id ID`
+requires those reads, verifies independent durability, cleans up owned fixtures
+and fetches evidence. Other profiles finalize directly after their client exits.
+Connection EOF alone does not tear down the prepared projects. Finalize before
+changing guest source. See the [client workflow](../specs/007-mcp-script-workflow/quickstart.md#real-coding-agent-clients)
+for scoped configuration and the distinction between raw MCP records and actual
+model-visible acceptance.
+Preparation's fixed `--profile workflow|known|sources|bound|observations` selector
+keeps independent fixtures small; the 512 KiB case runs alone, and the known path
+does not leak into the discovery-first prompt. Full selected-client acceptance
+requires all five groups, with a fresh conversation/run ID/artifact directory and
+finalization for each. `run mcp --scenario transport-<profile>` isolates the same
+groups for affected regressions; aggregate `transport` runs them sequentially.
+Relay and fixed continuation/finalization controls share the existing host lock;
+setup/source-changing operations remain exclusive. Finalization can reach an idle
+live relay without waiting for client EOF.
+
 The host terminal remains available; the Tart process is detached and has no
 viewer. Foreground activation by the inner harness targets guest WindowServer.
 

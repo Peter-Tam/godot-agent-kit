@@ -4,7 +4,7 @@
 
 **Input:** Maintainer-approved discover/read/edit requirements, including constitution v1.2.0 alignment in FR-022/SC-009.
 
-**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. T001 is complete with [core/native acceptance and implementation review](quickstart.md#t001-execution-evidence-2026-10-04). T002–T004 remain pending. This delivery/status update does not change approved remaining obligations or claim MCP interoperability, feature completion or Phase 3 exit.
+**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. T001 is complete and merged in PR #64 with [core/native acceptance](quickstart.md#t001-execution-evidence-2026-10-04). T002 is complete with [actual MCP/two-client acceptance and implementation-shape review](quickstart.md#t002-execution-evidence-2026-10-05); its delivery branch is `task/T002-mcp-script-workflow`. T003–T004 remain pending. These implementation/evidence notes do not change approved remaining obligations or claim feature completion or Phase 3 exit.
 
 ## Summary
 
@@ -55,7 +55,7 @@ Read preserves Feature 001 observation semantics while presenting source, an opa
 | X — actionable truthful diagnostics | Preserve outcome/stage/application, independent availability/invalidation and safe next action. Post-effect private protocol/host failure is not malformed input; disclosure denial is sticky. |
 | XI — independent compatible implementation | Public pinned engine source/behavior, released official SDK and concrete clients, license/provenance/advisory findings. No unrelated implementation copied or dependency/support pass invented. |
 | XIII — justified complexity | Narrow closed owner/epoch, bounded transport and test-only stdio relay address specified failures; rationale/cost below. No transaction/workflow/retry/cancellation/redaction/tracing/metadata framework. |
-| Compatibility / workflow | Existing local v1 APIs/refusals stay valid; coordinated private v6/native revision 4 cutover and new MCP schema 1. Design analysis is complete; only T001 is selected. Its implementation, review and required acceptance remain one task/PR. |
+| Compatibility / workflow | Existing local v1 APIs/refusals stay valid; private v6/native revision 4 remains unchanged and MCP uses schema 1. Analysis remains current after cumulative T001 delivery-only drift. Only T002 is selected, following merged T001; it remains one task/PR. |
 
 **Threat/evidence boundary:** Retain existing normal-local-user threat model; hostile same-UID software and malicious code already running inside Godot are not newly claimed isolated. No atomic filesystem exclusion, universal callback purity or live bytecode refresh is claimed. Unknown safety facts refuse. The observed source setter's old compiled constants are explicitly not used as new-source runtime evidence.
 
@@ -158,3 +158,135 @@ No constitutional exception is requested. The template's violation table is inap
 **Planning correction (2026-10-04):** The maintainer requested the public source/revision/state contract in place of the original whole-read echo. [Research](research.md#7-public-contract-correction-evidence) records exact-client carrier source findings and incomplete runtime probes. Constitution IX/XIII review preserves the approved specification, native closed route, selected protocol/dependencies and all enforced safety boundaries. Actual two-client result visibility remains an implementation acceptance obligation, not an interoperability claim at this design head.
 
 **Task/client correction (2026-10-04):** The maintainer requested consolidation from six pending tasks to four and selected Codex + OMP instead of the earlier client pair. Installed version/help and source inspection establish OMP's stdio/2025-11-25/tool/model-result path; actual client use remains required. The preferred single structured-first carrier is unchanged. OMP's project config is temporary and additive, normal non-bypass approval is retained, and client-local cancellation, reconnect/resend and output-spill limits are explicit in research/acceptance. Temporary config ownership addresses the present need to attach the fixed relay without overwriting human project settings; a global config mutation or a new isolation/client framework is unnecessary. The existing LSP setup, specification, closed transaction, revisions, protocol/dependencies and Features 001–005 remain unchanged. This correction does not run analysis or implementation.
+
+### T002 fixture ownership refinement
+
+The fixed relay keeps prepared projects alive across connection EOF: tearing them
+down at EOF would invalidate client reconnects and prevent independent later
+durability checks. Existing artifact retrieval is deliberately non-destructive;
+stopping the entire VM is not a substitute for those checks.
+
+`finalize-mcp --run-id ID` is the smallest explicit terminal action in the existing
+wrapper. It verifies the owned workflow and later durability, cleans up its
+fixtures, and retrieves evidence, including on failure. Its cost is one fixed
+allowlisted action using the existing receipt/control/cleanup boundary; no arbitrary
+command/path, product remote mode, new dependency or generic orchestration service
+is introduced. This implements T002's existing bounded-cleanup/independent-witness
+obligations without changing product scope or later task acceptance.
+
+The first actual MCP fixture run kept twelve owned editors alive concurrently.
+Its 512 KiB changed edit persisted all bytes but exhausted verification time
+(`applied_unverified`, 9.108222 s); other source/lifecycle positives completed.
+Those independent profiles do not require twelve simultaneous editors.
+The fixture now runs fixed `workflow`, `known`, `sources`, `bound` and
+`observations` groups, with the bound case alone. Each selected client owes all
+five groups in separate conversations. Separating `known` removes the shared
+exact locator from discovery-first context (SC-002); its cost is one fixed
+selector/conversation, not a new runner. `observations` includes one actual
+barrier-invalidated read using T001's closed-state barrier and same-text disk
+transition. Historical D and null revision are checked against independent
+pre/post external-change witnesses; read no-effect checks retain the post-change
+baseline. Stable unavailable/dirty cases cannot establish invalidation (US2.3,
+FR-005). Reusing the existing fixture costs one fixed profile and barrier
+handoff, not native production changes or a synthetic MCP result. The bound
+prompt describes the requested comment instead of preloading half a MiB.
+
+The first Codex run exited without tool calls but left an idle guest relay alive.
+Sequential control handling then prevented `finalize-mcp` from reaching the owner;
+the 180-second control wait failed. The existing relay's `select` now also watches
+the fixed control listener, so finalization drains the owned MCP process before
+validation/fixture cleanup even when the client never supplies EOF. This reuses one
+event loop rather than adding a thread/service or treating client exit as success.
+Its cost is one explicit control handoff and a live-child/socket regression.
+No product deadline, transaction, source authority or mutation behavior changes.
+
+**Acceptance correction:** US2.5 requires the agent, not a helper-only MCP
+client, to read after ordinary fixture opening. `prepare-durability --run-id ID`
+first validates all primary workflow results while cached/absent targets remain
+closed, then opens only those verified targets and emits a read-only prompt.
+The owner persists for a second invocation of the same selected real client.
+Finalization requires recorded post-opening reads before independent
+Save/reparse/rescan/runtime checks and terminal cleanup. Opening cannot manufacture
+primary success; helper-only reads no longer substitute for model consumption.
+This costs one fixed allowlisted fixture action and one read-only invocation per
+client's workflow profile; it reuses receipts/control and does not introduce a
+public lifecycle tool or take T004's composed-conversation scope.
+
+The host's single existing operation lock is shared narrowly for long-lived
+relay/control traffic and exclusive for setup/source-changing operations.
+Exclusive locking of the relay prevented even the fixed finalizer from reaching
+the guest listener; dropping locking entirely would allow source/setup races.
+Shared mode preserves that exclusion at the cost of one mode argument and a
+wrapper-level overlap regression, not new lock infrastructure. Guest immutable
+worker/source/build checks and active-owner exclusion remain intact.
+
+OMP's first model-visible workflow exposed the inherited `scripts/.gdignore`:
+discovery correctly excluded the target, so that fixture could not prove discovery
+of the edited script. Exposing the scripts before startup then correctly failed the
+independent absent-R admission check: normal indexing had loaded the target.
+MCP preparation now retains cold setup, focuses the selected fixture and waits for
+its initial scan with the marker still present, then removes that owned marker
+before forwarding its first discovery. The actual inventory must contain the
+target, and every cold-profile call independently requires absent R before and
+after. No Resource is unloaded and no LSP or product guard is disabled. Positive
+prompts supply a filename hint, not an exact script path, as SC-002 requires.
+Repeat affected profiles; earlier carrier/edit observations do not substitute for
+this corrected discover-to-edit acceptance.
+
+### T002 adapter ownership corrections
+
+Review exposed three reachable mismatches with rmcp 3.5.0: `serve_directly`
+left peer state at the requested rather than negotiated revision; SDK cancellation
+suppressed completions needed to retire transport IDs; and its select loop could
+drop receive-side replies while output was backpressured. The adapter now records
+the negotiated revision, translates cancellation into the existing request-owned
+flag while retaining completion/supervisor ownership, and retains one bounded
+receive-side reply through consumed-output acknowledgment. The original deadline
+and `Arc` owner identity survive polling and delayed completion. This costs one
+pending-reply record, not another scheduler, queue or cancellation framework.
+
+Unavailable/invalidated open-edit surfaces legitimately carry null private
+identities. Projection removes those private fields too, while retaining the
+separate public document identity; otherwise valid refusals and post-effect
+evidence became generic `invalid_output`. No public schema, operation, authority,
+mutation route or product deadline changes.
+
+### T002 bounded worker-channel correction
+
+The isolated 512 KiB MCP edit exposed avoidable local IPC delay: source-free
+diagnostics measured 610 ms and 64 polling sleeps sending its 525 KiB startup
+frame, plus 632/638 ms returning pre/post-validation source frames. Serialization
+took only 13–14 ms; the editor's bounded request transfer was about 127 ms.
+The resulting verification timeout is a reachable T002 supported-bound failure,
+not justification to increase deadlines, frame budgets or source limits.
+
+Reuse stock validation's existing bounded blocking Unix-socket pattern for the
+closed worker channel: each read/write waits at most 50 ms or the remaining
+original deadline, whichever is smaller, then checks cancellation/deadline again.
+Both endpoints remain owned off the protocol executor. One shared private
+frame decoder replaces the closed supervisor's sleep-based reader; no dependency,
+unsafe binding, new worker, queue, cache or protocol change is needed. This
+costs a small bounded-read loop and stalled-peer regressions, while removing the
+separate polling path. Cancellation, effect retention, independent verification,
+native mutation, confinement and original monotonic cutoffs remain unchanged
+(Principles I–V, VII, X and XIII).
+
+The final adapter review also found response-delivery races: a client could send
+`initialized` after reading the initialize response but before the SDK processed
+its write acknowledgment, and a blocked receive-side reply prevented cancellation
+or EOF from reaching an active supervisor. Successful writer delivery now owns
+the initialization transition. Receive-side reply retention is bounded by the
+existing eight-ID capacity while cancellation/EOF remain observable; queued
+replies are not queued tool operations. Keeping one awaited reply is simpler but
+cannot meet both normal pipelining and timely cancellation. The additional bounded
+reply state and deterministic channel-ordering regressions are justified by those
+reachable failures; no larger capacity, protocol, operation queue or scheduler is
+introduced.
+
+The output review corrected two contract mismatches without changing the public
+schema decision: wall-clock endpoints may move backwards while elapsed time remains
+monotonic, and confirmed closed B must use `not_applicable_closed`, not the core's
+internal `not_applicable` spelling. Projection now translates that value and keeps
+unconfirmed B unavailable. Strict numeric interval types and post-effect certainty
+remain checked. These are adapter corrections, not new core authority or mutation
+semantics.

@@ -173,6 +173,61 @@ class SourceAndEvidenceTests(unittest.TestCase):
             matches = vm._host_godot_processes()
         self.assertEqual([item.split()[0] for item in matches], ["102"])
 
+    def test_mismatched_prepared_worker_refuses_dispatch(self):
+        state = self.root / 'state'
+        owned = state / 'prepared/owned-run'
+        owned.mkdir(parents=True)
+        receipt = dict(worker=vm.GUEST_ROOT + '/workers/' + 'b' * 64 + '.py',
+                       worker_sha256='a' * 64)
+        (owned / 'receipt.json').write_text(json.dumps(receipt))
+        args = vm._parser().parse_args(['mcp-stdio', '--run-id', 'owned-run'])
+        with self.assertRaisesRegex(vm.VMError, 'identity mismatch'):
+            vm._mcp_control(None, state, args)
+
+    def test_preparation_refuses_existing_artifacts_before_source_sync(self):
+        destination = self.root / 'artifacts'
+        destination.mkdir(mode=0o700)
+        (destination / 'receipt.json').write_text('human-owned evidence')
+        tart = mock.Mock()
+        tart.status.return_value = dict(running=True, startup_readiness=True)
+        args = vm._parser().parse_args(['prepare-mcp', '--revision', self.commit,
+                                       '--run-id', 'owned-run', '--artifacts', str(destination)])
+        with mock.patch.object(vm, '_sync') as sync, self.assertRaises(vm.VMError):
+            vm._prepare_mcp(tart, self.root / 'state', args, repo=self.repo)
+        sync.assert_not_called()
+        self.assertEqual((destination / 'receipt.json').read_text(), 'human-owned evidence')
+
+    def test_wrapper_live_relay_allows_controls_but_excludes_source_setup(self):
+        import threading
+        state = self.root / 'overlap'
+        started, release = threading.Event(), threading.Event()
+        results = []
+        def control(tart, selected_state, args):
+            if args.operation == 'mcp-stdio':
+                started.set()
+                if not release.wait(3):
+                    raise RuntimeError('test relay release deadline')
+            return 0
+        with mock.patch.object(vm, 'Tart'), mock.patch.object(vm, '_mcp_control', side_effect=control), \
+                mock.patch.object(vm, '_prepare_mcp') as prepare:
+            thread = threading.Thread(target=lambda: results.append(vm.main(
+                ['--state', str(state), 'mcp-stdio', '--run-id', 'owned-run'])))
+            thread.start()
+            try:
+                self.assertTrue(started.wait(3))
+                for operation in ('prepare-durability', 'finalize-mcp'):
+                    self.assertEqual(vm.main(['--state', str(state), operation, '--run-id', 'owned-run']), 0)
+                self.assertEqual(vm.main(['--state', str(state), 'prepare-mcp', '--revision', self.commit,
+                                         '--run-id', 'other', '--artifacts', str(self.root)]), 1)
+                prepare.assert_not_called()
+            finally:
+                release.set()
+                thread.join(3)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual(results, [0])
+        with vm._locked(state):
+            self.assertEqual(vm.main(['--state', str(state), 'mcp-stdio', '--run-id', 'owned-run']), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

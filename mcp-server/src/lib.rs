@@ -15,6 +15,7 @@ pub mod script_open;
 pub mod script_read;
 
 pub mod bridge;
+pub mod mcp;
 pub mod project_fs;
 mod project_fs_validation;
 pub mod runner;

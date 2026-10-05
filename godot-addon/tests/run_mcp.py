@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused T001 core/native acceptance; no MCP or real-client claim."""
+"""Focused core/native and actual stdio MCP acceptance; real-client proof is separate."""
 from __future__ import annotations
 
 import argparse
@@ -14,16 +14,17 @@ import run_observation as observation
 from run_script_edit import STOCK_SHA256
 from run_script_close import CloseHarness
 from closed_script_acceptance import ClosedScriptAcceptanceMixin, FIXTURE
+from mcp_lifecycle_acceptance import McpLifecycleMixin, PROFILE_GROUPS, serve_prepared
 
 SCENARIOS = ("closed-native", "closed-lifecycle", "closed-positives", "closed-refusals",
              "closed-revisions-and-boundary-races", "closed-effect-faults",
              "closed-acquisition-invalidation-and-selection", "closed-authenticated-wire-boundaries",
              "closed-save-profile-and-shared-slot", "closed-cancel-and-newer-work",
              "closed-later-durability-and-history", "matched-v6-native4-legacy-preservation",
-             "closed-privacy-export")
+             "closed-privacy-export", "transport", *("transport-" + name for name in PROFILE_GROUPS))
 
 
-class WorkflowHarness(ClosedScriptAcceptanceMixin, CloseHarness):
+class WorkflowHarness(McpLifecycleMixin, ClosedScriptAcceptanceMixin, CloseHarness):
     def __init__(self, args, work):
         super().__init__(args, work)
         self.summary.update(
@@ -57,6 +58,9 @@ class WorkflowHarness(ClosedScriptAcceptanceMixin, CloseHarness):
         }
         self.source_markers.update((b"CLOSED_PRIVATE_TARGET", b"CLOSED_NEWER_WORK",
                                     b"CLOSED_RESOURCE_DIVERGENCE", b"CLOSED_RESOURCE_DIRTY"))
+        if args.scenario.startswith("transport"):
+            self.summary.update(coverage_scope="T002_actual_MCP_transport_lifecycle",
+                                mcp_acceptance=True, real_client_acceptance=False)
 
 
 def main():
@@ -65,6 +69,10 @@ def main():
                  "opener", "closer", "discoverer", "workflow"):
         parser.add_argument("--" + name, required=True, type=Path)
     parser.add_argument("--scenario", required=True, choices=SCENARIOS)
+    parser.add_argument("--mcp-server", type=Path)
+    parser.add_argument("--prepared-run", type=Path)
+    parser.add_argument("--revision")
+    parser.add_argument("--profile", choices=tuple(PROFILE_GROUPS), default="workflow")
     args = parser.parse_args()
     os.umask(0o077)
     for name in ("godot", "observer", "editor", "stock_validator", "opener", "closer", "discoverer", "workflow"):
@@ -83,6 +91,11 @@ def main():
         harness = WorkflowHarness(args, Path(directory))
         code = 0
         try:
+            if args.prepared_run is not None:
+                observation.require(args.mcp_server is not None and args.mcp_server.is_absolute(),
+                                    "fixed_actual_MCP_executable")
+                serve_prepared(harness, args.prepared_run)
+                return 0
             harness.initialize()
             methods = {
                 "closed-native": harness.closed_native,
@@ -98,7 +111,9 @@ def main():
                 "closed-later-durability-and-history": harness.closed_durability,
                 "matched-v6-native4-legacy-preservation": harness.closed_legacy_preservation,
                 "closed-privacy-export": harness.closed_privacy_export,
+                "transport": harness.mcp_transport,
             }
+            methods.update(("transport-" + name, harness.mcp_transport) for name in PROFILE_GROUPS)
             if args.scenario not in ("closed-native", "closed-lifecycle"):
                 harness.compile_window_probe()
             harness.group(args.scenario, methods[args.scenario])
@@ -110,7 +125,8 @@ def main():
                                    else type(error).__name__)
         finally:
             try:
-                harness.cleanup()
+                if not getattr(harness, "prepared_cleanup_complete", False):
+                    harness.cleanup()
                 harness.verify_incidental_redaction()
             except (observation.Failure, OSError) as error:
                 code = 1

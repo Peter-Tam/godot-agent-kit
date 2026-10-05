@@ -17,6 +17,8 @@ import tarfile
 import tempfile
 import urllib.request
 import uuid
+import socket
+import time
 
 ROOT = Path('/Users/admin/.godot-agent-kit-vm')
 GODOT_SHA = 'c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf'
@@ -248,6 +250,8 @@ def _verify_source(root, revision):
 
 
 def _sync(root, revision, archive_hash, stream):
+    if any((root / 'tmp').glob('mcp-*.sock')):
+        raise GuestError('finalize the owned prepared MCP run before changing committed guest source')
     repo = root / 'workspace/repo'
     if (root / 'workspace').is_symlink() or repo.is_symlink():
         raise GuestError('workspace must not be a symlink')
@@ -341,7 +345,8 @@ def _build(root, source, provision):
     rust_outputs = [cargo / 'target/debug' / name for name in BINS] + [
         cargo / 'target/debug/examples/stock_validation_fixture',
         cargo / 'target/debug/examples/script_workflow_fixture',
-        cargo / 'target/debug/libgodot_agent_kit.rlib']
+        cargo / 'target/debug/libgodot_agent_kit.rlib',
+        cargo / 'target/debug/godot-agent-kit-mcp']
     rust_key = _cache_key(source['files'], ('mcp-server/',), tools)
     cache_path = root / 'cache/rust.json'
     old = _json(cache_path) if cache_path.exists() else None
@@ -382,6 +387,7 @@ def _runner_options(root, suite):
               'opener': target / BINS[2], 'discoverer': target / BINS[3], 'closer': target / BINS[4],
               'stock-validator': target / 'examples/stock_validation_fixture',
               'workflow': target / 'examples/script_workflow_fixture',
+              'mcp-server': target / 'godot-agent-kit-mcp',
               'native-fault-addon': root / 'build/fixture-native'}
     names = ['godot', 'observer']
     if suite != 'observation':
@@ -393,7 +399,7 @@ def _runner_options(root, suite):
     if suite in ('close', 'mcp', 'all'):
         names.append('closer')
     if suite == 'mcp':
-        names.append('workflow')
+        names += ['workflow', 'mcp-server']
     return [item for name in names for item in ('--' + name, str(values[name]))]
 
 
@@ -461,12 +467,104 @@ def _run(root, args):
     return exit_code if exit_code >= 0 else 128 - exit_code
 
 
+def _prepare_mcp(root, args):
+    provision = _json(root / 'provision.json')
+    if _snapshot(root) != provision['environment']:
+        raise GuestError('guest environment changed')
+    source = _verify_source(root, args.revision)
+    run = root / 'runs' / args.run_id
+    run.mkdir(mode=0o700, parents=True, exist_ok=False)
+    _private(run / 'artifacts', create=True)
+    builds = _build(root, source, provision)
+    _save(run / 'provenance.json', dict(action='prepare-mcp', revision=args.revision, profile=args.profile,
+          archive_sha256=source['archive_sha256'], environment=provision['environment'],
+          environment_identity=_execution_identity(provision), builds=builds))
+    repo = root / 'workspace/repo'
+    argv = [sys.executable, str(repo / 'godot-addon/tests/run_mcp.py'), '--scenario', 'transport',
+            '--prepared-run', str(run), '--revision', args.revision, '--profile', args.profile,
+            '--artifacts', str(run / 'artifacts'),
+            *_runner_options(root, 'mcp')]
+    with (run / 'owner.log').open('ab') as log:
+        process = subprocess.Popen(argv, cwd=repo, env=_environment(_execution_identity(provision)),
+                                   stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+    deadline = time.monotonic() + 180
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise GuestError('prepared fixture owner exited; private guest evidence retained')
+        if (run / 'prepared.json').exists() and (run / 'prompt.txt').exists():
+            return dict(receipt=_json(run / 'prepared.json'), prompt=(run / 'prompt.txt').read_text())
+        time.sleep(0.1)
+    process.terminate()
+    try:
+        process.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        process.kill()
+    raise GuestError('prepared fixture deadline exceeded; evidence retained')
+
+
+def _prepared_control(root, run_id, command):
+    run = root / 'runs' / run_id
+    _private(run)
+    receipt = _json(run / 'prepared.json')
+    _verify_source(root, receipt['revision'])
+    provenance = _json(run / 'provenance.json')
+    for name, expected in provenance['builds']['rust']['outputs'].items():
+        path = Path(name)
+        if not _regular(path) or _digest(path) != expected:
+            raise GuestError('prepared Rust consumer provenance changed')
+    with socket.socket(socket.AF_UNIX) as control:
+        control.settimeout(180 if command in (b'F', b'P') else None)
+        socket_path = root / 'tmp' / ('mcp-' + hashlib.sha256(run_id.encode()).hexdigest()[:24] + '.sock')
+        control.connect(str(socket_path))
+        control.sendall(command)
+        if command == b'F':
+            if control.recv(16) != b'OK\n':
+                raise GuestError('MCP finalization failed; private evidence retained')
+            return 0
+        if command == b'P':
+            chunks = bytearray()
+            while data := control.recv(65536):
+                chunks.extend(data)
+                if len(chunks) > 65536:
+                    raise GuestError('durability prompt exceeded fixed bound')
+            if not chunks:
+                raise GuestError('MCP durability preparation failed; private evidence retained')
+            sys.stdout.buffer.write(chunks)
+            sys.stdout.buffer.flush()
+            return 0
+        import threading
+        def incoming():
+            try:
+                while data := os.read(sys.stdin.fileno(), 65536):
+                    control.sendall(data)
+                control.shutdown(socket.SHUT_WR)
+            except OSError:
+                pass
+        thread = threading.Thread(target=incoming, daemon=True)
+        thread.start()
+        while data := control.recv(65536):
+            sys.stdout.buffer.write(data)
+            sys.stdout.buffer.flush()
+        return 0
+
+
+def _mcp_stdio(root, run_id):
+    run = root / 'runs' / run_id
+    _private(run)
+    _verify_source(root, _json(run / 'prepared.json')['revision'])
+    return _prepared_control(root, run_id, b'R')
+
+
 def _export_paths(run, captures=False):
     _private(run)
     provenance = run / 'provenance.json'
     if not _regular(provenance):
         raise GuestError('run provenance unavailable or unsafe')
     result = [provenance]
+    proof = _json(provenance)
+    mcp_proof = ((run / 'prepared.json').exists() or
+                 (proof.get('suite') == 'mcp' and proof.get('scenario') in
+                  ('transport', 'transport-workflow', 'transport-known', 'transport-sources', 'transport-bound', 'transport-observations')))
     artifacts = run / 'artifacts'
     _private(artifacts)
     capture_directories = set()
@@ -493,6 +591,9 @@ def _export_paths(run, captures=False):
                         capture_directories.add(base.joinpath(*parts))
         for name in files:
             allowed = ((permitted and name == 'summary.json') or
+                       (mcp_proof and (not relative or (captures and base in capture_directories)) and
+                        (name in ('mcp-calls.jsonl', 'delivery.jsonl', 'protocol.jsonl', 'mcp-stderr.log') or
+                         name.endswith('-witness.json'))) or
                        (not relative and name == 'manifest.json') or
                        (captures and base in capture_directories and name.endswith('.png')))
             if allowed:
@@ -546,6 +647,13 @@ def _parser():
     export = commands.add_parser('export')
     export.add_argument('--run-id', required=True, type=_token)
     export.add_argument('--captures', action='store_true')
+    prepare = commands.add_parser('prepare-mcp')
+    prepare.add_argument('--revision', required=True, type=_sha)
+    prepare.add_argument('--run-id', required=True, type=_token)
+    prepare.add_argument('--profile', choices=('workflow', 'known', 'sources', 'bound', 'observations'), default='workflow')
+    for action in ('mcp-stdio', 'prepare-durability', 'finalize-mcp'):
+        command = commands.add_parser(action)
+        command.add_argument('--run-id', required=True, type=_token)
     return parser
 
 
@@ -553,6 +661,12 @@ def main(argv=None):
     args = _parser().parse_args(argv)
     os.umask(0o077)
     try:
+        if args.action == 'mcp-stdio':
+            _guest_guard()
+            return _mcp_stdio(ROOT, args.run_id)
+        if args.action in ('prepare-durability', 'finalize-mcp'):
+            _guest_guard()
+            return _prepared_control(ROOT, args.run_id, b'P' if args.action == 'prepare-durability' else b'F')
         _guest_guard()  # All actions, including sync/export, are guest-only.
         _private(ROOT, create=True)
         _private(ROOT / 'tmp', create=True)
@@ -567,6 +681,8 @@ def main(argv=None):
             elif args.action == 'sync':
                 result = _sync(ROOT, args.revision, args.archive_sha256, sys.stdin.buffer)
                 result = {key: result[key] for key in ('revision', 'archive_sha256')}
+            elif args.action == 'prepare-mcp':
+                result = _prepare_mcp(ROOT, args)
             elif args.action in ('run', 'campaign'):
                 return _run(ROOT, args)
             else:
