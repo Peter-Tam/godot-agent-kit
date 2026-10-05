@@ -176,12 +176,17 @@ Connection EOF alone does not tear down the prepared projects. Finalize before
 changing guest source. See the [client workflow](../specs/007-mcp-script-workflow/quickstart.md#real-coding-agent-clients)
 for scoped configuration and the distinction between raw MCP records and actual
 model-visible acceptance.
-Preparation's fixed `--profile workflow|known|sources|bound|observations` selector
-keeps independent fixtures small; the 512 KiB case runs alone, and the known path
-does not leak into the discovery-first prompt. Full selected-client acceptance
-requires all five groups, with a fresh conversation/run ID/artifact directory and
-finalization for each. `run mcp --scenario transport-<profile>` isolates the same
-groups for affected regressions; aggregate `transport` runs them sequentially.
+Preparation's fixed `--profile workflow|known|sources|bound|observations` selections
+keep T002 positive fixtures small; the 512 KiB case runs alone, and the known path
+does not leak into discovery-first context. T002 acceptance requires those five
+groups with each client. T003 adds `--profile failures|reconnect` for structured
+refusal/uncertainty and actual reply-loss interpretation; no positive history is
+replayed merely because these profiles exist. Each selected profile uses a fresh
+conversation/run ID/artifact directory and finalization.
+`run mcp --scenario transport-<profile>` isolates the same fixture paths;
+aggregate `transport` retains only the five positive groups. Adversarial
+`preservation-*` and `interruption-*` groups are separately runnable through the
+same fixed suite, committed-source, artifact and ownership boundary.
 Relay and fixed continuation/finalization controls share the existing host lock;
 setup/source-changing operations remain exclusive. Finalization can reach an idle
 live relay without waiting for client EOF.

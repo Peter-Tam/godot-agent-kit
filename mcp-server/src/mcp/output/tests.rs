@@ -29,6 +29,7 @@ fn assert_unavailable_result(
             },
         })
     );
+    // Check recovery concepts and safety ordering, not the complete sentence.
     let summary = wire["content"][0]["text"]
         .as_str()
         .unwrap()
@@ -188,6 +189,68 @@ fn invalid_output_after_known_effects_cannot_become_not_applied() {
         );
         assert_unavailable_result(
             result,
+            Operation::Edit,
+            "invalid_output",
+            "deliver",
+            application,
+        );
+    }
+}
+
+#[test]
+fn oversized_edit_results_preserve_effect_certainty_and_source_free_recovery() {
+    for (outcome, application) in [
+        ("verified_changed", "applied"),
+        ("applied_unverified", "partly_applied"),
+        ("application_unknown", "unknown"),
+    ] {
+        let mut result = closed(outcome, application);
+        result["outcome"]["effects"]["authorized"] = json!(true);
+        result["outcome"]["effects"]["disk_entered"] = json!(true);
+        if application != "unknown" {
+            result["outcome"]["effects"]["written_bytes"] = json!(1);
+        }
+        if application != "applied" {
+            result["outcome"]["next_action"] = json!({"kind":"fresh_read"});
+        }
+        result["outcome"]["limitations"] =
+            json!(["private-output-sentinel".repeat(16 * 1024 * 1024 / 23 + 1)]);
+        // Establish that this reaches the size boundary, not an earlier schema
+        // rejection. Use the production projection and validator unchanged.
+        let mut projected = result.clone();
+        edit::project(&mut projected, None, id().as_str()).unwrap();
+        edit::validate(&projected, id().as_str()).unwrap();
+        let response = complete(Operation::Edit, &id(), result, None);
+        let wire = serde_json::to_value(&response).unwrap();
+        assert!(!wire.to_string().contains("private-output-sentinel"));
+        assert_unavailable_result(
+            response,
+            Operation::Edit,
+            "invalid_output",
+            "deliver",
+            application,
+        );
+    }
+}
+
+#[test]
+fn malformed_effect_receipts_retain_observed_changes_and_authorization_uncertainty() {
+    for (field, value, application) in [
+        ("resource_changed", json!(true), "partly_applied"),
+        ("written_bytes", json!(1), "partly_applied"),
+        ("truncated", json!(true), "partly_applied"),
+        ("resource_entered", json!(true), "unknown"),
+        ("disk_entered", json!(true), "unknown"),
+        ("authorized", json!(true), "unknown"),
+    ] {
+        let mut result = closed("refused", "not_applied");
+        result["outcome"]["effects"][field] = value;
+        result["outcome"]["private_source"] = json!("effect-receipt-private-source");
+        let response = complete(Operation::Edit, &id(), result, None);
+        let wire = serde_json::to_value(&response).unwrap();
+        assert!(!wire.to_string().contains("effect-receipt-private-source"));
+        assert_unavailable_result(
+            response,
             Operation::Edit,
             "invalid_output",
             "deliver",

@@ -102,6 +102,14 @@ func _collect_pending() -> void:
 
 func _queue(peer: Dictionary, payload: Dictionary, closing: bool = false, large: bool = false) -> void:
 	var drivers := get_tree().get_nodes_in_group("observation_fixture_driver")
+	if drivers.size() == 1 and drivers[0].has_method("consume_closed_reply_fault") \
+			and drivers[0].consume_closed_reply_fault(String(payload.get("kind", ""))) == "malformed":
+		# Negative fixture only: corrupt a genuine reply after product execution.
+		# Keep complete framing; never synthesize positive source/effect evidence.
+		super._queue(peer, payload, closing, large)
+		peer.output = PackedByteArray([0, 0, 0, 3, 123, 0, 125])
+		peer.sent = 0
+		return
 	if drivers.size() == 1 and payload.get("kind") == "discover_state":
 		# Witness real admission even when a 1ms scope expires before TCP delivery.
 		drivers[0].scope_admission = {"request_id": payload.request_id,

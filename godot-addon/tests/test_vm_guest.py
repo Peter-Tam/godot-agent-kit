@@ -235,6 +235,20 @@ class GuestTests(unittest.TestCase):
         self.assertIn('artifacts/clean-open/view.png', captures)
         self.assertNotIn('artifacts/clean-open/private.json', captures)
 
+    def test_adversarial_mcp_export_keeps_witnesses_but_not_raw_private_frames(self):
+        run = self.make_run()
+        (run / 'provenance.json').write_text(json.dumps(dict(suite='mcp', scenario='interruption-effects')))
+        group = run / 'artifacts/clean-open'
+        (group / 'effect-witness.json').write_text('{"disk_sha256":"observed"}')
+        (group / 'effect.json').write_text('{"raw_private_protocol":"never-export"}')
+        (group / 'effect-mcp-stderr.log').write_text('private diagnostic')
+        default = {p.relative_to(run).as_posix() for p in guest._export_paths(run)}
+        self.assertNotIn('artifacts/clean-open/effect-witness.json', default)
+        captures = {p.relative_to(run).as_posix() for p in guest._export_paths(run, True)}
+        self.assertIn('artifacts/clean-open/effect-witness.json', captures)
+        self.assertNotIn('artifacts/clean-open/effect.json', captures)
+        self.assertNotIn('artifacts/clean-open/effect-mcp-stderr.log', captures)
+
     def test_export_rejects_symlink_in_evidence_tree(self):
         run = self.make_run()
         (run / 'artifacts/sneaky.json').symlink_to(run / 'provenance.json')

@@ -562,9 +562,7 @@ def _export_paths(run, captures=False):
         raise GuestError('run provenance unavailable or unsafe')
     result = [provenance]
     proof = _json(provenance)
-    mcp_proof = ((run / 'prepared.json').exists() or
-                 (proof.get('suite') == 'mcp' and proof.get('scenario') in
-                  ('transport', 'transport-workflow', 'transport-known', 'transport-sources', 'transport-bound', 'transport-observations')))
+    mcp_proof = ((run / 'prepared.json').exists() or proof.get('suite') == 'mcp')
     artifacts = run / 'artifacts'
     _private(artifacts)
     capture_directories = set()
@@ -650,7 +648,8 @@ def _parser():
     prepare = commands.add_parser('prepare-mcp')
     prepare.add_argument('--revision', required=True, type=_sha)
     prepare.add_argument('--run-id', required=True, type=_token)
-    prepare.add_argument('--profile', choices=('workflow', 'known', 'sources', 'bound', 'observations'), default='workflow')
+    prepare.add_argument('--profile', choices=('workflow', 'known', 'sources', 'bound', 'observations',
+                                             'failures', 'reconnect'), default='workflow')
     for action in ('mcp-stdio', 'prepare-durability', 'finalize-mcp'):
         command = commands.add_parser(action)
         command.add_argument('--run-id', required=True, type=_token)

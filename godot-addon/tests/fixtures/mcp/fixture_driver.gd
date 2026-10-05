@@ -11,6 +11,40 @@ var _closed_callback_stage := ""
 var _closed_callback_action := ""
 var _closed_effect_seen := false
 var _closed_events: Array[Dictionary] = []
+var closed_reply_fault := ""
+var _closed_reply_fault_kind := ""
+
+func consume_closed_reply_fault(kind: String) -> String:
+	if kind != _closed_reply_fault_kind: return ""
+	var fault := closed_reply_fault
+	closed_reply_fault = ""
+	return fault
+
+func _closed_witness_state() -> Dictionary:
+	var state := _close_state()
+	state.cache_has = ResourceLoader.has_cached(CLOSE_TARGET)
+	var cached := ResourceLoader.get_cached_ref(CLOSE_TARGET)
+	state.cache_type = cached.get_class() if cached != null else null
+	return state
+
+func _native_removed(from_line: int, to_line: int) -> void:
+	if _native_remove_mode.is_empty(): return
+	var mode := _native_remove_mode
+	var request_id := _native_remove_request
+	_native_remove_mode = mode.trim_suffix("_stop").trim_suffix("_disable").trim_suffix("_deny")
+	super._native_removed(from_line, to_line)
+	if mode == "disable" or mode.ends_with("_disable"):
+		EditorInterface.set_plugin_enabled(PRODUCT, false)
+	if mode.ends_with("_stop"):
+		_native_remove_bridge.stop()
+	if mode.ends_with("_deny"):
+		_native_remove_witness.denial_code = FileAccess.set_unix_permissions(CLOSE_TARGET, 0)
+	_native_remove_witness.request_id = request_id
+	_native_remove_witness.stage = "lines_edited_from"
+	_native_remove_witness.mode = mode
+	_native_remove_witness.state = _closed_witness_state()
+
+
 
 func _enter_tree() -> void:
 	super._enter_tree()
@@ -25,6 +59,13 @@ func _closed_publish(stage: String, request_id: String) -> void:
 	if file != null:
 		file.store_string(JSON.stringify({"stage": stage, "request_id": request_id}))
 		file.close()
+
+func edit_barrier(stage: String, request_id: String) -> bool:
+	if stage != _edit_hold_stage: return true
+	if not _edit_hold_announced:
+		_closed_publish("edit:" + stage, request_id)
+		_edit_hold_announced = true
+	return false
 
 func closed_barrier(stage: String, peer: Dictionary) -> bool:
 	_closed_peer = peer
@@ -44,12 +85,14 @@ func closed_response_barrier(kind: String, peer: Dictionary, _reply: Dictionary)
 
 func _closed_entered(request_id: String, stage: String) -> void:
 	if _closed_events.size() < 32:
-		_closed_events.append({"request_id": request_id, "stage": stage, "state": _close_state()})
+		_closed_events.append({"request_id": request_id, "stage": stage, "state": _closed_witness_state()})
 	if stage in ["after_write", "after_mtime"]: _closed_effect_seen = true
 	if stage == "before_verify" and not _closed_effect_seen: return
 	if stage != _closed_callback_stage: return
 	_closed_callback_stage = ""
-	match _closed_callback_action:
+	var action := _closed_callback_action
+	var mutation := action.trim_suffix("_stop").trim_suffix("_disable")
+	match mutation:
 		"open": _prepare(CLOSE_TARGET)
 		"aba":
 			_prepare(CLOSE_TARGET)
@@ -64,6 +107,30 @@ func _closed_entered(request_id: String, stage: String) -> void:
 				file.store_string("extends RefCounted\n# CLOSED_NEWER_WORK\n")
 				file.close()
 		"cache_appear": _close_target_ref = load(CLOSE_TARGET) as GDScript
+		"cache_replace":
+			var cached := ResourceLoader.get_cached_ref(CLOSE_TARGET) as GDScript
+			if cached != null:
+				var replacement := GDScript.new()
+				replacement.set_source_code(cached.get_source_code())
+				replacement.reload(false)
+				replacement.take_over_path(CLOSE_TARGET)
+				_close_target_ref = replacement
+		"equal_dirty":
+			var cached := ResourceLoader.get_cached_ref(CLOSE_TARGET) as GDScript
+			if cached != null:
+				var source := cached.get_source_code()
+				cached.source_code = source + "# CLOSED_TEMPORARY_DIRTY\n"
+				cached.source_code = source
+		"profile":
+			var settings := EditorInterface.get_editor_settings()
+			var setting := "text_editor/behavior/files/trim_trailing_whitespace_on_save"
+			if not _close_settings.has(setting): _close_settings[setting] = settings.get_setting(setting)
+			settings.set_setting(setting, true)
+		"context": _close_config("external_editor", true)
+		"deny_disk": FileAccess.set_unix_permissions(CLOSE_TARGET, 0)
+		"reconfigure":
+			var api: Dictionary = Engine.get_meta(NATIVE_META, {})
+			if api.has("configure"): api.configure.call(_open_bridge().get("_session"))
 		"settings":
 			var file := FileAccess.open("res://project.godot", FileAccess.READ_WRITE)
 			if file != null:
@@ -72,9 +139,11 @@ func _closed_entered(request_id: String, stage: String) -> void:
 				file.close()
 		"stop": _open_bridge().stop()
 		"disable": EditorInterface.set_plugin_enabled(PRODUCT, false)
+	if action.ends_with("_stop"): _open_bridge().stop()
+	if action.ends_with("_disable"): EditorInterface.set_plugin_enabled(PRODUCT, false)
 	if _closed_events.size() < 32:
 		_closed_events.append({"request_id": request_id, "stage": "callback:" + stage,
-			"action": _closed_callback_action, "state": _close_state()})
+			"action": _closed_callback_action, "state": _closed_witness_state()})
 
 func _dispatch_close_request(request: Dictionary) -> void:
 	if not String(request.get("action", "")).begins_with("closed_"):
@@ -86,11 +155,30 @@ func _dispatch_close_request(request: Dictionary) -> void:
 	var response := {"id": id, "action": request.action, "ok": true}
 	var api: Dictionary = Engine.get_meta(NATIVE_META, {})
 	match String(request.action):
+		"closed_open_callback":
+			var bridge := _open_bridge()
+			var owner := bridge.get_parent().get_node_or_null("GodotAgentKitScriptEdit") if bridge != null else null
+			var doc := _close_document(CLOSE_TARGET)
+			var mode: String = request.get("mode", "")
+			response.ok = owner != null and doc.get("associated", false) and mode in \
+				["change", "cancel", "stop", "disable", "change_stop", "change_disable", "change_deny"]
+			if response.ok:
+				_native_remove_mode = mode
+				_native_remove_request = request.get("request_id", "")
+				_native_remove_owner = owner
+				_native_remove_bridge = bridge
+				_native_remove_buffer = EditorInterface.get_script_editor().get_open_script_editors()[doc.index].get_base_editor() as CodeEdit
+				_native_remove_witness = {}
+				if _native_remove_buffer.lines_edited_from.is_connected(_native_removed):
+					_native_remove_buffer.lines_edited_from.disconnect(_native_removed)
+				_native_remove_buffer.lines_edited_from.connect(_native_removed, CONNECT_ONE_SHOT)
 		"closed_arm":
 			_closed_hold_stage = request.get("stage", "")
 			_closed_hold_kind = request.get("kind", "")
 			_closed_callback_stage = request.get("callback_stage", "")
 			_closed_callback_action = request.get("callback_action", "")
+			closed_reply_fault = request.get("reply_fault", "")
+			_closed_reply_fault_kind = request.get("reply_fault_kind", request.get("kind", ""))
 			_closed_announced = false
 			_closed_events.clear()
 			_closed_effect_seen = false
@@ -132,6 +220,15 @@ func _dispatch_close_request(request: Dictionary) -> void:
 			if response.ok: bridge.attach_closed(owner, 4, api.build_id.call())
 		"closed_reconfigure":
 			response.ok = api.has("configure") and api.configure.call(_open_bridge().get("_session"))
+		"closed_try_reconfigure":
+			response.ok = api.has("configure")
+			if response.ok: response.accepted = api.configure.call(_open_bridge().get("_session"))
+		"closed_revoke_attempt":
+			var method := "edit_cancel" if request.get("profile") == "open" else "closed_abort"
+			response.ok = api.has(method)
+			if response.ok:
+				response.result = api[method].call(request.get("request_id", ""))
+				response.ok = response.result is Dictionary and response.result.get("reason") == "cancelled"
 		"closed_native_state":
 			response.ok = api.has("closed_fixture_state")
 			if response.ok: response.result = api.closed_fixture_state.call(request.get("request_id", ""))
@@ -150,6 +247,7 @@ func _dispatch_close_request(request: Dictionary) -> void:
 			response.ok = cached != null
 			if response.ok:
 				match mutation:
+					"detach": cached.resource_path = ""
 					"divergent": cached.set_source_code("extends RefCounted\n# CLOSED_RESOURCE_DIVERGENCE\n")
 					"dirty": cached.source_code = cached.get_source_code() + "# CLOSED_RESOURCE_DIRTY\n"
 					"equal_dirty":

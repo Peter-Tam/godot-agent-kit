@@ -202,7 +202,9 @@ const char *guard(Session &session, EditAttempt &a, Binding &binding, bool needs
             utf8_size(r) > static_cast<GDExtensionInt>(LIMIT)) { return "source_unavailable"; }
     if (bytes(b) != (a.stage == EditAttempt::Prepared ? a.before : a.after) ||
             bytes(r) != (a.stage <= EditAttempt::Buffer ? a.before : a.after)) { return "source_changed"; }
-    if (a.stage >= EditAttempt::Edited) {
+    // Never enter another source/persistence stage with newly dirty human R,
+    // including the first buffer removal. Equal source text is not cleanliness.
+    {
         Name name("EditorInterface");
         void *interface = api.singleton(name.ptr());
         if (!interface) { return "edited_state_unavailable"; }
