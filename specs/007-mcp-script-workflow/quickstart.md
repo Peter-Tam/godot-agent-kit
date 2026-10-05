@@ -671,8 +671,10 @@ No host editor was controlled or closed.
 
 The task's Rust checks passed: formatting, Clippy, **465 default tests** including
 the default doctest targets, rustdoc and locked library/binary/example builds.
-The focused output and process/tool checks passed **19** and **17** tests;
-the output tests were rechecked after deleting incidental wording assertions.
+The focused output and process/tool checks passed **19** and **17** tests.
+That output run followed removal of recovery-summary assertions, incorrectly
+classified as incidental wording checks; the focused review correction below
+restores their consumer-visible semantic coverage.
 The final affected Python/native-build command passed **61 tests**. Actual runner
 dispatch, production/fixture native loading, CLI tool calls and visible editor
 surfaces were exercised; unit tests are not substituted for those runs.
@@ -692,6 +694,58 @@ preserves independent authorities, newer human work, native history, truthful
 effect/delivery distinctions, confinement and lean interfaces. This completes
 T003 acceptance, not T004's composed A–E/cumulative interaction, Feature 007,
 Phase 3 exit or release.
+
+### Focused review correction: recovery-summary alignment
+
+The PR #66 review correction changes only
+`mcp-server/src/mcp/output/tests.rs` and this evidence record. The existing
+`assert_unavailable_result` helper again checks actual serialized terse `content`
+alongside the structured action, using recovery concepts rather than full-sentence
+snapshots:
+
+- **Discover:** `check_setup`; summary identifies discovery and checking setup,
+  with no fresh/script read, revision, original-target or edit guidance.
+- **Read:** `fresh_read`; summary says to read the target again, without edit
+  instructions or an implication that an edit was applied.
+- **Edit:** `fresh_read`; summary requires reading the original target before
+  another edit.
+
+These assertions cover the existing host-after-dispatch and invalid-output cases,
+including oversized edit results and malformed effect receipts. Existing
+classification, source-redaction and certainty checks remain intact:
+discover/read are `not_applied`, dispatched edit host failure is `unknown`, and
+invalid edit output retains `applied` / `partly_applied` / `unknown`.
+The helper remains test-only; no summary-policy framework was introduced.
+
+**Validation, in order:** `cargo test --locked --lib mcp::output::tests` passed
+all **19** focused tests before the broader checks. `cargo fmt --all -- --check`
+and `cargo clippy --all-targets --locked -- -D warnings` passed. The normal
+`cargo test --locked` **failed (exit 101)** at the previously documented
+`script_open::a_late_compilation_result_cannot_upgrade_a_delivered_known_partial_timeout`
+ten-second assertion (`tests/bridge_boundary/open.rs:807`); its 232 library tests
+and other 62 bridge cases passed. The exact isolated case then passed unchanged;
+the remaining 14 integration targets passed **170 tests**.
+`cargo test --doc --locked` (zero doctests), `cargo doc --no-deps --locked` and
+`cargo build --locked --bin godot-agent-kit-mcp` passed. This supplies **465
+distinct passing tests across the recorded runs**, not a passing aggregate run.
+It applies the existing concrete timing-case exception under
+[TEST_POLICY.md § Rust](../../TEST_POLICY.md#rust) to this test-only correction:
+no production or timing-test input changed, no assertion/deadline was relaxed,
+and no new scheduling cause is claimed.
+
+A throwaway actual-executable stdio smoke initialized/listed tools, removed only
+its owned executable copy to force same-binary worker launch failure, and verified
+all three operations' host-error action, application and summary. Its process
+exited and temporary files were removed; no Godot process was launched.
+
+**Evidence currentness:** Only these Rust test assertions and evidence prose
+changed. Production MCP behavior, descriptions, schemas, native behavior,
+fixtures/witnesses, runner/fingerprints, client configuration, supported environment
+and T003 acceptance scope are unchanged. Fresh output/actual-caller checks cover
+the restored assertion surface. The **941-record VM evidence and Codex/OMP
+campaigns remain valid and were not rerun**, under
+[the relevant-input reuse policy](../../TEST_POLICY.md#reusing-evidence-across-commits).
+T004 remains pending and unselected; this correction stays on the existing T003 PR.
 
 ## Owned MCP fixture interfaces
 
