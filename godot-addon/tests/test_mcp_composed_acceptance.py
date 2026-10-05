@@ -1,6 +1,7 @@
 """Fixed composed protocol's fail-closed ordering/evidence regressions (no editor)."""
 import copy
 from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
 
@@ -159,6 +160,19 @@ class ComposedProtocolTests(unittest.TestCase):
             h.finalize_targets()
         h._composed_coherent.assert_not_called()
         self.assertNotIn('composed', h.summary)
+
+    def test_final_read_does_not_hide_source_loss_after_owned_shutdown(self):
+        with TemporaryDirectory() as directory:
+            h = Harness()
+            project = Path(directory)
+            source = project / 'scripts/subject.gd'
+            source.parent.mkdir()
+            source.write_text('# lost accepted edit\n')
+            h.target.update(project=project, cursor=len(h.target['steps']), successes=8,
+                            dirty_refusals=3, stale_refusals=1, completed_read='actual-final-read')
+            with self.assertRaises(composed.observation.Failure):
+                h.finalize_targets()
+            self.assertNotIn('composed', h.summary)
 
     def test_lifecycle_cannot_begin_before_verified_twenty_edit_protocol(self):
         h = Harness('absent')

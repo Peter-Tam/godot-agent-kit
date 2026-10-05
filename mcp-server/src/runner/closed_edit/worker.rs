@@ -1,18 +1,6 @@
 use super::*;
 use crate::target::SelectedSession;
 type Failure = (&'static str, bool);
-fn diagnostic(request: &ObservationRequest, label: &str, cause: Option<Failure>) {
-    if let Ok(mut file) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("/tmp/gak-closed-diagnostic.log")
-    {
-        let _ = std::io::Write::write_fmt(
-            &mut file,
-            format_args!("{} {label} {cause:?}\n", request.request_id().as_str()),
-        );
-    }
-}
 fn disclosure_failure(cause: Failure, current: Result<(), Failure>) -> Failure {
     (cause.0, cause.1 || current.err().is_some_and(|e| e.1))
 }
@@ -92,9 +80,7 @@ fn native(
     started: Instant,
     at: Instant,
 ) -> Result<codec::Reply, Failure> {
-    let result = codec::exchange(selected, request, op, started, at).map_err(err);
-    diagnostic(request, "native_result", result.as_ref().err().copied());
-    result
+    codec::exchange(selected, request, op, started, at).map_err(err)
 }
 fn admitted(reply: &codec::Reply, status: &str) -> Result<(), Failure> {
     if reply.status == status && reply.reason.is_none() {
@@ -594,14 +580,12 @@ fn edit(
         } else {
             "post_change"
         };
-        diagnostic(request, "before_post_sample", None);
         let (post, post_context) = sample(&mut selected, request, purpose, started, at)?;
         if post.file_revision.sha256 != confined::hex_sha256(desired.as_bytes())
             || post_context.source != desired
         {
             return Err(("source_changed", false));
         }
-        diagnostic(request, "before_post_validation", None);
         let post_validation = post_validation(
             (&mut *input, &mut *output),
             &selected,
@@ -609,7 +593,6 @@ fn edit(
             &post_context,
             at,
         )?;
-        diagnostic(request, "before_final_sample", None);
         let (final_state, final_context) = sample(&mut selected, request, purpose, started, at)?;
         let ctx = current_context(&selected, &final_context)
             .ok_or(("validation_context_unavailable", false))?;
@@ -617,7 +600,6 @@ fn edit(
             && final_context.sha256 == post_context.sha256
             && Some(&ctx) == post_validation.context_sha256.as_ref()
             && dependencies(&selected, &post_validation);
-        diagnostic(request, "before_finish", None);
         let finished = native(
             &mut selected,
             request,
@@ -626,7 +608,6 @@ fn edit(
             at,
         )?;
         admitted(&finished, "finished")?;
-        diagnostic(request, "before_verified_send", None);
         send(
             output,
             &Message::Verified {
@@ -641,7 +622,6 @@ fn edit(
         Ok(())
     })();
     if let Err(cause) = work {
-        diagnostic(request, "failed", Some(cause));
         let mut failure = disclosure_failure(cause, disclose_selected(&selected, request, at));
         let aborted = native(&mut selected, request, codec::Operation::Abort, started, at);
         failure.1 |= aborted.as_ref().err().is_some_and(|e| e.1)

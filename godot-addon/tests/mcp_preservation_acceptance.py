@@ -387,6 +387,11 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                 pair = observation.wait_for(lambda: self.descriptors(project) if len(self.descriptors(project)) == 2 else None,
                                             "mcp_two_real_authenticated_sessions")
                 self.close_action(second, "close_setup", paths=[CURRENT, BACKGROUND], selected=CURRENT)
+                for owner in (editor, second):
+                    self.present_editor(owner)
+                    scanned = self.native_action(owner, "native_edit_scan")
+                    observation.require(scanned["settled"], "privacy_both_initial_indexes_settled")
+                    self.close_action(owner, "open_setup", paths=[], path=CURRENT, idle=True)
                 witnesses = [self.state(owner, project) for owner in (editor, second)]
                 for tool in ("read_script", "discover_scripts", "edit_script"):
                     args = selectors(project, descriptor, select_session=False)

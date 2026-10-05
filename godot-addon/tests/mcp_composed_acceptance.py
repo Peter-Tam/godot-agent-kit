@@ -53,7 +53,15 @@ class McpComposedMixin:
     def prepare_targets(self, stack, profiles=None):
         if getattr(self.args, 'profile', None) != 'composed' and profiles != ('composed',):
             return super().prepare_targets(stack, profiles)
-        receipts = super().prepare_targets(stack, tuple(COUNTS))
+        receipts = []
+        targets = {}
+        for name in COUNTS:
+            owner = stack.enter_context(ExitStack())
+            receipts.extend(super().prepare_targets(owner, (name,)))
+            target = next(iter(self.targets.values()))
+            target['fixture_owner'] = owner
+            targets.update(self.targets)
+        self.targets = targets
         self._composed_active = True
         for target in self.targets.values():
             editor = target['editor']
@@ -314,6 +322,10 @@ class McpComposedMixin:
                 target['fresh'] = result
                 if target['first_revision'] is None:
                     target['first_revision'] = result['revision']
+                if role == 'durable_read':
+                    self._composed_coherent(target, target['source'])
+                    target['completed_read'] = content['request_id']
+                    target['fixture_owner'].close()
         target['cursor'] += 1
         target['pending'] = None
 
@@ -323,9 +335,11 @@ class McpComposedMixin:
         for target in self.targets.values():
             observation.require(target['pending'] is None and target['cursor'] == len(target['steps']) and
                                 target['successes'] == COUNTS[target['name']] and target['stale_refusals'] == 1 and
-                                target['dirty_refusals'] == (3 if target['name'] == 'open' else 0),
+                                target['dirty_refusals'] == (3 if target['name'] == 'open' else 0) and
+                                isinstance(target.get('completed_read'), str),
                                 'composed_no_omitted_skipped_or_unwitnessed_operations')
-            self._composed_coherent(target, target['source'])
+            observation.require((target['project'] / TARGET.removeprefix('res://')).read_text() == target['source'],
+                                'composed_verified_final_source_survives_owned_editor_shutdown')
         self.summary.update(coverage_scope='T004_composed_MCP_A_E', mcp_acceptance=True,
                             composed=dict(successful_fresh_read_edits=20, dirty_refusals=3, stale_refusals=3,
                                           profiles=COUNTS, history='actual_Undo_Save_Redo_Save_and_prior_reachability',

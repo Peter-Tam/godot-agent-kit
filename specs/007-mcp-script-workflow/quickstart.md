@@ -1,6 +1,6 @@
 # Quickstart: Validate the Trusted MCP Script Workflow
 
-**Status:** T001–T003 are **complete**, with [core/native evidence](#t001-execution-evidence-2026-10-04), [positive MCP/two-client acceptance](#t002-execution-evidence-2026-10-05), and [adversarial safety/two-client failure acceptance](#t003-execution-evidence-2026-10-05). Codex CLI 0.153.4 and OMP 18.5.1 completed their positive and failure/reconnect profiles. T004 remains pending and unselected; feature completion and Phase 3 exit are not claimed.
+**Status:** T001–T003 are **complete**, with [core/native evidence](#t001-execution-evidence-2026-10-04), [positive MCP/two-client acceptance](#t002-execution-evidence-2026-10-05), and [adversarial safety/two-client failure acceptance](#t003-execution-evidence-2026-10-05). T004 is selected and composed/cumulative verification is in progress. Failed or incomplete runs are not acceptance; feature completion and Phase 3 exit are not claimed.
 
 Read [plan.md](plan.md), [data-model.md](data-model.md) and [the public contract](contracts/mcp-interface.md). Follow [TEST_POLICY.md](../../TEST_POLICY.md) for scope, evidence reuse and the existing [VM boundary](../../.github/LOCAL_VM.md). No command authorizes a feature task before its own approved tasks/analysis and one-task-one-PR prerequisites.
 
@@ -819,6 +819,23 @@ contain their separately runnable `preservation-*` and `interruption-*` groups
 listed by `run_mcp.py --help`. After a failure, retain completed groups and rerun
 only the affected group and remaining obligations. No historical `all` campaign
 or T004 composed interaction is implied.
+
+T004 adds `--profile composed`: one conversation discovers each target and performs
+the generated human-intent sequence across open, cached-Resource closed and
+absent-Resource closed scripts. The fixed fixture supplies ordinary human changes,
+Undo/Save/Redo/Save and later lifecycle/durability actions at the designated
+boundaries, outside the product's accepted-frame clock. Every product response
+remains unmodified and has independent authority/history witnesses. The finalizer
+requires twenty fresh-revision changed edits, three dirty refusals, three stale
+refusals and the final actual-client reads; an omitted or failed step does not pass.
+Use `finalize-mcp` after that conversation, without `prepare-durability`.
+
+`run mcp --scenario composed` exercises the same ordered witness state machine
+with a direct stdio peer; it is **not** real-agent acceptance. The separately
+runnable `privacy-export` group checks actual authorized/error/selection/interrupted
+disclosure, startup/help/private-worker separation and enabled/disabled/hook-only
+production export artifacts. Neither group implies a historical full campaign,
+release candidate or Phase 3 exit.
 
 Each consumed public result records its original forwarding-to-delivery clock.
 Blocked/lost-output runs instead record delivery unavailable and bounded owned

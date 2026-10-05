@@ -13,29 +13,6 @@ var _closed_effect_seen := false
 var _closed_events: Array[Dictionary] = []
 var closed_reply_fault := ""
 var _closed_reply_fault_kind := ""
-var _timeline_enabled := false
-var _timeline: Array[Dictionary] = []
-var _timeline_previous := ""
-
-func _process(delta: float) -> void:
-	super._process(delta)
-	if not _timeline_enabled or _timeline.size() >= 2048: return
-	var bridge := _open_bridge()
-	if bridge == null: return
-	var peers: Array[Dictionary] = []
-	for peer: Dictionary in bridge.get("_peers"):
-		peers.append({"request_id": peer.get("request_id"), "state": peer.get("state"),
-			"pending": peer.get("pending"), "closed_stage": peer.get("closed_stage"),
-			"reply": peer.get("closed_reply", {}).get("kind"),
-			"frame_pending": peer.has("frame_pending"), "output": peer.output.size(),
-			"sent": peer.sent, "socket_status": peer.socket.get_status(),
-			"expiry": peer.get("expiry_tick_us")})
-	var value := {"session": bridge.get("_session"), "peers": peers}
-	var signature := JSON.stringify(value)
-	if signature != _timeline_previous:
-		_timeline_previous = signature
-		value["tick_us"] = Time.get_ticks_usec()
-		_timeline.append(value)
 
 func consume_closed_reply_fault(kind: String) -> String:
 	if kind != _closed_reply_fault_kind: return ""
@@ -178,13 +155,6 @@ func _dispatch_close_request(request: Dictionary) -> void:
 	var response := {"id": id, "action": request.action, "ok": true}
 	var api: Dictionary = Engine.get_meta(NATIVE_META, {})
 	match String(request.action):
-		"closed_timeline_start":
-			_timeline.clear()
-			_timeline_previous = ""
-			_timeline_enabled = true
-		"closed_timeline_stop":
-			_timeline_enabled = false
-			response.timeline = _timeline.duplicate(true)
 		"closed_open_callback":
 			var bridge := _open_bridge()
 			var owner := bridge.get_parent().get_node_or_null("GodotAgentKitScriptEdit") if bridge != null else null

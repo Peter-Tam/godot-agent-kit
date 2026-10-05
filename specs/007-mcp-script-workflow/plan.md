@@ -4,7 +4,7 @@
 
 **Input:** Maintainer-approved discover/read/edit requirements, including constitution v1.2.0 alignment in FR-022/SC-009.
 
-**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. T001 and T002 are complete and delivered in PRs #64/#65 with [core/native acceptance](quickstart.md#t001-execution-evidence-2026-10-04) and [positive MCP/two-client acceptance](quickstart.md#t002-execution-evidence-2026-10-05). T003 is complete with [adversarial acceptance and shape review](quickstart.md#t003-execution-evidence-2026-10-05); its delivery branch is `task/T003-mcp-adversarial-safety`. T004 remains pending and unselected. These implementation/evidence notes do not change approved remaining obligations or claim feature completion or Phase 3 exit.
+**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. T001–T003 are complete and delivered in PRs #64–#66 with core/native, positive MCP/two-client and adversarial acceptance. Only T004 is selected; composed real-agent and cumulative privacy/export verification is in progress. No feature completion or Phase 3 exit is claimed.
 
 ## Summary
 
@@ -55,7 +55,7 @@ Read preserves Feature 001 observation semantics while presenting source, an opa
 | X — actionable truthful diagnostics | Preserve outcome/stage/application, independent availability/invalidation and safe next action. Post-effect private protocol/host failure is not malformed input; disclosure denial is sticky. |
 | XI — independent compatible implementation | Public pinned engine source/behavior, released official SDK and concrete clients, license/provenance/advisory findings. No unrelated implementation copied or dependency/support pass invented. |
 | XIII — justified complexity | Narrow closed owner/epoch, bounded transport and test-only stdio relay address specified failures; rationale/cost below. No transaction/workflow/retry/cancellation/redaction/tracing/metadata framework. |
-| Compatibility / workflow | Existing local v1 APIs/refusals stay valid; private v6/native revision 4 remains unchanged and MCP uses schema 1. Analysis remains current after cumulative T001 delivery-only drift. Only T002 is selected, following merged T001; it remains one task/PR. |
+| Compatibility / workflow | Existing local v1 APIs/refusals stay valid; private v6/native revision 4 and MCP schema 1 are unchanged. Analysis remains current after cumulative T001–T003 delivery-only drift. Only T004 is selected after merged T003; one task/PR. |
 
 **Threat/evidence boundary:** Retain existing normal-local-user threat model; hostile same-UID software and malicious code already running inside Godot are not newly claimed isolated. No atomic filesystem exclusion, universal callback purity or live bytecode refresh is claimed. Unknown safety facts refuse. The observed source setter's old compiled constants are explicitly not used as new-source runtime evidence.
 
@@ -104,7 +104,7 @@ specs/007-mcp-script-workflow/
     └── closed-edit.md
 ```
 
-[tasks.md](tasks.md) derives four coherent implementation increments: protocol-independent trusted read/revision/closed editing; complete external MCP MVP with both clients' positive workflows; combined adversarial preservation/interrupted-effect behavior; composed real-agent A–E and cumulative acceptance. Direct tests/docs remain bundled with their implementation, and separately runnable groups do not create extra task IDs. T001–T003 are complete; T004 remains pending and unselected under the one-task-one-PR sequencing rule.
+[tasks.md](tasks.md) derives four coherent implementation increments: protocol-independent trusted read/revision/closed editing; complete external MCP MVP with both clients' positive workflows; combined adversarial preservation/interrupted-effect behavior; composed real-agent A–E and cumulative acceptance. Direct tests/docs remain bundled with their implementation. T001–T003 are complete; T004 is selected and verification is in progress.
 
 ### Source code (repository root)
 
@@ -445,3 +445,29 @@ permissions/confinement and export isolation (V/VIII), protocol-independent safe
 and focused behavioral evidence without speculative infrastructure (XII/XIII).
 Feature completion requires every remaining acceptance obligation; Phase 3 exit,
 release, broader support and another task are not selected.
+
+#### T004 fixture scheduling and failed-witness corrections
+
+Initial runs retained all three composed editors after their individual workflows
+had finished. Closed edits sometimes exhausted post-source-validation time; one
+separate completed-native trace ended with disconnection. These failed attempts
+remain non-acceptance evidence, not proof of a single scheduling cause.
+
+Each composed profile now owns an ordinary nested fixture context and closes its
+editor only after its final actual MCP read and independent lifecycle/durability
+witness. Subsequent profiles retain their original session and admitted state.
+The finalizer checks completed reads and persisted source after owned shutdown.
+This removes unnecessary completed-editor workload without reducing the twenty
+edits, three dirty/three stale refusals, authority/history checks or one-conversation
+requirement. Keeping completed editors alive adds no required interaction;
+changing product deadlines, retrying edits or adding a scheduler is not justified.
+
+The ambiguity witness also exposed `loader_calls: 3 → 4` during initial editor
+setup while every recorded source/identity/history surface was unchanged. Both
+owned windows and their existing index/idle barriers now settle before the
+preservation baseline. The loader-count assertion remains strict. Failed
+no-effect comparisons now retain their before/after witness before asserting,
+instead of losing the diagnostic evidence. Individually runnable privacy groups
+reuse the existing scenario-selector pattern so failures do not replay completed
+export or interruption work. Temporary source-free diagnostics are removed;
+no production API, policy, timeout, schema or native transaction changed.

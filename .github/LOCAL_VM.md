@@ -191,6 +191,16 @@ Relay and fixed continuation/finalization controls share the existing host lock;
 setup/source-changing operations remain exclusive. Finalization can reach an idle
 live relay without waiting for client EOF.
 
+T004's `prepare-mcp --profile composed` supplies one complete real-agent A–E
+conversation across open and both closed profiles, including twenty edits and
+interleaved dirty/stale refusals. Ordinary fixture history and lifecycle actions
+are coupled to the designated calls; no additional product tool or shell authority
+is exposed. Finalize after the final reads; this profile does not use
+`prepare-durability`. `run mcp --scenario composed` is its direct-protocol regression,
+not real-agent evidence. `run mcp --scenario privacy-export` separately exercises
+MCP disclosure and all three production export modes. Failed runs remain retained
+and cannot establish acceptance.
+
 The host terminal remains available; the Tart process is detached and has no
 viewer. Foreground activation by the inner harness targets guest WindowServer.
 
