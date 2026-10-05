@@ -23,6 +23,7 @@ PRESERVATION_GROUPS = {
     "preservation-prior-native-history": "mcp_preservation_prior_native_history",
     "preservation-revisions": "mcp_preservation_revisions",
     "preservation-identities": "mcp_preservation_identities",
+    "preservation-cache-absence": "mcp_preservation_cache_absence",
     "preservation-resource-safety": "mcp_preservation_resource_safety",
     "preservation-session-replacement": "mcp_preservation_session_replacement",
     "preservation-source-context": "mcp_preservation_source_context",
@@ -136,10 +137,6 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
             for child in displaced.iterdir():
                 os.rename(child, parent / child.name)
             observation.require(parent.stat().st_ino != old, "actual_parent_namespace_identity_replacement")
-        elif mutation == "cache_absent":
-            self.close_action(editor, "close_refs")
-            observation.require(not self.close_action(editor, "closed_witness")["state"]["cached_id"],
-                                "actual_loaded_resource_absence_transition")
         elif mutation.startswith("open_"):
             self.close_action(editor, "close_human", path=TARGET, mutation=mutation.removeprefix("open_"))
             if mutation == "open_close":
@@ -149,22 +146,29 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
 
     def mcp_preservation_identities(self):
         closed = ("same_text", "namespace", "parent_namespace", "cache_appear", "cache_replace",
-                  "cache_absent", "target_open", "aba", "unrelated_epoch", "reconfigure")
+                  "target_open", "aba", "unrelated_epoch", "reconfigure")
         for mutation in closed + ("open_same_text", "open_reopen", "open_replace", "open_close"):
             opened = mutation.startswith("open_")
             label = "mcp_identity_" + mutation
             fixture = self.close_fixture if opened else self.closed_fixture
-            kwargs = {} if opened else {"cached": mutation in ("cache_replace", "cache_absent")}
+            kwargs = {} if opened else {"cached": mutation == "cache_replace"}
             with fixture(label, **kwargs) as (project, editor, descriptor), McpPeer(self, label) as peer:
-                if mutation == "cache_absent":
-                    # A compiler-loaded Script has other legitimate owners.
-                    # Use the existing transient replacement-cache fixture so
-                    # releasing its final owned reference proves actual absence.
-                    self.close_action(editor, "closed_resource", mutation="replace")
                 basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=SAFE)
                 self._preservation_transition(project, editor, mutation)
                 self._preservation_refusal(peer, project, editor, descriptor, basis["revision"], label)
                 self.mcp_survivor_read(peer, project, editor, descriptor, label + "_survivor")
+
+    def mcp_preservation_cache_absence(self):
+        with self.closed_fixture("mcp_cache_detach", cached=True) as (project, editor, descriptor), McpPeer(self, "cache_detach") as peer:
+            basis = self.mcp_read(peer, project, editor, descriptor, "cache_detach_basis", source=SAFE)
+            # A real actor removes the cached Resource's path association.
+            # The old present-R revision must not silently switch to absent R.
+            self.close_action(editor, "closed_resource", mutation="detach")
+            actual, _ = self.state(editor, project)
+            observation.require(not actual["cache_has"] and not actual["cached_id"] and
+                                actual["cache_type"] is None, "actual_canonical_cache_absence_after_detach")
+            self._preservation_refusal(peer, project, editor, descriptor, basis["revision"], "cache_detach_refused")
+            self.mcp_survivor_read(peer, project, editor, descriptor, "cache_detach_survivor")
 
     def mcp_preservation_resource_safety(self):
         for mutation in ("divergent", "dirty", "equal_dirty"):

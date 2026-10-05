@@ -5,6 +5,7 @@ import unittest
 from unittest import mock
 
 import mcp_failure_acceptance as failure
+from mcp_lifecycle_acceptance import review_client_events
 
 
 class FailureEvidenceTests(unittest.TestCase):
@@ -63,6 +64,24 @@ class FailureEvidenceTests(unittest.TestCase):
         with self.assertRaises(failure.observation.Failure):
             harness.finalize_targets()
         self.assertNotIn('mcp_profiles_verified', harness.summary)
+
+    def test_lost_result_is_distinct_from_model_visible_recovery(self):
+        read = dict(name='read_script', profile='failure_reconnect', arguments={'project_root': '/owned'},
+                    structuredContent={'request_id': 'initial', 'result': {'revision': 'opaque-initial'}})
+        lost = dict(name='edit_script', profile='failure_reconnect', delivery='unavailable',
+                    arguments={'project_root': '/owned', 'revision': 'opaque-initial'},
+                    structuredContent={'request_id': 'lost', 'result': {'outcome': 'verified_changed'}})
+        recovered = dict(name='read_script', profile='failure_reconnect', arguments={'project_root': '/owned'},
+                         structuredContent={'request_id': 'recovery', 'result': {'revision': 'opaque-after'}})
+        events = [dict(kind='model_visible_tool_result', content=read['structuredContent']),
+                  dict(kind='tool_call', name='edit_script', arguments=lost['arguments']),
+                  dict(kind='model_visible_tool_result', content=recovered['structuredContent'])]
+        result = review_client_events(events, [read, lost, recovered])
+        self.assertEqual(result['model_visible_results'], 2)
+        self.assertEqual(result['delivery_unavailable_results'], 1)
+        events.append(dict(kind='model_visible_tool_result', content=lost['structuredContent']))
+        with self.assertRaisesRegex(ValueError, 'undelivered'):
+            review_client_events(events, [read, lost, recovered])
 
 
 if __name__ == '__main__':

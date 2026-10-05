@@ -54,8 +54,14 @@ def review_client_events(events, calls):
     if not calls or not visible or not actions:
         raise ValueError('missing correlated model-visible tool evidence')
     first_reads = set()
+    undelivered = 0
     for call in calls:
         key = call['structuredContent']['request_id']
+        if call.get('delivery') == 'unavailable':
+            if key in visible:
+                raise ValueError('undelivered result claimed model-visible')
+            undelivered += 1
+            continue
         if key not in visible or visible[key]['content'] != call['structuredContent']:
             raise ValueError('required authoritative result not model-visible')
         result = call['structuredContent'].get('result')
@@ -67,7 +73,8 @@ def review_client_events(events, calls):
                 if not later:
                     raise ValueError('model did not use returned revision')
                 first_reads.add(selector)
-    return {'model_visible_results': len(calls), 'claims_are_not_evidence': True,
+    return {'model_visible_results': len(calls) - undelivered,
+            'delivery_unavailable_results': undelivered, 'claims_are_not_evidence': True,
             'qualitative_state_and_next_action_review_required': True}
 
 

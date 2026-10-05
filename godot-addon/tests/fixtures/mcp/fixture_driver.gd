@@ -238,6 +238,7 @@ func _dispatch_close_request(request: Dictionary) -> void:
 			response.ok = cached != null
 			if response.ok:
 				match mutation:
+					"detach": cached.resource_path = ""
 					"divergent": cached.set_source_code("extends RefCounted\n# CLOSED_RESOURCE_DIVERGENCE\n")
 					"dirty": cached.source_code = cached.get_source_code() + "# CLOSED_RESOURCE_DIRTY\n"
 					"equal_dirty":
