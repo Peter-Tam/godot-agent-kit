@@ -336,7 +336,7 @@ class McpInterruptionMixin(McpAdversarialMixin):
                         call = self._interruption_start(peer, project, editor, descriptor, profile, "apply", label)
                         before, disks = self.state(editor, project)
                         injected = self.close_action(editor, "closed_fault", request_id=call["domain_request_id"], fault=fault)
-                        observation.require(injected["ok"], "real_native_fault_installed_" + label)
+                        observation.require(injected["result"]["status"] == "ready", "real_native_fault_installed_" + label)
                         self._interruption_release(editor, profile)
                         root = peer.finish(call, label)
                         result = self.mcp_review_edit(root, label, "refused" if fault == "expire_before_apply" else
