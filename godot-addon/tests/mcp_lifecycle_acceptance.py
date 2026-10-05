@@ -364,6 +364,8 @@ class McpLifecycleMixin:
                                     identity not in pending and len(pending) < 8):
                                 project = params['arguments'].get('project_root')
                                 target = self.targets.get(project) if isinstance(project, str) else None
+                                if target and self.args.profile == 'composed':
+                                    self.before_composed_call(target, value)
                                 marker = target['project'] / 'scripts/.gdignore' if target else None
                                 if (params['name'] == 'discover_scripts' and target and
                                         target['name'] != 'partial' and marker.exists()):
@@ -378,8 +380,6 @@ class McpLifecycleMixin:
                                 if target and target['name'].startswith('failure_'):
                                     failure_target = target
                                     self.arm_mcp_failure(target, value)
-                                if target and self.args.profile == 'composed':
-                                    self.before_composed_call(target, value)
                                 pending[identity] = (value, self.state(target['editor'], target['project']) if target else None,
                                                      time.monotonic())
                             process.stdin.write(line + b'\n')

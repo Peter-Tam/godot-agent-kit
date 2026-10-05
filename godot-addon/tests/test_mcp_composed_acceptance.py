@@ -98,6 +98,16 @@ class ComposedProtocolTests(unittest.TestCase):
             h.before_composed_call(h.target, h.request('discover'))
         h.close_action.assert_not_called()
 
+    def test_suspended_profile_cannot_resume_with_an_existing_edit_basis(self):
+        h = Harness('cached')
+        h.at('change', 1)
+        process = mock.Mock()
+        h.target['editor'] = dict(process=process, suspended=True)
+        with self.assertRaises(composed.observation.Failure):
+            h.before_composed_call(h.target, h.request('change', 1))
+        process.send_signal.assert_not_called()
+        h.state.assert_not_called()
+
     def test_stale_challenge_requires_exact_old_basis_not_latest_basis(self):
         h = Harness('cached')
         h.at('stale')
