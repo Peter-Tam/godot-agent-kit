@@ -20,6 +20,7 @@ from mcp_preservation_acceptance import McpPreservationAcceptanceMixin, PRESERVA
 from mcp_interruption_acceptance import McpInterruptionMixin, INTERRUPTION_GROUPS
 from mcp_composed_acceptance import McpComposedMixin
 from mcp_privacy_acceptance import McpPrivacyAcceptanceMixin, PRIVACY_GROUPS
+from mcp_validation_acceptance import McpValidationMixin
 
 CLIENT_GROUPS = {**PROFILE_GROUPS, **FAILURE_GROUPS}
 
@@ -30,10 +31,10 @@ SCENARIOS = ("closed-native", "closed-lifecycle", "closed-positives", "closed-re
              "closed-later-durability-and-history", "matched-v6-native4-legacy-preservation",
              "closed-privacy-export", "transport", *("transport-" + name for name in CLIENT_GROUPS),
              "preservation", *PRESERVATION_GROUPS, "interruption", *INTERRUPTION_GROUPS,
-             "composed", "privacy-export", *PRIVACY_GROUPS)
+             "composed", "privacy-export", *PRIVACY_GROUPS, "validation-preparation")
 
 
-class WorkflowHarness(McpComposedMixin, McpPrivacyAcceptanceMixin, McpFailureMixin,
+class WorkflowHarness(McpValidationMixin, McpComposedMixin, McpPrivacyAcceptanceMixin, McpFailureMixin,
                       McpPreservationAcceptanceMixin, McpInterruptionMixin,
                       McpLifecycleMixin, ClosedScriptAcceptanceMixin, CloseHarness):
     def __init__(self, args, work):
@@ -144,6 +145,7 @@ def main():
                 "interruption": harness.mcp_interruption,
                 "composed": harness.mcp_composed,
                 "privacy-export": harness.mcp_privacy_export,
+                "validation-preparation": harness.mcp_validation_preparation,
             }
             methods.update(("transport-" + name, harness.mcp_transport) for name in CLIENT_GROUPS)
             methods.update((name, getattr(harness, method)) for name, method in
