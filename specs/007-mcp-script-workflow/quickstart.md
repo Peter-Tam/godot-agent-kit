@@ -1013,3 +1013,65 @@ After an owned run, retrieve artifacts and stop the VM using the existing wrappe
 Planning ran static documentation checks, repository/LSP and released-source research, installed client version/help checks, VM status/start/stop, and the scoped [closed-source mechanics probe](research.md#owned-stock-editor-observations) with visual inspection and fresh-runtime persistence witness. The two incomplete probe attempts remain excluded from the completed observation. Those planning-only checks did not establish MCP interoperability, product-suite/native-build acceptance, A–E coverage, release or Phase 3 exit; later implementation evidence is recorded above.
 
 **Historical public-contract probe:** The [earlier correction](research.md#7-public-contract-correction-evidence) inspected Codex result conversion and attempted an isolated synthetic carrier probe with the then-selected Codex + Claude pair. Expired Claude OAuth and an unavailable Codex code-mode tool path prevented model-visible results. Those failures remain excluded; Claude is no longer a current acceptance requirement. The [Codex + OMP planning correction](research.md#8-codex-and-omp-client-correction-evidence) was source/configuration research, not runtime acceptance. [T002 positive workflows](#t002-execution-evidence-2026-10-05) and [T003 adversarial interpretation](#t003-execution-evidence-2026-10-05) are now complete. T004 composed/cumulative acceptance remains pending.
+
+## T004 serial verification (2026-10-05)
+
+**Incomplete:** T004 remains selected, not complete. The composed fixture now
+creates exactly one live target editor at a time; future profiles are not prepared
+until the preceding final client read, durability witnesses and owned shutdown.
+Original/desired product preflight concurrency and all 5/10-second bounds remain
+unchanged. No six-vCPU test occurred; both the configured and observed VM allocation
+remain four vCPUs with 6 GiB RAM.
+
+Source `b0714c1ed9dfa3faa5110deea0c4b101417a3d08` produced these retained VM records
+under `~/.local/state/godot-agent-kit-vm/artifacts/`:
+
+| Run / snapshot | Result and evidence |
+| --- | --- |
+| `t004-composed-serial-4cpu-1/20261005T101926Z-ef22f6789ff1` | Failed composed acceptance; 48 records and 23 public calls, all in the open profile. Exactly one owned target editor (PID 1044); cached/absent fixtures never started. |
+| `t004-privacy-selection-carrier-1/20261005T102327Z-c644b5a68f01` | Passed 18 records with complete-frame denied/ambiguous/confinement checks. Two live editors are deliberate only for selection/ambiguity. |
+| `t004-privacy-interrupted-carrier-1/20261005T102436Z-cad8359ea383` | Passed 10 records with complete-frame sticky-denial checks, including source hashes and text content. Its open/cached/absent cases ran serially. |
+
+The four successful changed edits took **8.379106, 8.541265, 7.585256 and
+8.779160 seconds**. One stale and two dirty refusals took 0.360027, 0.433790 and
+0.455969 seconds. The fifth intended change returned **`applied_unverified` /
+`validation_unavailable` in 9.464649 seconds**. Its returned evidence records
+application, matching clean D/R/B and completed persistence/finalization, but
+incomplete post-change source validation; the visible editor capture independently
+shows the intended value and preserved comments. Neither those observations nor
+the successful prior edits turn that result into verified success.
+
+This is **not a ten-second response-bound breach**. It is an isolated operation
+that failed to finish verification within the existing budget, leaving SC-005's
+twenty verified changes and the full actual-agent conversation unproved. No edit
+was retried or skipped to manufacture completion. The guest admission recorded
+four CPUs and five idle samples of 97.75%, 95.44%, 97.8%, 99.4% and 97.27%.
+No test-created host Godot process or host focus request was observed.
+
+The exact environment remains macOS 26.6.2 (25G83), arm64, official Godot
+4.7.2; its renewed execution identity is
+`5be872888a3eacb7798de40e70d66e1f438d908e00cf714575d65b2632596ced`.
+The observed MCP executable SHA-256 is
+`97f086e83e160885fb74a4f0b4235d3c5daffc2e2b20c3f0ca4dffe5d878aaee`.
+Production native inputs and outputs match the accepted T003 artifact, including
+library SHA-256
+`b1d10e9ed714dacb2ccc4cb614e146d8ea2059003c52813f4acdd8ff91ee76c1`.
+Production Rust/addon/native source is unchanged from the merged task base.
+The Rust build key differs from the earlier T003 client receipt because the
+merged T003 head includes its documented test-only recovery-summary correction;
+the key includes those test sources. No byte-identical Rust-binary claim is made.
+
+Implementation review exposed two harness false-pass paths: adopting post-Save
+source as its own expectation, and checking only structuredContent for some
+denied/interrupted disclosure. Focused regressions failed before correction.
+Save now compares independent post-Save authorities and saved state with pre-Save
+B; disclosure checks inspect complete retained frames. **32 affected Python
+tests passed**, including serial profile ownership and cleanup after abandonment.
+These are acceptance-harness corrections, not observed product data loss or leaks.
+
+The unchanged enabled/disabled/hook-only export evidence remains passed at
+`t004-privacy-exports-1/20261005T094744Z-4c0df4a622f2` (source `4df5f67`):
+all three actual production artifacts had recorded ZIP/pack hashes, zero runtime
+exit status and zero observed listeners. Failed earlier composed/client attempts
+remain excluded. No full composed acceptance, feature completion, release or
+Phase 3 exit is claimed.
