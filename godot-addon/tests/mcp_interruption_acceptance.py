@@ -685,9 +685,13 @@ class McpInterruptionMixin(McpAdversarialMixin):
                         capacity = self._interruption_output_capacity(peer, label) if blocked else None
                         call = self._interruption_start(peer, project, editor, descriptor, profile, "apply", label)
                         _, original_disk = self.state(editor, project)
-                        self.close_action(editor, "closed_fault", request_id=call["domain_request_id"], fault=fault)
-                        self.close_action(editor, "closed_arm", stage="verify:post_change")
-                        self.wait_mcp_barrier(editor, "verify:post_change", peer, call)
+                        injected = self.close_action(editor, "closed_fault",
+                                                     request_id=call["domain_request_id"], fault=fault)
+                        observation.require(injected["result"]["status"] == "ready", "output_fault_installed_" + label)
+                        # Hold the genuine apply receipt after the native effect;
+                        # a failed apply need not progress into successful verification.
+                        self.close_action(editor, "closed_arm", kind="closed_applied")
+                        self.wait_mcp_barrier(editor, "response:closed_applied", peer, call)
                         before, disks = self.state(editor, project)
                         if fault == "partial_write":
                             observation.require(disks[TARGET]["text"] not in (SAFE, DESIRED),
