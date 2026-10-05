@@ -453,11 +453,12 @@ had finished. Closed edits sometimes exhausted post-source-validation time; one
 separate completed-native trace ended with disconnection. These failed attempts
 remain non-acceptance evidence, not proof of a single scheduling cause.
 
-Each composed profile now owns an ordinary nested fixture context and closes its
+Each composed profile owns an ordinary nested fixture context and closes its
 editor only after its final actual MCP read and independent lifecycle/durability
-witness. Subsequent profiles retain their original session and admitted state.
-The finalizer checks completed reads and persisted source after owned shutdown.
-This removes unnecessary completed-editor workload without reducing the twenty
+witness. The next profile is created only after that shutdown; its session does
+not exist or get advertised in advance. The finalizer checks completed reads and
+persisted source after owned shutdown. This removes unrelated editor workload
+without reducing the twenty
 edits, three dirty/three stale refusals, authority/history checks or one-conversation
 requirement. Keeping completed editors alive adds no required interaction;
 changing product deadlines, retrying edits or adding a scheduler is not justified.
@@ -476,7 +477,7 @@ reuse the existing scenario-selector pattern so failures do not replay completed
 export or interruption work. Temporary source-free diagnostics are removed;
 no production API, policy, timeout, schema or native transaction changed.
 
-#### T004 VM CPU comparison
+#### T004 serial-fixture correction
 
 The unchanged four-vCPU guest returned bounded, truthful post-validation
 non-successes during the composed sequence. Source-free measurements attributed
@@ -485,13 +486,34 @@ to listener ownership, and about two seconds to the post-change engine startup.
 The compatibility-renderer experiment did not improve those measurements and was
 removed with the temporary diagnostics.
 
-Compare the existing owned profile at six vCPUs, retaining 6 GiB RAM, the same
-guest OS/engine/native inputs, graphical isolation and the existing readiness
-barrier. The host has eight CPUs and 16 GiB RAM. This adds two virtual CPUs during
-local runs, not a service, dependency, product prerequisite or minimum supported
-hardware claim. It is justified as a bounded resource comparison for SC-005's
-twenty-edit interaction: repeated unchanged runs have already failed, and neither
-longer product deadlines nor weaker success assertions are acceptable alternatives.
-The guest's existing environment receipt must be renewed from actual observations;
-old four-vCPU evidence keeps its original identity. Preserve the owned base snapshot
-and retained artifacts. Keep the allocation only if actual execution supports it.
+The maintainer directed that the VM remain at four vCPUs. The attempted resource
+comparison still observed four CPUs; no six-vCPU execution evidence exists, and
+the experimental default is reverted. CPU allocation remains part of the actual
+recorded acceptance environment identity.
+
+First remove unnecessary test-level concurrency. Independent T004 fixtures and
+cases run serially; retain simultaneous editors only where the scenario explicitly
+requires overlap, such as ambiguous-session routing. Preserve the product's
+concurrent original/desired preflight validation and every 5/10-second bound.
+Remeasure on the existing settled four-vCPU guest. A resource-profile change may
+only be proposed if an isolated real operation remains unable to reliably meet
+the existing timing contract; it is not selected or authorized now.
+
+The composed owner now prepares one profile at a time and verifies that its
+owned editor roster contains exactly that editor. It records the live PID and
+session. Prompt/receipt intents declare project paths and requested values, not
+nonexistent future sessions; normal public project routing selects the sole
+current session. Only after the final independently verified client read and
+owned shutdown does the next fixture start. No editor is paused or reconstituted
+mid-profile. Privacy's two-editor selection/ambiguity cases deliberately retain
+their live competing owners; independent privacy groups and export modes are
+already serial.
+
+Implementation review found two acceptance-oracle gaps, reproduced with focused
+failing regressions. Save must preserve pre-Save B, not adopt a coherently reverted
+post-Save source as the expectation. Denied/ambiguous/interrupted privacy checks
+must inspect the complete retained MCP frame, including text content and source
+hashes, not only structuredContent. The corrected assertions add no product
+behavior, retry, timeout, service or authority. Rerun the composed interaction and
+affected privacy selection/interruption checks; unchanged export evidence remains
+reusable.

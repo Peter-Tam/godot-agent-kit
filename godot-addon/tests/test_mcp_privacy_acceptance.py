@@ -1,9 +1,15 @@
 """Disclosure authorization and actual-export completion regression witnesses."""
 import copy
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
 
 import mcp_privacy_acceptance as privacy
+from mcp_preservation_acceptance import McpPreservationAcceptanceMixin
+from run_script_close import TARGET, CURRENT, SAFE
+from run_script_edit import sha
 
 
 class DisclosureTests(unittest.TestCase):
@@ -71,6 +77,23 @@ class DisclosureTests(unittest.TestCase):
         with self.assertRaises(privacy.observation.Failure):
             privacy.assert_disclosure({'source': 'credential-secret'}, 'credential',
                 secrets=(b'credential-secret',), grants={b'credential-secret': (('source',),)})
+
+    def test_denial_scenario_rejects_disclosure_only_in_retained_text_carrier(self):
+        with TemporaryDirectory() as directory:
+            h = McpPreservationAcceptanceMixin()
+            h.artifacts = Path(directory)
+            h.secrets = {b'credential-secret'}
+            h.source_markers = {b'PRIVATE_TARGET'}
+            source = SAFE + '# PRIVATE_TARGET\n'
+            body = dict(schema_version=1, operation='read_script', request_id='owned',
+                        result=None, error={'category': 'selection', 'code': 'ambiguous_session'})
+            witnesses = [({'documents': []}, {TARGET: {'text': source, 'sha256': sha(source)},
+                                             CURRENT: {'text': SAFE, 'sha256': sha(SAFE)}})]
+            for leak in ('PRIVATE_TARGET', sha(source), CURRENT):
+                frame = dict(result=dict(structuredContent=body, content=[dict(type='text', text=leak)]))
+                (h.artifacts / 'denied.json').write_text(json.dumps(frame))
+                with self.subTest(leak=leak), self.assertRaises(privacy.observation.Failure):
+                    h._preservation_private(body, witnesses, [], 'denied')
 
 
 

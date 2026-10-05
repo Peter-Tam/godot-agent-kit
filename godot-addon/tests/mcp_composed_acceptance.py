@@ -13,7 +13,6 @@ import re
 import run_observation as observation
 from closed_script_acceptance import source_free
 from close_native_acceptance import documents
-from mcp_lifecycle_acceptance import target_receipt
 from mcp_peer import McpPeer, selectors
 from run_script_close import TARGET, CURRENT
 
@@ -53,44 +52,57 @@ class McpComposedMixin:
     def prepare_targets(self, stack, profiles=None):
         if getattr(self.args, 'profile', None) != 'composed' and profiles != ('composed',):
             return super().prepare_targets(stack, profiles)
-        receipts = []
-        targets = {}
-        for name in COUNTS:
-            owner = stack.enter_context(ExitStack())
-            receipts.extend(super().prepare_targets(owner, (name,)))
-            target = next(iter(self.targets.values()))
-            target['fixture_owner'] = owner
-            targets.update(self.targets)
-        self.targets = targets
         self._composed_active = True
+        self._composed_stack = stack
+        self.targets = {}
+        for name in COUNTS:
+            # close_fixture owns this deterministic path when the profile begins.
+            project = self.work / ('close-mcp-' + name)
+            self.targets[str(project)] = dict(name=name, project=project,
+                steps=composed_steps(name), cursor=0, pending=None, fresh=None,
+                first_revision=None, successes=0, dirty_refusals=0, stale_refusals=0)
+        self._prepare_composed_target(next(iter(self.targets.values())))
+        return self.prepared_intents()
+
+    def _prepare_composed_target(self, target):
+        observation.require(not self.editors, 'composed_previous_editor_ended_before_next_fixture')
+        owner = self._composed_stack.enter_context(ExitStack())
+        prepared = self._prepare_target(owner, target['name'])
+        observation.require(prepared['project'] == target['project'], 'composed_declared_owned_project')
+        target.update(prepared, fixture_owner=owner)
+        editor = target['editor']
+        observation.require(self.editors == [editor], 'composed_one_live_fixture_editor')
+        self.close_action(editor, 'close_human', path=CURRENT, mutation='dirty_equal')
+        self.close_action(editor, 'open_setup', paths=[], path=CURRENT, idle=True)
+        if target['name'] == 'open':
+            self.close_action(editor, 'close_human', path=TARGET, mutation='select')
+            self.close_action(editor, 'close_human', path=TARGET, mutation='dirty_equal')
+            self.close_action(editor, 'open_setup', paths=[], path=TARGET, idle=True)
+            self._composed_save(target)
+        before, disks = self.state(editor, target['project'])
+        observation.require(documents(before)[CURRENT]['dirty'] and documents(before)[CURRENT]['has_undo'],
+                            'composed_genuine_prior_unrelated_human_history')
+        target.update(before=before, disks=disks, source=disks[TARGET]['text'],
+                      initial_source=disks[TARGET]['text'])
+        self.case('composed-fixture-' + target['name'],
+                  live_editor_pids=[editor['process'].pid],
+                  project_root=str(target['project']), session_id=target['descriptor']['session_id'])
+
+    def prepared_intents(self):
+        if not self._is_composed():
+            return super().prepared_intents()
+        intents = []
         for target in self.targets.values():
-            editor = target['editor']
-            self.close_action(editor, 'close_human', path=CURRENT, mutation='dirty_equal')
-            self.close_action(editor, 'open_setup', paths=[], path=CURRENT, idle=True)
-            if target['name'] == 'open':
-                self.close_action(editor, 'close_human', path=TARGET, mutation='select')
-                self.close_action(editor, 'close_human', path=TARGET, mutation='dirty_equal')
-                self.close_action(editor, 'open_setup', paths=[], path=TARGET, idle=True)
-                self._composed_save(target)
-            before, disks = self.state(editor, target['project'])
-            observation.require(documents(before)[CURRENT]['dirty'] and documents(before)[CURRENT]['has_undo'],
-                                'composed_genuine_prior_unrelated_human_history')
-            target.update(before=before, disks=disks, steps=composed_steps(target['name']), cursor=0,
-                          pending=None, fresh=None, first_revision=None, successes=0, dirty_refusals=0,
-                          stale_refusals=0, source=disks[TARGET]['text'], initial_source=disks[TARGET]['text'])
-        return receipts
+            start = {'open': 101, 'cached': 201, 'absent': 301}[target['name']]
+            intents.append(dict(name=target['name'], project_root=str(target['project']),
+                                script_hint='Find subject.gd in the inventory.',
+                                requested_values=list(range(start, start + COUNTS[target['name']]))))
+        return intents
 
     def prepared_prompt(self):
         if not self._is_composed():
             return super().prepared_prompt()
-        targets = []
-        for t in self.targets.values():
-            item = target_receipt(t['name'], t['project'], t['descriptor'])
-            del item['script_path']
-            item.update(script_hint='Find subject.gd in the inventory.',
-                        requested_values=list(range({'open': 101, 'cached': 201, 'absent': 301}[t['name']],
-                                                    {'open': 101, 'cached': 201, 'absent': 301}[t['name']] + COUNTS[t['name']])))
-            targets.append(item)
+        targets = self.prepared_intents()
         return (
             'Use only godot_agent_kit MCP tools for these projects, not shell/files/other bridges. '
             'Complete targets in listed order. Discover subject.gd, read it, then change only the return '
@@ -120,6 +132,10 @@ class McpComposedMixin:
         label = 'composed-Save-' + target['name'] + '-' + str(serial)
         self.record_witness(label, state, disks, after, now, target['editor'])
         observation.json_file(self.artifacts / (label + '-receipt.json'), saved)
+        doc = after['target']
+        observation.require(doc['associated'] and doc['B'] == doc['R'] == now[TARGET]['text'] == state['target']['B'] and
+                            not doc['dirty'] and not doc['resource_edited'] and
+                            doc['version'] == doc['saved_version'], 'composed_Save_preserves_pre_Save_source')
 
     def _composed_coherent(self, target, source):
         state, disks = self.state(target['editor'], target['project'])
@@ -139,7 +155,7 @@ class McpComposedMixin:
         params = request['params']
         args = params['arguments']
         observation.require(params['name'] == tool_for(role) and
-                            args.get('session_id') == target['descriptor']['session_id'] and
+                            args.get('session_id') in (None, target['descriptor']['session_id']) and
                             (role == 'discover' or args.get('script_path') == TARGET),
                             'composed_exact_next_operation_and_target')
         if role in ('change', 'dirty', 'stale'):
@@ -178,9 +194,9 @@ class McpComposedMixin:
             if role == 'human_saved_read':
                 self._composed_history(target, TARGET)
             self._composed_save(target)
-            state, now = self.state(editor, target['project'])
-            target['source'] = state['target']['B']
-            self._composed_coherent(target, target['source'])
+            expected = before['target']['B']
+            self._composed_coherent(target, expected)
+            target['source'] = expected
             if role == 'redo_saved_read':
                 self._composed_prior_history(target)
         elif role == 'durable_read':
@@ -328,6 +344,10 @@ class McpComposedMixin:
                     target['fixture_owner'].close()
         target['cursor'] += 1
         target['pending'] = None
+        if role == 'durable_read':
+            following = next((t for t in self.targets.values() if t['cursor'] < len(t['steps'])), None)
+            if following is not None:
+                self._prepare_composed_target(following)
 
     def finalize_targets(self, *, primary_only=False):
         if not self._is_composed():

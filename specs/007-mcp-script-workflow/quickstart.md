@@ -830,6 +830,11 @@ requires twenty fresh-revision changed edits, three dirty refusals, three stale
 refusals and the final actual-client reads; an omitted or failed step does not pass.
 Use `finalize-mcp` after that conversation, without `prepare-durability`.
 
+The three fixtures run serially in the four-vCPU guest: the next editor starts
+only after the previous final read, durability witnesses and owned shutdown.
+The prompt declares future project paths, not future session IDs. Original/desired
+preflight validation remains concurrent within each real product edit.
+
 `run mcp --scenario composed` exercises the same ordered witness state machine
 with a direct stdio peer; it is **not** real-agent acceptance. The separately
 runnable `privacy-export` group checks actual authorized/error/selection/interrupted

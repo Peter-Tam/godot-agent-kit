@@ -16,6 +16,7 @@ import run_observation as observation
 from close_native_acceptance import documents
 from closed_script_acceptance import CHANGED, source_free
 from mcp_peer import McpPeer, McpAdversarialMixin, selectors
+from mcp_privacy_acceptance import assert_disclosure
 from run_script_close import TARGET, CURRENT, SAFE
 from run_script_edit import sha
 
@@ -486,7 +487,6 @@ class McpInterruptionMixin(McpAdversarialMixin):
                         stat_before = os.fstat(retained.fileno())
                         raw = retained.read()
                         stat_after = os.fstat(retained.fileno())
-                        encoded = json.dumps(root)
                         denied_disk = dict(disks[TARGET], text=raw.decode("utf-8"), sha256=sha(raw.decode("utf-8")),
                                            size=len(raw), mode=stat_after.st_mode & 0o777,
                                            ctime_ns=stat_after.st_ctime_ns)
@@ -504,12 +504,14 @@ class McpInterruptionMixin(McpAdversarialMixin):
                                             after["target"]["dirty"] and after["target"]["has_undo"] and
                                             result["outcome"]["application"] in ("partly_applied", "unknown") and
                                             all(result["outcome"].get(key) is None for key in ("expected", "before", "after")) and
-                                            all(value not in encoded for value in
-                                                (DESIRED, "# HUMAN_CALLBACK_NEWER", disks[TARGET]["sha256"],
-                                                 sha(DESIRED), sha(callback["human_text"]))) and
                                             all(documents(after).get(path) == doc for path, doc in documents(before).items()
                                                 if path != TARGET) and editor["process"].poll() is None,
                                             "open_partial_causal_failure_then_sticky_actual_denial_" + label)
+                        assert_disclosure(json.loads((self.artifacts / (label + ".json")).read_text()),
+                                          label, secrets=self.secrets, inventory=tuple(p for p in disks if p != TARGET),
+                                          sources=(*self.source_markers, DESIRED, sha(DESIRED),
+                                                   disks[TARGET]["text"], disks[TARGET]["sha256"],
+                                                   callback["human_text"], sha(callback["human_text"])))
                         self.close_action(editor, "close_idle", frames=16)
                         later = self.close_action(editor, "closed_witness")["state"]
                         observation.require(documents(after) == documents(later) and
@@ -540,18 +542,19 @@ class McpInterruptionMixin(McpAdversarialMixin):
                         root = peer.finish(call, label)
                         result = self.mcp_review_edit(root, label, "applied_unverified")
                         outcome = result["outcome"]
-                        encoded = json.dumps(root)
                         events = self.close_action(editor, "closed_witness")["events"]
                         observation.require(outcome["reason"] == "mtime_restore_failed" and
                                             outcome["application"] == "applied" and
                                             outcome["evidence"] is None and
-                                            disks[TARGET]["sha256"] not in encoded and
-                                            DESIRED not in encoded and
                                             any(event["stage"] == "callback:before_verify" and
                                                 event["action"] == "deny_disk" and
                                                 event["request_id"] == root["request_id"] for event in events) and
                                             target.stat().st_mode & 0o777 == 0,
                                             "actual_denial_sticky_after_earlier_metadata_failure_" + label)
+                        assert_disclosure(json.loads((self.artifacts / (label + ".json")).read_text()),
+                                          label, secrets=self.secrets, inventory=tuple(p for p in disks if p != TARGET),
+                                          sources=(*self.source_markers, DESIRED, sha(DESIRED),
+                                                   disks[TARGET]["text"], disks[TARGET]["sha256"]))
                     finally:
                         target.chmod(mode)
                     after, now = self._interruption_survivor(project, editor, before, disks, label)

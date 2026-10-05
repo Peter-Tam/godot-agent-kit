@@ -1,12 +1,15 @@
 """Fixed composed protocol's fail-closed ordering/evidence regressions (no editor)."""
 import copy
+from contextlib import ExitStack
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 import mcp_composed_acceptance as composed
 from run_script_close import SAFE, TARGET
+from close_native_acceptance import CURRENT
 
 
 class WitnessBase:
@@ -185,6 +188,76 @@ class ComposedProtocolTests(unittest.TestCase):
         h.close_action.assert_not_called()
         h.native_action.assert_not_called()
 
+
+    def test_save_rejects_coherent_clean_reversion_of_pre_save_human_source(self):
+        with TemporaryDirectory() as directory:
+            h = Harness()
+            h.artifacts = Path(directory)
+            human = SAFE + '# unsaved human work\n'
+            before = {'target': {'dirty': True, 'B': human}}
+            reverted = {'target': dict(associated=True, B=SAFE, R=SAFE, dirty=False,
+                                      resource_edited=False, version=2, saved_version=2)}
+            h.state.side_effect = [(before, {TARGET: {'text': SAFE}}),
+                                   (reverted, {TARGET: {'text': SAFE}})]
+            h.native_action.return_value = dict(focused=True, disk_matches=True)
+            with self.assertRaises(composed.observation.Failure):
+                composed.McpComposedMixin._composed_save(h, h.target)
+
+    def serial_harness(self, directory):
+        h = Harness()
+        h.work = Path(directory)
+        h.args = SimpleNamespace(profile='composed')
+        h.editors = []
+        h.events = []
+        h.case = mock.Mock()
+        current = dict(path=CURRENT, script_id=1, editor_id=2, buffer_id=3,
+                       R=SAFE, B=SAFE, version=2, saved_version=1, dirty=True,
+                       resource_edited=False, has_undo=True, has_redo=False)
+        h.state.return_value = ({'documents': [current]}, {TARGET: {'text': SAFE}})
+
+        def prepare(owner, name):
+            project = h.work / ('close-mcp-' + name)
+            (project / 'scripts').mkdir(parents=True)
+            (project / 'scripts/subject.gd').write_text(SAFE)
+            editor = {'process': SimpleNamespace(pid=len(h.events) + 1)}
+            h.editors.append(editor)
+            h.events.append(('start', name))
+            def close():
+                h.editors.remove(editor)
+                h.events.append(('stop', name))
+            owner.callback(close)
+            return dict(name=name, project=project, editor=editor,
+                        descriptor={'session_id': name}, calls=[])
+        h._prepare_target = prepare
+        return h
+
+    def test_profiles_never_overlap_and_advance_only_after_completed_final_read(self):
+        with TemporaryDirectory() as directory, ExitStack() as stack:
+            h = self.serial_harness(directory)
+            h.prepare_targets(stack)
+            self.assertEqual(h.events, [('start', 'open')])
+            self.assertEqual([t['name'] for t in h.targets.values() if 'descriptor' in t], ['open'])
+            for target in h.targets.values():
+                h.target = target
+                target.update(cursor=len(target['steps']) - 1, successes=composed.COUNTS[target['name']],
+                              dirty_refusals=3 if target['name'] == 'open' else 0, stale_refusals=1,
+                              pending=('owned', 'durable_read', None))
+                self.assertEqual(h.editors, [target['editor']])
+                h.observe_call(h.request('durable_read'), {'result': {'structuredContent': {
+                    'error': None, 'request_id': 'final-' + target['name'],
+                    'result': {'revision': 'fresh', 'source': SAFE}}}}, h.state.return_value)
+            self.assertEqual(h.events, [(event, profile) for profile in composed.COUNTS for event in ('start', 'stop')])
+            self.assertEqual(h.editors, [])
+            h.finalize_targets()
+
+    def test_abandoned_serial_workflow_closes_current_and_never_starts_future_profiles(self):
+        with TemporaryDirectory() as directory:
+            h = self.serial_harness(directory)
+            with self.assertRaisesRegex(RuntimeError, 'abandoned'), ExitStack() as stack:
+                h.prepare_targets(stack)
+                raise RuntimeError('abandoned')
+            self.assertEqual(h.editors, [])
+            self.assertEqual(h.events, [('start', 'open'), ('stop', 'open')])
 
 if __name__ == '__main__':
     unittest.main()
