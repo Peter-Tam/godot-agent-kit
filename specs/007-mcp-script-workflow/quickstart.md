@@ -1,6 +1,6 @@
 # Quickstart: Validate the Trusted MCP Script Workflow
 
-**Status:** T001 is **complete** with [accepted protocol-independent core/native evidence](#t001-execution-evidence-2026-10-04). T002 implementation/acceptance is in progress: the MCP executable, transport group and fixed real-client fixture commands are present. The actual executable's negotiation/catalog/three-operation refusal smoke passed; real-editor and both-client acceptance remain required before T002 completion. T003–T004 remain pending.
+**Status:** T001 and T002 are **complete**, with [core/native evidence](#t001-execution-evidence-2026-10-04) and [actual MCP/two-client acceptance](#t002-execution-evidence-2026-10-05). Codex CLI 0.153.4 and OMP 18.5.1 completed all five required profiles. T003–T004 remain pending; feature completion and Phase 3 exit are not claimed.
 
 Read [plan.md](plan.md), [data-model.md](data-model.md) and [the public contract](contracts/mcp-interface.md). Follow [TEST_POLICY.md](../../TEST_POLICY.md) for scope, evidence reuse and the existing [VM boundary](../../.github/LOCAL_VM.md). No command authorizes a feature task before its own approved tasks/analysis and one-task-one-PR prerequisites.
 
@@ -316,6 +316,131 @@ this serialization-only correction; the earlier parallel failure remains histori
 development evidence. No test assertion, production timeout, operation deadline
 or lease was relaxed. This is not a global serial-test rule for future tasks.
 
+## T002 execution evidence (2026-10-05)
+
+T002 is complete on `task/T002-mcp-script-workflow`. The production corrections
+are committed at `2ddc16d33f4cd9d0a9a347ac68bd47ad694c2006`;
+`12ac3c0ddc56e9833aa8e17eef4c30d5b01a2e14` adds only the fixture
+admission-error reduction correction. Both selected clients completed all five
+profiles: **127 independent records / 109 correlated tool results**. T003–T004
+remain pending; this is the positive MCP MVP, not feature/phase completion.
+
+### Runtime and required checks
+
+- Rust formatting and Clippy (`--all-targets --locked -- -D warnings`) passed.
+  Default Rust coverage is **455 passing tests** across the completed runs:
+  224 library, 63 bridge-boundary, 153 remaining integration and 15 MCP transport/
+  tool tests. The aggregate `cargo test --locked` run failed the unchanged
+  `script_open::a_late_compilation_result_cannot_upgrade_a_delivered_known_partial_timeout`
+  elapsed-time assertion, also observed before these corrections. Its exact
+  isolated invocation passed with the original ten-second assertion; the other
+  62 bridge cases passed in the aggregate run. This is not a claim that the
+  aggregate invocation passed. Remaining integration targets, default doctest
+  target and `cargo doc --no-deps --locked` passed.
+- The corrected closed-worker channel transfers complete source frames without
+  per-chunk polling sleeps. Stalled-peer cancellation, incomplete-frame deadline,
+  invalid length and consecutive-frame regressions pass. No work/output deadline,
+  source limit or Godot per-frame network budget changed.
+- The actual stdio/real-Godot `transport-bound` smoke passed **7 cases** on
+  `2ddc16d`: `t002-bound-corrected-ipc/20261004T231655Z-2328484169f7`.
+  The unchanged request returned `verified_unchanged` / `not_applied` in
+  **4.708534 s**; the exact **524,288-byte** replacement returned
+  `verified_changed` / `applied` in **7.302625 s**. Independent disk/cache/roster
+  witnesses retained absent R and closed B; the captured editor surface kept only
+  the unrelated scripts open. Public closed B is `not_applicable_closed`.
+
+The fixed finalizer distinguishes adapter admission/host errors from operation
+results while retaining every attempt and its independent witness. The first
+corrected Codex workflow completed primary edits and later actual reads, including
+an explicitly retried read after `server_busy`, but finalization dereferenced that
+error's null result. Its failed evidence remains at
+`t002-codex-workflow-4/20261004T232658Z-e9669c07c02f`; no durability pass is inferred.
+The regression failed before the fix and all **9** fixture tests passed afterward.
+An error alone still cannot authorize later Save/reparse/rescan/runtime checks.
+
+### Selected-client records
+
+These completed profiles use source `12ac3c0`. Run/snapshot paths below are
+relative to `~/.local/state/godot-agent-kit-vm/artifacts/`; raw source, approval
+events, client history/JSONL, normalized completed model-facing results, call
+arguments and independent screenshots/witnesses remain private there. Each
+listed result is correlated by domain request ID and checked against subsequent
+model arguments and state/action interpretation—not accepted from a model claim
+or raw server object alone.
+
+| Client | Profile | Independent cases | Correlated tool results | Run / snapshot | Client evidence directory |
+| --- | --- | ---: | ---: | --- | --- |
+| Codex CLI 0.153.4 | workflow + later reads | 26 | 21 | `t002-codex-workflow-5/20261004T234257Z-c43db2b8b12f` | `t002-codex-workflow5-r986gp7t` |
+| Codex CLI 0.153.4 | known | 5 | 4 | `t002-codex-known-2/20261004T234748Z-acfe85183ef7` | `t002-codex-known2-rtwcwhvu` |
+| Codex CLI 0.153.4 | sources | 19 | 18 | `t002-codex-sources-2/20261004T235845Z-bd4ef5d0773d` | `t002-codex-sources2-z3coog9g` |
+| Codex CLI 0.153.4 | bound | 7 | 6 | `t002-codex-bound-3/20261005T000844Z-77b88e7d574a` | `t002-codex-bound3-4x5azl4g` |
+| Codex CLI 0.153.4 | observations | 7 | 6 | `t002-codex-observations-2/20261005T001154Z-3772fa1223a6` | `t002-codex-observations2-eegkxpl2` |
+| OMP 18.5.1 | workflow + later reads | 25 | 20 | `t002-omp-workflow-4/20261005T002019Z-b87431ed92f8` | `t002-omp-workflow4-imv_gobl` |
+| OMP 18.5.1 | known | 5 | 4 | `t002-omp-known-2/20261005T002412Z-c6393de0d6a3` | `t002-omp-known2-noh4qkwa` |
+| OMP 18.5.1 | sources | 19 | 18 | `t002-omp-sources-2/20261005T003033Z-534566877a63` | `t002-omp-sources2-kxtrzefy` |
+| OMP 18.5.1 | bound | 7 | 6 | `t002-omp-bound-3/20261005T004315Z-0b5ef92b8449` | `t002-omp-bound3-a4ijnnma` |
+| OMP 18.5.1 | observations | 7 | 6 | `t002-omp-observations-3/20261005T004807Z-7ff5fe660f7a` | `t002-omp-observations3-76p1lvd8` |
+
+Codex requested **2025-06-18**, accepted the server's sole **2025-11-25**
+revision, then discovered the exact three-tool catalog. Its ordinary `on-request`
+read-only-sandbox TUI obtained individual **Allow** decisions for fixture edits;
+read-only continuations used its normal `exec` path. The full 524,288-byte edit
+returned verified success in **7.183628 s**. Submitted and client-returned source
+matched SHA-256 `3585e03f3e268dff2d067be620d777a894a5aa87da2bd2945a00fd160dfb8467`.
+The client preserved the initial source, appended the requested comment, used the
+opaque revision and interpreted the resulting closed/absent state.
+
+OMP requested and selected **2025-11-25**. Its boundary conversation used ordinary
+per-call interactive approval for model-authored in-memory JavaScript and MCP
+calls. The executed code compared the entire fresh-read source with the
+constructed replacement, checked all 524,288 UTF-8 bytes and SHA-256, and retained
+the full revision/state plus a compact proof record. It did not substitute a
+Godot-file read or shorten the source. Verified edit time was **7.490375 s**.
+`t002-omp-bound3-a4ijnnma/programmatic-consumption.json` retains the executed code,
+outputs and exact-equality proof; `model-visible.jsonl` explicitly labels the
+materialized complete-source value rather than pretending the compact display
+contained the entire source.
+
+All **109** relay delivery records correlate with actual tool results and satisfy
+their original bounds. Maximum request-forwarding-through-consumed-output times
+were **1.226140 s** discovery, **3.025456 s** read and **7.579999 s** edit. This
+encloses server accepted-frame processing and delivery; it is not a model-turn
+latency claim. No deadline, source bound, client version or approval policy was
+relaxed. The failed aggregate Rust invocation and failed client/diagnostic runs
+above remain recorded, not recounted as passes.
+
+OMP's workflow used normal `write` approval policy and an owned temporary project
+configuration; the file remained unchanged and was removed afterward. Actual
+completed model-facing JSON blocks identify `godot_agent_kit` / native / OMP.
+Both clients distinguished absent Resource from missing file, null unavailable
+source from observed empty source, invalidated historical text from current text,
+clean-but-divergent Resource from agreement, and partial inventory from absence.
+Ordinary opening and actual selected-client reads preceded independent
+Save/reparse/rescan/fresh-runtime checks in each workflow.
+
+### Implementation shape and constitutional review
+
+The adapter keeps framing, dispatch/input checking, schema/catalog construction,
+operation projections and connection ownership separate. Transport's roughly
+800 production lines share ID, write-delivery, cancellation and supervisor-lifetime
+invariants; its larger total includes the deterministic race tests. Keeping that
+one connection owner avoids a second scheduler or split ownership. Initialization
+delivery is an explicit state, reply storage shares the existing eight-ID bound,
+and tool work is never queued. New projection types have private visibility.
+
+The closed channel reuses the existing stock-validator I/O pattern within its
+existing owner; native routing, authorization, independent D/R/B or closed-state
+verification, stale/human-work refusal, disclosure and retained effects remain
+in their original production owners. No source cache, retry, force path, public
+lifecycle operation, dependency, native ABI or export change was introduced by
+these corrections. T001's native/export and unaffected legacy evidence remains
+reusable; the actual MCP binary SHA-256 is identical across `2ddc16d` and the
+fixture-only `12ac3c0` correction:
+`0fe5afd97282d941c6d630ff43125292d57ac21d817c738e2e9802f2a3aa77c1`.
+The native build remains `7203d78018cae3b6b507efbefac688100dd8dd4f8032ab10a6ccfc2f3941ad71`.
+The [plan's concrete-cost review](plan.md#t002-bounded-worker-channel-correction)
+records why these changes are needed now. No T003/T004 or phase-exit claim follows.
+
 ## Owned MCP fixture interfaces
 
 Extend the existing `run_in_vm.py` fixed suite allowlist with `mcp`, retaining its committed-source, cached-build, provenance, ownership, capture and artifact retrieval semantics. Required groups are `transport`, `closed-native`, `closed-lifecycle`, `preservation`, `interruption`, `composed` and `privacy-export`. They are individually runnable; no new workflow engine or requirement for an aggregate historical `all` mode.
@@ -435,7 +560,15 @@ The guest's private `protocol.jsonl` records the actual requested/selected revis
 version discovery and returned static catalog without client metadata or raw
 requests. `delivery.jsonl` correlates consumed-output timing by domain request ID.
 
-Codex's observed exec/config interface permits read-only checks with normal host authentication and no user-configuration changes. The available GPT-5.5 model uses direct tools; the other listed models require a companion code-mode host that did not start in this environment.
+Codex's observed exec/config interface permits read-only checks with normal host
+authentication and no user-configuration changes. GPT-5.5 uses direct tools. An
+earlier Homebrew companion stalled before `--help`; a private installation of the
+official **0.153.4** npm distribution started normally and ran the **gpt-6-astra**
+code-mode workflow. The companion's SHA-256 matched and signature verification
+passed; no binary, quarantine or global trust setting was changed. OMP's global
+command had advanced to 18.6.0, so acceptance likewise uses a private **18.5.1**
+installation rather than changing global packages. Substitute those actual pinned
+executable paths for `codex`/`omp` below and retain their version/config provenance.
 
 ```sh
 codex exec --ignore-user-config --ephemeral --sandbox read-only --json --model gpt-5.5 \
@@ -450,7 +583,7 @@ Use a fresh prepared run for the second client and retain actual tool-call/resul
 
 In the exercised environment, `exec` refused an edit because its approval policy
 was `never`. Full mutation acceptance therefore uses the ordinary interactive
-CLI with `--ask-for-approval on-request --sandbox read-only --model gpt-5.5`.
+CLI with `--ask-for-approval on-request --sandbox read-only --model gpt-6-astra`.
 Obtain human authorization for the owned fixture edits, inspect each requested
 target/change, and select **Allow** for that call. Do not select **Always allow**
 or use a permission-bypass flag.
@@ -520,6 +653,6 @@ After an owned run, retrieve artifacts and stop the VM using the existing wrappe
 
 ## Planning evidence only
 
-Planning ran static documentation checks, repository/LSP and released-source research, installed client version/help checks, VM status/start/stop, and the scoped [closed-source mechanics probe](research.md#owned-stock-editor-observations) with visual inspection and fresh-runtime persistence witness. The two incomplete probe attempts remain excluded from the completed observation. No MCP server/client interoperability, product test suite, native build, historical campaign, A–E acceptance, release or Phase 3 exit is claimed.
+Planning ran static documentation checks, repository/LSP and released-source research, installed client version/help checks, VM status/start/stop, and the scoped [closed-source mechanics probe](research.md#owned-stock-editor-observations) with visual inspection and fresh-runtime persistence witness. The two incomplete probe attempts remain excluded from the completed observation. Those planning-only checks did not establish MCP interoperability, product-suite/native-build acceptance, A–E coverage, release or Phase 3 exit; later implementation evidence is recorded above.
 
-**Historical public-contract probe:** The [earlier correction](research.md#7-public-contract-correction-evidence) inspected Codex result conversion and attempted an isolated synthetic carrier probe with the then-selected Codex + Claude pair. Expired Claude OAuth and an unavailable Codex code-mode tool path prevented model-visible results. Those failures remain excluded; Claude is no longer a current acceptance requirement. The [current Codex + OMP correction](research.md#8-codex-and-omp-client-correction-evidence) ran only installed version/help/configuration and public/installed-source research plus documentation validation. It did not retry the old probes, run a model/MCP server, product suite, native build or Godot/VM campaign. Actual two-client acceptance remains T002–T004 work.
+**Historical public-contract probe:** The [earlier correction](research.md#7-public-contract-correction-evidence) inspected Codex result conversion and attempted an isolated synthetic carrier probe with the then-selected Codex + Claude pair. Expired Claude OAuth and an unavailable Codex code-mode tool path prevented model-visible results. Those failures remain excluded; Claude is no longer a current acceptance requirement. The [Codex + OMP planning correction](research.md#8-codex-and-omp-client-correction-evidence) ran only installed version/help/configuration and public/installed-source research plus documentation validation; it was not runtime acceptance. [T002's later positive two-client evidence](#t002-execution-evidence-2026-10-05) is now complete. Adversarial interpretation and composed/cumulative acceptance remain T003–T004 obligations.

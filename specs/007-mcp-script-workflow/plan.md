@@ -4,7 +4,7 @@
 
 **Input:** Maintainer-approved discover/read/edit requirements, including constitution v1.2.0 alignment in FR-022/SC-009.
 
-**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. T001 is complete and merged in PR #64 with [core/native acceptance and implementation review](quickstart.md#t001-execution-evidence-2026-10-04). T002 implementation/acceptance is in progress; T003–T004 remain pending. This delivery/status update does not change approved remaining obligations or claim real-client interoperability, feature completion or Phase 3 exit.
+**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. T001 is complete and merged in PR #64 with [core/native acceptance](quickstart.md#t001-execution-evidence-2026-10-04). T002 is complete with [actual MCP/two-client acceptance and implementation-shape review](quickstart.md#t002-execution-evidence-2026-10-05); its delivery branch is `task/T002-mcp-script-workflow`. T003–T004 remain pending. These implementation/evidence notes do not change approved remaining obligations or claim feature completion or Phase 3 exit.
 
 ## Summary
 
