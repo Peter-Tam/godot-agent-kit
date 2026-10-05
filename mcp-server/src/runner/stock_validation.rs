@@ -290,14 +290,18 @@ fn run_child(
     result: &mut ValidationResult,
     deadline_at: Instant,
 ) -> Result<(), &'static str> {
+    super::profile_phase(&request.request_id, "validator_begin", 0);
     let closure = capture_closure(request, result, deadline_at)?;
+    super::profile_phase(&request.request_id, "validator_captured", 0);
     // Admission and binary provenance precede *any* engine process start.
     official(&request.official_binary, deadline_at)?;
+    super::profile_phase(&request.request_id, "validator_binary_verified", 0);
     recheck(request, &closure, deadline_at)?;
     result.cleanup_confirmed = false;
     let private = private_clone_named(&request.private_dir)?;
     result.clone_path = Some(private.0.to_string_lossy().into());
     let project = stage(&closure, &private, &request.warnings)?;
+    super::profile_phase(&request.request_id, "validator_staged", 0);
     recheck(request, &closure, deadline_at)?;
     let listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0))
         .map_err(|_| "endpoint_unverified")?;
@@ -335,7 +339,9 @@ fn run_child(
         result.child_pid = Some(child.id());
         result.child_spawned = Some(true);
         owned.0 = Some(child);
+        super::profile_phase(&request.request_id, "validator_godot_spawned", result.child_pid.unwrap_or(0).into());
         let mut stream = connect_owned(result.child_pid.expect("spawned"), port, deadline_at)?;
+        super::profile_phase(&request.request_id, "validator_connected", 0);
         let project_uri = uri(&project)?;
         send_lsp(
             &mut stream,
@@ -347,6 +353,7 @@ fn run_child(
                     "hierarchicalDocumentSymbolSupport":true}}}}}),
         )?;
         let initialized = response(&mut stream, 1, deadline_at)?;
+        super::profile_phase(&request.request_id, "validator_initialized", 0);
         if !initialized.is_object() || initialized.get("capabilities").is_none() {
             return Err("initialize_incomplete");
         }
@@ -357,6 +364,7 @@ fn run_child(
         for (index, source) in closure.sources.iter().enumerate() {
             deadline(deadline_at)?;
             source_fence(&mut stream, source, index, &project, result, deadline_at)?;
+            super::profile_phase(&request.request_id, "validator_source_fenced", index as u64);
         }
         drop(stream);
         recheck(request, &closure, deadline_at)?;
@@ -373,6 +381,7 @@ fn run_child(
         result.child_spawned == Some(true)
             && owned.reap(Instant::now() + Duration::from_millis(150)),
     );
+    super::profile_phase(&request.request_id, "validator_godot_reaped", 0);
     if result.child_spawned == Some(true) && result.child_reaped != Some(true) {
         return Err("reap_unavailable");
     }
@@ -385,6 +394,7 @@ fn run_child(
     result.clone_log_files = Some(logs);
     cleanup?;
     result.cleanup_confirmed = true;
+    super::profile_phase(&request.request_id, "validator_clone_removed", 0);
     if logs {
         return Err("privacy_unverified");
     }
@@ -542,6 +552,7 @@ fn validate_until(
     attempt_deadline: Instant,
 ) -> ValidationResult {
     let mut wire = wire_request(request, &clock);
+    super::profile_phase(&wire.request_id, "validator_parent_begin", 0);
     // The inherited worker's existing finite budget is shortened, never renewed.
     wire.elapsed_us = 9_500_000u64.saturating_sub(
         attempt_deadline
@@ -601,6 +612,7 @@ fn validate_until(
             });
         }
         let worker = command.spawn().map_err(|_| "worker_unavailable")?;
+        super::profile_phase(&wire.request_id, "validator_worker_spawned", worker.id().into());
         // Command retains its configured Stdio descriptors after spawn. Drop
         // those worker-side duplicates so worker loss produces EOF promptly.
         drop(command);
@@ -625,6 +637,7 @@ fn validate_until(
             {
                 return Err("worker_lost");
             }
+            super::profile_phase(&wire.request_id, "validator_worker_replied", 0);
             Ok(response)
         })();
         drop(parent);
@@ -665,6 +678,7 @@ fn validate_until(
     // Only the supervisor's clock defines the acceptance interval.
     result.stamp(&clock);
     opening_context::check_receipt(&wire, &mut result);
+    super::profile_phase(&wire.request_id, "validator_parent_finished", 0);
     result
 }
 

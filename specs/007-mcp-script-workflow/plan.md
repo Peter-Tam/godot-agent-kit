@@ -517,3 +517,22 @@ hashes, not only structuredContent. The corrected assertions add no product
 behavior, retry, timeout, service or authority. Rerun the composed interaction and
 affected privacy selection/interruption checks; unchanged export evidence remains
 reusable.
+
+#### T004 product-validation optimization direction
+
+The maintainer now requires the acceptance VM to remain at four vCPUs; a
+six-vCPU allocation is not the fix. The serial single-editor failure locates the
+remaining bottleneck in required product behavior, not fixture orchestration.
+Profile startup, original/desired validation, mutation, fresh actual-state
+acquisition, final validation and completion before selecting an optimization.
+
+Use temporary source-free phase timestamps and, if needed, an owned stock-child
+startup sample. These diagnostics are not product telemetry or acceptance passes
+and will be removed after the measurements. Retain the same official compiler,
+per-source completion fences, current revision/context/state checks, independent
+post-mutation acquisition/validation, real original/desired preflight concurrency,
+all cleanup and disclosure guarantees, and the existing ten-second response bound.
+No retries, deadline extensions, weaker acceptance or support expansion is allowed.
+Any selected mechanism must record its measured requirement and Principle XIII
+tradeoff here before implementation; run only its affected verification and the
+required T004 composed interaction afterward.

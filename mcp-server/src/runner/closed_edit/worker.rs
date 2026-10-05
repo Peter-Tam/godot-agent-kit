@@ -1,5 +1,6 @@
 use super::*;
 use crate::target::SelectedSession;
+use crate::runner::profile_phase;
 type Failure = (&'static str, bool);
 fn disclosure_failure(cause: Failure, current: Result<(), Failure>) -> Failure {
     (cause.0, cause.1 || current.err().is_some_and(|e| e.1))
@@ -449,6 +450,7 @@ fn edit(
     started: Instant,
     at: Instant,
 ) -> Result<(), Failure> {
+    profile_phase(request.request_id().as_str(), "closed_worker_begin", started.elapsed().as_micros() as u64);
     let basis = startup.basis.ok_or(("missing_basis", false))?;
     let replacement = crate::script_edit::ReplacementSource::new(
         startup.source.ok_or(("missing_source", false))?,
@@ -471,6 +473,7 @@ fn edit(
         return Err(("revision_mismatch", false));
     }
     let work = (|| {
+        profile_phase(request.request_id().as_str(), "closed_prepare_begin", 0);
         let prepared = native(
             &mut selected,
             request,
@@ -478,6 +481,7 @@ fn edit(
             started,
             at,
         )?;
+        profile_phase(request.request_id().as_str(), "closed_prepare_end", 0);
         admitted(&prepared, "prepared")?;
         if prepared
             .state
@@ -493,6 +497,7 @@ fn edit(
             return Err(("revision_mismatch", false));
         }
         drop(initial);
+        profile_phase(request.request_id().as_str(), "closed_preflight_begin", 0);
         let (original, desired_result) = preflight(
             (&mut *input, &mut *output),
             &selected,
@@ -501,6 +506,7 @@ fn edit(
             desired,
             at,
         )?;
+        profile_phase(request.request_id().as_str(), "closed_preflight_end", 0);
         let (guard, guard_context) = sample(&mut selected, request, "preflight", started, at)?;
         if !basis.state.matches(&guard)
             || guard_context.sha256 != context.sha256
@@ -517,6 +523,7 @@ fn edit(
         {
             return Err(("revision_mismatch", false));
         }
+        profile_phase(request.request_id().as_str(), "closed_guard_end", 0);
         let unchanged = desired == context.source;
         if !unchanged {
             send(output, &Message::Ready {}, at, None).map_err(|e| (e, false))?;
@@ -524,6 +531,7 @@ fn edit(
                 Control::Authorize {} => {}
                 _ => return Err(("cancelled", false)),
             }
+            profile_phase(request.request_id().as_str(), "closed_mutation_begin", 0);
             let applied = native(
                 &mut selected,
                 request,
@@ -531,6 +539,7 @@ fn edit(
                 started,
                 at,
             )?;
+            profile_phase(request.request_id().as_str(), "closed_mutation_end", 0);
             if let Some(mut receipt) = applied.native {
                 // The authenticated envelope's failure is causal even if the
                 // effect receipt has no separate reason; never drop it.
@@ -580,12 +589,15 @@ fn edit(
         } else {
             "post_change"
         };
+        profile_phase(request.request_id().as_str(), "closed_actual_acquisition_begin", 0);
         let (post, post_context) = sample(&mut selected, request, purpose, started, at)?;
         if post.file_revision.sha256 != confined::hex_sha256(desired.as_bytes())
             || post_context.source != desired
         {
             return Err(("source_changed", false));
         }
+        profile_phase(request.request_id().as_str(), "closed_actual_acquisition_end", 0);
+        profile_phase(request.request_id().as_str(), "closed_actual_validation_begin", 0);
         let post_validation = post_validation(
             (&mut *input, &mut *output),
             &selected,
@@ -593,6 +605,8 @@ fn edit(
             &post_context,
             at,
         )?;
+        profile_phase(request.request_id().as_str(), "closed_actual_validation_end", 0);
+        profile_phase(request.request_id().as_str(), "closed_final_acquisition_begin", 0);
         let (final_state, final_context) = sample(&mut selected, request, purpose, started, at)?;
         let ctx = current_context(&selected, &final_context)
             .ok_or(("validation_context_unavailable", false))?;
@@ -600,6 +614,7 @@ fn edit(
             && final_context.sha256 == post_context.sha256
             && Some(&ctx) == post_validation.context_sha256.as_ref()
             && dependencies(&selected, &post_validation);
+        profile_phase(request.request_id().as_str(), "closed_final_acquisition_end", 0);
         let finished = native(
             &mut selected,
             request,
@@ -607,6 +622,7 @@ fn edit(
             started,
             at,
         )?;
+        profile_phase(request.request_id().as_str(), "closed_finish_end", 0);
         admitted(&finished, "finished")?;
         send(
             output,
@@ -636,6 +652,7 @@ fn edit(
             disclose_selected(&selected, request, at),
         ));
     }
+    profile_phase(request.request_id().as_str(), "closed_worker_finished", started.elapsed().as_micros() as u64);
     work
 }
 fn dispatch(acquisition: bool) -> Option<i32> {
