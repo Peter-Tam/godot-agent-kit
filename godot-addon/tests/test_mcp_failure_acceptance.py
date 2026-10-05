@@ -6,6 +6,7 @@ from unittest import mock
 
 import mcp_failure_acceptance as failure
 from mcp_lifecycle_acceptance import review_client_events
+from mcp_peer import McpAdversarialMixin
 
 
 class FailureEvidenceTests(unittest.TestCase):
@@ -82,6 +83,43 @@ class FailureEvidenceTests(unittest.TestCase):
         events.append(dict(kind='model_visible_tool_result', content=lost['structuredContent']))
         with self.assertRaisesRegex(ValueError, 'undelivered'):
             review_client_events(events, [read, lost, recovered])
+
+
+class InterruptedBufferWitnessTests(unittest.TestCase):
+    def test_editor_resource_propagation_cannot_hide_other_changes(self):
+        target = dict(path=failure.TARGET, script_id="script", editor_id="editor", buffer_id="buffer",
+                      R="original", B="already visible", version=3, saved_version=2, dirty=True,
+                      resource_edited=True, has_undo=True, has_redo=False)
+        other = dict(target, path="res://scripts/other.gd", R="human work", B="human work")
+        before = dict(target=target, documents=[target, other], cached_id="script", cached_R="original",
+                      cached_edited=True, cache_has=True, cache_type="GDScript", selection=failure.TARGET,
+                      open_paths=[target["path"], other["path"]], loader_calls=0)
+        disks = {failure.TARGET: dict(sha256="original digest", mtime_ns=1, ctime_ns=2, mode=0o644)}
+        after = copy.deepcopy(before)
+        after["cached_R"] = after["target"]["R"] = before["target"]["B"]
+        harness = McpAdversarialMixin()
+        harness.cases = [{}]
+        harness.assert_mcp_buffer_prefix_survivor(before, disks, after, disks, "editor propagation")
+        self.assertTrue(harness.cases[-1]["observed_editor_resource_propagation"])
+        changes = {
+            "buffer overwrite": lambda state, disk: state["target"].update(B="overwritten"),
+            "dirty cleared": lambda state, disk: state.update(cached_edited=False),
+            "history lost": lambda state, disk: state["target"].update(has_undo=False),
+            "document replaced": lambda state, disk: state["target"].update(buffer_id="replacement"),
+            "cache replaced": lambda state, disk: state.update(cached_id="replacement"),
+            "unrelated resource": lambda state, disk: state["documents"][1].update(R="overwritten"),
+            "disk write": lambda state, disk: disk[failure.TARGET].update(sha256="different digest"),
+            "metadata changed": lambda state, disk: disk[failure.TARGET].update(mtime_ns=3),
+        }
+        for name, change in changes.items():
+            damaged, changed_disks = copy.deepcopy(after), copy.deepcopy(disks)
+            change(damaged, changed_disks)
+            with self.subTest(change=name), self.assertRaises(failure.observation.Failure):
+                harness.assert_mcp_buffer_prefix_survivor(before, disks, damaged, changed_disks, name)
+        third_source = copy.deepcopy(after)
+        third_source["cached_R"] = third_source["target"]["R"] = "not the visible buffer"
+        with self.assertRaises(failure.observation.Failure):
+            harness.assert_mcp_buffer_prefix_survivor(before, disks, third_source, disks, "unattributed R")
 
 
 if __name__ == '__main__':

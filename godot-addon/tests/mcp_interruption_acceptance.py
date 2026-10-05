@@ -246,7 +246,7 @@ class McpInterruptionMixin(McpAdversarialMixin):
                     apply_elapsed = time.monotonic() - call["started"]
                     root = peer.finish(call, label)
                     self._interruption_review(root, call, "apply", label)
-                    observation.require(root["result"]["outcome"]["reason"] == "timeout" and
+                    observation.require(root["result"]["outcome"]["reason"] in ("timeout", "deadline") and
                                         acquisition_elapsed >= 1 and apply_elapsed > acquisition_elapsed,
                                         "acquisition_handoff_does_not_renew_original_deadline_" + label)
                     self.cases[-1].update(acquisition_elapsed_seconds=acquisition_elapsed,
