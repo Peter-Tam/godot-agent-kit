@@ -26,6 +26,7 @@ DESIRED = "# MCP_INTERRUPTION_PRIVATE_SOURCE_SENTINEL\n" + CHANGED
 INTERRUPTION_GROUPS = {
     "interruption-cancellation": "mcp_interruption_cancellation",
     "interruption-original-deadline": "mcp_interruption_deadline",
+    "interruption-acquisition-clock": "mcp_interruption_acquisition_clock",
     "interruption-unresponsive-editor": "mcp_interruption_unresponsive",
     "interruption-disconnect-and-signals": "mcp_interruption_shutdown",
     "interruption-editor-channels": "mcp_interruption_channels",
@@ -179,8 +180,10 @@ class McpInterruptionMixin(McpAdversarialMixin):
 
     def mcp_interruption_deadline(self):
         # finish consumes output against the original call clock while the real
-        # editor barrier stays closed; release occurs only after terminal refusal.
+        # editor barrier stays closed; release occurs only after its terminal result.
         self._interruption_matrix(("deadline",))
+
+    def mcp_interruption_acquisition_clock(self):
         for profile in PROFILES:
             label = "mcp-original-acquisition-clock-" + profile
             with self._interruption_fixture(label, profile) as (project, editor, descriptor):
@@ -199,13 +202,56 @@ class McpInterruptionMixin(McpAdversarialMixin):
                         self.wait_mcp_barrier(editor, "inspect", peer, call, acquisition=True)
                     root = peer.finish(call, label)
                     result = self.mcp_review_edit(root, label, "refused")
-                    observation.require(result["outcome"]["reason"] == "timeout" and
+                    observation.require(result["outcome"]["reason"] in ("timeout", "disconnected_editor") and
                                         result["outcome"]["application"] == "not_applied",
                                         "acquisition_consumes_original_edit_clock_" + label)
                     if profile == "open":
                         self.action(editor, "release_hold")
                     else:
                         self._interruption_release(editor, profile)
+                    self._interruption_survivor(project, editor, before, disks, label, no_effect=True)
+                self._interruption_recover(project, editor, descriptor, label)
+        for profile in PROFILES:
+            label = "mcp-acquisition-handoff-clock-" + profile
+            with self._interruption_fixture(label, profile) as (project, editor, descriptor):
+                with McpPeer(self, label) as peer:
+                    basis = self.mcp_read(peer, project, editor, descriptor, label + "-basis", source=SAFE)
+                    before, disks = self.state(editor, project)
+                    if profile == "open":
+                        self.native_action(editor, "native_edit_hold", stage="apply")
+                        self.action(editor, "hold_observe")
+                    else:
+                        self.close_action(editor, "closed_arm", stage="inspect")
+                    call = peer.start("edit_script", dict(selectors(project, descriptor),
+                                                         revision=basis["revision"], replacement_source=DESIRED))
+                    if profile == "open":
+                        self.wait_barrier(editor, "observe", peer.process)
+                    else:
+                        self.wait_mcp_barrier(editor, "inspect", peer, call, acquisition=True)
+                    # Deliberately spend original request time at a proven capture
+                    # barrier, then reach native apply. This is a timed fault, not
+                    # a sleep used to guess editor readiness.
+                    try:
+                        peer.receive(timeout=1)
+                    except TimeoutError:
+                        pass
+                    else:
+                        raise observation.Failure("acquisition_barrier_returned_early_" + label)
+                    acquisition_elapsed = time.monotonic() - call["started"]
+                    if profile == "open":
+                        self.action(editor, "release_hold")
+                    else:
+                        self.close_action(editor, "closed_arm", stage="apply")
+                    self.wait_mcp_barrier(editor, "edit:apply" if profile == "open" else "apply", peer, call)
+                    apply_elapsed = time.monotonic() - call["started"]
+                    root = peer.finish(call, label)
+                    self._interruption_review(root, call, "apply", label)
+                    observation.require(root["result"]["outcome"]["reason"] == "timeout" and
+                                        acquisition_elapsed >= 1 and apply_elapsed > acquisition_elapsed,
+                                        "acquisition_handoff_does_not_renew_original_deadline_" + label)
+                    self.cases[-1].update(acquisition_elapsed_seconds=acquisition_elapsed,
+                                         native_apply_elapsed_seconds=apply_elapsed)
+                    self._interruption_release(editor, profile)
                     self._interruption_survivor(project, editor, before, disks, label, no_effect=True)
                 self._interruption_recover(project, editor, descriptor, label)
 
