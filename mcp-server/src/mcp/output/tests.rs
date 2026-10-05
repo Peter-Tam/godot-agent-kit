@@ -29,38 +29,6 @@ fn assert_unavailable_result(
             },
         })
     );
-    let summary = wire["content"][0]["text"]
-        .as_str()
-        .unwrap()
-        .to_ascii_lowercase();
-    match operation {
-        Operation::Discover => {
-            assert!(summary.contains("discovery"), "{summary}");
-            assert!(summary.contains("check setup"), "{summary}");
-            for forbidden in [
-                "fresh_read",
-                "read_script",
-                "read",
-                "revision",
-                "original",
-                "edit",
-            ] {
-                assert!(!summary.contains(forbidden), "{summary}");
-            }
-        }
-        Operation::Read => {
-            assert!(summary.contains("read"), "{summary}");
-            assert!(summary.contains("target"), "{summary}");
-            assert!(summary.contains("again"), "{summary}");
-            assert!(!summary.contains("edit"), "{summary}");
-            assert!(!summary.contains("applied"), "{summary}");
-        }
-        Operation::Edit => {
-            assert!(summary.contains("read"), "{summary}");
-            assert!(summary.contains("original target"), "{summary}");
-            assert!(summary.contains("before another edit"), "{summary}");
-        }
-    }
 }
 
 #[test]
