@@ -126,9 +126,10 @@ class McpInterruptionMixin(McpAdversarialMixin):
             self.assert_no_effect(label + "-terminal", project, editor, after, now)
         return after, now
 
-    def _interruption_recover(self, project, editor, descriptor, label):
+    def _interruption_recover(self, project, editor, descriptor, label, *, buffer_prefix=False):
         with McpPeer(self, label + "-recovery") as recovery:
-            self.mcp_survivor_read(recovery, project, editor, descriptor, label + "-fresh-original-target")
+            self.mcp_survivor_read(recovery, project, editor, descriptor, label + "-fresh-original-target",
+                                   buffer_prefix=buffer_prefix)
 
     def _interruption_matrix(self, controls, *, stages=None, profiles=PROFILES):
         for profile in profiles:
@@ -170,7 +171,8 @@ class McpInterruptionMixin(McpAdversarialMixin):
                             self._interruption_release(editor, profile)
                             self._interruption_survivor(project, editor, before, disks, label, no_effect=True,
                                                        buffer_prefix=stage == "buffer_applied")
-                        self._interruption_recover(project, editor, descriptor, label)
+                        self._interruption_recover(project, editor, descriptor, label,
+                                                   buffer_prefix=stage == "buffer_applied")
 
     def mcp_interruption_cancellation(self):
         self._interruption_matrix(("cancel",))
@@ -349,7 +351,7 @@ class McpInterruptionMixin(McpAdversarialMixin):
                                           {key: callback[key] for key in
                                            ("request_id", "stage", "mode", "called", "slot_before", "slot_after")})
                     self.cases[-1]["callback_evidence"] = label + "-callback.json"
-                self._interruption_recover(project, editor, descriptor, label)
+                self._interruption_recover(project, editor, descriptor, label, buffer_prefix=True)
         for stage in ("buffer_applied", "resource_applied", "content_persisted", "mtime_restored"):
             for control in ("cancel", "disable", "sigterm"):
                 label = "mcp-newer-open-" + stage + "-" + control
@@ -374,7 +376,8 @@ class McpInterruptionMixin(McpAdversarialMixin):
                         self._interruption_release(editor, "open")
                         self._interruption_survivor(project, editor, before, disks, label, no_effect=True,
                                                    buffer_prefix=stage == "buffer_applied")
-                    self._interruption_recover(project, editor, descriptor, label)
+                    self._interruption_recover(project, editor, descriptor, label,
+                                               buffer_prefix=stage == "buffer_applied")
         for profile in ("cached-closed", "absent-closed"):
             stages = ("after_resource", "after_write", "after_mtime") if profile == "cached-closed" else \
                 ("after_write", "after_mtime")
@@ -476,7 +479,7 @@ class McpInterruptionMixin(McpAdversarialMixin):
                         self.cases[-1]["independent_evidence"] = label + "-witness.json"
                     finally:
                         target.chmod(mode)
-            self._interruption_recover(project, editor, descriptor, label)
+            self._interruption_recover(project, editor, descriptor, label, buffer_prefix=True)
         for profile in ("cached-closed", "absent-closed"):
             label = "mcp-sticky-denial-" + profile
             with self._interruption_fixture(label, profile, faults=True) as (project, editor, descriptor):
@@ -529,7 +532,8 @@ class McpInterruptionMixin(McpAdversarialMixin):
                                   performance_claim="none_output_not_consumed")
                         self._interruption_survivor(project, editor, before, disks, label,
                                                    no_effect=stage == "prepare")
-                    self._interruption_recover(project, editor, descriptor, label)
+                    self._interruption_recover(project, editor, descriptor, label,
+                                               buffer_prefix=stage == "buffer_applied")
         self._interruption_partial_delivery(blocked=False)
 
     def mcp_interruption_worker_loss(self):
@@ -621,7 +625,8 @@ class McpInterruptionMixin(McpAdversarialMixin):
                                   fault="actual_unread_stdout_pipe", **capacity)
                         self._interruption_survivor(project, editor, before, disks, label, no_effect=True,
                                                    buffer_prefix=stage == "buffer_applied")
-                    self._interruption_recover(project, editor, descriptor, label)
+                    self._interruption_recover(project, editor, descriptor, label,
+                                               buffer_prefix=stage == "buffer_applied")
         self._interruption_partial_delivery(blocked=True)
 
     def _interruption_partial_delivery(self, *, blocked):

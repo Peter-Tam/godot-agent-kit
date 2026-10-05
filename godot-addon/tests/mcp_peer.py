@@ -287,13 +287,16 @@ class McpAdversarialMixin:
         observation.require(remaining > 0, 'MCP_original_clock_at_barrier')
         return observation.wait_for(reached, 'actual_MCP_barrier_' + stage, timeout=min(8, remaining))
 
-    def mcp_survivor_read(self, peer, project, editor, descriptor, label):
+    def mcp_survivor_read(self, peer, project, editor, descriptor, label, *, buffer_prefix=False):
         before, disks = self.state(editor, project)
         content = peer.call('read_script', selectors(project, descriptor), label)
         after, now = self.state(editor, project)
-        observation.require(source_free(before, disks) == source_free(after, now),
-                            'MCP_recovery_read_does_not_repair_' + label)
         self.record_witness(label, before, disks, after, now, editor)
+        if buffer_prefix:
+            self.assert_mcp_buffer_prefix_survivor(before, disks, after, now, label)
+        else:
+            observation.require(source_free(before, disks) == source_free(after, now),
+                                'MCP_recovery_read_does_not_repair_' + label)
         return content
 
     def assert_mcp_buffer_prefix_survivor(self, before, disks, after, now, label):
