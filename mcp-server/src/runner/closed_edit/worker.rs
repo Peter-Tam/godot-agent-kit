@@ -92,7 +92,9 @@ fn native(
     started: Instant,
     at: Instant,
 ) -> Result<codec::Reply, Failure> {
-    codec::exchange(selected, request, op, started, at).map_err(err)
+    let result = codec::exchange(selected, request, op, started, at).map_err(err);
+    diagnostic(request, "native_result", result.as_ref().err().copied());
+    result
 }
 fn admitted(reply: &codec::Reply, status: &str) -> Result<(), Failure> {
     if reply.status == status && reply.reason.is_none() {

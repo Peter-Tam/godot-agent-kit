@@ -23,6 +23,12 @@ WORKER_FLAGS = (
     '--internal-edit-worker', '--internal-closed-edit-worker',
     '--internal-closed-acquisition-worker', '--internal-stock-validation-worker',
 )
+PRIVACY_GROUPS = {
+    'privacy-authorized': '_privacy_authorized_and_errors',
+    'privacy-selection': 'mcp_preservation_selection_privacy',
+    'privacy-interrupted': 'mcp_interruption_denial',
+    'privacy-production-exports': 'native_export',
+}
 RESULT = ('result', 'structuredContent', 'result')
 READ_TEXT_PATHS = (RESULT + ('source',),) + tuple(
     RESULT + ('state', 'sources', authority, 'text')

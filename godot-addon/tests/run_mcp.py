@@ -19,7 +19,7 @@ from mcp_failure_acceptance import McpFailureMixin, FAILURE_GROUPS
 from mcp_preservation_acceptance import McpPreservationAcceptanceMixin, PRESERVATION_GROUPS
 from mcp_interruption_acceptance import McpInterruptionMixin, INTERRUPTION_GROUPS
 from mcp_composed_acceptance import McpComposedMixin
-from mcp_privacy_acceptance import McpPrivacyAcceptanceMixin
+from mcp_privacy_acceptance import McpPrivacyAcceptanceMixin, PRIVACY_GROUPS
 
 CLIENT_GROUPS = {**PROFILE_GROUPS, **FAILURE_GROUPS}
 
@@ -30,7 +30,7 @@ SCENARIOS = ("closed-native", "closed-lifecycle", "closed-positives", "closed-re
              "closed-later-durability-and-history", "matched-v6-native4-legacy-preservation",
              "closed-privacy-export", "transport", *("transport-" + name for name in CLIENT_GROUPS),
              "preservation", *PRESERVATION_GROUPS, "interruption", *INTERRUPTION_GROUPS,
-             "composed", "privacy-export")
+             "composed", "privacy-export", *PRIVACY_GROUPS)
 
 
 class WorkflowHarness(McpComposedMixin, McpPrivacyAcceptanceMixin, McpFailureMixin,
@@ -81,7 +81,7 @@ class WorkflowHarness(McpComposedMixin, McpPrivacyAcceptanceMixin, McpFailureMix
                                 adversarial_driver_sha256={name: observation.digest(Path(__file__).with_name(name))
                                     for name in ("mcp_peer.py", "mcp_preservation_acceptance.py",
                                                  "mcp_interruption_acceptance.py", "mcp_failure_acceptance.py")})
-        if args.scenario in ("composed", "privacy-export") or args.profile == "composed":
+        if args.scenario in ("composed", "privacy-export", *PRIVACY_GROUPS) or args.profile == "composed":
             self.summary.update(coverage_scope="composed_MCP_acceptance_" + args.scenario,
                                 changed_boundary="composed_and_privacy_acceptance_fixtures",
                                 mcp_acceptance=True, real_client_acceptance=False,
@@ -147,7 +147,7 @@ def main():
             }
             methods.update(("transport-" + name, harness.mcp_transport) for name in CLIENT_GROUPS)
             methods.update((name, getattr(harness, method)) for name, method in
-                           (*PRESERVATION_GROUPS.items(), *INTERRUPTION_GROUPS.items()))
+                           (*PRESERVATION_GROUPS.items(), *INTERRUPTION_GROUPS.items(), *PRIVACY_GROUPS.items()))
             if args.scenario not in ("closed-native", "closed-lifecycle"):
                 harness.compile_window_probe()
             harness.group(args.scenario, methods[args.scenario])

@@ -1199,10 +1199,24 @@ fn read_deadline(
             .set_read_timeout(Some(remaining(deadline, stage)?))
             .map_err(|e| network(e, stage))?;
         match stream.read(&mut bytes[offset..]) {
-            Ok(0) => return Err(disconnected(stage)),
+            Ok(0) => {
+                if let Ok(mut file) = std::fs::OpenOptions::new()
+                    .create(true).append(true).open("/tmp/gak-wire-diagnostic.log")
+                {
+                    let _ = writeln!(file, "tcp eof {offset} / {}", bytes.len());
+                }
+                return Err(disconnected(stage));
+            }
             Ok(n) => offset += n,
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
-            Err(e) => return Err(network(e, stage)),
+            Err(e) => {
+                if let Ok(mut file) = std::fs::OpenOptions::new()
+                    .create(true).append(true).open("/tmp/gak-wire-diagnostic.log")
+                {
+                    let _ = writeln!(file, "tcp error {:?} {offset} / {}", e.kind(), bytes.len());
+                }
+                return Err(network(e, stage));
+            }
         }
     }
     Ok(())
