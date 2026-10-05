@@ -156,6 +156,11 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
             fixture = self.close_fixture if opened else self.closed_fixture
             kwargs = {} if opened else {"cached": mutation in ("cache_replace", "cache_absent")}
             with fixture(label, **kwargs) as (project, editor, descriptor), McpPeer(self, label) as peer:
+                if mutation == "cache_absent":
+                    # A compiler-loaded Script has other legitimate owners.
+                    # Use the existing transient replacement-cache fixture so
+                    # releasing its final owned reference proves actual absence.
+                    self.close_action(editor, "closed_resource", mutation="replace")
                 basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=SAFE)
                 self._preservation_transition(project, editor, mutation)
                 self._preservation_refusal(peer, project, editor, descriptor, basis["revision"], label)

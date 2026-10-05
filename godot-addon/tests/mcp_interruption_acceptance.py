@@ -213,6 +213,18 @@ class McpInterruptionMixin(McpAdversarialMixin):
                     before, disks = self.state(editor, project)
                     editor["process"].send_signal(signal.SIGSTOP)
                     try:
+                        read = peer.call("read_script", selectors(project, descriptor), label + "-read")
+                        observation.require(read["error"] is None and read["result"]["source"] is None and
+                                            read["result"]["revision"] is None and
+                                            read["result"]["state"]["status"] == "timeout",
+                                            "unresponsive_read_five_second_terminal_" + profile)
+                        scope = selectors(project, descriptor)
+                        scope.pop("script_path")
+                        discovery = peer.call("discover_scripts", scope, label + "-discover")
+                        observation.require(discovery["error"] is None and
+                                            discovery["result"]["outcome"] == "interrupted" and
+                                            any(d["code"] == "timeout" for d in discovery["result"]["diagnostics"]),
+                                            "unresponsive_discovery_five_second_terminal_" + profile)
                         call = peer.start("edit_script", dict(selectors(project, descriptor),
                                                              revision=basis["revision"], replacement_source=DESIRED))
                         root = peer.finish(call, label)

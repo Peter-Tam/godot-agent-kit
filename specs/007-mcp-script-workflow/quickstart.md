@@ -1,6 +1,6 @@
 # Quickstart: Validate the Trusted MCP Script Workflow
 
-**Status:** T001 and T002 are **complete**, with [core/native evidence](#t001-execution-evidence-2026-10-04) and [actual MCP/two-client acceptance](#t002-execution-evidence-2026-10-05). Codex CLI 0.153.4 and OMP 18.5.1 completed all five required profiles. T003–T004 remain pending; feature completion and Phase 3 exit are not claimed.
+**Status:** T001 and T002 are **complete**, with [core/native evidence](#t001-execution-evidence-2026-10-04) and [actual MCP/two-client acceptance](#t002-execution-evidence-2026-10-05). Codex CLI 0.153.4 and OMP 18.5.1 completed all five positive profiles. Only T003 is selected for adversarial implementation/acceptance; T004 remains pending. Feature completion and Phase 3 exit are not claimed.
 
 Read [plan.md](plan.md), [data-model.md](data-model.md) and [the public contract](contracts/mcp-interface.md). Follow [TEST_POLICY.md](../../TEST_POLICY.md) for scope, evidence reuse and the existing [VM boundary](../../.github/LOCAL_VM.md). No command authorizes a feature task before its own approved tasks/analysis and one-task-one-PR prerequisites.
 
@@ -541,10 +541,10 @@ The fixed test-only VM-wrapper commands are:
 - `prepare-durability --run-id ID`: for `workflow` only, require the already delivered primary discover/read/no-op/edit/fresh-read evidence before ordinary fixture opening of cached/absent scripts. Keep the owner alive and emit a read-only continuation prompt to stdout. Feed that prompt to a second invocation of the **same selected real client**, using the same fixed relay/config/run ID. This fixture-only action is not a public MCP operation.
 - `finalize-mcp --run-id ID`: require those post-opening actual-client reads, independently verify Save/reparse/rescan/runtime durability, clean up only owned fixtures, then retrieve private evidence. Relay EOF does not destroy prepared projects; it only drains that MCP connection. Finalize before selecting another committed guest source.
 
-Preparation accepts `--profile workflow|known|sources|bound|observations` (default
-`workflow`). Use a fresh run ID/artifact directory and fresh conversation for
-**each of the five groups with each selected client**; one group is not full task
-acceptance. `workflow` covers open/cached/absent targets without any exact script
+T002 positive preparation accepts `--profile workflow|known|sources|bound|observations`
+(default `workflow`). Use a fresh run ID/artifact directory and fresh conversation
+for **each of those five groups with each selected client**; one group is not full
+positive acceptance. `workflow` covers open/cached/absent targets without any exact script
 locator in its initial prompt. The separate `known` conversation covers direct
 read/edit and stale refusal without discovery; never preload its locator into
 the discovery-first conversation. `sources` covers Unicode/observed-empty source
@@ -560,6 +560,30 @@ The same groups are directly runnable as `run mcp --scenario transport-workflow`
 `transport-known`, `transport-sources`, `transport-bound` and
 `transport-observations`. `transport` runs them sequentially. These fixed
 transport drivers also perform post-opening reads but **are not real agents**.
+
+T003 adds fixed `--profile failures|reconnect` selections, each in a fresh run and
+conversation with each pinned client. `failures` supplies an informative limited
+read, a real same-text stale revision refusal, a native partial write and loss of
+the genuine private applied reply. The model must interpret the actual structured
+facts and freshly read the original explicit target rather than repeat or repair
+the mutation. `reconnect` drops one actual public edit response after independent
+effect observation; the undelivered server result is not model-visible evidence.
+Record any client reconnect/resend separately, require existing stale-state guards
+on that duplicate, and correlate the client's subsequent fresh read and explanation.
+Neither profile opens a document or weakens approval. Finalize directly afterward.
+
+`transport-failures` and `transport-reconnect` exercise the same fixture/relay with
+a bounded protocol driver, **not a coding agent**. `preservation` and `interruption`
+contain their separately runnable `preservation-*` and `interruption-*` groups
+listed by `run_mcp.py --help`. After a failure, retain completed groups and rerun
+only the affected group and remaining obligations. No historical `all` campaign
+or T004 composed interaction is implied.
+
+Each consumed public result records its original forwarding-to-delivery clock.
+Blocked/lost-output runs instead record delivery unavailable and bounded owned
+cleanup, not consumed-output performance or rollback. Independent retained disk,
+Resource, complete roster and actual human/native-history witnesses remain the
+acceptance boundary; fixture faults cannot become production export artifacts.
 
 The relay is test apparatus, not a product remote transport. Host clients retain their normal model access; editor/core effects remain in the owned guest. This is the minimal adaptation needed to combine real clients with the existing VM policy.
 
