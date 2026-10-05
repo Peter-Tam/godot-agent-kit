@@ -44,13 +44,21 @@ pub mod read;
 
 fn profile_phase(id: &str, phase: &str, value: u64) {
     use std::os::unix::fs::OpenOptionsExt;
-    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).mode(0o600)
-        .open("/Users/admin/.godot-agent-kit-vm/runs/validation-profile-1/artifacts/phases.log")
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .mode(0o600)
+        .open("/Users/admin/.godot-agent-kit-vm/runs/validation-profile-2/artifacts/phases.log")
     {
         let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH).map(|v| v.as_micros()).unwrap_or(0);
-        let line = format!("{timestamp} {} {:?} {id} {phase} {value}\n",
-                           std::process::id(), std::thread::current().id());
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|v| v.as_micros())
+            .unwrap_or(0);
+        let line = format!(
+            "{timestamp} {} {:?} {id} {phase} {value}\n",
+            std::process::id(),
+            std::thread::current().id()
+        );
         let _ = file.write_all(line.as_bytes());
     }
 }

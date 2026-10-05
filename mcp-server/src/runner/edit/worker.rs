@@ -1,7 +1,7 @@
 //! Owned child acquires all project/editor/helper evidence; the supervisor alone authorizes apply.
 use super::*;
-use crate::script_edit::Reason;
 use crate::runner::profile_phase;
+use crate::script_edit::Reason;
 use serde_json::Value;
 
 fn receive(
@@ -256,7 +256,11 @@ fn run_worker(
     started: Instant,
     deadline_at: Instant,
 ) -> Result<(), RoutingFailure> {
-    profile_phase(request.request_id().as_str(), "open_worker_begin", started.elapsed().as_micros() as u64);
+    profile_phase(
+        request.request_id().as_str(),
+        "open_worker_begin",
+        started.elapsed().as_micros() as u64,
+    );
     let selected_req = ObservationRequest::new(
         request.request_id().clone(),
         request.project_root().clone(),
@@ -386,7 +390,11 @@ fn run_worker(
         )?;
         return Ok(());
     };
-    profile_phase(request.request_id().as_str(), "open_desired_preflight_begin", 0);
+    profile_phase(
+        request.request_id().as_str(),
+        "open_desired_preflight_begin",
+        0,
+    );
     let (result, begin, end) = helper(
         &request,
         &initial_context,
@@ -400,7 +408,11 @@ fn run_worker(
         started,
         deadline_at,
     )?;
-    profile_phase(request.request_id().as_str(), "open_desired_preflight_end", 0);
+    profile_phase(
+        request.request_id().as_str(),
+        "open_desired_preflight_end",
+        0,
+    );
     deadline(deadline_at)?;
     let good_context = context_current(&selected, &initial_context, &result);
     let good_deps = dependencies_current(&selected, &result);
@@ -536,7 +548,11 @@ fn run_worker(
             return Ok(());
         }
         // Immediate independent actual-source sample before invoking a new stock helper.
-        profile_phase(request.request_id().as_str(), "open_actual_acquisition_begin", 0);
+        profile_phase(
+            request.request_id().as_str(),
+            "open_actual_acquisition_begin",
+            0,
+        );
         let immediate = wire::edit::verify(
             &mut selected,
             &selected_req,
@@ -557,8 +573,16 @@ fn run_worker(
             let _ = wire::edit::terminal(&mut selected, &selected_req, true, started, deadline_at);
             return Err(error(Reason::UnavailableObservation));
         };
-        profile_phase(request.request_id().as_str(), "open_actual_acquisition_end", 0);
-        profile_phase(request.request_id().as_str(), "open_actual_validation_begin", 0);
+        profile_phase(
+            request.request_id().as_str(),
+            "open_actual_acquisition_end",
+            0,
+        );
+        profile_phase(
+            request.request_id().as_str(),
+            "open_actual_validation_begin",
+            0,
+        );
         let (result, begin, end) = helper(
             &request,
             &post_context,
@@ -568,7 +592,11 @@ fn run_worker(
             started,
             deadline_at,
         )?;
-        profile_phase(request.request_id().as_str(), "open_actual_validation_end", 0);
+        profile_phase(
+            request.request_id().as_str(),
+            "open_actual_validation_end",
+            0,
+        );
         deadline(deadline_at)?;
         let matching_context = context_current(&selected, &post_context, &result)
             && same_context(&initial_context, &post_context);
@@ -589,7 +617,11 @@ fn run_worker(
     }
     // A NEW observation after helper (also unchanged path's only follow-up sample).
     let purpose = if changed { "post_change" } else { "unchanged" };
-    profile_phase(request.request_id().as_str(), "open_final_acquisition_begin", 0);
+    profile_phase(
+        request.request_id().as_str(),
+        "open_final_acquisition_begin",
+        0,
+    );
     let final_sample =
         wire::edit::verify(&mut selected, &selected_req, purpose, started, deadline_at)?;
     let final_context = sample(
@@ -601,7 +633,11 @@ fn run_worker(
         (started, deadline_at),
         output,
     )?;
-    profile_phase(request.request_id().as_str(), "open_final_acquisition_end", 0);
+    profile_phase(
+        request.request_id().as_str(),
+        "open_final_acquisition_end",
+        0,
+    );
     let context_start = started.elapsed().as_micros().min(u128::from(u64::MAX)) as u64;
     let captured = final_context
         .as_ref()
@@ -649,7 +685,11 @@ fn run_worker(
             Some(&terminal.collection),
         ),
     )?;
-    profile_phase(request.request_id().as_str(), "open_worker_finished", started.elapsed().as_micros() as u64);
+    profile_phase(
+        request.request_id().as_str(),
+        "open_worker_finished",
+        started.elapsed().as_micros() as u64,
+    );
     Ok(())
 }
 /// An internal mode must have inherited bidirectional Unix sockets; shell pipes cannot dispatch it.

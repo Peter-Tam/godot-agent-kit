@@ -22,6 +22,7 @@ WORKER_FLAGS = (
     '--internal-observation-worker', '--internal-discovery-worker',
     '--internal-edit-worker', '--internal-closed-edit-worker',
     '--internal-closed-acquisition-worker', '--internal-stock-validation-worker',
+    '--internal-validator-readiness-worker',
 )
 PRIVACY_GROUPS = {
     'privacy-authorized': '_privacy_authorized_and_errors',
@@ -99,7 +100,10 @@ class McpPrivacyAcceptanceMixin(McpAdversarialMixin):
         payload = json.dumps(dict(private_source=sources[0], private_inventory=inventory[0],
                                   private_credential=next(iter(self.secrets)).decode('utf-8'))).encode()
         commands = [('help', ['--help'], 0), ('version', ['--version'], 0),
-                    ('startup-error', ['--registry', sources[0]], 2)]
+                    ('startup-error', ['--registry', sources[0]], 2),
+                    ('validator-startup-error',
+                     ['--registry', str(self.registry), '--validator-engine',
+                      str(self.args.mcp_server)], 1)]
         commands.extend(('worker-' + flag.removeprefix('--internal-'), [flag], 1)
                         for flag in WORKER_FLAGS)
         before = sorted((str(path), observation.digest(path)) for path in self.registry.rglob('*.json'))

@@ -44,7 +44,8 @@ class McpPeer:
         self.stderr_path = self.harness.artifacts / (self.label + '-mcp-stderr.log')
         self.diagnostics = self.stderr_path.open('wb')
         self.process = subprocess.Popen(
-            [str(self.harness.args.mcp_server), '--registry', str(self.harness.registry)],
+            [str(self.harness.args.mcp_server), '--registry', str(self.harness.registry),
+             '--validator-engine', str(self.harness.args.godot)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.diagnostics, bufsize=0,
             env=dict(os.environ, RUST_LOG='trace'))
         self.harness.open_processes.append(self.process)

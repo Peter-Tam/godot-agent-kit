@@ -317,7 +317,8 @@ class McpLifecycleMixin:
     def relay_connection(self, connection, control_server=None):
         connection.settimeout(15)
         diagnostics = (self.artifacts / 'mcp-stderr.log').open('ab')
-        process = subprocess.Popen([str(self.args.mcp_server), '--registry', str(self.registry)],
+        process = subprocess.Popen([str(self.args.mcp_server), '--registry', str(self.registry),
+                                    '--validator-engine', str(self.args.godot)],
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                    stderr=diagnostics)
         pending = {}

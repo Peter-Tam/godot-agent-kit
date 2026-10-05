@@ -717,13 +717,27 @@ impl Transport<RoleServer> for BoundedTransport {
     }
 }
 
-/// Runs the selected local service. Does not join a potentially blocked stdin or
-/// stdout thread; the owning executable bounds runtime teardown and exits.
+/// Prepares native documents when configured, then runs the selected local
+/// service. The preparation owner stays alive through transport shutdown. Does
+/// not join a potentially blocked stdin or stdout thread; the owning executable
+/// bounds runtime teardown and exits.
 ///
 /// # Errors
 /// Returns a source-free I/O error if the runtime, transport or protocol service
 /// cannot run. EOF and cancellation are not evidence of mutation rollback.
-pub fn run(registry: PathBuf, shutdown: &'static AtomicBool) -> io::Result<()> {
+pub fn run(
+    registry: PathBuf,
+    validator_engine: Option<PathBuf>,
+    shutdown: &'static AtomicBool,
+) -> io::Result<()> {
+    let prepared_documents = validator_engine
+        .as_deref()
+        .map(|binary| crate::runner::stock_validation::native_docs::prepare(binary, shutdown))
+        .transpose()
+        .map_err(io::Error::other)?;
+    if let Some(prepared) = &prepared_documents {
+        eprintln!("mcp validator ready {} us", prepared.elapsed_us());
+    }
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_time()
         .build()?;
@@ -799,6 +813,7 @@ pub fn run(registry: PathBuf, shutdown: &'static AtomicBool) -> io::Result<()> {
         }
     });
     runtime.shutdown_timeout(Duration::from_secs(1));
+    drop(prepared_documents);
     result
 }
 

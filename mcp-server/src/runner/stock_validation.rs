@@ -235,6 +235,7 @@ struct WireRequest {
     global_classes: Vec<String>,
     official_binary: String,
     private_dir: String,
+    native_docs: Option<native_docs::Descriptor>,
     elapsed_us: u64,
 }
 
@@ -251,6 +252,7 @@ fn wire_request(request: ValidationRequest, clock: &AttemptClock) -> WireRequest
         warnings: request.warnings,
         official_binary: request.official_binary.to_string_lossy().into(),
         private_dir: String::new(),
+        native_docs: None,
         elapsed_us: clock.elapsed_us(),
     }
 }
@@ -266,6 +268,11 @@ fn deadline(deadline: Instant) -> Result<(), &'static str> {
 mod admission;
 #[path = "stock_validation/closing_context.rs"]
 mod closing_context;
+#[path = "stock_validation/native_docs.rs"]
+pub(crate) mod native_docs;
+pub use native_docs::{
+    worker_main as preparation_worker_main, INTERNAL_FLAG as INTERNAL_PREPARATION_FLAG,
+};
 #[path = "stock_validation/opening_context.rs"]
 mod opening_context;
 pub(crate) use closing_context::validate_close_context_owned;
@@ -301,66 +308,25 @@ fn run_child(
     let private = private_clone_named(&request.private_dir)?;
     result.clone_path = Some(private.0.to_string_lossy().into());
     let project = stage(&closure, &private, &request.warnings)?;
+    if let Some(descriptor) = &request.native_docs {
+        native_docs::seed(&private, descriptor, deadline_at)?;
+        super::profile_phase(&request.request_id, "validator_native_docs_seeded", 0);
+    }
     super::profile_phase(&request.request_id, "validator_staged", 0);
     recheck(request, &closure, deadline_at)?;
-    let listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0))
-        .map_err(|_| "endpoint_unverified")?;
-    let port = listener
-        .local_addr()
-        .map_err(|_| "endpoint_unverified")?
-        .port();
-    drop(listener);
-    let arguments = vec![
-        "--headless".into(),
-        "--editor".into(),
-        "--path".into(),
-        project.to_string_lossy().into_owned(),
-        "--lsp-port".into(),
-        port.to_string(),
-    ];
-    result.launch_args.clone_from(&arguments);
     let mut owned = OwnedGodot(None);
     let work = (|| -> Result<(), &'static str> {
-        let child = Command::new(&request.official_binary)
-            .args(&arguments)
-            .current_dir(&project)
-            .env_clear()
-            .env("PATH", "/usr/bin:/bin")
-            .env("HOME", private.0.join("home"))
-            .env("XDG_CONFIG_HOME", private.0.join("config"))
-            .env("XDG_DATA_HOME", private.0.join("data"))
-            .env("XDG_CACHE_HOME", private.0.join("cache"))
-            .env("TMPDIR", private.0.join("tmp"))
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|_| "launch_failed")?;
-        result.child_pid = Some(child.id());
+        let (child, arguments, port) = launch(&request.official_binary, &private, &project)?;
+        let pid = child.id();
+        result.launch_args = arguments;
+        result.child_pid = Some(pid);
         result.child_spawned = Some(true);
         owned.0 = Some(child);
-        super::profile_phase(&request.request_id, "validator_godot_spawned", result.child_pid.unwrap_or(0).into());
-        let mut stream = connect_owned(result.child_pid.expect("spawned"), port, deadline_at)?;
+        super::profile_phase(&request.request_id, "validator_godot_spawned", pid.into());
+        let mut stream = connect_owned(pid, port, deadline_at)?;
         super::profile_phase(&request.request_id, "validator_connected", 0);
-        let project_uri = uri(&project)?;
-        send_lsp(
-            &mut stream,
-            &json!({"jsonrpc":"2.0","id":1,"method":"initialize",
-            "params":{"processId":std::process::id(),"rootUri":project_uri,
-                "rootPath":project.to_str().ok_or("unsafe_path")?,
-                "workspaceFolders":[{"uri":project_uri,"name":"Private GDScript Validation"}],
-                "capabilities":{"textDocument":{"documentSymbol":{
-                    "hierarchicalDocumentSymbolSupport":true}}}}}),
-        )?;
-        let initialized = response(&mut stream, 1, deadline_at)?;
+        initialize(&mut stream, &project, deadline_at)?;
         super::profile_phase(&request.request_id, "validator_initialized", 0);
-        if !initialized.is_object() || initialized.get("capabilities").is_none() {
-            return Err("initialize_incomplete");
-        }
-        send_lsp(
-            &mut stream,
-            &json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
-        )?;
         for (index, source) in closure.sources.iter().enumerate() {
             deadline(deadline_at)?;
             source_fence(&mut stream, source, index, &project, result, deadline_at)?;
@@ -561,6 +527,17 @@ fn validate_until(
             .min(9_500_000) as u64,
     );
     let mut result = ValidationResult::new(&wire);
+    // A strong borrow covers both the private worker's copy and its cleanup.
+    // The process-local registration alone never owns the prepared namespace.
+    let prepared = match native_docs::current() {
+        Ok(prepared) => prepared,
+        Err(reason) => {
+            result.unavailable(reason);
+            result.stamp(&clock);
+            return result;
+        }
+    };
+    wire.native_docs = prepared.as_ref().map(|owner| owner.descriptor());
     let mut cleanup_path = None;
     let process = (|| -> Result<ValidationResult, &'static str> {
         deadline(attempt_deadline)?;
@@ -612,7 +589,11 @@ fn validate_until(
             });
         }
         let worker = command.spawn().map_err(|_| "worker_unavailable")?;
-        super::profile_phase(&wire.request_id, "validator_worker_spawned", worker.id().into());
+        super::profile_phase(
+            &wire.request_id,
+            "validator_worker_spawned",
+            worker.id().into(),
+        );
         // Command retains its configured Stdio descriptors after spawn. Drop
         // those worker-side duplicates so worker loss produces EOF promptly.
         drop(command);
@@ -752,6 +733,7 @@ mod tests {
             global_classes: Vec::new(),
             official_binary: "/no/engine".into(),
             private_dir: String::new(),
+            native_docs: None,
             elapsed_us: 0,
         };
         (private, request)
