@@ -161,37 +161,47 @@ class McpLifecycleMixin:
     def prepare_targets(self, stack, profiles=None):
         self.targets = {}
         for name in profiles if profiles is not None else PROFILE_GROUPS[self.args.profile]:
-            source = '' if name == 'empty' else SAFE
-            if name == 'open':
-                fixture = self.close_fixture('mcp-' + name, source=source,
-                    paths=[TARGET, CURRENT, BACKGROUND], selected=TARGET)
-            else:
-                fixture = self.closed_fixture('mcp-' + name, cached=name in ('cached', 'dirty', 'divergent'),
-                                              source=source, faults=name == 'limited')
-            project, editor, descriptor = stack.enter_context(fixture)
-            if name in ('dirty', 'divergent'):
-                self.close_action(editor, 'closed_resource', mutation=name)
-            if name == 'limited':
-                self.close_action(editor, 'closed_fault', fault='missing_cache_getters')
-            if name == 'partial':
-                gap = project / 'unreadable'
-                gap.mkdir()
-                (gap / 'hidden.gd').write_text(SAFE)
-                gap.chmod(0)
-                stack.callback(gap.chmod, 0o700)
-            before, disks = self.state(editor, project)
-            desired = CHANGED
-            if name == 'unicode':
-                desired += '# café 雪 \U00010400\n'
-            if name == 'empty':
-                desired = SAFE
-            if name == 'empty_desired':
-                desired = ''
-            if name == 'bound':
-                desired = SAFE + '# ' + 'x' * (SOURCE_LIMIT - len(SAFE.encode()) - 3) + '\n'
-            self.targets[str(project)] = dict(name=name, project=project, editor=editor,
-                descriptor=descriptor, before=before, disks=disks, desired=desired, calls=[])
+            target = self._prepare_target(stack, name)
+            self.targets[str(target['project'])] = target
         return [target_receipt(t['name'], t['project'], t['descriptor']) for t in self.targets.values()]
+
+    def _prepare_target(self, stack, name):
+        source = '' if name == 'empty' else SAFE
+        if name == 'open':
+            fixture = self.close_fixture('mcp-' + name, source=source,
+                paths=[TARGET, CURRENT, BACKGROUND], selected=TARGET)
+        else:
+            fixture = self.closed_fixture('mcp-' + name, cached=name in ('cached', 'dirty', 'divergent'),
+                                          source=source, faults=name == 'limited')
+        project, editor, descriptor = stack.enter_context(fixture)
+        if name in ('dirty', 'divergent'):
+            self.close_action(editor, 'closed_resource', mutation=name)
+        if name == 'limited':
+            self.close_action(editor, 'closed_fault', fault='missing_cache_getters')
+        if name == 'partial':
+            gap = project / 'unreadable'
+            gap.mkdir()
+            (gap / 'hidden.gd').write_text(SAFE)
+            gap.chmod(0)
+            stack.callback(gap.chmod, 0o700)
+        before, disks = self.state(editor, project)
+        desired = CHANGED
+        if name == 'unicode':
+            desired += '# café 雪 \U00010400\n'
+        if name == 'empty':
+            desired = SAFE
+        if name == 'empty_desired':
+            desired = ''
+        if name == 'bound':
+            desired = SAFE + '# ' + 'x' * (SOURCE_LIMIT - len(SAFE.encode()) - 3) + '\n'
+        return dict(name=name, project=project, editor=editor, descriptor=descriptor,
+                    before=before, disks=disks, desired=desired, calls=[])
+
+    def prepared_intents(self):
+        return [dict(name=t['name'], replacement_sha256=hashlib.sha256(t['desired'].encode()).hexdigest(),
+                     replacement_utf8_bytes=len(t['desired'].encode()),
+                     observation_only=t['name'] in ('dirty', 'divergent', 'limited', 'invalidated', 'partial'))
+                for t in self.targets.values()]
 
     def prepared_prompt(self):
         targets = []
@@ -307,7 +317,8 @@ class McpLifecycleMixin:
     def relay_connection(self, connection, control_server=None):
         connection.settimeout(15)
         diagnostics = (self.artifacts / 'mcp-stderr.log').open('ab')
-        process = subprocess.Popen([str(self.args.mcp_server), '--registry', str(self.registry)],
+        process = subprocess.Popen([str(self.args.mcp_server), '--registry', str(self.registry),
+                                    '--validator-engine', str(self.args.godot)],
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                    stderr=diagnostics)
         pending = {}
@@ -364,6 +375,8 @@ class McpLifecycleMixin:
                                     identity not in pending and len(pending) < 8):
                                 project = params['arguments'].get('project_root')
                                 target = self.targets.get(project) if isinstance(project, str) else None
+                                if target and self.args.profile == 'composed':
+                                    self.before_composed_call(target, value)
                                 marker = target['project'] / 'scripts/.gdignore' if target else None
                                 if (params['name'] == 'discover_scripts' and target and
                                         target['name'] != 'partial' and marker.exists()):
@@ -550,10 +563,7 @@ def serve_prepared(harness, run):
             environment_identity=provenance['environment_identity'],
             provenance_sha256=observation.digest(run / 'provenance.json'),
             native_build_id=harness.expected_native_build_id,
-            intents=[dict(name=t['name'], replacement_sha256=hashlib.sha256(t['desired'].encode()).hexdigest(),
-                          replacement_utf8_bytes=len(t['desired'].encode()),
-                          observation_only=t['name'] in ('dirty', 'divergent', 'limited', 'invalidated', 'partial'))
-                     for t in harness.targets.values()],
+            intents=harness.prepared_intents(),
             fixture_driver_sha256=observation.digest(Path(__file__))))
         (run / 'prompt.txt').write_text(harness.prepared_prompt())
         try:

@@ -31,22 +31,27 @@ def selectors(project, descriptor, script_path=TARGET, select_session=True):
 class McpPeer:
     """One owned product process; no automatic retries or result substitution."""
 
-    def __init__(self, harness, label):
+    def __init__(self, harness, label, *, temporary_root=None):
         self.harness = harness
         self.label = label
         self.process = None
         self.buffer = bytearray()
         self.diagnostics = None
         self.pending = {}
+        self.temporary_root = temporary_root
 
     def __enter__(self):
         observation.require(self.harness.args.mcp_server is not None, 'actual_MCP_binary_required')
         self.stderr_path = self.harness.artifacts / (self.label + '-mcp-stderr.log')
         self.diagnostics = self.stderr_path.open('wb')
+        environment = dict(os.environ, RUST_LOG='trace')
+        if self.temporary_root is not None:
+            environment['TMPDIR'] = str(self.temporary_root)
         self.process = subprocess.Popen(
-            [str(self.harness.args.mcp_server), '--registry', str(self.harness.registry)],
+            [str(self.harness.args.mcp_server), '--registry', str(self.harness.registry),
+             '--validator-engine', str(self.harness.args.godot)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.diagnostics, bufsize=0,
-            env=dict(os.environ, RUST_LOG='trace'))
+            env=environment)
         self.harness.open_processes.append(self.process)
         os.set_blocking(self.process.stdin.fileno(), False)
         os.set_blocking(self.process.stdout.fileno(), False)

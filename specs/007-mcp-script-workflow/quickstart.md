@@ -1,6 +1,6 @@
 # Quickstart: Validate the Trusted MCP Script Workflow
 
-**Status:** T001–T003 are **complete**, with [core/native evidence](#t001-execution-evidence-2026-10-04), [positive MCP/two-client acceptance](#t002-execution-evidence-2026-10-05), and [adversarial safety/two-client failure acceptance](#t003-execution-evidence-2026-10-05). Codex CLI 0.153.4 and OMP 18.5.1 completed their positive and failure/reconnect profiles. T004 remains pending and unselected; feature completion and Phase 3 exit are not claimed.
+**Status:** Feature 007 and T001–T004 are **complete**, with [core/native evidence](#t001-execution-evidence-2026-10-04), [positive MCP/two-client acceptance](#t002-execution-evidence-2026-10-05), [adversarial safety/two-client failure acceptance](#t003-execution-evidence-2026-10-05), and [actual-agent composed/cumulative acceptance](#t004-execution-evidence-2026-10-05). Failed or incomplete runs remain excluded. Phase 3 exit, release and broader support are not claimed.
 
 Read [plan.md](plan.md), [data-model.md](data-model.md) and [the public contract](contracts/mcp-interface.md). Follow [TEST_POLICY.md](../../TEST_POLICY.md) for scope, evidence reuse and the existing [VM boundary](../../.github/LOCAL_VM.md). No command authorizes a feature task before its own approved tasks/analysis and one-task-one-PR prerequisites.
 
@@ -33,7 +33,7 @@ cargo +1.98.1 build --locked --bin godot-agent-kit-mcp
 ./target/debug/godot-agent-kit-mcp --version
 ```
 
-Expected: no editor effect, no source/credential output. For ordinary developer use with an already-configured local editor/registry, the client starts that binary with `--registry "$REGISTRY"`. Registry setup/addon enablement/editor startup remain deliberate developer actions. The server does not infer a project from cwd or start Godot.
+Expected: no editor effect, no source/credential output. For ordinary long-lived use with an already-configured local editor/registry, start the binary with `--registry "$REGISTRY" --validator-engine "$GODOT"`, where `$GODOT` is the absolute path to the pinned official executable. This optionally prepares only native documentation in a source-free helper before accepting protocol input, under a ten-second startup bound; a source-free readiness duration goes to stderr. Preparation failure is startup failure, not a retried operation. `--registry` alone retains the fully timed cold path. Registry setup/addon enablement/target-editor startup remain deliberate developer actions. The server does not infer a project from cwd or start the target editor. Fresh per-validation helper launch, source checks and cleanup remain inside each accepted request's unchanged response bound.
 
 For implementation verification, start with the smallest affected test target. At Rust-affecting task completion run the applicable baseline from `mcp-server/`:
 
@@ -820,6 +820,28 @@ listed by `run_mcp.py --help`. After a failure, retain completed groups and reru
 only the affected group and remaining obligations. No historical `all` campaign
 or T004 composed interaction is implied.
 
+T004 adds `--profile composed`: one conversation discovers each target and performs
+the generated human-intent sequence across open, cached-Resource closed and
+absent-Resource closed scripts. The fixed fixture supplies ordinary human changes,
+Undo/Save/Redo/Save and later lifecycle/durability actions at the designated
+boundaries, outside the product's accepted-frame clock. Every product response
+remains unmodified and has independent authority/history witnesses. The finalizer
+requires twenty fresh-revision changed edits, three dirty refusals, three stale
+refusals and the final actual-client reads; an omitted or failed step does not pass.
+Use `finalize-mcp` after that conversation, without `prepare-durability`.
+
+The three fixtures run serially in the four-vCPU guest: the next editor starts
+only after the previous final read, durability witnesses and owned shutdown.
+The prompt declares future project paths, not future session IDs. Original/desired
+preflight validation remains concurrent within each real product edit.
+
+`run mcp --scenario composed` exercises the same ordered witness state machine
+with a direct stdio peer; it is **not** real-agent acceptance. The separately
+runnable `privacy-export` group checks actual authorized/error/selection/interrupted
+disclosure, startup/help/private-worker separation and enabled/disabled/hook-only
+production export artifacts. Neither group implies a historical full campaign,
+release candidate or Phase 3 exit.
+
 Each consumed public result records its original forwarding-to-delivery clock.
 Blocked/lost-output runs instead record delivery unavailable and bounded owned
 cleanup, not consumed-output performance or rollback. Independent retained disk,
@@ -990,4 +1012,307 @@ After an owned run, retrieve artifacts and stop the VM using the existing wrappe
 
 Planning ran static documentation checks, repository/LSP and released-source research, installed client version/help checks, VM status/start/stop, and the scoped [closed-source mechanics probe](research.md#owned-stock-editor-observations) with visual inspection and fresh-runtime persistence witness. The two incomplete probe attempts remain excluded from the completed observation. Those planning-only checks did not establish MCP interoperability, product-suite/native-build acceptance, A–E coverage, release or Phase 3 exit; later implementation evidence is recorded above.
 
-**Historical public-contract probe:** The [earlier correction](research.md#7-public-contract-correction-evidence) inspected Codex result conversion and attempted an isolated synthetic carrier probe with the then-selected Codex + Claude pair. Expired Claude OAuth and an unavailable Codex code-mode tool path prevented model-visible results. Those failures remain excluded; Claude is no longer a current acceptance requirement. The [Codex + OMP planning correction](research.md#8-codex-and-omp-client-correction-evidence) was source/configuration research, not runtime acceptance. [T002 positive workflows](#t002-execution-evidence-2026-10-05) and [T003 adversarial interpretation](#t003-execution-evidence-2026-10-05) are now complete. T004 composed/cumulative acceptance remains pending.
+**Historical public-contract probe:** The [earlier correction](research.md#7-public-contract-correction-evidence) inspected Codex result conversion and attempted an isolated synthetic carrier probe with the then-selected Codex + Claude pair. Expired Claude OAuth and an unavailable Codex code-mode tool path prevented model-visible results. Those failures remain excluded; Claude is no longer a current acceptance requirement. The [Codex + OMP planning correction](research.md#8-codex-and-omp-client-correction-evidence) was source/configuration research, not runtime acceptance. [T002 positive workflows](#t002-execution-evidence-2026-10-05), [T003 adversarial interpretation](#t003-execution-evidence-2026-10-05) and [T004 composed/cumulative acceptance](#t004-execution-evidence-2026-10-05) now supply the completed implementation evidence.
+
+## T004 serial verification (2026-10-05)
+
+**Historical incomplete attempt:** T004 was not complete at this point. The composed fixture
+creates exactly one live target editor at a time; future profiles are not prepared
+until the preceding final client read, durability witnesses and owned shutdown.
+Original/desired product preflight concurrency and all 5/10-second bounds remain
+unchanged. No six-vCPU test occurred; both the configured and observed VM allocation
+remain four vCPUs with 6 GiB RAM.
+
+Source `b0714c1ed9dfa3faa5110deea0c4b101417a3d08` produced these retained VM records
+under `~/.local/state/godot-agent-kit-vm/artifacts/`:
+
+| Run / snapshot | Result and evidence |
+| --- | --- |
+| `t004-composed-serial-4cpu-1/20261005T101926Z-ef22f6789ff1` | Failed composed acceptance; 48 records and 23 public calls, all in the open profile. Exactly one owned target editor (PID 1044); cached/absent fixtures never started. |
+| `t004-privacy-selection-carrier-1/20261005T102327Z-c644b5a68f01` | Passed 18 records with complete-frame denied/ambiguous/confinement checks. Two live editors are deliberate only for selection/ambiguity. |
+| `t004-privacy-interrupted-carrier-1/20261005T102436Z-cad8359ea383` | Passed 10 records with complete-frame sticky-denial checks, including source hashes and text content. Its open/cached/absent cases ran serially. |
+
+The four successful changed edits took **8.379106, 8.541265, 7.585256 and
+8.779160 seconds**. One stale and two dirty refusals took 0.360027, 0.433790 and
+0.455969 seconds. The fifth intended change returned **`applied_unverified` /
+`validation_unavailable` in 9.464649 seconds**. Its returned evidence records
+application, matching clean D/R/B and completed persistence/finalization, but
+incomplete post-change source validation; the visible editor capture independently
+shows the intended value and preserved comments. Neither those observations nor
+the successful prior edits turn that result into verified success.
+
+This is **not a ten-second response-bound breach**. It is an isolated operation
+that failed to finish verification within the existing budget, leaving SC-005's
+twenty verified changes and the full actual-agent conversation unproved. No edit
+was retried or skipped to manufacture completion. The guest admission recorded
+four CPUs and five idle samples of 97.75%, 95.44%, 97.8%, 99.4% and 97.27%.
+No test-created host Godot process or host focus request was observed.
+
+The exact environment remains macOS 26.6.2 (25G83), arm64, official Godot
+4.7.2; its renewed execution identity is
+`5be872888a3eacb7798de40e70d66e1f438d908e00cf714575d65b2632596ced`.
+The observed MCP executable SHA-256 is
+`97f086e83e160885fb74a4f0b4235d3c5daffc2e2b20c3f0ca4dffe5d878aaee`.
+Production native inputs and outputs match the accepted T003 artifact, including
+library SHA-256
+`b1d10e9ed714dacb2ccc4cb614e146d8ea2059003c52813f4acdd8ff91ee76c1`.
+Production Rust/addon/native source is unchanged from the merged task base.
+The Rust build key differs from the earlier T003 client receipt because the
+merged T003 head includes its documented test-only recovery-summary correction;
+the key includes those test sources. No byte-identical Rust-binary claim is made.
+
+Implementation review exposed two harness false-pass paths: adopting post-Save
+source as its own expectation, and checking only structuredContent for some
+denied/interrupted disclosure. Focused regressions failed before correction.
+Save now compares independent post-Save authorities and saved state with pre-Save
+B; disclosure checks inspect complete retained frames. **32 affected Python
+tests passed**, including serial profile ownership and cleanup after abandonment.
+These are acceptance-harness corrections, not observed product data loss or leaks.
+
+The unchanged enabled/disabled/hook-only export evidence remains passed at
+`t004-privacy-exports-1/20261005T094744Z-4c0df4a622f2` (source `4df5f67`):
+all three actual production artifacts had recorded ZIP/pack hashes, zero runtime
+exit status and zero observed listeners. Failed earlier composed/client attempts
+remain excluded. No full composed acceptance, feature completion, release or
+Phase 3 exit is claimed.
+
+## T004 timing-safe validation preparation (2026-10-05)
+
+The [corrected timing architecture](plan.md#timing-boundary-and-readiness-requirements)
+and [native-documentation preparation](plan.md#selected-optimization-prepared-native-documentation-fresh-validators)
+passed fresh consistency analysis at `efe38b3`. No startup or preflight time is
+subtracted from an accepted edit. Configured native-documentation preparation
+finishes before protocol input; each later source pass still launches, verifies
+and reaps a fresh official Godot process inside its original operation budget.
+Prepared native documentation is not a prewarmed compiler or a cached verdict.
+
+### Mechanism and lifecycle evidence
+
+Private records are under
+`~/.local/state/godot-agent-kit-vm/artifacts/validator-startup-investigation/`.
+The exact pinned engine and four-vCPU guest were used; no host Godot ran.
+
+- `guest-probes.tar:./equivalence-summary.json`: an empty source-free preparation
+  took **1.957208 seconds**. Ten cold/prepared pairs matched exact diagnostic
+  severities, messages and ranges for valid/invalid roots, valid/invalid
+  same-path dependencies, integer-division error/off, Unicode-confusable
+  identifier error/off and directory exclusion/inclusion. Every invocation
+  used a distinct fresh process. Cold initialization median/range was
+  **1.530 / 1.414–2.082 seconds**; prepared-document initialization was
+  **1.282 / 1.188–1.613 seconds**. These mechanism measurements are not a
+  general latency guarantee or actual-agent acceptance.
+- Product source `d630f21`, `startup-lifecycle.txt`: EOF, SIGINT, SIGTERM and
+  owned-worker loss during observed engine startup failed in **0.258–0.613
+  seconds**. A deliberately stopped owned engine expired in **9.788754 seconds**,
+  within the unchanged ten-second preparation bound. No success fallback,
+  protocol stdout, retained owned namespace or surviving observed child occurred.
+- `startup-ready-owned.txt`: actual product preparation reported **2.528420
+  seconds**, with protocol initialization observed at **2.534035 seconds**.
+  Independently observed worker/engine PIDs **3540/3550** were already gone at
+  readiness. Only the native `.res` snapshot remained; ordinary EOF removed
+  that namespace and exited successfully. Later log wording identifies this
+  specifically as native-document readiness, not a ready compiler process.
+
+### Full-request and effect-safety evidence
+
+`validation-profile-2/20261005T131256Z-d85f698353e8`, source `d630f21`, passed
+**19** focused open/closed revision records. All five source-validation passes
+used the prepared snapshot and fresh processes. The before/after profile is:
+
+| Interval (seconds) | Before open | Prepared open | Before closed | Prepared closed |
+| --- | ---: | ---: | ---: | ---: |
+| Desired / concurrent original+desired preflight | 2.280 | 1.964 | 3.629 | 3.469 |
+| Fresh engine spawn → owned connection, preflight | 1.918 | 1.515 | 3.068 | 2.814 / 2.826 |
+| Native mutation | 0.542 | 0.517 | 0.028 | 0.029 |
+| Independent actual-source validation | 1.770 | 1.582 | 2.168 | 1.842 |
+| Fresh engine spawn → owned connection, actual source | 1.470 | 1.242 | 1.795 | 1.461 |
+| Complete consumed public edit response | 5.783 | 5.577052 | 6.478 | 6.317666 |
+
+The modest total reduction is reported without subtracting any component.
+Before source/run identity is in the plan; the after run retains `phases.log`
+alongside its independent editor witnesses and original-clock public results.
+
+`native-docs-effects-1/20261005T133314Z-e32ac44fb75e`, source `f31a22a`, passed
+**13** records. In each open, cached-R closed and absent-R closed profile,
+same-size snapshot corruption before preflight returned `refused`,
+`not_applied`, `validation_unavailable` in **1.021–1.079 seconds**. Snapshot loss
+at an independently observed post-mutation barrier returned
+`applied_unverified`, `applied`, `validation_unavailable` in **4.054–4.174
+seconds**. Actual applicable source authorities and unrelated human history
+survived unchanged; no rollback or unverified success was invented. Each peer's
+owned namespace was removed on EOF. The separately runnable
+`run mcp --scenario validation-preparation` retains these consumer-visible
+regressions.
+
+Temporary phase instrumentation is removed after measurement. Filesystem helpers
+borrow snapshot paths directly rather than constructing disposable owners for
+borrowed data. The new preparation module owns one snapshot lifecycle, with
+explicit registration/reply states and narrow current-consumer visibility;
+no parser pool, replay service, background replenishment, dependency or framework
+was introduced. Existing validator process/context/fence semantics and the
+adapter's original accepted-frame clocks remain intact.
+
+Rust formatting, strict all-target Clippy, rustdoc and actual library/binary/example
+builds passed. **473 distinct tests have passing evidence**, plus the default
+doctest target (zero doctests). The first `cargo test --locked` invocation had one
+wall-clock failure in the unchanged `script_open` late-compilation fixture during
+the parallel 63-test bridge group; its no-source-editor path does not invoke the
+changed validator. The same case passed in isolation under its unchanged
+ten-second assertion; the other 62 bridge cases and 237 library tests had already
+passed, and the remaining 173 consumer tests were then executed successfully.
+This retains the [existing concrete timing-case exception](#focused-review-correction-recovery-summary-alignment)
+under TEST_POLICY's Rust rule, not a claimed all-green aggregate run or deadline
+waiver. No production open-path or timing-test input changed, and no scheduling
+cause is newly asserted. The initial failure is retained. The affected Python
+checks passed **32 tests**.
+
+These focused probes alone did not complete SC-005. The full actual-agent
+interaction below supplies that remaining evidence; the earlier failed serial
+run remains failed evidence, not a pass or a deadline exception.
+
+## T004 execution evidence (2026-10-05)
+
+**Complete:** T004 and Feature 007 satisfy their approved acceptance, cumulative
+coverage and implementation-shape gates. Only T004 is completed in this delivery.
+This is not a Phase 3 exit assessment, release candidate or support expansion.
+
+### Actual-agent composed interaction
+
+The actual **OMP 18.5.1 / openai-codex gpt-6-astra** conversation ran against
+source `3067fc690f1b08e28bf7a296468c8105c4122ea1`, from the clean owned repository
+checkout with its unchanged `.omp/lsp.yaml`, ordinary `write` approval mode and
+the fixed VM relay. No global client configuration or credential was changed.
+The client exited successfully; stderr was empty.
+
+Private evidence beneath `~/.local/state/godot-agent-kit-vm/artifacts/`:
+
+- Client: `t004-omp-prepared-20261005T140507Z-4cdg2m6j`, including the original
+  `omp.jsonl`, completed `model-visible.jsonl`, prompt/config/receipt and
+  `client-launch.json`.
+- VM: `t004-omp-prepared-20261005T140507Z/20261005T142357Z-81078c012cfa`,
+  including `summary.json`, `mcp-calls.jsonl`, `delivery.jsonl`, `protocol.jsonl`,
+  independent authority/history/lifecycle records and owned captures.
+
+The VM finalizer passed **75 records**. The single actual conversation completed
+**68 MCP operations**: three discoveries, 39 reads and 26 edit attempts.
+Twenty attempts returned `verified_changed`: **8 open, 6 cached-R closed and
+6 absent-R closed**. The other six were exactly three `revision_mismatch` and
+three `dirty_buffer` refusals, all without application or history participation.
+Every changed edit used the latest eligible model-visible read revision and
+changed only the requested return value while preserving all other source.
+All 68 model-visible public objects and submitted argument objects exactly match
+the retained actual MCP calls by request ID. No missing result, retry, substituted
+operation or skipped change was counted.
+
+The harness correctly keeps `real_client_acceptance: false`: its records alone
+cannot establish model visibility. Actual completed client messages and subsequent
+arguments/interpretations provide that separate evidence. The only non-operation
+calls were three ordinary `xd://` reads of the MCP tool descriptions; all project
+operations were writes to the actual MCP tool devices, not file/shell/private
+bridge substitutes.
+
+**A/B:** Independent intended D/R/B and saved state were checked for open changes,
+including native Save retaining the pre-Save intended buffer. Dirty and
+equal-text-dirty attempts preserved human work. The agent consumed the unsaved
+read, then the deliberately saved read before the next intentional edit.
+
+**C:** Real Undo → Save → Redo → Save produced respectively:
+`B/R=47, D=101, dirty`; `D/R/B=47, clean`; `B/R=101, D=47, dirty`;
+`D/R/B=101, clean`. The agent's four reads and explanations distinguish unsaved
+history from persisted source; neither dirty history state was edited. Existing
+human/prior history remained reachable. No replacement edit simulated Undo/Redo.
+
+**D/E:** Ordinary later close/reopen, reparse, rescan and fresh runtimes preserved
+final values **108, 206 and 306**, with independent live authority witnesses and
+actual agent reads. Closed targets stayed closed through all twelve edits:
+cached R remained coherent, absent R remained absent, and no buffer/history
+participation was invented. Later opening witnessed already-verified persistence.
+Owned captures show the final open `108` with all three human comment lines and
+the later-opened `306`; unrelated deliberate invalid-fixture notifications during
+rescan are not target-script failures. Exactly one target editor ran per profile
+(guest PIDs 6414, 10742 and 11869); each was closed before its successor started.
+
+### Complete-response timing and provenance
+
+Native-document preparation reported **2.555010 seconds** before protocol input.
+Each source pass still used a fresh process, with its launch, source-specific
+preflight and independent actual-source validation inside the original request
+clock. All 68 consumed public responses met their unchanged 5/10-second bounds:
+
+| Operation/profile | Count | Minimum seconds | Median seconds | Maximum seconds |
+| --- | ---: | ---: | ---: | ---: |
+| Discovery | 3 | 0.109344 | 0.211909 | 0.239333 |
+| Read | 39 | 0.193979 | 0.316140 | 0.778521 |
+| Verified open edit | 8 | 5.301578 | 5.455083 | 6.048600 |
+| Verified cached-R closed edit | 6 | 4.914247 | 5.251846 | 6.512634 |
+| Verified absent-R closed edit | 6 | 5.095378 | 5.258931 | 6.189207 |
+| Stale refusal | 3 | 0.333200 | 0.586823 | 0.698425 |
+| Dirty refusal | 3 | 0.277179 | 0.335193 | 0.353716 |
+
+These are complete forwarding-to-consumed-response measurements, not durations
+with startup subtracted. The [matched diagnostic before/after samples](#full-request-and-effect-safety-evidence)
+remain the scoped optimization comparison; one successful composed run is not an
+arbitrary-load latency guarantee. Exhaustion still reports truthful non-success.
+
+The environment remains macOS **26.6.2 (25G83), arm64, four vCPUs, 6 GiB** and
+official Godot **4.7.2.stable.official.ed1daf0bf**. Execution identity is
+`5be872888a3eacb7798de40e70d66e1f438d908e00cf714575d65b2632596ced`.
+The MCP executable SHA-256 is
+`332243aab6d9a76432f2968dc225022bc7a93662e83e880cf04b3bc264174047`.
+Engine, API/ABI and native provenance remain exact; production native library
+SHA-256 is unchanged from T003:
+`b1d10e9ed714dacb2ccc4cb614e146d8ea2059003c52813f4acdd8ff91ee76c1`,
+build ID `67d0e5a3ea5e7b73019ef159cb8ac664da54fe5de2a944c4b150ecc9460fc05e`.
+No Rust binary equivalence is presumed: the changed actual executable was exercised.
+Finalization retrieved the witnesses and removed owned fixture sessions; temporary
+profiling/client scaffolds were removed and the VM was stopped.
+
+### Cumulative evidence disposition
+
+The [acceptance matrix](#acceptance-coverage) covers all **26 scenarios,
+FR-001–FR-022 and SC-001–SC-009** with these current dispositions:
+
+| Matrix row / obligations | Current evidence and validity |
+| --- | --- |
+| Transport / US1.1–US1.4; FR-001–004, 012–017, 021; SC-001, 004, 006–007 | Reuse T002/T003 negotiated catalog, schema/carrier, routing, failure and both-client evidence. Those interfaces and ownership semantics are unchanged. New deployment-option/startup/worker-loss checks and the actual prepared conversation cover the new startup path. |
+| Lean interface / US1.5; FR-002, 022; SC-009 | Reuse both selected clients' representative/carrier evidence; newly inspect all completed composed messages, arguments and recovery interpretations as described below. |
+| Closed native/lifecycle / US2.1, US2.3–US2.5, US5.5; FR-005–011, 014, 018–020; SC-002–006, 008 | Reuse T001–T003 guard, absence/cache, no-op, namespace/epoch and fault evidence. Native/source-mutation semantics and ABI are unchanged. Newly execute prepared cached/absent edits, snapshot failures and later durability; cold/prepared compiler diagnostics match for the selected root/dependency/warning/exclusion cases. |
+| Preservation / US2.2, US3.1–US3.4, US3.7; FR-004–010, 018–020; SC-002–003, 008 | Reuse T003 dirty/stale/lifecycle/confinement evidence. Newly execute open/closed revision smoke and composed A/B/C/E; intended post-Save witness and complete-frame disclosure corrections have focused failing-before/passing-after regressions. |
+| Interruption / US3.5–US3.6, US4.1–US4.4; FR-003–004, 007, 010–017, 020; SC-003–004, 006–007 | Reuse T003 cancellation, output loss, no late effects, no rollback and actual-client uncertainty evidence: call clocks, authorization and outcome reduction are unchanged. Newly exercise preparation EOF/signals/deadline/worker loss and snapshot loss before/after mutation; the 13-record effects group preserves truthful refusal versus applied-unverified. |
+| Actual composed A–E / US5.1–US5.4; FR-019–020; SC-001–005, 008–009 | Newly executed complete actual-agent interaction and 75-record independent finalizer above. No earlier failed composed run is promoted to a pass. |
+| Privacy/export / FR-016–018, 020–021; SC-007–008 | Complete authorized/startup/help/worker/error subgroup, strengthened complete-frame denied/ambiguous/interrupted groups, all three production export modes, new startup privacy checks and unchanged local v1 contracts, detailed below. |
+
+Privacy evidence retains the **17 completed records** in
+`t004-worker-diagnostic-1/20261005T085241Z-77a7de8f8860` (source `e01a741`) under
+`privacy-authorized-startup-help-worker-error`. Its enclosing run failed later
+in the next selection group; that failed/incomplete group is not reused.
+Authorized selection, source/inventory/credential redaction and error carriers
+are unchanged. The [18-record selection and 10-record interruption groups](#t004-serial-verification-2026-10-05)
+replace their earlier insufficient/incomplete checks. The enabled/disabled/hook-only
+production exports at `t004-privacy-exports-1/20261005T094744Z-4c0df4a622f2`
+retain actual ZIP/pack hashes, zero runtime exit and zero listeners. Native/export
+inputs and artifacts are unchanged; native-document preparation is not exported.
+No broader historical campaign or export replay was required by the changed
+validator path.
+
+**Qualitative FR-022/SC-009:** The prompt supplied targets, desired values and
+ordinary human history/conflict intent, without private architecture instructions.
+The model used the three static descriptions, preserved source/comments, carried
+opaque current revisions, explained both refusal categories, read before further
+intentional changes, distinguished dirty history from persistence and correctly
+reported closed/absent lifecycle limitations. It did not infer running-class
+reload from source agreement. The single structured carrier was sufficient;
+no schema/description expansion, full-text duplication or numeric prose budget
+was added.
+
+**Completion review:** The [implementation-shape/constitutional review](plan.md#t004-implementation-shape-and-constitutional-review),
+473 distinct passing Rust tests with the documented existing timing-case exception,
+32 affected Python tests, actual builds, compiler-equivalence/loss probes,
+complete composed interaction and valid retained privacy/export evidence satisfy
+T004's gates. Later completion prose changes no executable input or obligation.
+The `efe38b3` design analysis remains the semantic baseline; delivery-only evidence
+does not require fingerprint-only renewal. The closed-buffer history surface is
+inapplicable because no document exists, not because an observation was missing;
+its absence was independently witnessed. Exact support, no host GUI fallback,
+no telemetry, no forced reconciliation and all prior local v1 contracts remain.
+Phase 3 exit and release require their own decisions and are not inferred here.

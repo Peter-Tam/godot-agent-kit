@@ -142,7 +142,9 @@ On notifications/cancelled, set only that call's cancellation flag and keep the 
 
 ## Executable and compatibility surface
 
-The planned executable is `mcp-server/target/debug/godot-agent-kit-mcp --registry "$REGISTRY"`. Registry is required deployment configuration, not an agent-selected endpoint or tool parameter. Reuse the existing registry initialization, exact authenticated engine/validator selection and internal same-binary worker dispatch before MCP startup. No new editor-path, network, arbitrary worker, default-project or force option.
+The executable is `mcp-server/target/debug/godot-agent-kit-mcp --registry "$REGISTRY" [--validator-engine "$GODOT"]`. Registry is required deployment configuration, not an agent-selected endpoint or tool parameter. Reuse the existing registry initialization, exact authenticated engine/validator selection and internal same-binary worker dispatch before MCP startup. No target-editor, network, arbitrary worker, default-project or force option exists.
+
+The optional absolute validator-engine path enables the plan's bounded, source-free native-documentation preparation before protocol input. Only the pinned official binary is accepted; this cannot select an arbitrary executable or start the target editor. Preparation must finish within ten seconds, with owned child cleanup and a source-free readiness receipt; configured preparation failure terminates startup. Omission retains the original fully timed cold path, not a prepared-readiness claim. Every actual validation still uses a fresh isolated process with current source/context, and all work after request acceptance remains charged to that request. The prepared native-only snapshot is private, content-bound, read-only to validation workers and owned for the server lifetime; no project/compiler/dependency/verdict state is shared.
 
 Implement `--help` and `--version` as no-operation invocations. Unknown/duplicate configuration flags fail before protocol/editor work. Keep the existing five local binaries and their schemas/exit meanings unchanged. This plan changes no Cargo file yet.
 

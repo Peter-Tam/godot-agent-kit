@@ -42,7 +42,7 @@ pub(super) fn private_clone_named(name: &str) -> Result<PrivateClone, &'static s
     verify_private_dir(&private.0)?;
     Ok(private)
 }
-fn verify_private_dir(path: &Path) -> Result<(), &'static str> {
+pub(super) fn verify_private_dir(path: &Path) -> Result<(), &'static str> {
     let parent = fs::canonicalize(std::env::temp_dir()).map_err(|_| "host_unavailable")?;
     let name = path
         .file_name()
@@ -81,10 +81,9 @@ pub(super) fn mkdir(path: &Path) -> Result<(), &'static str> {
     builder.mode(0o700);
     builder.create(path).map_err(|_| "host_unavailable")
 }
-pub(super) fn stage(
-    closure: &Closure,
+pub(super) fn stage_project(
     clone: &PrivateClone,
-    warnings: &WarningSettings,
+    warnings: Option<&WarningSettings>,
 ) -> Result<PathBuf, &'static str> {
     let project = clone.0.join("project");
     mkdir(&project)?;
@@ -93,21 +92,23 @@ pub(super) fn stage(
     }
     // No inherited feature list, selected addons, UID remaps, extensions or old .godot.
     let mut text = String::from("config_version=5\n\n[application]\nconfig/name=\"Private GDScript Validation\"\n\n[debug]\n");
-    text.push_str("gdscript/warnings/enable=");
-    text.push_str(if warnings.enable { "true\n" } else { "false\n" });
-    use std::fmt::Write as _;
-    for (key, value) in &warnings.levels {
-        writeln!(text, "gdscript/warnings/{key}={value}").expect("String accepts formatting");
-    }
-    if !warnings.directory_rules.is_empty() {
-        text.push_str("gdscript/warnings/directory_rules={");
-        for (index, (dir, decision)) in warnings.directory_rules.iter().enumerate() {
-            if index != 0 {
-                text.push_str(", ");
-            }
-            write!(text, "\"{dir}\": {decision}").expect("String accepts formatting");
+    if let Some(warnings) = warnings {
+        text.push_str("gdscript/warnings/enable=");
+        text.push_str(if warnings.enable { "true\n" } else { "false\n" });
+        use std::fmt::Write as _;
+        for (key, value) in &warnings.levels {
+            writeln!(text, "gdscript/warnings/{key}={value}").expect("String accepts formatting");
         }
-        text.push_str("}\n");
+        if !warnings.directory_rules.is_empty() {
+            text.push_str("gdscript/warnings/directory_rules={");
+            for (index, (dir, decision)) in warnings.directory_rules.iter().enumerate() {
+                if index != 0 {
+                    text.push_str(", ");
+                }
+                write!(text, "\"{dir}\": {decision}").expect("String accepts formatting");
+            }
+            text.push_str("}\n");
+        }
     }
     OpenOptions::new()
         .write(true)
@@ -115,6 +116,15 @@ pub(super) fn stage(
         .open(project.join("project.godot"))
         .and_then(|mut file| file.write_all(text.as_bytes()))
         .map_err(|_| "host_unavailable")?;
+    fs::canonicalize(project).map_err(|_| "host_unavailable")
+}
+
+pub(super) fn stage(
+    closure: &Closure,
+    clone: &PrivateClone,
+    warnings: &WarningSettings,
+) -> Result<PathBuf, &'static str> {
+    let project = stage_project(clone, Some(warnings))?;
     for source in &closure.sources {
         let relative = source
             .path
@@ -133,7 +143,7 @@ pub(super) fn stage(
             .write_all(source.captured.text.as_bytes())
             .map_err(|_| "host_unavailable")?;
     }
-    fs::canonicalize(project).map_err(|_| "host_unavailable")
+    Ok(project)
 }
 pub(super) fn official(binary: &str, deadline_at: Instant) -> Result<(), &'static str> {
     deadline(deadline_at)?;
@@ -188,6 +198,69 @@ pub(super) fn official(binary: &str, deadline_at: Instant) -> Result<(), &'stati
         return Err("wrong_binary");
     }
     Ok(())
+}
+
+pub(super) fn launch(
+    binary: &str,
+    private: &PrivateClone,
+    project: &Path,
+) -> Result<(Child, Vec<String>, u16), &'static str> {
+    let listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0))
+        .map_err(|_| "endpoint_unverified")?;
+    let port = listener
+        .local_addr()
+        .map_err(|_| "endpoint_unverified")?
+        .port();
+    drop(listener);
+    let arguments = vec![
+        "--headless".into(),
+        "--editor".into(),
+        "--path".into(),
+        project.to_string_lossy().into_owned(),
+        "--lsp-port".into(),
+        port.to_string(),
+    ];
+    let child = Command::new(binary)
+        .args(&arguments)
+        .current_dir(project)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", private.0.join("home"))
+        .env("XDG_CONFIG_HOME", private.0.join("config"))
+        .env("XDG_DATA_HOME", private.0.join("data"))
+        .env("XDG_CACHE_HOME", private.0.join("cache"))
+        .env("TMPDIR", private.0.join("tmp"))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|_| "launch_failed")?;
+    Ok((child, arguments, port))
+}
+
+pub(super) fn initialize(
+    stream: &mut TcpStream,
+    project: &Path,
+    deadline_at: Instant,
+) -> Result<(), &'static str> {
+    let project_uri = uri(project)?;
+    send_lsp(
+        stream,
+        &json!({"jsonrpc":"2.0","id":1,"method":"initialize",
+        "params":{"processId":std::process::id(),"rootUri":project_uri,
+            "rootPath":project.to_str().ok_or("unsafe_path")?,
+            "workspaceFolders":[{"uri":project_uri,"name":"Private GDScript Validation"}],
+            "capabilities":{"textDocument":{"documentSymbol":{
+                "hierarchicalDocumentSymbolSupport":true}}}}}),
+    )?;
+    let initialized = response(stream, 1, deadline_at)?;
+    if !initialized.is_object() || initialized.get("capabilities").is_none() {
+        return Err("initialize_incomplete");
+    }
+    send_lsp(
+        stream,
+        &json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    )
 }
 
 pub(super) struct OwnedGodot(pub(super) Option<Child>);

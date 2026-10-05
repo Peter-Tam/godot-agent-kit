@@ -42,15 +42,12 @@ fn worker(args: &[OsString]) -> Option<i32> {
     if flag == OsStr::new(runner::stock_validation::INTERNAL_FLAG) {
         return Some(runner::stock_validation::worker_main().unwrap_or(1));
     }
+    if flag == OsStr::new(runner::stock_validation::INTERNAL_PREPARATION_FLAG) {
+        return Some(runner::stock_validation::preparation_worker_main().unwrap_or(1));
+    }
     None
 }
-fn registry(args: &[OsString]) -> Option<PathBuf> {
-    let [flag, path] = args else {
-        return None;
-    };
-    if flag != "--registry" {
-        return None;
-    }
+fn absolute_path(path: &OsStr) -> Option<PathBuf> {
     let text = path.to_str()?;
     if text.is_empty()
         || text.len() > 1024
@@ -61,6 +58,28 @@ fn registry(args: &[OsString]) -> Option<PathBuf> {
     }
     Some(PathBuf::from(path))
 }
+fn configuration(args: &[OsString]) -> Option<(PathBuf, Option<PathBuf>)> {
+    let mut registry = None;
+    let mut validator_engine = None;
+    let (pairs, remainder) = args.as_chunks::<2>();
+    for [flag, path] in pairs {
+        let destination = if flag == "--registry" {
+            &mut registry
+        } else if flag == "--validator-engine" {
+            &mut validator_engine
+        } else {
+            return None;
+        };
+        if destination.is_some() {
+            return None;
+        }
+        *destination = Some(absolute_path(path)?);
+    }
+    if !remainder.is_empty() {
+        return None;
+    }
+    Some((registry?, validator_engine))
+}
 fn main() -> ExitCode {
     // Neither SDK message tracing nor panic payloads may expose tool source.
     std::panic::set_hook(Box::new(|_| eprintln!("mcp host failure")));
@@ -69,7 +88,9 @@ fn main() -> ExitCode {
         return ExitCode::from(code as u8);
     }
     if matches!(args.as_slice(), [arg] if arg == "--help") {
-        eprintln!("godot-agent-kit-mcp --registry ABSOLUTE_PATH");
+        eprintln!(
+            "godot-agent-kit-mcp --registry ABSOLUTE_PATH [--validator-engine ABSOLUTE_PATH]"
+        );
         return ExitCode::SUCCESS;
     }
     if matches!(args.as_slice(), [arg] if arg == "--version") {
@@ -79,7 +100,7 @@ fn main() -> ExitCode {
         );
         return ExitCode::SUCCESS;
     }
-    let Some(registry) = registry(&args) else {
+    let Some((registry, validator_engine)) = configuration(&args) else {
         eprintln!("mcp invalid configuration");
         return ExitCode::from(2);
     };
@@ -87,7 +108,7 @@ fn main() -> ExitCode {
         eprintln!("mcp host failure");
         return ExitCode::FAILURE;
     }
-    match mcp::run(registry, &SHUTDOWN) {
+    match mcp::run(registry, validator_engine, &SHUTDOWN) {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => {
             eprintln!("mcp host failure");

@@ -308,9 +308,9 @@ class ClosedScriptAcceptanceMixin:
 
     def assert_no_effect(self, name, project, editor, before, disks):
         after, now = self.state(editor, project)
+        self.record_witness(name, before, disks, after, now, editor)
         observation.require(source_free(before, disks) == source_free(after, now),
                             "independent_no_effect_preserves_newer_work_" + name)
-        self.record_witness(name, before, disks, after, now, editor)
 
     def closed_positives(self):
         profiles = (("cached", True, SAFE, CHANGED), ("absent", False, SAFE, CHANGED),

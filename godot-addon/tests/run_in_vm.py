@@ -379,7 +379,7 @@ def _parser():
     prepare.add_argument("--run-id", required=True, type=_run_id)
     prepare.add_argument("--artifacts", required=True, type=Path)
     prepare.add_argument("--profile", choices=("workflow", "known", "sources", "bound", "observations",
-                                             "failures", "reconnect"), default="workflow")
+                                             "failures", "reconnect", "composed"), default="workflow")
     for name in ("mcp-stdio", "prepare-durability", "finalize-mcp"):
         control = commands.add_parser(name)
         control.add_argument("--run-id", required=True, type=_run_id)

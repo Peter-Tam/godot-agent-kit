@@ -177,18 +177,145 @@ fn cli_is_no_effect_and_strict() {
         let output = Command::new(exe).arg(arg).output().unwrap();
         assert!(output.status.success());
         assert!(output.stdout.is_empty());
-        assert!(!output.stderr.is_empty());
     }
     for args in [
         vec![],
+        vec!["--registry"],
         vec!["--registry", "relative"],
         vec!["--registry", "/tmp/a", "--registry", "/tmp/b"],
+        vec!["--validator-engine", "/tmp/PRIVATE_ENGINE_SENTINEL"],
+        vec!["--registry", "/tmp/a", "--validator-engine"],
+        vec![
+            "--registry",
+            "/tmp/a",
+            "--validator-engine",
+            "PRIVATE_ENGINE_SENTINEL",
+        ],
+        vec![
+            "--registry",
+            "/tmp/a",
+            "--validator-engine",
+            "/tmp/PRIVATE_ENGINE_SENTINEL\n",
+        ],
+        vec![
+            "--registry",
+            "/tmp/a",
+            "--validator-engine",
+            "/tmp/a",
+            "--validator-engine",
+            "/tmp/PRIVATE_ENGINE_SENTINEL",
+        ],
+        vec![
+            "--registry",
+            "/tmp/a",
+            "--unknown",
+            "/tmp/PRIVATE_ENGINE_SENTINEL",
+        ],
         vec!["--unknown"],
         vec!["--help", "--registry", "/tmp/a"],
+        vec![
+            "--version",
+            "--validator-engine",
+            "/tmp/PRIVATE_ENGINE_SENTINEL",
+        ],
     ] {
         let output = Command::new(exe).args(args).output().unwrap();
-        assert!(!output.status.success());
+        assert_eq!(output.status.code(), Some(2));
         assert!(output.stdout.is_empty());
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("PRIVATE_ENGINE_SENTINEL"));
+    }
+}
+
+#[test]
+fn configured_engine_path_rejects_oversize_and_non_utf8_without_disclosure() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+    let exe = env!("CARGO_BIN_EXE_godot-agent-kit-mcp");
+    for path in [
+        OsString::from(format!("/PRIVATE_ENGINE_SENTINEL{}", "x".repeat(1024))),
+        OsString::from_vec(b"/PRIVATE_ENGINE_SENTINEL_\xff".to_vec()),
+    ] {
+        let output = Command::new(exe)
+            .args(["--registry", "/tmp/a", "--validator-engine"])
+            .arg(path)
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("PRIVATE_ENGINE_SENTINEL"));
+    }
+}
+
+#[test]
+fn configured_wrong_engine_fails_before_protocol_without_disclosure_or_cold_fallback() {
+    let exe = env!("CARGO_BIN_EXE_godot-agent-kit-mcp");
+    for engine in [exe, "/nonexistent/PRIVATE_ENGINE_SENTINEL"] {
+        for engine_first in [false, true] {
+            let registry_args = ["--registry", "/nonexistent/mcp-regression-registry"];
+            let engine_args = ["--validator-engine", engine];
+            let mut command = Command::new(exe);
+            if engine_first {
+                command.args(engine_args).args(registry_args);
+            } else {
+                command.args(registry_args).args(engine_args);
+            }
+            let mut child = command
+                .env("RUST_LOG", "trace")
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let _ = child.stdin.as_mut().unwrap().write_all(
+                b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{},\"clientInfo\":{\"name\":\"PRIVATE_SOURCE_SENTINEL\",\"version\":\"1\"}}}\n",
+            );
+            // Keep stdin open: configured startup failure must not depend on EOF.
+            let status = wait_exit(&mut child, Duration::from_secs(12));
+            assert_eq!(status.code(), Some(1));
+            drop(child.stdin.take());
+            let output = child.wait_with_output().unwrap();
+            assert!(output.stdout.is_empty());
+            let diagnostics = String::from_utf8_lossy(&output.stderr);
+            assert!(!diagnostics.contains("PRIVATE_ENGINE_SENTINEL"));
+            assert!(!diagnostics.contains("PRIVATE_SOURCE_SENTINEL"));
+            assert!(!diagnostics.contains(engine));
+        }
+    }
+}
+
+#[test]
+fn private_workers_reject_ordinary_pipe_authority_without_disclosure() {
+    let exe = env!("CARGO_BIN_EXE_godot-agent-kit-mcp");
+    for flag in [
+        "--internal-observation-worker",
+        "--internal-discovery-worker",
+        "--internal-edit-worker",
+        "--internal-closed-edit-worker",
+        "--internal-closed-acquisition-worker",
+        "--internal-stock-validation-worker",
+        "--internal-validator-readiness-worker",
+    ] {
+        let mut child = Command::new(exe)
+            .arg(flag)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        // Pipe dispatch has no worker authority, even when it carries a request.
+        let _ = child
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(b"{\"private_source\":\"PRIVATE_SOURCE_SENTINEL\"}\n");
+        assert_eq!(
+            wait_exit(&mut child, Duration::from_secs(2)).code(),
+            Some(1)
+        );
+        drop(child.stdin.take());
+        let output = child.wait_with_output().unwrap();
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
     }
 }
 

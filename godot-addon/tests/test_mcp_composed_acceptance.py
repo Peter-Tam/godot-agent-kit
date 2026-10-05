@@ -1,0 +1,263 @@
+"""Fixed composed protocol's fail-closed ordering/evidence regressions (no editor)."""
+import copy
+from contextlib import ExitStack
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import unittest
+from types import SimpleNamespace
+from unittest import mock
+
+import mcp_composed_acceptance as composed
+from run_script_close import SAFE, TARGET
+from close_native_acceptance import CURRENT
+
+
+class WitnessBase:
+    def observe_call(self, request, response, before):
+        self.observed.append(request['id'])
+
+
+class Harness(composed.McpComposedMixin, WitnessBase):
+    def __init__(self, profile='open'):
+        self._composed_active = True
+        self.observed = []
+        self.summary = {}
+        self.target = dict(name=profile, project=Path('/owned') / profile,
+                           descriptor={'session_id': profile}, editor={}, calls=[],
+                           steps=composed.composed_steps(profile), cursor=0, pending=None,
+                           fresh={'source': SAFE, 'revision': 'fresh'}, first_revision='old',
+                           first_replacement=composed.replacement(SAFE, profile, 1), source=SAFE,
+                           successes=0, dirty_refusals=0, stale_refusals=0)
+        self.targets = {str(self.target['project']): self.target}
+        self.close_action = mock.Mock()
+        self.native_action = mock.Mock()
+        self.record_witness = mock.Mock()
+        self._composed_coherent = mock.Mock()
+        self._composed_save = mock.Mock()
+        self.state = mock.Mock(return_value=({}, {}))
+
+    def request(self, role, index=None, **overrides):
+        args = dict(project_root=str(self.target['project']), session_id=self.target['name'], script_path=TARGET)
+        if role in ('change', 'dirty', 'stale'):
+            args.update(revision='old' if role == 'stale' else 'fresh',
+                        replacement_source=self.target['first_replacement'] if role == 'stale' else
+                        composed.replacement(SAFE, self.target['name'], index if role == 'change' else index + 1))
+        args.update(overrides)
+        return dict(id='owned', params=dict(name=composed.tool_for(role), arguments=args))
+
+    def at(self, role, index=None):
+        self.target['cursor'] = self.target['steps'].index((role, index))
+
+
+class ComposedProtocolTests(unittest.TestCase):
+    def test_fixed_minima_and_interleaving_not_counts_only(self):
+        plans = {name: composed.composed_steps(name) for name in composed.COUNTS}
+        self.assertEqual(sum(sum(role == 'change' for role, _ in plan) for plan in plans.values()), 20)
+        self.assertEqual(sum(sum(role == 'dirty' for role, _ in plan) for plan in plans.values()), 3)
+        self.assertEqual(sum(sum(role == 'stale' for role, _ in plan) for plan in plans.values()), 3)
+        for profile, plan in plans.items():
+            for position, (role, _) in enumerate(plan):
+                if role in ('change', 'dirty', 'stale'):
+                    self.assertTrue(plan[position - 1][0].endswith('read'))
+            self.assertEqual(plan[-1], ('durable_read', None))
+        history = [role for role, _ in plans['open'] if role.startswith(('undo_', 'redo_'))]
+        self.assertEqual(history, ['undo_read', 'undo_saved_read', 'redo_read', 'redo_saved_read'])
+        self.assertFalse(any(role.startswith(('undo_', 'redo_')) for role, _ in plans['absent']))
+
+    def test_replacement_changes_only_value_and_preserves_human_comments(self):
+        source = '# human\n' + SAFE + '# another human\n'
+        self.assertEqual(composed.replacement(source, 'open', 3), source.replace('return 47', 'return 103'))
+        for invalid in ('# no value\n', SAFE + SAFE):
+            with self.assertRaises(composed.observation.Failure):
+                composed.replacement(invalid, 'open', 1)
+
+    def test_skipped_read_is_rejected_before_human_or_lifecycle_action(self):
+        h = Harness()
+        h.at('change', 2)
+        h.target['fresh'] = None
+        with self.assertRaises(composed.observation.Failure):
+            h.before_composed_call(h.target, h.request('change', 2))
+        h.close_action.assert_not_called()
+        h.native_action.assert_not_called()
+        self.assertIsNone(h.target['pending'])
+
+    def test_wrong_sequence_wrong_session_or_replacement_cannot_mutate_fixture(self):
+        for role, index, overrides in [('change', 1, {}), ('dirty', 2, {'session_id': 'other'}),
+                                       ('dirty', 2, {'replacement_source': SAFE})]:
+            h = Harness()
+            h.at('dirty', 2)
+            with self.assertRaises(composed.observation.Failure):
+                h.before_composed_call(h.target, h.request(role, index, **overrides))
+            h.close_action.assert_not_called()
+            h.native_action.assert_not_called()
+
+    def test_next_target_and_overlapping_call_are_rejected(self):
+        h = Harness()
+        other = copy.deepcopy(h.target)
+        with self.assertRaises(composed.observation.Failure):
+            h.before_composed_call(other, h.request('discover'))
+        h.target['pending'] = ('inflight', 'discover', None)
+        with self.assertRaises(composed.observation.Failure):
+            h.before_composed_call(h.target, h.request('discover'))
+        h.close_action.assert_not_called()
+
+
+    def test_stale_challenge_requires_exact_old_basis_not_latest_basis(self):
+        h = Harness('cached')
+        h.at('stale')
+        with self.assertRaises(composed.observation.Failure):
+            h.before_composed_call(h.target, h.request('stale', revision='fresh'))
+        h.before_composed_call(h.target, h.request('stale'))
+        self.assertEqual(h.target['pending'], ('owned', 'stale', None))
+        self.assertEqual(h.target['cursor'], h.target['steps'].index(('stale', None)))
+
+    def test_unsaved_history_read_cannot_claim_revision_or_persisted_disk(self):
+        for token, disk in [('unsafe-token', dict(current=True, equals_source=False, text=SAFE)),
+                            (None, dict(current=True, equals_source=True, text=None))]:
+            h = Harness()
+            h.at('undo_read')
+            h.target['pending'] = ('owned', 'undo_read', None)
+            unsaved = SAFE.replace('return 47', 'return 46')
+            state = dict(target={'B': unsaved, 'dirty': True})
+            disks = {TARGET: {'text': SAFE}}
+            h.state.return_value = state, disks
+            result = dict(source=unsaved, revision=token, state=dict(source_origin='editor_buffer',
+                          dirty={'buffer': {'state': 'dirty'}}, sources={'disk': disk}))
+            with self.assertRaises(composed.observation.Failure):
+                h.observe_call(h.request('undo_read'), {'result': {'structuredContent': {'error': None, 'result': result}}},
+                               (state, disks))
+            self.assertEqual(h.target['pending'], ('owned', 'undo_read', None))
+            self.assertEqual(h.target['cursor'], h.target['steps'].index(('undo_read', None)))
+
+    def test_truthful_unsaved_history_read_is_observed_without_edit_basis(self):
+        h = Harness()
+        h.at('undo_read')
+        h.target['pending'] = ('owned', 'undo_read', None)
+        state = dict(target={'B': SAFE, 'dirty': True})
+        disks = {TARGET: {'text': h.target['first_replacement']}}
+        h.state.return_value = state, disks
+        result = dict(source=SAFE, revision=None, state=dict(source_origin='editor_buffer',
+                      dirty={'buffer': {'state': 'dirty'}}, sources={'disk': dict(
+                          current=True, equals_source=False, text=disks[TARGET]['text'])}))
+        h.observe_call(h.request('undo_read'), {'result': {'structuredContent': {'error': None, 'result': result}}},
+                       (state, disks))
+        self.assertIsNone(h.target['pending'])
+        self.assertEqual(h.observed, ['owned'])
+        self.assertIsNone(h.target['fresh'])
+
+    def test_wrong_response_owner_and_host_failure_cannot_advance(self):
+        for identity, content in [('other', {'error': None, 'result': {}}),
+                                  ('owned', {'error': {'code': 'busy'}, 'result': None})]:
+            h = Harness()
+            h.target['pending'] = ('owned', 'discover', None)
+            request = h.request('discover')
+            request['id'] = identity
+            with self.assertRaises(composed.observation.Failure):
+                h.observe_call(request, {'result': {'structuredContent': content}}, ({}, {}))
+            self.assertEqual(h.target['cursor'], 0)
+            self.assertIsNotNone(h.target['pending'])
+
+    def test_claimed_counts_do_not_replace_missing_lifecycle_read(self):
+        h = Harness()
+        h.target.update(cursor=len(h.target['steps']) - 1, successes=8, dirty_refusals=3, stale_refusals=1)
+        with self.assertRaises(composed.observation.Failure):
+            h.finalize_targets()
+        h._composed_coherent.assert_not_called()
+        self.assertNotIn('composed', h.summary)
+
+    def test_final_read_does_not_hide_source_loss_after_owned_shutdown(self):
+        with TemporaryDirectory() as directory:
+            h = Harness()
+            project = Path(directory)
+            source = project / 'scripts/subject.gd'
+            source.parent.mkdir()
+            source.write_text('# lost accepted edit\n')
+            h.target.update(project=project, cursor=len(h.target['steps']), successes=8,
+                            dirty_refusals=3, stale_refusals=1, completed_read='actual-final-read')
+            with self.assertRaises(composed.observation.Failure):
+                h.finalize_targets()
+            self.assertNotIn('composed', h.summary)
+
+    def test_lifecycle_cannot_begin_before_verified_twenty_edit_protocol(self):
+        h = Harness('absent')
+        h.at('durable_read')
+        h.target['successes'] = 5
+        h.state.return_value = ({'open_paths': [], 'target': {}}, {})
+        with self.assertRaises(composed.observation.Failure):
+            h.before_composed_call(h.target, h.request('durable_read'))
+        h.close_action.assert_not_called()
+        h.native_action.assert_not_called()
+
+
+    def test_save_rejects_coherent_clean_reversion_of_pre_save_human_source(self):
+        with TemporaryDirectory() as directory:
+            h = Harness()
+            h.artifacts = Path(directory)
+            human = SAFE + '# unsaved human work\n'
+            before = {'target': {'dirty': True, 'B': human}}
+            reverted = {'target': dict(associated=True, B=SAFE, R=SAFE, dirty=False,
+                                      resource_edited=False, version=2, saved_version=2)}
+            h.state.side_effect = [(before, {TARGET: {'text': SAFE}}),
+                                   (reverted, {TARGET: {'text': SAFE}})]
+            h.native_action.return_value = dict(focused=True, disk_matches=True)
+            with self.assertRaises(composed.observation.Failure):
+                composed.McpComposedMixin._composed_save(h, h.target)
+
+    def serial_harness(self, directory):
+        h = Harness()
+        h.work = Path(directory)
+        h.args = SimpleNamespace(profile='composed')
+        h.editors = []
+        h.events = []
+        h.case = mock.Mock()
+        current = dict(path=CURRENT, script_id=1, editor_id=2, buffer_id=3,
+                       R=SAFE, B=SAFE, version=2, saved_version=1, dirty=True,
+                       resource_edited=False, has_undo=True, has_redo=False)
+        h.state.return_value = ({'documents': [current]}, {TARGET: {'text': SAFE}})
+
+        def prepare(owner, name):
+            project = h.work / ('close-mcp-' + name)
+            (project / 'scripts').mkdir(parents=True)
+            (project / 'scripts/subject.gd').write_text(SAFE)
+            editor = {'process': SimpleNamespace(pid=len(h.events) + 1)}
+            h.editors.append(editor)
+            h.events.append(('start', name))
+            def close():
+                h.editors.remove(editor)
+                h.events.append(('stop', name))
+            owner.callback(close)
+            return dict(name=name, project=project, editor=editor,
+                        descriptor={'session_id': name}, calls=[])
+        h._prepare_target = prepare
+        return h
+
+    def test_profiles_never_overlap_and_advance_only_after_completed_final_read(self):
+        with TemporaryDirectory() as directory, ExitStack() as stack:
+            h = self.serial_harness(directory)
+            h.prepare_targets(stack)
+            self.assertEqual(h.events, [('start', 'open')])
+            self.assertEqual([t['name'] for t in h.targets.values() if 'descriptor' in t], ['open'])
+            for target in h.targets.values():
+                h.target = target
+                target.update(cursor=len(target['steps']) - 1, successes=composed.COUNTS[target['name']],
+                              dirty_refusals=3 if target['name'] == 'open' else 0, stale_refusals=1,
+                              pending=('owned', 'durable_read', None))
+                self.assertEqual(h.editors, [target['editor']])
+                h.observe_call(h.request('durable_read'), {'result': {'structuredContent': {
+                    'error': None, 'request_id': 'final-' + target['name'],
+                    'result': {'revision': 'fresh', 'source': SAFE}}}}, h.state.return_value)
+            self.assertEqual(h.events, [(event, profile) for profile in composed.COUNTS for event in ('start', 'stop')])
+            self.assertEqual(h.editors, [])
+            h.finalize_targets()
+
+    def test_abandoned_serial_workflow_closes_current_and_never_starts_future_profiles(self):
+        with TemporaryDirectory() as directory:
+            h = self.serial_harness(directory)
+            with self.assertRaisesRegex(RuntimeError, 'abandoned'), ExitStack() as stack:
+                h.prepare_targets(stack)
+                raise RuntimeError('abandoned')
+            self.assertEqual(h.editors, [])
+            self.assertEqual(h.events, [('start', 'open'), ('stop', 'open')])
+
+if __name__ == '__main__':
+    unittest.main()

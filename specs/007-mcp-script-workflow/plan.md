@@ -4,7 +4,7 @@
 
 **Input:** Maintainer-approved discover/read/edit requirements, including constitution v1.2.0 alignment in FR-022/SC-009.
 
-**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. T001 and T002 are complete and delivered in PRs #64/#65 with [core/native acceptance](quickstart.md#t001-execution-evidence-2026-10-04) and [positive MCP/two-client acceptance](quickstart.md#t002-execution-evidence-2026-10-05). T003 is complete with [adversarial acceptance and shape review](quickstart.md#t003-execution-evidence-2026-10-05); its delivery branch is `task/T003-mcp-adversarial-safety`. T004 remains pending and unselected. These implementation/evidence notes do not change approved remaining obligations or claim feature completion or Phase 3 exit.
+**Status:** The four-task design passed [granularity/constitutional review](tasks.md#granularity-and-constitutional-review) and [consistency analysis](analysis.md); design PR #63 is merged. Feature 007 and T001–T004 are complete. T001–T003 were delivered in PRs #64–#66; T004's [actual-agent composed/cumulative acceptance](quickstart.md#t004-execution-evidence-2026-10-05) and implementation-shape review are complete on `task/T004-mcp-composed-acceptance`. Phase 3 exit and release are not claimed.
 
 ## Summary
 
@@ -55,7 +55,7 @@ Read preserves Feature 001 observation semantics while presenting source, an opa
 | X — actionable truthful diagnostics | Preserve outcome/stage/application, independent availability/invalidation and safe next action. Post-effect private protocol/host failure is not malformed input; disclosure denial is sticky. |
 | XI — independent compatible implementation | Public pinned engine source/behavior, released official SDK and concrete clients, license/provenance/advisory findings. No unrelated implementation copied or dependency/support pass invented. |
 | XIII — justified complexity | Narrow closed owner/epoch, bounded transport and test-only stdio relay address specified failures; rationale/cost below. No transaction/workflow/retry/cancellation/redaction/tracing/metadata framework. |
-| Compatibility / workflow | Existing local v1 APIs/refusals stay valid; private v6/native revision 4 remains unchanged and MCP uses schema 1. Analysis remains current after cumulative T001 delivery-only drift. Only T002 is selected, following merged T001; it remains one task/PR. |
+| Compatibility / workflow | Existing local v1 APIs/refusals stay valid; private v6/native revision 4 and MCP schema 1 are unchanged. The native-documentation correction passed fresh analysis; later completion evidence changes no obligation. T001–T004 are complete, delivered one task/PR. |
 
 **Threat/evidence boundary:** Retain existing normal-local-user threat model; hostile same-UID software and malicious code already running inside Godot are not newly claimed isolated. No atomic filesystem exclusion, universal callback purity or live bytecode refresh is claimed. Unknown safety facts refuse. The observed source setter's old compiled constants are explicitly not used as new-source runtime evidence.
 
@@ -104,7 +104,7 @@ specs/007-mcp-script-workflow/
     └── closed-edit.md
 ```
 
-[tasks.md](tasks.md) derives four coherent implementation increments: protocol-independent trusted read/revision/closed editing; complete external MCP MVP with both clients' positive workflows; combined adversarial preservation/interrupted-effect behavior; composed real-agent A–E and cumulative acceptance. Direct tests/docs remain bundled with their implementation, and separately runnable groups do not create extra task IDs. T001–T003 are complete; T004 remains pending and unselected under the one-task-one-PR sequencing rule.
+[tasks.md](tasks.md) derives four coherent implementation increments: protocol-independent trusted read/revision/closed editing; complete external MCP MVP with both clients' positive workflows; combined adversarial preservation/interrupted-effect behavior; composed real-agent A–E and cumulative acceptance. Direct tests/docs remain bundled with their implementation. All four tasks are complete.
 
 ### Source code (repository root)
 
@@ -406,3 +406,302 @@ profiles passed with [exact evidence and relevant-input review](quickstart.md#t0
 The public contract, approved remaining requirements and task granularity are
 unchanged. These implementation/evidence updates do not invalidate the original
 analysis attestation or authorize T004, broader support, release or Phase 3 exit.
+
+### T004 composed acceptance execution plan
+
+Select only T004 after T003's merged PR #66. The six analysis fingerprints were
+recomputed and their exact original bytes recovered from
+`c8dc7683409ca72ac0d7feb215cd3045dd6f7ed9`. Cumulative feature-directory changes
+record completed implementation, client/dependency evidence and delivery; T004's
+scope, acceptance and dependencies are unchanged. The original analysis remains
+current, and the 16-item requirements-quality checklist remains read-only and passed.
+
+The remaining requirement is a real coding-agent composed A–E interaction plus
+cumulative privacy/export coverage, not another product capability. Extend the
+existing owned MCP relay and independent editor witnesses with a composed profile
+and a separate privacy/export driver. Keep runner/VM dispatch under one integration
+owner; independent drivers use separate owned fixtures. Existing fixture history,
+Save, lifecycle and runtime actions witness already-observed outcomes and never
+repair a product result or make a closed edit eligible.
+
+A protocol-only loop would be simpler but cannot satisfy US5/SC-005's actual-agent
+requirement. The selected additions cost two capability-specific acceptance
+drivers and narrow fixed-profile integration, reusing existing ownership, source
+transfer, client configuration and artifact retrieval. No new service, dependency,
+product tool, generic workflow framework or approval bypass is justified.
+
+New evidence must establish twenty fresh-revision successes across open,
+cached-Resource closed and absent-Resource closed profiles, with at least three
+dirty and three stale refusals interleaved; actual prior-history-preserving
+Undo/Save/Redo/Save, ordinary later lifecycle/durability, and privacy/export.
+Run affected driver/selection regressions and actual VM scenarios. Reuse accepted
+T001–T003 and historical evidence after relevant-input review; add Rust/native
+checks only if an actual change invalidates their execution or provenance.
+
+Constitutional review retains independent applicable authorities (I/IV/VI),
+human/history/lifecycle preservation and native effects (II/III), existing local
+permissions/confinement and export isolation (V/VIII), protocol-independent safety
+(VII), lean descriptions and truthful outcomes (IX/X), existing provenance (XI),
+and focused behavioral evidence without speculative infrastructure (XII/XIII).
+Feature completion requires every remaining acceptance obligation; Phase 3 exit,
+release, broader support and another task are not selected.
+
+#### T004 fixture scheduling and failed-witness corrections
+
+Initial runs retained all three composed editors after their individual workflows
+had finished. Closed edits sometimes exhausted post-source-validation time; one
+separate completed-native trace ended with disconnection. These failed attempts
+remain non-acceptance evidence, not proof of a single scheduling cause.
+
+Each composed profile owns an ordinary nested fixture context and closes its
+editor only after its final actual MCP read and independent lifecycle/durability
+witness. The next profile is created only after that shutdown; its session does
+not exist or get advertised in advance. The finalizer checks completed reads and
+persisted source after owned shutdown. This removes unrelated editor workload
+without reducing the twenty
+edits, three dirty/three stale refusals, authority/history checks or one-conversation
+requirement. Keeping completed editors alive adds no required interaction;
+changing product deadlines, retrying edits or adding a scheduler is not justified.
+
+An experiment suspended future prepared profiles while the current profile ran.
+An open edit still reached post-validation unavailability. That experiment did
+not establish a remedy and was removed; no suspended-editor scheduling remains.
+
+The ambiguity witness also exposed `loader_calls: 3 → 4` during initial editor
+setup while every recorded source/identity/history surface was unchanged. Both
+owned windows and their existing index/idle barriers now settle before the
+preservation baseline. The loader-count assertion remains strict. Failed
+no-effect comparisons now retain their before/after witness before asserting,
+instead of losing the diagnostic evidence. Individually runnable privacy groups
+reuse the existing scenario-selector pattern so failures do not replay completed
+export or interruption work. Temporary source-free diagnostics are removed;
+no production API, policy, timeout, schema or native transaction changed.
+
+#### T004 serial-fixture correction
+
+The unchanged four-vCPU guest returned bounded, truthful post-validation
+non-successes during the composed sequence. Source-free measurements attributed
+3.7–4.8 seconds to concurrent preflight engine startup, about 40–52 milliseconds
+to listener ownership, and about two seconds to the post-change engine startup.
+The compatibility-renderer experiment did not improve those measurements and was
+removed with the temporary diagnostics.
+
+The maintainer directed that the VM remain at four vCPUs. The attempted resource
+comparison still observed four CPUs; no six-vCPU execution evidence exists, and
+the experimental default is reverted. CPU allocation remains part of the actual
+recorded acceptance environment identity.
+
+First remove unnecessary test-level concurrency. Independent T004 fixtures and
+cases run serially; retain simultaneous editors only where the scenario explicitly
+requires overlap, such as ambiguous-session routing. Preserve the product's
+concurrent original/desired preflight validation and every 5/10-second bound.
+Remeasure on the existing settled four-vCPU guest. A resource-profile change may
+only be proposed if an isolated real operation remains unable to reliably meet
+the existing timing contract; it is not selected or authorized now.
+
+The composed owner now prepares one profile at a time and verifies that its
+owned editor roster contains exactly that editor. It records the live PID and
+session. Prompt/receipt intents declare project paths and requested values, not
+nonexistent future sessions; normal public project routing selects the sole
+current session. Only after the final independently verified client read and
+owned shutdown does the next fixture start. No editor is paused or reconstituted
+mid-profile. Privacy's two-editor selection/ambiguity cases deliberately retain
+their live competing owners; independent privacy groups and export modes are
+already serial.
+
+Implementation review found two acceptance-oracle gaps, reproduced with focused
+failing regressions. Save must preserve pre-Save B, not adopt a coherently reverted
+post-Save source as the expectation. Denied/ambiguous/interrupted privacy checks
+must inspect the complete retained MCP frame, including text content and source
+hashes, not only structuredContent. The corrected assertions add no product
+behavior, retry, timeout, service or authority. Rerun the composed interaction and
+affected privacy selection/interruption checks; unchanged export evidence remains
+reusable.
+
+#### T004 product-validation optimization direction
+
+The maintainer now requires the acceptance VM to remain at four vCPUs; a
+six-vCPU allocation is not the fix. The serial single-editor failure locates the
+remaining bottleneck in required product behavior, not fixture orchestration.
+Profile startup, original/desired validation, mutation, fresh actual-state
+acquisition, final validation and completion before selecting an optimization.
+
+Use temporary source-free phase timestamps and, if needed, an owned stock-child
+startup sample. These diagnostics are not product telemetry or acceptance passes
+and will be removed after the measurements. Retain the same official compiler,
+per-source completion fences, current revision/context/state checks, independent
+post-mutation acquisition/validation, real original/desired preflight concurrency,
+all cleanup and disclosure guarantees, and the existing ten-second response bound.
+No retries, deadline extensions, weaker acceptance or support expansion is allowed.
+Any selected mechanism must record its measured requirement and Principle XIII
+tradeoff here before implementation; run only its affected verification and the
+required T004 composed interaction afterward.
+
+#### Timing boundary and readiness requirements
+
+The edit response contract remains **ten seconds from the original accepted
+complete request frame through delivery of the complete trustworthy response**.
+That clock includes argument/admission checks, fresh state/revision acquisition,
+all source-specific preflight, mutation, independent actual-source verification,
+cleanup and output. Preflight is not an untimed preparation phase. Work started
+after request receipt is never subtracted, and a pending request is not reaccepted
+under a new clock.
+
+Validator readiness is a distinct lifecycle, not a different name for preflight.
+If cold initialization is removed from the edit critical path, it must finish
+before edit admission, under the existing **ten-second initialization/control
+bound**. Readiness includes official-binary verification, isolated process and
+namespace creation, compiler initialization and an observed usable channel.
+Failure or expiry means unavailable readiness, not permission to mutate and
+initialize later. Requests arriving before readiness may not be hidden in an
+unbounded queue or silently retried. A one-shot caller that initializes only
+after invocation must continue counting that initialization in its total bound.
+
+Record two intervals separately: **readiness start → observed ready/failure**
+and **accepted steady-state edit → complete trustworthy response**. The latter
+is meaningful only when the required validators were already ready before the
+request arrived. Retain full cold end-to-end timings for any cold caller; do not
+label a duration with startup subtracted as measured steady-state latency.
+
+The current implementation has no such readiness lifecycle. Its fresh processes
+are launched inside each request and all their time is correctly still counted.
+Source `4c61e16`, diagnostic run
+`validation-profile-1/20261005T110624Z-2ec94b1f9888`, measured serial isolated open
+and closed edits on the settled four-vCPU VM:
+
+| Phase (seconds) | Open | Closed |
+| --- | ---: | ---: |
+| Proposed-source preflight / concurrent original+desired preflight span | 2.280 | 3.629 |
+| Cold Godot spawn → owned connection inside that preflight | 1.918 | 3.068 (both concurrent children) |
+| Native mutation | 0.542 | 0.028 |
+| Independent actual-state acquisition | 0.203 | 0.056 |
+| Actual-source validation | 1.770 | 2.168 |
+| Cold Godot spawn → owned connection inside actual validation | 1.470 | 1.795 |
+| Final independent acquisition plus finish | 0.191 | 0.055 |
+| Complete public edit response | 5.783 | 6.478 |
+
+Both operations verified in this diagnostic run; it does not erase the retained
+serial composed failure or prove stable latency. The original/desired closed
+validators started together. The profiling record contains no project source,
+source hashes, project paths or credentials. Temporary instrumentation is not a
+product telemetry interface.
+
+The measured repeated initialization justifies examining bounded ready isolated
+compilers instead of a larger VM or a stopwatch adjustment. The simplest existing
+alternative is still one-shot validation with all cold work counted. A replacement
+must prove fresh root **and dependency** parser/resource generations, exact current
+warning policy, per-request isolation, source disposal, cancellation and worker
+loss behavior, and independent actual-source post-verification. A fresh LSP root
+parser or a matching preflight digest alone is not that proof. No persistent
+compiler architecture is selected solely because its startup cost would be lower;
+its concrete reset/configuration mechanism and current-consumer integration must
+be justified before implementation.
+
+#### Selected optimization: prepared native documentation, fresh validators
+
+Keep fresh official-stock Godot processes for every source-validation pass. Cold
+process launch after receipt remains inside the original edit deadline. Do not
+introduce persistent parser/dependency/resource state or subtract startup from
+the reported request interval.
+
+The smaller reusable artifact is stock Godot's **native documentation cache**.
+The pinned [`EditorHelp::_gen_doc_thread`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/editor/doc/editor_help.cpp#L3056-L3086)
+excludes extension classes and writes native documentation before loading script
+documentation. A source-free, empty private project can therefore prepare that
+artifact without observing a target project. The artifact's binary encoding is
+not byte-reproducible across generations; bind each prepared snapshot by its own
+observed SHA-256 rather than inventing a universal cache hash.
+
+Add optional host setup `--validator-engine ABSOLUTE_PATH`, accepting only the
+already-supported exact official binary after the existing provenance check.
+This is not a tool argument, arbitrary executable permission, editor selector
+or target-editor launch. Existing `--registry`-only and one-shot CLI callers keep
+their fully timed cold path. The documented long-lived MCP configuration and
+actual-client acceptance use preparation explicitly.
+
+Preparation runs once, in an owned same-binary worker and isolated stock child,
+before protocol input is consumed. Its **ten-second total bound** includes binary
+verification, empty-project creation, observed owned LSP initialization, child
+reaping and receipt delivery. Failure prevents startup for explicitly configured
+preparation; there is no silent retry or success fallback. Record a source-free
+readiness duration separately from operation results. No target script, project
+settings, addon, extension, global class, scene, dependency or verdict enters this
+prepared snapshot.
+
+The host retains one process-lifetime, private native-documentation snapshot,
+with bounded size and SHA-256 binding, and removes it on normal shutdown. A weak
+process-local registration lets existing validator supervisors borrow its owned
+lifetime without coupling domain requests to MCP or adding configuration to
+every operation API. Worker requests carry only the private snapshot descriptor.
+Each fresh validator verifies and copies that snapshot into its own private HOME
+before launch. A missing/changed prepared artifact is unavailable, not an
+unverified cache hit. The validator never publishes data back into the snapshot.
+All source admission, current warning policy, root/dependency completion fences,
+fresh revision/state guards, post-change actual-source validation, process-group
+ownership and clone disposal remain unchanged. Original/desired validation stays
+concurrent.
+
+**Measured basis:** owned four-vCPU startup probes recorded 2.116 seconds to
+initialize a fresh unseeded helper and 1.311 seconds with only native documentation
+copied in; concurrent seeded helpers initialized in 1.812/1.834 seconds. These are
+mechanism measurements, not composed acceptance. The snapshot was approximately
+3.27 MB. Disabling rendering did not establish a useful improvement. The faster
+Dummy text driver is rejected: pinned
+[`GDScriptParser`](https://github.com/godotengine/godot/blob/ed1daf0bf001b61586d9930840f2f1394092c079/modules/gdscript/gdscript_parser.cpp#L2827-L2831)
+uses TextServer Unicode-security support for `confusable_identifier`; removing
+that support would weaken authoritative warning validation.
+
+**Principle XIII:** the current failure is verification exhaustion in the
+retained 9.465-second composed edit. The simplest alternative regenerates the
+same native documentation in each isolated process. A mutable warm-compiler
+service would require an unproved cache reset and a larger lifecycle surface.
+One bounded preparation worker plus a read-only, owned snapshot avoids those
+costs. Its present costs are startup configuration, approximately 3.27 MB of
+private temporary storage, bounded copy/hash I/O per validation, and focused
+startup/cleanup/privacy and compiler-equivalence evidence. No service, dependency,
+queue, background replenishment, new tool or longer deadline is added.
+
+**Verification:** measure readiness independently, then full request latency with
+all fresh-child launch time still included; do not call the helpers prewarmed.
+Exercise valid/invalid source, fresh dependency bytes, changed warning policy
+(including Unicode-security warnings), prepared-artifact loss/tampering,
+startup failure/cancellation and owned cleanup. Rerun affected public edit paths
+and required composed interaction, not historical campaigns whose relevant
+behavior is unchanged. This preserves Principles I–V, VII–X and XII–XIII; no
+mutation, support, acceptance or public tool-schema guarantee changes.
+
+#### T004 implementation-shape and constitutional review
+
+Static review of `3067fc6` found no current-task implementation defect or new
+constitutional conflict. The two review slices covered preparation/validator
+ownership and composed/privacy witnesses; neither review is runtime acceptance.
+
+`native_docs.rs` owns the bounded source-free snapshot lifecycle: preparation,
+strict receipt, private artifact binding, borrowing and disposal. Registration
+and reply enums distinguish unavailable/preparing/ready/lost states without
+speculative public variants. Existing `ownership.rs` retains process/namespace
+mechanics, `stock_validation.rs` retains fresh source/context/fence validation,
+and the MCP entry/transport owns only deployment configuration and startup.
+Interfaces use current-consumer visibility; filesystem access borrows paths
+rather than manufacturing a disposable owner. No parser pool, cached verdict,
+request-clock renewal, configured-preparation fallback or new dependency was
+found. The existing stock-loopback limitation is unchanged, not a newly imposed
+sandbox requirement.
+
+The composed, privacy and preparation-fault mixins each own one acceptance
+responsibility and reuse the existing editor/history/export/relay machinery.
+The composed state machine requires 8/6/6 changed edits, current read bases,
+three dirty and three stale refusals, independent intended source/saved-state
+witnesses, real history transitions, serial fixture ownership and later
+durability. Ordinary fixture actions do not repair a reported product success.
+Source-bearing transcripts remain private. Full-frame disclosure checks and
+actual exported-artifact/runtime witnesses remain distinct from client evidence.
+
+This shape is proportionate to the measured failure and current acceptance
+requirements under Principle XIII. It preserves independent authorities and
+verification (I/IV/VI), human work/native history (II/III), local confinement and
+export separation (V/VIII), protocol-independent core ownership (VII), truthful
+lean results (IX/X), source provenance (XI) and focused quality gates (XII).
+The actual-agent SC-005/SC-009 interaction and cumulative evidence disposition
+were subsequently [completed with independent runtime and client evidence](quickstart.md#t004-execution-evidence-2026-10-05);
+static review alone was not treated as acceptance.

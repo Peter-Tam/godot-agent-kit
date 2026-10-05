@@ -14,6 +14,7 @@ import run_observation as observation
 from close_native_acceptance import documents
 from closed_script_acceptance import CHANGED, SOURCE_LIMIT, source_free
 from mcp_peer import McpPeer, McpAdversarialMixin, selectors
+from mcp_privacy_acceptance import assert_disclosure
 from run_script_close import TARGET, CURRENT, BACKGROUND, SAFE
 from run_script_edit import sha
 
@@ -359,7 +360,24 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                 self.assert_no_effect(label + "_terminal", project, editor, after, now)
 
     def _preservation_private(self, obj, witnesses, descriptors, label):
-        raw = json.dumps(obj)
+        response = json.loads((self.artifacts / (label + ".json")).read_text())
+        observation.require(response["result"]["structuredContent"] == obj, "owned_privacy_response_" + label)
+        sources = list(self.source_markers)
+        inventory = set()
+        private = list(self.secrets)
+        for state, disks in witnesses:
+            for path, disk in disks.items():
+                sources.extend((disk["text"], disk["sha256"]))
+                if path != TARGET:
+                    inventory.add(path)
+            texts = [state.get("cached_R")]
+            texts.extend(doc[key] for doc in documents(state).values() for key in ("B", "R"))
+            for text in texts:
+                if isinstance(text, str):
+                    sources.extend((text, sha(text)))
+        for descriptor in descriptors:
+            private.extend(descriptor[key] for key in ("endpoint", "token") if isinstance(descriptor.get(key), str))
+        assert_disclosure(response, label, secrets=private, sources=sources, inventory=inventory)
         result = obj["result"]
         if isinstance(result, dict) and "inventory" in result:
             observation.require(result["inventory"] is None, "no_unauthorized_candidate_inventory_" + label)
@@ -367,15 +385,7 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
             self.mcp_review_edit(obj, label, "refused")
             observation.require(result["outcome"]["application"] == "not_applied",
                                 "unresolved_or_denied_target_has_no_application_" + label)
-        for _, disks in witnesses:
-            for disk in disks.values():
-                observation.require(disk["text"] not in raw and disk["sha256"] not in raw,
-                                    "no_unauthorized_source_or_digest_" + label)
-        for descriptor in descriptors:
-            for key in ("endpoint", "token"):
-                value = descriptor.get(key)
-                if isinstance(value, str):
-                    observation.require(value not in raw, "no_private_routing_disclosure_" + label)
+        return response
 
     def mcp_preservation_selection_privacy(self):
         source = SAFE + "# MCP_PRESERVATION_PRIVATE_TARGET\n"
@@ -387,6 +397,11 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                 pair = observation.wait_for(lambda: self.descriptors(project) if len(self.descriptors(project)) == 2 else None,
                                             "mcp_two_real_authenticated_sessions")
                 self.close_action(second, "close_setup", paths=[CURRENT, BACKGROUND], selected=CURRENT)
+                for owner in (editor, second):
+                    self.present_editor(owner)
+                    scanned = self.native_action(owner, "native_edit_scan")
+                    observation.require(scanned["settled"], "privacy_both_initial_indexes_settled")
+                    self.close_action(owner, "open_setup", paths=[], path=CURRENT, idle=True)
                 witnesses = [self.state(owner, project) for owner in (editor, second)]
                 for tool in ("read_script", "discover_scripts", "edit_script"):
                     args = selectors(project, descriptor, select_session=False)
@@ -427,10 +442,12 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                         before, disks = self.state(editor, project)
                         args = selectors(project, descriptor, script_path=path)
                         if tool == "edit_script": args.update(revision=basis["revision"], replacement_source=CHANGED)
-                        obj = peer.call(tool, args, "confinement_" + tool + "_" + secrets.token_hex(4))
-                        self._preservation_private(obj, [(before, disks)], [descriptor], "confinement")
-                        observation.require(outside_source not in json.dumps(obj) and sha(outside_source) not in json.dumps(obj) and
-                                            (obj["result"] is None or obj["result"].get("source") is None),
+                        label = "confinement_" + tool + "_" + secrets.token_hex(4)
+                        obj = peer.call(tool, args, label)
+                        response = self._preservation_private(obj, [(before, disks)], [descriptor], label)
+                        assert_disclosure(response, label, secrets=self.secrets,
+                                          sources=(outside_source, sha(outside_source)))
+                        observation.require(obj["result"] is None or obj["result"].get("source") is None,
                                             "confinement_has_no_outside_source_or_digest")
                         observation.require(outside.read_text() == outside_source, "outside_real_file_untouched")
                         self.assert_no_effect("confinement_" + tool, project, editor, before, disks)
@@ -458,8 +475,9 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                     inventory = discovery["result"]["inventory"] if discovery["result"] is not None else None
                     observation.require(inventory is None or TARGET not in inventory["entries"],
                                         "denied_script_never_published_as_authorized_inventory")
-                    observation.require(source not in json.dumps(discovery) and sha(source) not in json.dumps(discovery),
-                                        "denied_discovery_has_no_source_hash_or_diagnostic_disclosure")
+                    assert_disclosure(json.loads((self.artifacts / "denied_discovery.json").read_text()),
+                                      "denied_discovery", secrets=self.secrets,
+                                      sources=(source, sha(source), *self.source_markers), inventory=(TARGET,))
                     edit = peer.call("edit_script", dict(selectors(project, descriptor),
                                      revision=basis["revision"], replacement_source=CHANGED), "denied_edit")
                     result = self.mcp_review_edit(edit, "denied_edit", "refused")
