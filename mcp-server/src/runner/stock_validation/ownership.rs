@@ -295,22 +295,34 @@ fn listener_owned(pid: u32, port: u16, deadline_at: Instant) -> Result<bool, &'s
     let _ = probe.wait();
     checked
 }
+fn ownership_diagnostic(pid: u32, label: &str, start: Instant) {
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true)
+        .open("/tmp/gak-validation-diagnostic.log")
+    {
+        let text = format!("owner {pid} {label} {}\n", start.elapsed().as_micros());
+        let _ = file.write_all(text.as_bytes());
+    }
+}
+
 pub(super) fn connect_owned(
     pid: u32,
     port: u16,
     deadline_at: Instant,
 ) -> Result<TcpStream, &'static str> {
+    let diagnostic_start = Instant::now();
     let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
     loop {
         deadline(deadline_at)?;
         if let Ok(connection) = TcpStream::connect_timeout(&addr.into(), Duration::from_millis(50))
         {
+            ownership_diagnostic(pid, "tcp_connected", diagnostic_start);
             // Check the owner after connection succeeds: a listener can start
             // between an earlier lsof snapshot and connect. No source is sent
             // until this connected endpoint is attributed to our child.
             if !listener_owned(pid, port, deadline_at)? {
                 return Err("wrong_owner");
             }
+            ownership_diagnostic(pid, "owner_verified", diagnostic_start);
             connection
                 .set_read_timeout(Some(Duration::from_millis(50)))
                 .map_err(|_| "protocol_loss")?;
