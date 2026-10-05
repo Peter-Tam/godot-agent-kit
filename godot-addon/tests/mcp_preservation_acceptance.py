@@ -494,8 +494,12 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
             rejected = contender.start("edit_script", dict(selectors(project, descriptor), revision=basis["revision"], replacement_source=SAFE + "# NEVER_QUEUED\n"))
             obj = contender.finish(rejected, "slot_independent_connection_refused")
             self.mcp_review_edit(obj, "slot_independent_connection_refused", "refused")
-            observation.require(obj["result"]["outcome"]["reason"] in ("busy", "slot_busy", "editor_busy"),
-                                "independent_server_reaches_actual_editor_slot_not_adapter_capacity")
+            # The occupied bridge refuses the contender's initial observation;
+            # it cannot choose an edit mode or reach native prepare. Independent
+            # native begin calls below witness that same occupied editor slot.
+            observation.require(obj["result"]["mode"] == "undetermined" and
+                                obj["result"]["outcome"]["reason"] == "unsupported_observation",
+                                "editor_slot_prevents_admission_not_adapter_capacity")
             self.assert_no_effect("slot_contender", project, editor, before, disks)
             # Cancellation of the rejected connection's ID (and the other
             # connection's matching ID) must not release/cancel the real owner.
