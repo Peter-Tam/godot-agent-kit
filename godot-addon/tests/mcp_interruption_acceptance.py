@@ -379,7 +379,8 @@ class McpInterruptionMixin(McpAdversarialMixin):
                     root = peer.finish(call, label)
                     result = self.mcp_review_edit(root, label, ("applied_unverified", "application_unknown"))
                     callback = self.native_action(editor, "native_edit_probe_result")["callback"]
-                    after, now = self._interruption_survivor(project, editor, before, disks, label)
+                    after, now = self._interruption_survivor(project, editor, before, disks, label,
+                                                           buffer_prefix=True)
                     observation.require(callback.get("called") is True and
                                         callback["request_id"] == root["request_id"] == call["domain_request_id"] and
                                         callback["stage"] == "lines_edited_from" and callback["mode"] == mode and
@@ -576,7 +577,8 @@ class McpInterruptionMixin(McpAdversarialMixin):
                                   elapsed_seconds=time.monotonic() - call["started"],
                                   performance_claim="none_output_not_consumed")
                         self._interruption_survivor(project, editor, before, disks, label,
-                                                   no_effect=stage == "prepare")
+                                                   no_effect=stage == "prepare",
+                                                   buffer_prefix=stage == "buffer_applied")
                     self._interruption_recover(project, editor, descriptor, label,
                                                buffer_prefix=stage == "buffer_applied")
         self._interruption_partial_delivery(blocked=False)
