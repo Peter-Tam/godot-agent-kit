@@ -122,8 +122,8 @@ class McpInterruptionMixin(McpAdversarialMixin):
         with McpPeer(self, label + "-recovery") as recovery:
             self.mcp_survivor_read(recovery, project, editor, descriptor, label + "-fresh-original-target")
 
-    def _interruption_matrix(self, controls, *, stages=None):
-        for profile in PROFILES:
+    def _interruption_matrix(self, controls, *, stages=None, profiles=PROFILES):
+        for profile in profiles:
             for stage in stages or self._interruption_stages(profile):
                 for control in controls:
                     label = "mcp-" + profile + "-" + stage.replace(":", "-") + "-" + control
@@ -147,10 +147,11 @@ class McpInterruptionMixin(McpAdversarialMixin):
                                     self.action(editor, "disable")
                                 else:
                                     self.close_action(editor, "closed_disconnect")
-                            elif control == "native-loss":
-                                self.close_action(editor, "closed_reconfigure")
-                                # Drop the old native attempt, not the editor.
-                                # Release only after revocation has returned.
+                            elif control == "native-revocation":
+                                self.close_action(editor, "closed_revoke_attempt", profile=profile,
+                                                  request_id=call["domain_request_id"])
+                                # Revoke only this owned native attempt. Reconfigure
+                                # correctly refuses an occupied native session.
                                 self._interruption_release(editor, profile)
                             root = peer.finish(call, label, delivery_optional=control in
                                                ("cancel", "eof", "sigint", "sigterm"))
@@ -202,7 +203,12 @@ class McpInterruptionMixin(McpAdversarialMixin):
 
     def mcp_interruption_channels(self):
         self._interruption_matrix(("disable", "channel-loss"), stages=("prepare", "apply", "verify:post_change"))
-        self._interruption_matrix(("native-loss",), stages=("apply", "verify:post_change"))
+        # Open native ownership ends at completed application, before post-read
+        # verification; revoke it while a genuine staged attempt still exists.
+        self._interruption_matrix(("native-revocation",), profiles=("open",),
+                                  stages=("apply", "resource_applied", "content_persisted"))
+        self._interruption_matrix(("native-revocation",), profiles=("cached-closed", "absent-closed"),
+                                  stages=("apply", "verify:post_change"))
 
     def mcp_interruption_unresponsive(self):
         for profile in PROFILES:

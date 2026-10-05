@@ -27,6 +27,7 @@ PRESERVATION_GROUPS = {
     "preservation-session-replacement": "mcp_preservation_session_replacement",
     "preservation-source-context": "mcp_preservation_source_context",
     "preservation-equality-races": "mcp_preservation_equality_races",
+    "preservation-active-reconfigure": "mcp_preservation_active_reconfigure",
     "preservation-native-entry": "mcp_preservation_native_entry",
     "preservation-selection-privacy": "mcp_preservation_selection_privacy",
     "preservation-shared-slot": "mcp_preservation_shared_slot",
@@ -237,6 +238,8 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                      "target_open", "aba", "unrelated_epoch", "reconfigure", "context")
         for stage in ("prepare", "apply"):
             for mutation in mutations:
+                if stage == "apply" and mutation == "reconfigure":
+                    continue  # Active reconfiguration is refused, tested separately.
                 label = "mcp_race_" + stage + "_" + mutation
                 with self.closed_fixture(label, cached=mutation == "cache_replace") as (project, editor, descriptor), McpPeer(self, label) as peer:
                     self._preservation_dirty_unrelated(editor)
@@ -267,6 +270,23 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                     self.assert_no_effect(label, project, editor, before, disks)
                     self.close_action(editor, "close_idle", frames=16)
                     self.assert_no_effect(label + "_terminal", project, editor, before, disks)
+
+    def mcp_preservation_active_reconfigure(self):
+        with self.closed_fixture("mcp_active_reconfigure", cached=True) as (project, editor, descriptor), McpPeer(self, "active_reconfigure") as peer:
+            basis = self.mcp_read(peer, project, editor, descriptor, "active_reconfigure_basis", source=SAFE)
+            self.close_action(editor, "closed_arm", stage="apply")
+            call = peer.start("edit_script", dict(selectors(project, descriptor),
+                                                 revision=basis["revision"], replacement_source=CHANGED))
+            self.wait_mcp_barrier(editor, "apply", peer, call)
+            before, disks = self.state(editor, project)
+            attempted = self.close_action(editor, "closed_try_reconfigure")
+            observation.require(attempted["accepted"] is False, "native_owner_refuses_active_reconfiguration")
+            self.close_action(editor, "closed_release")
+            self.mcp_review_edit(peer.finish(call, "active_reconfigure_owner"), "active_reconfigure_owner", "verified_changed")
+            after, now = self.assert_closed_success("active_reconfigure_owner", project, editor,
+                                                    before, disks, CHANGED, changed=True)
+            self.close_action(editor, "close_idle", frames=16)
+            self.assert_no_effect("active_reconfigure_terminal", project, editor, after, now)
 
     def mcp_preservation_native_entry(self):
         for action in ("open", "aba", "newer_resource", "cache_appear", "cache_replace", "equal_dirty", "profile", "context"):

@@ -220,6 +220,15 @@ func _dispatch_close_request(request: Dictionary) -> void:
 			if response.ok: bridge.attach_closed(owner, 4, api.build_id.call())
 		"closed_reconfigure":
 			response.ok = api.has("configure") and api.configure.call(_open_bridge().get("_session"))
+		"closed_try_reconfigure":
+			response.ok = api.has("configure")
+			if response.ok: response.accepted = api.configure.call(_open_bridge().get("_session"))
+		"closed_revoke_attempt":
+			var method := "edit_cancel" if request.get("profile") == "open" else "closed_abort"
+			response.ok = api.has(method)
+			if response.ok:
+				response.result = api[method].call(request.get("request_id", ""))
+				response.ok = response.result is Dictionary and response.result.get("reason") == "cancelled"
 		"closed_native_state":
 			response.ok = api.has("closed_fixture_state")
 			if response.ok: response.result = api.closed_fixture_state.call(request.get("request_id", ""))
