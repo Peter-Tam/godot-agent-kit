@@ -300,8 +300,8 @@ class McpAdversarialMixin:
         return content
 
     def assert_mcp_buffer_prefix_survivor(self, before, disks, after, now, label):
-        # After an applied B edit, ordinary ScriptEditor validation may copy that
-        # already-visible source into R even though the native R stage never ran.
+        # After native or fixture-controlled human B edits, ordinary ScriptEditor
+        # validation may still copy that already-visible source into R.
         # Permit only that transition, never a D/B/history/dirty/identity change.
         left, right = source_free(before, disks), source_free(after, now)
         old_docs, new_docs = left['documents'], right['documents']

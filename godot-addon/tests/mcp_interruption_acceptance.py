@@ -421,9 +421,8 @@ class McpInterruptionMixin(McpAdversarialMixin):
                             self._interruption_review(root, call, stage, label)
                         self._interruption_release(editor, "open")
                         self._interruption_survivor(project, editor, before, disks, label, no_effect=True,
-                                                   buffer_prefix=stage == "buffer_applied")
-                    self._interruption_recover(project, editor, descriptor, label,
-                                               buffer_prefix=stage == "buffer_applied")
+                                                   buffer_prefix=True)
+                    self._interruption_recover(project, editor, descriptor, label, buffer_prefix=True)
         for profile in ("cached-closed", "absent-closed"):
             stages = ("after_resource", "after_write", "after_mtime") if profile == "cached-closed" else \
                 ("after_write", "after_mtime")
