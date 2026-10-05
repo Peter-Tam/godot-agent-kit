@@ -336,108 +336,201 @@ fn depth_overflow_and_nested_duplicate_arguments_never_dispatch() {
 }
 
 #[test]
+fn unfinished_handshake_and_partial_frame_expire_with_stdin_open() {
+    for partial in [false, true] {
+        let mut peer = Peer::start();
+        if partial {
+            peer.initialize();
+            peer.input
+                .as_mut()
+                .unwrap()
+                .write_all(b"{\"private_partial_frame\":")
+                .unwrap();
+            peer.input.as_mut().unwrap().flush().unwrap();
+        }
+        assert!(wait_exit(&mut peer.child, Duration::from_secs(12)).success());
+        assert!(peer.input.is_some(), "the peer did not supply EOF");
+        use std::io::Read;
+        let mut stderr = String::new();
+        peer.child
+            .stderr
+            .take()
+            .unwrap()
+            .read_to_string(&mut stderr)
+            .unwrap();
+        assert!(!stderr.contains("private_partial_frame"));
+    }
+}
+
+#[derive(Clone, Copy)]
+enum AcquisitionInterruption {
+    Cancel,
+    Eof,
+    Signal(i32),
+}
+
+#[test]
 fn active_call_cancel_and_eof_close_only_the_owned_acquisition() {
+    for interruption in [
+        AcquisitionInterruption::Cancel,
+        AcquisitionInterruption::Eof,
+    ] {
+        interrupted_acquisition(interruption);
+    }
+}
+
+#[test]
+fn active_call_sigint_and_sigterm_close_only_the_owned_acquisition() {
+    for signal in [2, 15] {
+        interrupted_acquisition(AcquisitionInterruption::Signal(signal));
+    }
+}
+
+fn interrupted_acquisition(interruption: AcquisitionInterruption) {
     use std::fs::{self, DirBuilder, OpenOptions};
     use std::io::Read;
     use std::net::TcpListener;
     use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
     use std::time::{SystemTime, UNIX_EPOCH};
     const SESSION: &str = "00112233445566778899aabbccddeeff";
-    for disconnect in [false, true] {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let home = fs::canonicalize(std::env::temp_dir())
-            .unwrap()
-            .join(format!("mcp-owned-{}-{unique}", std::process::id()));
-        DirBuilder::new().mode(0o700).create(&home).unwrap();
-        let project = home.join("project");
-        DirBuilder::new().mode(0o700).create(&project).unwrap();
-        let source = project.join("target.gd");
-        fs::write(&source, "extends Node\n").unwrap();
-        let registry = home.join("registry");
-        godot_agent_kit::project_fs::init_registry(&registry).unwrap();
-        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
-        listener.set_nonblocking(true).unwrap();
-        let mut descriptor = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(registry.join(format!("{SESSION}.json")))
-            .unwrap();
-        write!(
-            descriptor,
-            "{}",
-            json!({
-                "v":6,"session_id":SESSION,"project_root":project,
-                "godot_version":"4.7.2.stable.official.ed1daf0bf",
-                "engine_hash":"ed1daf0bf001b61586d9930840f2f1394092c079",
-                "host":"127.0.0.1","port":listener.local_addr().unwrap().port(),
-                "token":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
-            })
-        )
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let home = fs::canonicalize(std::env::temp_dir())
+        .unwrap()
+        .join(format!("mcp-owned-{}-{unique}", std::process::id()));
+    DirBuilder::new().mode(0o700).create(&home).unwrap();
+    let project = home.join("project");
+    DirBuilder::new().mode(0o700).create(&project).unwrap();
+    let source = project.join("target.gd");
+    fs::write(&source, "extends Node\n").unwrap();
+    let registry = home.join("registry");
+    godot_agent_kit::project_fs::init_registry(&registry).unwrap();
+    let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let mut descriptor = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(registry.join(format!("{SESSION}.json")))
         .unwrap();
-        drop(descriptor);
-        let (entered, started) = mpsc::sync_channel(1);
-        let (closed, finished) = mpsc::sync_channel(1);
-        let boundary = std::thread::spawn(move || {
-            let deadline = Instant::now() + Duration::from_secs(3);
-            let mut socket = loop {
-                match listener.accept() {
-                    Ok((socket, _)) => break socket,
-                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                        assert!(
-                            Instant::now() < deadline,
-                            "acquisition did not reach the selected endpoint"
-                        );
-                        std::thread::sleep(Duration::from_millis(1));
-                    }
-                    Err(error) => panic!("{error}"),
+    write!(
+        descriptor,
+        "{}",
+        json!({
+            "v":6,"session_id":SESSION,"project_root":project,
+            "godot_version":"4.7.2.stable.official.ed1daf0bf",
+            "engine_hash":"ed1daf0bf001b61586d9930840f2f1394092c079",
+            "host":"127.0.0.1","port":listener.local_addr().unwrap().port(),
+            "token":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+        })
+    )
+    .unwrap();
+    drop(descriptor);
+    let (entered, started) = mpsc::sync_channel(1);
+    let (closed, finished) = mpsc::sync_channel(1);
+    let boundary = std::thread::spawn(move || {
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let mut socket = loop {
+            match listener.accept() {
+                Ok((socket, _)) => break socket,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    assert!(
+                        Instant::now() < deadline,
+                        "acquisition did not reach the selected endpoint"
+                    );
+                    std::thread::sleep(Duration::from_millis(1));
                 }
-            };
-            socket.set_nonblocking(false).unwrap();
-            socket
-                .set_read_timeout(Some(Duration::from_secs(3)))
-                .unwrap();
-            let mut size = [0; 4];
-            socket.read_exact(&mut size).unwrap();
-            let size = u32::from_be_bytes(size) as usize;
-            assert!(size <= 4096);
-            let mut hello = vec![0; size];
-            socket.read_exact(&mut hello).unwrap();
-            entered.send(()).unwrap();
-            // No authentication response: the actual bounded worker is waiting,
-            // and has acquired no mutation authority.
-            assert_eq!(
-                socket.read(&mut [0]).unwrap(),
-                0,
-                "owned worker kept the endpoint alive after cancellation"
-            );
-            closed.send(()).unwrap();
-        });
-        let mut peer = Peer::start_at(&registry);
-        peer.initialize();
+                Err(error) => panic!("{error}"),
+            }
+        };
+        socket.set_nonblocking(false).unwrap();
+        socket
+            .set_read_timeout(Some(Duration::from_secs(3)))
+            .unwrap();
+        let mut size = [0; 4];
+        socket.read_exact(&mut size).unwrap();
+        let size = u32::from_be_bytes(size) as usize;
+        assert!(size <= 4096);
+        let mut hello = vec![0; size];
+        socket.read_exact(&mut hello).unwrap();
+        entered.send(()).unwrap();
+        // No authentication response: the actual bounded worker is waiting,
+        // and has acquired no mutation authority.
+        assert_eq!(
+            socket.read(&mut [0]).unwrap(),
+            0,
+            "owned worker kept the endpoint alive after cancellation"
+        );
+        assert!(
+            matches!(listener.accept(), Err(error) if error.kind() == std::io::ErrorKind::WouldBlock),
+            "a rejected edit was queued or replayed at the selected endpoint"
+        );
+        closed.send(()).unwrap();
+    });
+    let mut peer = Peer::start_at(&registry);
+    peer.initialize();
+    peer.send(
+        json!({"jsonrpc":"2.0","id":"active","method":"tools/call","params":{
+            "name":"edit_script","arguments":{"project_root":project,"session_id":SESSION,
+                "script_path":"res://target.gd","revision":format!("sr1:{}", "a".repeat(64)),
+                "replacement_source":"extends Node\n# must not apply\n"}
+        }}),
+    );
+    started.recv_timeout(Duration::from_secs(3)).unwrap();
+    // Neither a duplicate edit nor a different owner's rejected edit may
+    // acquire a second private connection or replace this cancellation owner.
+    for id in ["active", "rejected"] {
         peer.send(
-            json!({"jsonrpc":"2.0","id":"active","method":"tools/call","params":{
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{
                 "name":"edit_script","arguments":{"project_root":project,"session_id":SESSION,
                     "script_path":"res://target.gd","revision":format!("sr1:{}", "a".repeat(64)),
-                    "replacement_source":"extends Node\n# must not apply\n"}
+                    "replacement_source":"extends Node\n# rejected private source\n"}
             }}),
         );
-        started.recv_timeout(Duration::from_secs(3)).unwrap();
-        if disconnect {
+        let response = peer.read();
+        assert_eq!(response["id"], id);
+        if id == "active" {
+            assert_eq!(response["error"]["code"], -32600);
+        } else {
+            let object = &response["result"]["structuredContent"];
+            assert_eq!(object["error"]["code"], "server_busy");
+            assert_eq!(object["error"]["application"], "not_applied");
+        }
+        assert!(!response.to_string().contains("rejected private source"));
+    }
+    for id in ["unknown", "rejected"] {
+        peer.send(
+            json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":id}}),
+        );
+    }
+    peer.send(json!({"jsonrpc":"2.0","id":"owner-isolated","method":"ping"}));
+    assert_eq!(peer.read()["id"], "owner-isolated");
+    assert!(
+        finished.try_recv().is_err(),
+        "another ID cancelled the original owner"
+    );
+    match interruption {
+        AcquisitionInterruption::Eof => {
             peer.input.take();
             assert!(wait_exit(&mut peer.child, Duration::from_secs(2)).success());
-        } else {
+        }
+        AcquisitionInterruption::Signal(signal) => {
+            // SAFETY: this is the owned MCP test process, not the endpoint.
+            assert_eq!(unsafe { kill(peer.child.id() as i32, signal) }, 0);
+            assert!(wait_exit(&mut peer.child, Duration::from_secs(2)).success());
+            assert!(peer.input.is_some());
+        }
+        AcquisitionInterruption::Cancel => {
             peer.send(json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"active"}}));
             peer.send(json!({"jsonrpc":"2.0","id":"responsive","method":"ping"}));
             assert_eq!(peer.read()["id"], "responsive");
         }
-        finished.recv_timeout(Duration::from_secs(2)).unwrap();
-        boundary.join().unwrap();
-        assert_eq!(fs::read_to_string(source).unwrap(), "extends Node\n");
-        drop(peer);
-        fs::remove_dir_all(home).unwrap();
     }
+    finished.recv_timeout(Duration::from_secs(2)).unwrap();
+    boundary.join().unwrap();
+    assert_eq!(fs::read_to_string(source).unwrap(), "extends Node\n");
+    drop(peer);
+    fs::remove_dir_all(home).unwrap();
 }

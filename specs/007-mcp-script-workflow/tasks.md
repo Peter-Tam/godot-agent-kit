@@ -2,7 +2,7 @@
 
 **Input:** Design documents in `specs/007-mcp-script-workflow/`: [specification](spec.md), [plan](plan.md), [research](research.md), [data model](data-model.md), [MCP contract](contracts/mcp-interface.md), [execution contract](contracts/execution.md), [closed-edit contract](contracts/closed-edit.md) and [validation guide](quickstart.md).
 
-**Status:** T001 and T002 are complete, with [core/native evidence](quickstart.md#t001-execution-evidence-2026-10-04) and [actual MCP/two-client acceptance](quickstart.md#t002-execution-evidence-2026-10-05). T001 delivery is merged PR #64; T002 delivery uses `task/T002-mcp-script-workflow`. T003–T004 remain pending and unselected. Approved remaining obligations and granularity are unchanged; completion does not authorize dependent implementation before merge or an explicitly approved stacked workflow.
+**Status:** T001 and T002 are complete, with [core/native evidence](quickstart.md#t001-execution-evidence-2026-10-04) and [actual MCP/two-client acceptance](quickstart.md#t002-execution-evidence-2026-10-05), delivered in merged PRs #64 and #65. Only T003 is selected for implementation on `task/T003-mcp-adversarial-safety`; T004 remains pending and unselected. Approved remaining obligations and granularity are unchanged; completion does not authorize dependent implementation before merge or an explicitly approved stacked workflow.
 
 **Prerequisites:** Review the selected technical plan, complete `/speckit.analyze` after granularity review, and satisfy the repository's implementation prerequisites before selecting exactly one dependency-ready task. Verify the active directory as `specs/007-mcp-script-workflow`; task branch names do not select it.
 

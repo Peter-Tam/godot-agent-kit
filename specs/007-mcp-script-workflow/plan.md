@@ -290,3 +290,41 @@ internal `not_applicable` spelling. Projection now translates that value and kee
 unconfirmed B unavailable. Strict numeric interval types and post-effect certainty
 remain checked. These are adapter corrections, not new core authority or mutation
 semantics.
+
+### T003 adversarial acceptance execution plan
+
+Select only T003 after T002's merged PR #65. Recomputed fingerprints recover the
+original analyzed baseline `c8dc7683409ca72ac0d7feb215cd3045dd6f7ed9`; cumulative
+changes record T001/T002 implementation, delivery and evidence, without changing
+remaining requirements. The original analysis remains current.
+
+The concrete gap is public-path evidence at conflicting-state, effect and delivery
+boundaries, including each selected real client's interpretation. Reusing the
+legacy supervised fixture consumer would not exercise MCP correlation, projection
+or delivery. The smallest additional apparatus is one bounded actual-stdio peer,
+separately runnable preservation/interruption drivers using existing independent
+editor witnesses, and fixed failure/reconnect profiles in the existing prepared
+relay. A reply-loss profile must retain the actual undelivered server result and
+survivor evidence without claiming the client received it.
+
+These additions cost maintenance of task-specific scenarios and one shared
+process/framing helper, not a second product protocol, generic orchestration
+framework, replay service, new dependency, native family or public API. Existing
+fixture-only barriers/callbacks and fault artifacts provide negative events;
+malformed framing corrupts a genuine private reply rather than fabricating source
+or successful effects. Production and fixture artifact identities remain separate.
+
+Newly execute the task-owned preservation/interruption interactions and both
+clients' limited/refusal/partial/unknown/reconnect interpretations. Run affected
+transport/output and fixture/VM-selection tests and applicable Rust checks. Reuse
+unchanged native/ABI, positive lifecycle, history and export evidence after
+relevant-input review; an actual production fix must identify its reachable
+invalidations. T004's composed A–E and cumulative feature decision stay pending.
+
+Constitutional planning preserves independent authorities and live witnesses
+(I/IV/VI), newer human work and lifecycle (II/III), local explicit routing and
+confinement (V), core/native safety ownership (VII), fixture export separation
+(VIII), structured targeted failure guidance (IX/X), and the existing independent
+implementation/dependency provenance (XI). No weaker guarantee or expanded support
+is selected; concrete behavior, not additional process ceremony, earns acceptance
+(XII/XIII).

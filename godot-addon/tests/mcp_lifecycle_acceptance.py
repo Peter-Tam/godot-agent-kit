@@ -341,6 +341,7 @@ class McpLifecycleMixin:
                             value = {}
                         if incoming is connection:
                             invalidating = False
+                            failure_target = None
                             params = value.get('params')
                             identity = value.get('id')
                             if value.get('method') == 'initialize':
@@ -367,10 +368,15 @@ class McpLifecycleMixin:
                                 if invalidating:
                                     observation.require(not target.get('invalidated_after'), 'single_controlled_invalidated_read')
                                     self.close_action(target['editor'], 'closed_arm', kind='closed_state')
+                                if target and target['name'].startswith('failure_'):
+                                    failure_target = target
+                                    self.arm_mcp_failure(target, value)
                                 pending[identity] = (value, self.state(target['editor'], target['project']) if target else None,
                                                      time.monotonic())
                             process.stdin.write(line + b'\n')
                             process.stdin.flush()
+                            if failure_target is not None:
+                                self.after_mcp_failure_send(failure_target, value, process)
                             if value.get('method') == 'tools/call' and invalidating:
                                 self.wait_closed_barrier(target['editor'], 'response:closed_state',
                                                          (process, None, 'fixture-no-request'), acquisition=True)
@@ -382,6 +388,13 @@ class McpLifecycleMixin:
                                 pending[identity] = (value, (external_state, external_disks), pending[identity][2])
                                 self.close_action(target['editor'], 'closed_release')
                         else:
+                            owned_response = pending.get(value.get('id')) if type(value.get('id')) in (str, int) else None
+                            if owned_response:
+                                request, before, _ = owned_response
+                                project = request['params']['arguments'].get('project_root')
+                                target = self.targets.get(project)
+                                if target and target['name'] == 'failure_reconnect' and self.drop_mcp_delivery(request, value, before):
+                                    return
                             connection.sendall(line + b'\n')
                             delivered = time.monotonic()
                             identity = value.get('id')
@@ -402,6 +415,8 @@ class McpLifecycleMixin:
                                      isinstance(result, dict) and isinstance(result.get('structuredContent'), dict) else None)
                             if owned:
                                 request, before, started = owned
+                                limit = 10 if request['params']['name'] == 'edit_script' else 5
+                                observation.require(delivered - started <= limit, 'MCP_original_consumed_output_bound')
                                 if before:
                                     self.observe_call(request, value, before)
                                 with (self.artifacts / 'delivery.jsonl').open('a') as stream:
