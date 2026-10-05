@@ -378,6 +378,8 @@ class McpLifecycleMixin:
                                 if target and target['name'].startswith('failure_'):
                                     failure_target = target
                                     self.arm_mcp_failure(target, value)
+                                if target and self.args.profile == 'composed':
+                                    self.before_composed_call(target, value)
                                 pending[identity] = (value, self.state(target['editor'], target['project']) if target else None,
                                                      time.monotonic())
                             process.stdin.write(line + b'\n')

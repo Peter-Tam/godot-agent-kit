@@ -406,3 +406,42 @@ profiles passed with [exact evidence and relevant-input review](quickstart.md#t0
 The public contract, approved remaining requirements and task granularity are
 unchanged. These implementation/evidence updates do not invalidate the original
 analysis attestation or authorize T004, broader support, release or Phase 3 exit.
+
+### T004 composed acceptance execution plan
+
+Select only T004 after T003's merged PR #66. The six analysis fingerprints were
+recomputed and their exact original bytes recovered from
+`c8dc7683409ca72ac0d7feb215cd3045dd6f7ed9`. Cumulative feature-directory changes
+record completed implementation, client/dependency evidence and delivery; T004's
+scope, acceptance and dependencies are unchanged. The original analysis remains
+current, and the 16-item requirements-quality checklist remains read-only and passed.
+
+The remaining requirement is a real coding-agent composed A–E interaction plus
+cumulative privacy/export coverage, not another product capability. Extend the
+existing owned MCP relay and independent editor witnesses with a composed profile
+and a separate privacy/export driver. Keep runner/VM dispatch under one integration
+owner; independent drivers use separate owned fixtures. Existing fixture history,
+Save, lifecycle and runtime actions witness already-observed outcomes and never
+repair a product result or make a closed edit eligible.
+
+A protocol-only loop would be simpler but cannot satisfy US5/SC-005's actual-agent
+requirement. The selected additions cost two capability-specific acceptance
+drivers and narrow fixed-profile integration, reusing existing ownership, source
+transfer, client configuration and artifact retrieval. No new service, dependency,
+product tool, generic workflow framework or approval bypass is justified.
+
+New evidence must establish twenty fresh-revision successes across open,
+cached-Resource closed and absent-Resource closed profiles, with at least three
+dirty and three stale refusals interleaved; actual prior-history-preserving
+Undo/Save/Redo/Save, ordinary later lifecycle/durability, and privacy/export.
+Run affected driver/selection regressions and actual VM scenarios. Reuse accepted
+T001–T003 and historical evidence after relevant-input review; add Rust/native
+checks only if an actual change invalidates their execution or provenance.
+
+Constitutional review retains independent applicable authorities (I/IV/VI),
+human/history/lifecycle preservation and native effects (II/III), existing local
+permissions/confinement and export isolation (V/VIII), protocol-independent safety
+(VII), lean descriptions and truthful outcomes (IX/X), existing provenance (XI),
+and focused behavioral evidence without speculative infrastructure (XII/XIII).
+Feature completion requires every remaining acceptance obligation; Phase 3 exit,
+release, broader support and another task are not selected.

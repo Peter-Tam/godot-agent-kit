@@ -649,7 +649,7 @@ def _parser():
     prepare.add_argument('--revision', required=True, type=_sha)
     prepare.add_argument('--run-id', required=True, type=_token)
     prepare.add_argument('--profile', choices=('workflow', 'known', 'sources', 'bound', 'observations',
-                                             'failures', 'reconnect'), default='workflow')
+                                             'failures', 'reconnect', 'composed'), default='workflow')
     for action in ('mcp-stdio', 'prepare-durability', 'finalize-mcp'):
         command = commands.add_parser(action)
         command.add_argument('--run-id', required=True, type=_token)

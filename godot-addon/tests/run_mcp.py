@@ -18,6 +18,8 @@ from mcp_lifecycle_acceptance import McpLifecycleMixin, PROFILE_GROUPS, serve_pr
 from mcp_failure_acceptance import McpFailureMixin, FAILURE_GROUPS
 from mcp_preservation_acceptance import McpPreservationAcceptanceMixin, PRESERVATION_GROUPS
 from mcp_interruption_acceptance import McpInterruptionMixin, INTERRUPTION_GROUPS
+from mcp_composed_acceptance import McpComposedMixin
+from mcp_privacy_acceptance import McpPrivacyAcceptanceMixin
 
 CLIENT_GROUPS = {**PROFILE_GROUPS, **FAILURE_GROUPS}
 
@@ -27,10 +29,12 @@ SCENARIOS = ("closed-native", "closed-lifecycle", "closed-positives", "closed-re
              "closed-save-profile-and-shared-slot", "closed-cancel-and-newer-work",
              "closed-later-durability-and-history", "matched-v6-native4-legacy-preservation",
              "closed-privacy-export", "transport", *("transport-" + name for name in CLIENT_GROUPS),
-             "preservation", *PRESERVATION_GROUPS, "interruption", *INTERRUPTION_GROUPS)
+             "preservation", *PRESERVATION_GROUPS, "interruption", *INTERRUPTION_GROUPS,
+             "composed", "privacy-export")
 
 
-class WorkflowHarness(McpFailureMixin, McpPreservationAcceptanceMixin, McpInterruptionMixin,
+class WorkflowHarness(McpComposedMixin, McpPrivacyAcceptanceMixin, McpFailureMixin,
+                      McpPreservationAcceptanceMixin, McpInterruptionMixin,
                       McpLifecycleMixin, ClosedScriptAcceptanceMixin, CloseHarness):
     def __init__(self, args, work):
         super().__init__(args, work)
@@ -77,6 +81,14 @@ class WorkflowHarness(McpFailureMixin, McpPreservationAcceptanceMixin, McpInterr
                                 adversarial_driver_sha256={name: observation.digest(Path(__file__).with_name(name))
                                     for name in ("mcp_peer.py", "mcp_preservation_acceptance.py",
                                                  "mcp_interruption_acceptance.py", "mcp_failure_acceptance.py")})
+        if args.scenario in ("composed", "privacy-export") or args.profile == "composed":
+            self.summary.update(coverage_scope="composed_MCP_acceptance_" + args.scenario,
+                                changed_boundary="composed_and_privacy_acceptance_fixtures",
+                                mcp_acceptance=True, real_client_acceptance=False,
+                                mcp_server_sha256=observation.digest(args.mcp_server),
+                                acceptance_driver_sha256={name: observation.digest(Path(__file__).with_name(name))
+                                    for name in ("mcp_composed_acceptance.py", "mcp_privacy_acceptance.py",
+                                                 "mcp_lifecycle_acceptance.py", "mcp_peer.py")})
 
 
 def main():
@@ -88,7 +100,7 @@ def main():
     parser.add_argument("--mcp-server", type=Path)
     parser.add_argument("--prepared-run", type=Path)
     parser.add_argument("--revision")
-    parser.add_argument("--profile", choices=tuple(CLIENT_GROUPS), default="workflow")
+    parser.add_argument("--profile", choices=(*CLIENT_GROUPS, "composed"), default="workflow")
     args = parser.parse_args()
     os.umask(0o077)
     for name in ("godot", "observer", "editor", "stock_validator", "opener", "closer", "discoverer", "workflow"):
@@ -130,6 +142,8 @@ def main():
                 "transport": harness.mcp_transport,
                 "preservation": harness.mcp_preservation,
                 "interruption": harness.mcp_interruption,
+                "composed": harness.mcp_composed,
+                "privacy-export": harness.mcp_privacy_export,
             }
             methods.update(("transport-" + name, harness.mcp_transport) for name in CLIENT_GROUPS)
             methods.update((name, getattr(harness, method)) for name, method in
