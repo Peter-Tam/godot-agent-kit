@@ -353,3 +353,14 @@ Closed native mutation, transport, authentication, ABI and export mechanisms are
 unchanged; review relevant equivalence and retain their valid coverage rather than
 automatically replaying historical suites. Subsequent T003 closed cases also
 exercise matched loading against the rebuilt native bundle.
+
+The first corrected run established pre-effect refusal with unchanged buffer,
+disk, Resource and history. At the later `buffer_applied` boundary, ordinary
+ScriptEditor validation independently copied already-visible B into R while
+the result retained native Resource synchronization and persistence as
+`not_started`. The witness must not mislabel that editor propagation as another
+native write. The shared comparison permits only R becoming that exact existing
+B, retaining strict D/B, dirty-state, history, roster and identity equality;
+raw observations/results remain unchanged. Waiting for or forcing reconciliation
+would hide the transition instead of witnessing it. This is one bounded comparison
+used by the dirty-Resource and interruption cases, not a new safety policy.

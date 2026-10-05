@@ -295,3 +295,22 @@ class McpAdversarialMixin:
                             'MCP_recovery_read_does_not_repair_' + label)
         self.record_witness(label, before, disks, after, now, editor)
         return content
+
+    def assert_mcp_buffer_prefix_survivor(self, before, disks, after, now, label):
+        # After an applied B edit, ordinary ScriptEditor validation may copy that
+        # already-visible source into R even though the native R stage never ran.
+        # Permit only that transition, never a D/B/history/dirty/identity change.
+        left, right = source_free(before, disks), source_free(after, now)
+        old_docs, new_docs = left['documents'], right['documents']
+        observation.require(
+            after['cached_R'] in (before['cached_R'], before['target']['B']) and
+            after['target']['R'] == after['cached_R'] and
+            old_docs.keys() == new_docs.keys() and
+            all({k: v for k, v in old_docs[path].items() if path != TARGET or k != 'R'} ==
+                {k: v for k, v in new_docs[path].items() if path != TARGET or k != 'R'} for path in old_docs) and
+            {k: v for k, v in left.items() if k not in ('documents', 'cached_source_sha256')} ==
+            {k: v for k, v in right.items() if k not in ('documents', 'cached_source_sha256')},
+            'MCP_only_observed_editor_B_to_R_propagation_' + label)
+        self.cases[-1]['observed_editor_resource_propagation'] = (
+            self.cases[-1].get('observed_editor_resource_propagation', False) or
+            before['cached_R'] != after['cached_R'])

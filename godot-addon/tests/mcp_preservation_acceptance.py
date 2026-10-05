@@ -312,10 +312,23 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                 after, now = self.state(editor, project)
                 self.record_witness(label, before, disks, after, now, editor)
                 self.mcp_review_edit(root, label, "refused" if stage == "apply" else "applied_unverified")
-                observation.require(source_free(before, disks) == source_free(after, now),
-                                    "late_dirty_R_preserves_all_authorities_and_history_" + stage)
+                if stage == "buffer_applied":
+                    progress = root["result"]["outcome"]["progress"]
+                    observation.require(progress["resource_sync"]["state"] == "not_started" and
+                                        progress["persistence"]["state"] == "not_started",
+                                        "dirty_R_stops_native_resource_and_disk_stages")
+                    self.assert_mcp_buffer_prefix_survivor(before, disks, after, now, label)
+                else:
+                    observation.require(source_free(before, disks) == source_free(after, now),
+                                        "late_dirty_R_preserves_all_authorities_and_history_" + stage)
                 self.close_action(editor, "close_idle", frames=16)
-                self.assert_no_effect(label + "_terminal", project, editor, before, disks)
+                terminal, terminal_disks = self.state(editor, project)
+                if stage == "buffer_applied":
+                    self.assert_mcp_buffer_prefix_survivor(after, now, terminal, terminal_disks, label + "_terminal")
+                else:
+                    observation.require(source_free(after, now) == source_free(terminal, terminal_disks),
+                                        "no_late_native_effect_after_dirty_R_" + stage)
+                self.record_witness(label + "_terminal", before, disks, terminal, terminal_disks, editor)
                 self.mcp_survivor_read(peer, project, editor, descriptor, label + "_fresh")
 
     def mcp_preservation_native_entry(self):

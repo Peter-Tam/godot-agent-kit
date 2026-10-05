@@ -102,7 +102,7 @@ class McpInterruptionMixin(McpAdversarialMixin):
         return result
 
     def _interruption_survivor(self, project, editor, before, disks, label, *, no_effect=False,
-                              human_selection=False):
+                              human_selection=False, buffer_prefix=False):
         observation.require(editor["process"].poll() is None, "interruption_never_kills_editor_" + label)
         after, now = self.state(editor, project)
         prior_docs, later_docs = documents(before), documents(after)
@@ -111,11 +111,19 @@ class McpInterruptionMixin(McpAdversarialMixin):
                             (human_selection or before["selection"] == after["selection"]),
                             "interruption_unrelated_human_history_and_selection_" + label)
         if no_effect:
-            observation.require(source_free(before, disks) == source_free(after, now),
-                                "interruption_independent_no_effect_" + label)
+            if buffer_prefix:
+                self.assert_mcp_buffer_prefix_survivor(before, disks, after, now, label)
+            else:
+                observation.require(source_free(before, disks) == source_free(after, now),
+                                    "interruption_independent_no_effect_" + label)
         self.record_witness(label, before, disks, after, now, editor)
         self.close_action(editor, "close_idle", frames=16)
-        self.assert_no_effect(label + "-terminal", project, editor, after, now)
+        if buffer_prefix:
+            terminal, terminal_disks = self.state(editor, project)
+            self.assert_mcp_buffer_prefix_survivor(after, now, terminal, terminal_disks, label + "-terminal")
+            self.record_witness(label + "-terminal", before, disks, terminal, terminal_disks, editor)
+        else:
+            self.assert_no_effect(label + "-terminal", project, editor, after, now)
         return after, now
 
     def _interruption_recover(self, project, editor, descriptor, label):
@@ -160,7 +168,8 @@ class McpInterruptionMixin(McpAdversarialMixin):
                             if control in ("cancel", "eof", "sigint", "sigterm"):
                                 peer.wait_exit(bound=max(0.01, call["started"] + 11 - time.monotonic()))
                             self._interruption_release(editor, profile)
-                            self._interruption_survivor(project, editor, before, disks, label, no_effect=True)
+                            self._interruption_survivor(project, editor, before, disks, label, no_effect=True,
+                                                       buffer_prefix=stage == "buffer_applied")
                         self._interruption_recover(project, editor, descriptor, label)
 
     def mcp_interruption_cancellation(self):
@@ -363,7 +372,8 @@ class McpInterruptionMixin(McpAdversarialMixin):
                         if root is not None:
                             self._interruption_review(root, call, stage, label)
                         self._interruption_release(editor, "open")
-                        self._interruption_survivor(project, editor, before, disks, label, no_effect=True)
+                        self._interruption_survivor(project, editor, before, disks, label, no_effect=True,
+                                                   buffer_prefix=stage == "buffer_applied")
                     self._interruption_recover(project, editor, descriptor, label)
         for profile in ("cached-closed", "absent-closed"):
             stages = ("after_resource", "after_write", "after_mtime") if profile == "cached-closed" else \
@@ -609,7 +619,8 @@ class McpInterruptionMixin(McpAdversarialMixin):
                                   mcp_request_id=call["id"], domain_request_id=call["domain_request_id"],
                                   performance_claim="none_output_not_consumed",
                                   fault="actual_unread_stdout_pipe", **capacity)
-                        self._interruption_survivor(project, editor, before, disks, label, no_effect=True)
+                        self._interruption_survivor(project, editor, before, disks, label, no_effect=True,
+                                                   buffer_prefix=stage == "buffer_applied")
                     self._interruption_recover(project, editor, descriptor, label)
         self._interruption_partial_delivery(blocked=True)
 
