@@ -285,19 +285,32 @@ pub use opening_context::{OpeningContext, OpeningValidationBinding};
 use ownership::*;
 use protocol::*;
 
+fn diagnostic(request: &WireRequest, label: &str, start: Instant) {
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true)
+        .open("/tmp/gak-validation-diagnostic.log")
+    {
+        let text = format!("{} {} {:?} {label} {}\n", request.request_id, std::process::id(), request.purpose, start.elapsed().as_micros());
+        let _ = file.write_all(text.as_bytes());
+    }
+}
+
 fn run_child(
     request: &WireRequest,
     result: &mut ValidationResult,
     deadline_at: Instant,
 ) -> Result<(), &'static str> {
+    let diagnostic_start = Instant::now();
     let closure = capture_closure(request, result, deadline_at)?;
+    diagnostic(request, "captured", diagnostic_start);
     // Admission and binary provenance precede *any* engine process start.
     official(&request.official_binary, deadline_at)?;
+    diagnostic(request, "official", diagnostic_start);
     recheck(request, &closure, deadline_at)?;
     result.cleanup_confirmed = false;
     let private = private_clone_named(&request.private_dir)?;
     result.clone_path = Some(private.0.to_string_lossy().into());
     let project = stage(&closure, &private, &request.warnings)?;
+    diagnostic(request, "staged", diagnostic_start);
     recheck(request, &closure, deadline_at)?;
     let listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0))
         .map_err(|_| "endpoint_unverified")?;
@@ -335,7 +348,9 @@ fn run_child(
         result.child_pid = Some(child.id());
         result.child_spawned = Some(true);
         owned.0 = Some(child);
+        diagnostic(request, "spawned", diagnostic_start);
         let mut stream = connect_owned(result.child_pid.expect("spawned"), port, deadline_at)?;
+        diagnostic(request, "connected", diagnostic_start);
         let project_uri = uri(&project)?;
         send_lsp(
             &mut stream,
@@ -347,6 +362,7 @@ fn run_child(
                     "hierarchicalDocumentSymbolSupport":true}}}}}),
         )?;
         let initialized = response(&mut stream, 1, deadline_at)?;
+        diagnostic(request, "initialized", diagnostic_start);
         if !initialized.is_object() || initialized.get("capabilities").is_none() {
             return Err("initialize_incomplete");
         }
@@ -357,6 +373,7 @@ fn run_child(
         for (index, source) in closure.sources.iter().enumerate() {
             deadline(deadline_at)?;
             source_fence(&mut stream, source, index, &project, result, deadline_at)?;
+            diagnostic(request, "fenced", diagnostic_start);
         }
         drop(stream);
         recheck(request, &closure, deadline_at)?;
@@ -373,6 +390,7 @@ fn run_child(
         result.child_spawned == Some(true)
             && owned.reap(Instant::now() + Duration::from_millis(150)),
     );
+    diagnostic(request, "reaped", diagnostic_start);
     if result.child_spawned == Some(true) && result.child_reaped != Some(true) {
         return Err("reap_unavailable");
     }

@@ -9,7 +9,6 @@ from __future__ import annotations
 from contextlib import ExitStack
 import json
 import re
-import signal
 
 import run_observation as observation
 from closed_script_acceptance import source_free
@@ -79,9 +78,6 @@ class McpComposedMixin:
             target.update(before=before, disks=disks, steps=composed_steps(target['name']), cursor=0,
                           pending=None, fresh=None, first_revision=None, successes=0, dirty_refusals=0,
                           stale_refusals=0, source=disks[TARGET]['text'], initial_source=disks[TARGET]['text'])
-            if target['name'] != 'open':
-                editor['process'].send_signal(signal.SIGSTOP)
-                editor['suspended'] = True
         return receipts
 
     def prepared_prompt(self):
@@ -152,11 +148,6 @@ class McpComposedMixin:
                 target['source'], target['name'], index if role == 'change' else index + 1)
             observation.require(isinstance(token, str) and args.get('revision') == token and
                                 args.get('replacement_source') == desired, 'composed_exact_fresh_or_deliberately_stale_intent')
-        if target['editor'].get('suspended', False):
-            observation.require(role == 'discover', 'composed_resume_only_before_profile_admission')
-            target['editor']['process'].send_signal(signal.SIGCONT)
-            target['editor']['suspended'] = False
-            self.close_action(target['editor'], 'open_idle')
         before, disks = self.state(target['editor'], target['project'])
         editor = target['editor']
         if role == 'discover':

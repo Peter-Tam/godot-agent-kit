@@ -462,12 +462,9 @@ edits, three dirty/three stale refusals, authority/history checks or one-convers
 requirement. Keeping completed editors alive adds no required interaction;
 changing product deadlines, retrying edits or adding a scheduler is not justified.
 
-Prepared future profiles are suspended using the harness's existing owned-process
-state, then resumed and observed through the existing idle/index barriers before
-their first product call. Thus only the current target editor consumes execution
-resources; no editor is suspended during its MCP operation. Existing cleanup
-resumes owned suspended processes before exit. This adds no product queue, deadline
-change, missing live authority, new service or second client conversation.
+An experiment suspended future prepared profiles while the current profile ran.
+An open edit still reached post-validation unavailability. That experiment did
+not establish a remedy and was removed; no suspended-editor scheduling remains.
 
 The ambiguity witness also exposed `loader_calls: 3 → 4` during initial editor
 setup while every recorded source/identity/history surface was unchanged. Both
