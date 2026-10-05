@@ -3,6 +3,166 @@ use super::*;
 fn id() -> RequestId {
     RequestId::new("result-boundary").unwrap()
 }
+
+fn assert_unavailable_result(
+    response: CallToolResult,
+    operation: Operation,
+    code: &str,
+    stage: &str,
+    application: &str,
+) {
+    let wire = serde_json::to_value(response).unwrap();
+    assert_eq!(wire["isError"], true);
+    let next_action = match operation {
+        Operation::Discover => "check_setup",
+        Operation::Read | Operation::Edit => "fresh_read",
+    };
+    assert_eq!(
+        wire["structuredContent"],
+        json!({
+            "schema_version":1,"operation":operation.name(),"request_id":id().as_str(),
+            "result":null,
+            "error":{
+                "category":"host","code":code,"stage":stage,"application":application,
+                "requested_target":null,"resolved_target":null,
+                "next_action":{"kind":next_action},
+            },
+        })
+    );
+    let summary = wire["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .to_ascii_lowercase();
+    match operation {
+        Operation::Discover => {
+            assert!(summary.contains("discovery"), "{summary}");
+            assert!(summary.contains("check setup"), "{summary}");
+            for forbidden in [
+                "fresh_read",
+                "read_script",
+                "read",
+                "revision",
+                "original",
+                "edit",
+            ] {
+                assert!(!summary.contains(forbidden), "{summary}");
+            }
+        }
+        Operation::Read => {
+            assert!(summary.contains("read"), "{summary}");
+            assert!(summary.contains("target"), "{summary}");
+            assert!(summary.contains("again"), "{summary}");
+            assert!(!summary.contains("edit"), "{summary}");
+            assert!(!summary.contains("applied"), "{summary}");
+        }
+        Operation::Edit => {
+            assert!(summary.contains("read"), "{summary}");
+            assert!(summary.contains("original target"), "{summary}");
+            assert!(summary.contains("before another edit"), "{summary}");
+        }
+    }
+}
+
+#[test]
+fn discovery_host_failure_requires_setup_not_script_recovery() {
+    assert_unavailable_result(
+        failure(Operation::Discover, &id(), Failure::HostAfterDispatch),
+        Operation::Discover,
+        "host_failure",
+        "execute",
+        "not_applied",
+    );
+}
+
+#[test]
+fn read_host_failure_requires_reading_again_without_edit_effects() {
+    assert_unavailable_result(
+        failure(Operation::Read, &id(), Failure::HostAfterDispatch),
+        Operation::Read,
+        "host_failure",
+        "execute",
+        "not_applied",
+    );
+}
+
+#[test]
+fn edit_host_failure_requires_original_target_read_and_retains_uncertainty() {
+    assert_unavailable_result(
+        failure(Operation::Edit, &id(), Failure::HostAfterDispatch),
+        Operation::Edit,
+        "host_failure",
+        "execute",
+        "unknown",
+    );
+}
+
+#[test]
+fn discovery_invalid_output_requires_setup_not_script_recovery() {
+    let mut input = limited_discovery();
+    input["interval"] = Value::Null;
+    assert_unavailable_result(
+        complete(Operation::Discover, &id(), input, None),
+        Operation::Discover,
+        "invalid_output",
+        "deliver",
+        "not_applied",
+    );
+}
+
+#[test]
+fn read_invalid_output_requires_reading_again_without_edit_effects() {
+    let mut input = limited_read();
+    input["state"]["interval"] = Value::Null;
+    assert_unavailable_result(
+        complete(Operation::Read, &id(), input, None),
+        Operation::Read,
+        "invalid_output",
+        "deliver",
+        "not_applied",
+    );
+}
+
+#[test]
+fn predispatch_failures_keep_distinct_categories_stages_and_recovery() {
+    for operation in [Operation::Discover, Operation::Read, Operation::Edit] {
+        for (reason, category, code, stage, next_action) in [
+            (
+                Failure::InvalidArguments,
+                "input",
+                "invalid_arguments",
+                "validate_request",
+                "correct_request",
+            ),
+            (
+                Failure::Busy,
+                "admission",
+                "server_busy",
+                "admission",
+                "none",
+            ),
+            (
+                Failure::HostBeforeDispatch,
+                "host",
+                "host_failure",
+                "admission",
+                "check_setup",
+            ),
+        ] {
+            let wire = serde_json::to_value(failure(operation, &id(), reason)).unwrap();
+            assert_eq!(wire["isError"], true);
+            assert_eq!(wire["structuredContent"]["result"], Value::Null);
+            assert_eq!(
+                wire["structuredContent"]["error"],
+                json!({
+                    "category":category,"code":code,"stage":stage,"application":"not_applied",
+                    "requested_target":null,"resolved_target":null,
+                    "next_action":{"kind":next_action},
+                })
+            );
+        }
+    }
+}
+
 fn closed(outcome: &str, application: &str) -> Value {
     json!({"mode":"closed","outcome":{
         "request_id":"result-boundary","interval":{"started_unix_ms":1,"finished_unix_ms":2,"elapsed_us":1000},
@@ -26,12 +186,13 @@ fn invalid_output_after_known_effects_cannot_become_not_applied() {
             json!({"mode":"closed","outcome":{"application":application}}),
             None,
         );
-        assert_eq!(result.is_error, Some(true));
-        let object = result.structured_content.unwrap();
-        assert_eq!(object["result"], Value::Null);
-        assert_eq!(object["error"]["code"], "invalid_output");
-        assert_eq!(object["error"]["application"], application);
-        assert_eq!(object["error"]["next_action"]["kind"], "fresh_read");
+        assert_unavailable_result(
+            result,
+            Operation::Edit,
+            "invalid_output",
+            "deliver",
+            application,
+        );
     }
 }
 #[test]

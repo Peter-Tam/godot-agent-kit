@@ -167,6 +167,23 @@ pub(super) enum Failure {
     InvalidOutput(Application),
 }
 
+fn unavailable_result_guidance(operation: Operation) -> (NextAction<'static>, &'static str) {
+    match operation {
+        Operation::Discover => (
+            NextAction::CheckSetup,
+            "Discovery result unavailable. Check setup before trying again.",
+        ),
+        Operation::Read => (
+            NextAction::FreshRead,
+            "Read result unavailable. Read the target again.",
+        ),
+        Operation::Edit => (
+            NextAction::FreshRead,
+            "Edit result unavailable. Read the original target before another edit.",
+        ),
+    }
+}
+
 pub(super) fn failure(operation: Operation, id: &RequestId, failure: Failure) -> CallToolResult {
     let (category, code, stage, application, next_action, summary) = match failure {
         Failure::InvalidArguments => (
@@ -193,30 +210,32 @@ pub(super) fn failure(operation: Operation, id: &RequestId, failure: Failure) ->
             NextAction::CheckSetup,
             "Host unavailable before dispatch. Check setup.",
         ),
-        Failure::HostAfterDispatch => (
-            Category::Host,
-            ErrorCode::HostFailure,
-            ErrorStage::Execute,
-            if operation == Operation::Edit {
-                Application::Unknown
-            } else {
-                Application::NotApplied
-            },
-            if operation == Operation::Edit {
-                NextAction::FreshRead
-            } else {
-                NextAction::CheckSetup
-            },
-            "Host failure. Read the original target before another edit.",
-        ),
-        Failure::InvalidOutput(application) => (
-            Category::Host,
-            ErrorCode::InvalidOutput,
-            ErrorStage::Deliver,
-            application,
-            NextAction::FreshRead,
-            "Result evidence unavailable. Read the original target before another edit.",
-        ),
+        Failure::HostAfterDispatch => {
+            let (next_action, summary) = unavailable_result_guidance(operation);
+            (
+                Category::Host,
+                ErrorCode::HostFailure,
+                ErrorStage::Execute,
+                if operation == Operation::Edit {
+                    Application::Unknown
+                } else {
+                    Application::NotApplied
+                },
+                next_action,
+                summary,
+            )
+        }
+        Failure::InvalidOutput(application) => {
+            let (next_action, summary) = unavailable_result_guidance(operation);
+            (
+                Category::Host,
+                ErrorCode::InvalidOutput,
+                ErrorStage::Deliver,
+                application,
+                next_action,
+                summary,
+            )
+        }
     };
     let envelope: Envelope<'_, ()> = Envelope {
         schema_version: 1,

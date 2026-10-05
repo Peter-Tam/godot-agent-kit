@@ -441,6 +441,76 @@ The native build remains `7203d78018cae3b6b507efbefac688100dd8dd4f8032ab10a6ccfc
 The [plan's concrete-cost review](plan.md#t002-bounded-worker-channel-correction)
 records why these changes are needed now. No T003/T004 or phase-exit claim follows.
 
+### Post-review correction: operation-specific recovery
+
+The focused correction after `c0f1d7a` changes only adapter failure guidance in
+`mcp/output.rs`, on the same T002 branch and PR #65. `HostAfterDispatch` and
+`InvalidOutput` previously shared edit-oriented text; the latter also gave
+discovery `fresh_read`, while host failure gave read `check_setup`.
+
+Both branches now select the action and terse summary together:
+
+| Operation | Next action | Guidance |
+| --- | --- | --- |
+| `discover_scripts` | `check_setup` | Discovery result unavailable; check setup before trying again. |
+| `read_script` | `fresh_read` | Read result unavailable; read that target again. |
+| `edit_script` | `fresh_read` | Edit result unavailable; read the original target before another edit. |
+
+Failure classification is unchanged: invalid arguments, server busy and
+pre-dispatch host failure retain their existing category/stage/action; dispatched
+host failure remains `host_failure` / `execute`; rejected output remains
+`invalid_output` / `deliver`. Discovery/read stay `not_applied`. An edit host
+failure stays `unknown`; rejected edit output retains established
+`applied` / `partly_applied` / `unknown` certainty rather than becoming not-applied.
+Editor refusals remain operation results, not adapter or JSON-RPC errors.
+
+Six focused regressions were added, and the existing edit invalid-output
+effect-retention test now also checks recovery guidance. They inspect serialized
+`CallToolResult` envelopes and actual terse content, including discovery's absence
+of script-read/revision/edit instructions. Four failed before the correction;
+all **17 output tests** and **15 MCP process/tool tests** passed afterward.
+A throwaway actual-executable smoke initialized/listed tools, removed only its
+private executable copy to make same-binary worker launch fail, and submitted
+valid discover/read/edit calls. All three delivered the required host-error
+application/action/summary through stdio. It launched no Godot process and added
+no product fault switch; its process and temporary files were removed.
+
+**Rust validation:** `cargo +1.98.1 fmt --all -- --check` and
+`cargo +1.98.1 clippy --all-targets --locked -- -D warnings` passed. The normal
+`cargo +1.98.1 test --locked` again failed (exit 101) only the unchanged
+`script_open::a_late_compilation_result_cannot_upgrade_a_delivered_known_partial_timeout`
+ten-second elapsed assertion at `tests/bridge_boundary/open.rs:807`; 230 library
+and 62 bridge-boundary tests passed in that invocation. Under the existing T002
+exception, the exact isolated case passed with its original assertion, then the
+12 previously unexecuted integration targets passed **153 tests**. Together with
+the already-passing 15 MCP tests, this supplies **461 passing tests** across the
+documented runs, not a passing aggregate invocation. The default doctest target
+(zero tests), `cargo +1.98.1 doc --no-deps --locked` and
+`cargo +1.98.1 build --locked --bin godot-agent-kit-mcp` passed. No assertion,
+production deadline or exception policy changed; no new scheduling diagnosis is
+claimed.
+
+**Relevant-input review:** All **109** accepted selected-client records were
+inspected: 16 discovery, 60 read and 32 edit operation results, plus one read
+`server_busy` admission error. None traversed either changed failure branch.
+Success/operation-refusal projection, catalog descriptions, input/output schema
+shape, carrier, revision semantics, execution, transport, cancellation and
+closed-worker IPC are unchanged. Fixtures, independent witnesses, runner
+identity, client configuration, supported environment and native/ABI/export
+inputs are unchanged. The rebuilt Rust executable is not claimed byte-identical
+to the earlier binary: relevant successful-path equivalence follows from this
+bounded change and the affected projection/process checks. Accordingly, the
+Codex/OMP five-profile, real-Godot lifecycle, 512 KiB and T001 native evidence is
+reused under [TEST_POLICY.md](../../TEST_POLICY.md#reusing-evidence-across-commits);
+no Codex/OMP or VM campaign was rerun. Historical evidence counts remain historical.
+
+**Shape and constitutional review:** One private explicit match on the fixed
+operation enum pairs structured and text guidance for the two existing error
+branches. No new public API, generic policy/framework, retry or tool-description
+change was introduced. This applies Principle IX and FR-022/SC-009 without
+weakening effect truthfulness (IV/X, FR-003/FR-011/FR-012) or adding speculative
+complexity (XIII). T002 remains complete; T003–T004 remain pending and unselected.
+
 ## Owned MCP fixture interfaces
 
 Extend the existing `run_in_vm.py` fixed suite allowlist with `mcp`, retaining its committed-source, cached-build, provenance, ownership, capture and artifact retrieval semantics. Required groups are `transport`, `closed-native`, `closed-lifecycle`, `preservation`, `interruption`, `composed` and `privacy-export`. They are individually runnable; no new workflow engine or requirement for an aggregate historical `all` mode.
