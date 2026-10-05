@@ -61,11 +61,11 @@ fn absolute_path(path: &OsStr) -> Option<PathBuf> {
 fn configuration(args: &[OsString]) -> Option<(PathBuf, Option<PathBuf>)> {
     let mut registry = None;
     let mut validator_engine = None;
-    let mut pairs = args.chunks_exact(2);
-    for pair in &mut pairs {
-        let destination = if pair[0] == "--registry" {
+    let (pairs, remainder) = args.as_chunks::<2>();
+    for [flag, path] in pairs {
+        let destination = if flag == "--registry" {
             &mut registry
-        } else if pair[0] == "--validator-engine" {
+        } else if flag == "--validator-engine" {
             &mut validator_engine
         } else {
             return None;
@@ -73,9 +73,9 @@ fn configuration(args: &[OsString]) -> Option<(PathBuf, Option<PathBuf>)> {
         if destination.is_some() {
             return None;
         }
-        *destination = Some(absolute_path(&pair[1])?);
+        *destination = Some(absolute_path(path)?);
     }
-    if !pairs.remainder().is_empty() {
+    if !remainder.is_empty() {
         return None;
     }
     Some((registry?, validator_engine))

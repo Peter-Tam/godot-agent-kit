@@ -221,27 +221,12 @@ fn preflight(
         let original = std::thread::Builder::new()
             .name("closed-original-validation".into())
             .spawn_scoped(scope, || {
-                super::super::profile_phase(
-                    original.request_id.as_str(),
-                    "closed_original_validation_begin",
-                    0,
-                );
-                let result = stock_validation::validate(original, clock, cancelled);
-                super::super::profile_phase(
-                    &result.request_id,
-                    "closed_original_validation_end",
-                    0,
-                );
-                result
+                stock_validation::validate(original, clock, cancelled)
             })
             .map_err(|_| "validation_unavailable")?;
-        super::super::profile_phase(
-            desired.request_id.as_str(),
-            "closed_desired_validation_begin",
-            0,
-        );
+
         let desired = stock_validation::validate(desired, clock, cancelled);
-        super::super::profile_phase(&desired.request_id, "closed_desired_validation_end", 0);
+
         let original = original.join().map_err(|_| "validation_unavailable")?;
         Ok((original, desired))
     })

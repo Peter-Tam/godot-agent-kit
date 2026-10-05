@@ -367,7 +367,7 @@ fn prepare_worker(
     deadline(at)?;
     // Bind the finished native bytes, then move (rather than copy) that one
     // artifact aside while discarding every engine scratch output.
-    let (size, sha256) = copy_artifact(&private, &mut io::sink(), None, at)?;
+    let (size, sha256) = copy_artifact(&private.0, &mut io::sink(), None, at)?;
     let mut artifact = private.0.clone();
     artifact.extend(COMPONENTS);
     artifact.push(ARTIFACT);
@@ -398,9 +398,9 @@ fn prepare_worker(
 }
 
 // Bound all opens to verified directory handles, rejecting symlinks, hardlinks and writable aliases.
-fn artifact_parent(private: &PrivateClone, create: bool) -> Result<Dir, &'static str> {
-    verify_private_dir(&private.0)?;
-    let mut dir = Dir::open_ambient_dir(&private.0, ambient_authority())
+fn artifact_parent(private: &Path, create: bool) -> Result<Dir, &'static str> {
+    verify_private_dir(private)?;
+    let mut dir = Dir::open_ambient_dir(private, ambient_authority())
         .map_err(|_| "prepared_documents_unsafe")?;
     for component in COMPONENTS {
         if create {
@@ -447,7 +447,7 @@ fn file_identity(meta: &cap_std::fs::Metadata) -> (u64, u64, u64, i64, i64, i64,
     )
 }
 fn copy_artifact(
-    private: &PrivateClone,
+    private: &Path,
     output: &mut impl Write,
     expected: Option<&Descriptor>,
     at: Instant,
@@ -552,14 +552,13 @@ pub(super) fn seed(
         return Err("prepared_documents_unsafe");
     }
     // This is a borrowed namespace, not a new owner: never remove it on worker exit.
-    let source = std::mem::ManuallyDrop::new(PrivateClone(root));
-    let destination = artifact_parent(private, true)?;
+    let destination = artifact_parent(&private.0, true)?;
     let mut options = cap_std::fs::OpenOptions::new();
     options.write(true).create_new(true).mode(0o600);
     let mut output = destination
         .open_with(ARTIFACT, &options)
         .map_err(|_| "prepared_documents_unsafe")?;
-    let result = copy_artifact(&source, &mut output, Some(descriptor), at);
+    let result = copy_artifact(&root, &mut output, Some(descriptor), at);
     drop(output);
     if result.is_err() {
         let _ = destination.remove_file(ARTIFACT);

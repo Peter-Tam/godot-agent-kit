@@ -1075,3 +1075,95 @@ all three actual production artifacts had recorded ZIP/pack hashes, zero runtime
 exit status and zero observed listeners. Failed earlier composed/client attempts
 remain excluded. No full composed acceptance, feature completion, release or
 Phase 3 exit is claimed.
+
+## T004 timing-safe validation preparation (2026-10-05)
+
+The [corrected timing architecture](plan.md#timing-boundary-and-readiness-requirements)
+and [native-documentation preparation](plan.md#selected-optimization-prepared-native-documentation-fresh-validators)
+passed fresh consistency analysis at `efe38b3`. No startup or preflight time is
+subtracted from an accepted edit. Configured native-documentation preparation
+finishes before protocol input; each later source pass still launches, verifies
+and reaps a fresh official Godot process inside its original operation budget.
+Prepared native documentation is not a prewarmed compiler or a cached verdict.
+
+### Mechanism and lifecycle evidence
+
+Private records are under
+`~/.local/state/godot-agent-kit-vm/artifacts/validator-startup-investigation/`.
+The exact pinned engine and four-vCPU guest were used; no host Godot ran.
+
+- `guest-probes.tar:./equivalence-summary.json`: an empty source-free preparation
+  took **1.957208 seconds**. Ten cold/prepared pairs matched exact diagnostic
+  severities, messages and ranges for valid/invalid roots, valid/invalid
+  same-path dependencies, integer-division error/off, Unicode-confusable
+  identifier error/off and directory exclusion/inclusion. Every invocation
+  used a distinct fresh process. Cold initialization median/range was
+  **1.530 / 1.414–2.082 seconds**; prepared-document initialization was
+  **1.282 / 1.188–1.613 seconds**. These mechanism measurements are not a
+  general latency guarantee or actual-agent acceptance.
+- Product source `d630f21`, `startup-lifecycle.txt`: EOF, SIGINT, SIGTERM and
+  owned-worker loss during observed engine startup failed in **0.258–0.613
+  seconds**. A deliberately stopped owned engine expired in **9.788754 seconds**,
+  within the unchanged ten-second preparation bound. No success fallback,
+  protocol stdout, retained owned namespace or surviving observed child occurred.
+- `startup-ready-owned.txt`: actual product preparation reported **2.528420
+  seconds**, with protocol initialization observed at **2.534035 seconds**.
+  Independently observed worker/engine PIDs **3540/3550** were already gone at
+  readiness. Only the native `.res` snapshot remained; ordinary EOF removed
+  that namespace and exited successfully. Later log wording identifies this
+  specifically as native-document readiness, not a ready compiler process.
+
+### Full-request and effect-safety evidence
+
+`validation-profile-2/20261005T131256Z-d85f698353e8`, source `d630f21`, passed
+**19** focused open/closed revision records. All five source-validation passes
+used the prepared snapshot and fresh processes. The before/after profile is:
+
+| Interval (seconds) | Before open | Prepared open | Before closed | Prepared closed |
+| --- | ---: | ---: | ---: | ---: |
+| Desired / concurrent original+desired preflight | 2.280 | 1.964 | 3.629 | 3.469 |
+| Fresh engine spawn → owned connection, preflight | 1.918 | 1.515 | 3.068 | 2.814 / 2.826 |
+| Native mutation | 0.542 | 0.517 | 0.028 | 0.029 |
+| Independent actual-source validation | 1.770 | 1.582 | 2.168 | 1.842 |
+| Fresh engine spawn → owned connection, actual source | 1.470 | 1.242 | 1.795 | 1.461 |
+| Complete consumed public edit response | 5.783 | 5.577052 | 6.478 | 6.317666 |
+
+The modest total reduction is reported without subtracting any component.
+Before source/run identity is in the plan; the after run retains `phases.log`
+alongside its independent editor witnesses and original-clock public results.
+
+`native-docs-effects-1/20261005T133314Z-e32ac44fb75e`, source `f31a22a`, passed
+**13** records. In each open, cached-R closed and absent-R closed profile,
+same-size snapshot corruption before preflight returned `refused`,
+`not_applied`, `validation_unavailable` in **1.021–1.079 seconds**. Snapshot loss
+at an independently observed post-mutation barrier returned
+`applied_unverified`, `applied`, `validation_unavailable` in **4.054–4.174
+seconds**. Actual applicable source authorities and unrelated human history
+survived unchanged; no rollback or unverified success was invented. Each peer's
+owned namespace was removed on EOF. The separately runnable
+`run mcp --scenario validation-preparation` retains these consumer-visible
+regressions.
+
+Temporary phase instrumentation is removed after measurement. Filesystem helpers
+borrow snapshot paths directly rather than constructing disposable owners for
+borrowed data. The new preparation module owns one snapshot lifecycle, with
+explicit registration/reply states and narrow current-consumer visibility;
+no parser pool, replay service, background replenishment, dependency or framework
+was introduced. Existing validator process/context/fence semantics and the
+adapter's original accepted-frame clocks remain intact.
+
+Rust formatting, strict all-target Clippy, rustdoc and actual library/binary/example
+builds passed. **473 distinct tests have passing evidence**, plus the default
+doctest target (zero doctests). The first `cargo test --locked` invocation had one
+wall-clock failure in the unchanged `script_open` late-compilation fixture during
+the parallel 63-test bridge group; its no-source-editor path does not invoke the
+changed validator. The same case passed in isolation under its unchanged
+ten-second assertion; the other 62 bridge cases and 237 library tests had already
+passed, and the remaining 173 consumer tests were then executed successfully.
+This is not a claimed single all-green parallel-suite run or a deadline waiver;
+the initial timing failure is retained. The affected Python checks passed **32
+tests**.
+
+This evidence does not complete SC-005: the full required actual-agent composed
+interaction remains to be demonstrated. The earlier failed serial run remains
+failed evidence, not a pass or a deadline exception.

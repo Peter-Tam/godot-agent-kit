@@ -736,7 +736,7 @@ pub fn run(
         .transpose()
         .map_err(io::Error::other)?;
     if let Some(prepared) = &prepared_documents {
-        eprintln!("mcp validator ready {} us", prepared.elapsed_us());
+        eprintln!("mcp native documents ready {} us", prepared.elapsed_us());
     }
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_time()

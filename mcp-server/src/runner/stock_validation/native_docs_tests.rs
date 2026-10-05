@@ -3,7 +3,7 @@ use super::*;
 fn fixture(bytes: &[u8]) -> Result<(PrivateClone, Descriptor), &'static str> {
     let name = private_name()?;
     let private = private_clone_named(&name)?;
-    let parent = artifact_parent(&private, true)?;
+    let parent = artifact_parent(&private.0, true)?;
     let mut options = cap_std::fs::OpenOptions::new();
     options.write(true).create_new(true).mode(0o600);
     parent
@@ -12,7 +12,7 @@ fn fixture(bytes: &[u8]) -> Result<(PrivateClone, Descriptor), &'static str> {
         .write_all(bytes)
         .map_err(|_| "fixture")?;
     let (size, sha256) = copy_artifact(
-        &private,
+        &private.0,
         &mut io::sink(),
         None,
         Instant::now() + Duration::from_secs(2),
@@ -37,7 +37,7 @@ fn at() -> Instant {
 fn missing_changed_truncated_and_oversized_artifacts_refuse() -> Result<(), &'static str> {
     for case in 0..4 {
         let (source, descriptor) = fixture(b"native-documents")?;
-        let parent = artifact_parent(&source, false)?;
+        let parent = artifact_parent(&source.0, false)?;
         match case {
             0 => parent.remove_file(ARTIFACT).map_err(|_| "fixture")?,
             1 => {
@@ -60,7 +60,7 @@ fn missing_changed_truncated_and_oversized_artifacts_refuse() -> Result<(), &'st
         }
         let target = destination()?;
         assert!(seed(&target, &descriptor, at()).is_err());
-        assert!(!artifact_parent(&target, false)?.exists(ARTIFACT));
+        assert!(!artifact_parent(&target.0, false)?.exists(ARTIFACT));
         assert!(
             source.0.exists(),
             "borrowed source must not be removed on refusal"
@@ -87,8 +87,8 @@ fn seed_creates_independent_private_bytes_and_refuses_existing_file() -> Result<
     let (source, descriptor) = fixture(b"native-documents")?;
     let target = destination()?;
     seed(&target, &descriptor, at())?;
-    let source_parent = artifact_parent(&source, false)?;
-    let target_parent = artifact_parent(&target, false)?;
+    let source_parent = artifact_parent(&source.0, false)?;
+    let target_parent = artifact_parent(&target.0, false)?;
     let source_meta = source_parent.metadata(ARTIFACT).map_err(|_| "fixture")?;
     let target_meta = target_parent.metadata(ARTIFACT).map_err(|_| "fixture")?;
     assert_ne!(
@@ -112,7 +112,7 @@ fn seed_creates_independent_private_bytes_and_refuses_existing_file() -> Result<
 #[test]
 fn symlink_and_hardlink_artifacts_refuse() -> Result<(), &'static str> {
     let (source, descriptor) = fixture(b"native-documents")?;
-    let parent = artifact_parent(&source, false)?;
+    let parent = artifact_parent(&source.0, false)?;
     parent
         .hard_link(ARTIFACT, &parent, "alias")
         .map_err(|_| "fixture")?;
