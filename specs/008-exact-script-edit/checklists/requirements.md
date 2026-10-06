@@ -62,6 +62,7 @@ native builds and Godot GUI campaigns are not specification validation. Later
 acceptance must use actual Codex/OMP calls and independent live-editor witnesses;
 SDK harnesses and model claims alone cannot establish the selected behavior.
 
-Clarification is complete. Plan, tasks, granularity review, analyze and implementation
-have not run for Feature 008. No technical research/plan, data model, contract, task
-list or product acceptance record is created by this clarification correction.
+At clarification completion, plan, tasks, granularity review, analyze and
+implementation had not run for Feature 008. That clarification correction created
+no technical design or product acceptance record. Current planning state is
+recorded in [plan.md](../plan.md); the requirements-quality result above is unchanged.
