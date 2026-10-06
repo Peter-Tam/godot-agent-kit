@@ -17,7 +17,7 @@
 ### Session 2026-10-06
 
 - Q: Should the revised edit tool replace the old whole-source input immediately, or provide a temporary compatibility period for existing callers? → A: Clean Schema 2 cutover: accept only `old_string`/`new_string`, reject `replacement_source`, and require callers to migrate without a temporary compatibility period.
-- Q: Should an empty `old_string` always be rejected, even when the script itself is empty? → A: Reject every empty `old_string`; accept that existing empty scripts cannot be populated through this tool.
+- Q: Should an empty `old_string` always be rejected, even when the script itself is empty? → A: No. As amended by the maintainer, `old_string` MAY be empty only when the freshly acquired complete source is empty. In that case it denotes replacement of that complete empty source. For any nonempty source, an empty `old_string` is invalid and has no insertion meaning.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -54,8 +54,9 @@ that no document was opened or closed by the operation.
 3. **Given** an eligible closed script with positively observed absent R, **When** the agent makes an exact replacement, **Then** intended D is independently verified, R remains absent and no document/buffer is created. B and buffer history are explicitly not applicable, not unobserved substitutes for success.
 4. **Given** a unique span containing multiple lines, tabs and Unicode text, **When** it is replaced by exact new text, **Then** those characters and the surrounding source are preserved without trimming, reindentation, newline conversion, Unicode normalization or implicit formatting.
 5. **Given** a unique nonempty span whose removal leaves an admissible complete script, **When** `new_string` is empty, **Then** that span is deleted and the same full-source validation, coherence and lifecycle guarantees hold. If removal makes the complete source invalid or unsupported, mutation refuses instead.
-6. **Given** a unique nonempty anchor at the beginning, middle or end of a script, **When** the replacement retains the anchor and adds adjacent text, **Then** the requested insertion is expressed as ordinary replacement. No empty-search sentinel, line coordinate or insertion mode is needed.
-7. **Given** a current admissible target with exactly one occurrence and `old_string == new_string`, **When** the request is evaluated, **Then** a verified unchanged result is possible only after the same current-state and postcondition checks. Source, history and lifecycle do not change; stale, dirty or ambiguous input cannot become a successful no-op.
+6. **Given** a unique nonempty anchor at the beginning, middle or end of a nonempty script, **When** the replacement retains the anchor and adds adjacent text, **Then** the requested insertion is expressed as ordinary replacement. Empty `old_string` has no insertion meaning; no line coordinate or insertion mode is needed.
+7. **Given** a current admissible target and a valid replacement intent with `old_string == new_string`, including both strings empty only when the complete current source is empty, **When** the request is evaluated, **Then** a verified unchanged result is possible only after the same current-state and postcondition checks. Source, history and lifecycle do not change; stale, dirty or ambiguous input cannot become a successful no-op.
+8. **Given** an eligible existing script whose freshly acquired complete source is empty, **When** the agent supplies its current read revision, empty `old_string` and admissible nonempty `new_string`, **Then** the complete empty source is replaced by exactly `new_string`. This succeeds for each supported open, cached-R closed and absent-R closed profile under the same independent complete-source verification, applicable native history and lifecycle guarantees; it creates no file or document.
 
 ### User Story 2 - Refuse an Unclear or Outdated Change (Priority: P1)
 
@@ -71,14 +72,14 @@ Check machine-readable distinctions and preservation, not only error messages.
 
 **Acceptance Scenarios**:
 
-1. **Given** fresh admissible source and a matching revision, **When** `old_string` has no occurrence, **Then** the operation refuses as no match with no mutation or history/lifecycle change. Presence of `new_string` does not establish that this request already succeeded.
-2. **Given** the same preconditions but multiple occurrences, including overlapping occurrences, **When** a replacement is requested, **Then** it refuses as ambiguous without choosing the first or last occurrence. After obtaining current source/revision and supplying a larger unique span, a separate intentional request can succeed.
+1. **Given** fresh admissible source, a matching revision and nonempty `old_string`, **When** that text has no occurrence, **Then** the operation refuses as no match with no mutation or history/lifecycle change. Presence of `new_string` does not establish that this request already succeeded.
+2. **Given** the same preconditions but multiple occurrences of nonempty `old_string`, including overlaps, **When** a replacement is requested, **Then** it refuses as ambiguous without choosing the first or last occurrence. After obtaining current source/revision and supplying a larger unique span, a separate intentional request can succeed.
 3. **Given** a search differs only in case, spaces versus tabs, indentation, newline characters, trailing whitespace or canonically equivalent Unicode spelling, **When** no literal occurrence exists, **Then** no match is reported without fuzzy matching, normalization or relocation to similar code. Unsupported source/request text may instead receive its existing input/profile refusal; it is never repaired into a match.
-4. **Given** source or another revision-bound fact changed after read while the quoted old text still occurs, **When** the old revision is submitted, **Then** revision/state protection refuses and requires a fresh read. Matching text cannot override same-text version changes, file/Resource/document replacement, session changes or lifecycle changes. This also holds when the quoted text no longer occurs or occurs multiple times.
-5. **Given** dirty human B, equal-text dirty state, dirty/stale R, divergent D/R/B, or unavailable required safety observations, **When** a request contains otherwise matching text, **Then** existing protection refuses and preserves human text, dirty state, identities and history. It does not Save, reload, force-load, open, close or repair state to manufacture eligibility.
+4. **Given** source or another revision-bound fact changed after read while the quoted old text still occurs, **When** the old revision is submitted, **Then** revision/state protection refuses and requires a fresh read. Matching text cannot override same-text version changes, file/Resource/document replacement, session changes or lifecycle changes. This also holds when the quoted text no longer occurs or occurs multiple times, and for empty-source replacement when the complete source is still empty but another revision-bound fact changed.
+5. **Given** dirty human B, equal-text dirty state, dirty/stale R, divergent D/R/B, or unavailable required safety observations, **When** a request contains otherwise matching text or requests empty-source replacement, **Then** existing protection refuses and preserves human text, dirty state, identities and history. Empty visible text alone cannot establish complete empty source. The operation does not Save, reload, force-load, open, close or repair state to manufacture eligibility.
 6. **Given** denied or escaping paths, ambiguous/ended sessions, replaced targets or unsupported source/context, **When** an edit is requested, **Then** existing authenticated selection, confinement and support restrictions refuse without a fallback target or unauthorized match/source feedback.
-7. **Given** a malformed request, missing revision or empty `old_string`, **When** submitted, **Then** it fails without mutation. Empty `old_string` never means append, prepend, create, select the empty file or replace the whole file. An already-empty script cannot be populated by this interface.
-8. **Given** a unique literal span whose replacement makes the complete script exceed supported bounds or fail required validation, **When** the request is evaluated, **Then** it refuses before mutation. Fragments need not be valid standalone scripts; the complete original/intended sources remain subject to the existing admission and validation rules.
+7. **Given** a malformed request, missing revision, or a current admissible target with nonempty complete source and empty `old_string`, **When** submitted, **Then** it fails without mutation. Whitespace-only source is nonempty. Empty `old_string` never means append, prepend or insert into nonempty source, and never creates a missing file; it denotes complete-source replacement only for a freshly acquired empty source.
+8. **Given** a valid exact replacement intent, including replacement of complete empty source, whose result exceeds supported bounds or fails required validation, **When** the request is evaluated, **Then** it refuses before mutation. Fragments need not be valid standalone scripts; the complete original/intended sources remain subject to the existing admission and validation rules.
 9. **Given** newer human work, identity/lifecycle invalidation, interruption or loss of required evidence after effects may have begun, **When** success cannot be independently established, **Then** the existing known/partial/unknown-effect outcome is retained. No rollback, definite non-application, replay safety or restored lifecycle is invented; newer work is not overwritten to reassert intent.
 
 ### User Story 3 - Keep Native History and Durable Results (Priority: P1)
@@ -118,16 +119,17 @@ and migration guidance without shell/direct-file editing or private tool knowled
 
 1. **Given** the revised server's ordinary capability/tool discovery, **When** a client inspects the public contract, **Then** it sees exactly `discover_scripts`, `read_script` and `edit_script`, a distinguishable Schema 2 surface and a single edit shape: `project_root`, `script_path`, `revision`, `old_string`, `new_string`, with optional `session_id`. Discover/read behavior remains unchanged apart from the declared surface version.
 2. **Given** a Schema 1 caller sends `replacement_source`, alone or mixed with new fields, or supplies a mode/replace-all flag, **When** the revised server receives it, **Then** it rejects the unsupported request without mutation. It does not infer a mode, silently ignore legacy fields, expose a fourth tool or claim Schema 1 compatibility.
-3. **Given** updated migration guidance and refreshed tool discovery, **When** each of the existing supported Codex and OMP clients is asked to make a localized edit, **Then** actual agent calls use the returned source/revision to perform replacement and deletion on supported open/closed targets and consume truthful results. At least one workflow demonstrates recovery from no-match and ambiguous refusals by a fresh read and a corrected intentional request. An SDK harness, generated sample call or model claim alone is insufficient.
-4. **Given** the revised public descriptions, **When** agents choose an operation, supply its inputs and interpret a failure, **Then** required current revision, unique nonempty search, deletion behavior, lifecycle preservation and safe next actions are discoverable without internal terminology, duplicated safety lectures, exhaustive static failure catalogs or a numeric description budget.
+3. **Given** updated migration guidance and refreshed tool discovery, **When** each of the existing supported Codex and OMP clients is asked to edit a script, **Then** actual agent calls use the returned source/revision to perform localized replacement, deletion and complete empty-source replacement on supported open/closed targets and consume truthful results. At least one workflow demonstrates recovery from no-match and ambiguous refusals by a fresh read and a corrected intentional request. An SDK harness, generated sample call or model claim alone is insufficient.
+4. **Given** the revised public descriptions, **When** agents choose an operation, supply its inputs and interpret a failure, **Then** required current revision, unique nonempty matching, the empty-source-only replacement rule, deletion behavior, lifecycle preservation and safe next actions are discoverable without internal terminology, duplicated safety lectures, exhaustive static failure catalogs or a numeric description budget.
 
 ### Edge Cases
 
-- Count distinct possible match starts, including overlaps: searching `aa` in `aaa` is ambiguous. Matching is against the original fresh source once; text introduced by `new_string` is never searched again in the same request.
+- For nonempty `old_string`, count distinct possible match starts, including overlaps: searching `aa` in `aaa` is ambiguous. Matching is against the original fresh source once; text introduced by `new_string` is never searched again in the same request.
 - Match anywhere within supported text, including part of a line, a comment or a string literal. No line, token, identifier, grapheme or syntax-aware selection is implied.
 - Different Unicode encodings of visually identical text remain different. No case folding, Unicode normalization, line-ending conversion or automatic final newline is added.
-- Matching the entire nonempty source remains an ordinary unique-span replacement, not a second whole-source mode. Deleting all source is allowed only when the resulting empty script is otherwise admissible; a later request cannot repopulate it with an empty search.
-- Wrong-type/null/missing strings, unknown fields and inherited request/source limits retain truthful input refusals. A source unavailable to read is not an empty source.
+- Matching the entire nonempty source remains an ordinary unique-span replacement, not a second whole-source mode. Deleting all source is allowed only when the resulting empty script is otherwise admissible; a later request with a fresh read/revision may replace that complete empty source using empty `old_string`.
+- Empty `old_string` selects only the complete freshly acquired empty source, never a gap or position in nonempty text. If `new_string` is also empty, the existing fully checked verified-unchanged semantics apply. Whitespace-only, unavailable, partially acquired or divergent source is not an admissible empty source.
+- Wrong-type/null/missing strings, unknown fields and inherited request/source limits retain truthful input refusals. Empty text is a valid string value, not a substitute for unavailable source or missing safety evidence.
 - A revision is neither a match locator nor a stored permission token. A unique span after an unrelated edit, native Undo or a close/reopen is not grounds to reuse an obsolete revision.
 - Pre-effect match refusals preserve source, dirty/saved state, history and lifecycle. After possible effects, later matching or delivery failure cannot relabel the attempt as never applied.
 
@@ -139,12 +141,12 @@ and migration guidance without shell/direct-file editing or private tool knowled
 - **FR-002**: The normal workflow MUST remain read exact source plus opaque revision/trusted state, submit one old/new pair with that revision, then inspect the result or read fresh state. Read/discover retain their current non-mutating behavior; discovery is not required for a known target.
 - **FR-003**: Every well-formed edit candidate MUST freshly authenticate, resolve and acquire its explicit target using the existing trusted workflow. The supplied revision MUST match fresh admissible state before match evaluation can authorize any transformation. Existing later mutation-boundary guards remain authoritative; neither matching text nor caller-supplied state can replace them.
 - **FR-004**: Matching MUST be literal UTF-8 text comparison, case-sensitive and exact for spaces, tabs, line endings and Unicode spelling. No trimming, normalization, fuzzy/regex matching, similar-code relocation, line guessing or syntax interpretation is permitted.
-- **FR-005**: Exactly one occurrence of nonempty `old_string` MUST exist in the fresh admitted source, counting overlapping occurrences. Zero and multiple matches MUST produce distinguishable structured no-match and ambiguous refusals with no mutation. Callers resolve ambiguity by supplying a larger exact span in a separate intentional request, not by selecting an occurrence number.
-- **FR-006**: Replacing that one occurrence with `new_string` MUST define one complete intended source whose prefix/suffix outside the occurrence remain byte-for-byte unchanged. Empty `new_string` MUST support deletion when the complete result is admissible. Empty `old_string` MUST always be rejected, including for an existing script whose freshly acquired source is empty; no initialization exception or implicit meaning is permitted.
+- **FR-005**: For nonempty `old_string`, exactly one occurrence MUST exist in the fresh admitted source, counting overlapping occurrences. Zero and multiple matches MUST produce distinguishable structured no-match and ambiguous refusals with no mutation. Callers resolve ambiguity by supplying a larger exact span in a separate intentional request, not by selecting an occurrence number. Empty `old_string` is governed only by FR-006's complete-empty-source rule, not by insertion positions or ordinary occurrence counting.
+- **FR-006**: Replacing the selected source with `new_string` MUST define one complete intended source whose prefix/suffix outside a nonempty occurrence remain byte-for-byte unchanged. Empty `new_string` MUST support deletion when the complete result is admissible. `old_string` MAY be empty only when the freshly acquired complete source is empty; in that case it denotes replacement of that complete empty source, and the intended source is exactly `new_string`. For any nonempty source, an empty `old_string` is invalid and has no insertion meaning. Fresh authenticated acquisition, current revision, admission, validation and verification remain mandatory; the empty-source case grants no file-creation authority.
 - **FR-007**: Complete-source admission, required validation, persistence, synchronization and independent postcondition verification MUST remain mandatory. Fragment-only validation or agreement with only the changed span is insufficient. Required validation failure or an exceeded existing bound before effects MUST refuse without mutation; source MUST NOT be truncated or rewritten to fit.
 - **FR-008**: An eligible open edit MUST preserve the same open document, native history, clean/saved success state and independently observed complete intended `D == R == B`. Both supported closed profiles MUST preserve document absence throughout and independently verify intended D and every applicable R. Confirmed absent R MUST not be force-loaded; confirmed absent B/history are not applicable, not invented observations.
 - **FR-009**: Existing dirty/equal-text-dirty, stale/divergent, revision/identity/lifecycle, missing-evidence, unsupported-context, authenticated routing and confinement protections MUST remain enforced. A safety/freshness refusal MUST NOT be replaced by match success or a misleading no-match explanation. No automatic repair, Save, force load, open/close or alternate writer may manufacture eligibility.
-- **FR-010**: Matching unchanged old/new text MUST obey FR-003–FR-009, including uniqueness, before a verified unchanged outcome is possible. It MUST cause no source/history/lifecycle effect. A missing old span with already-present new text MUST remain a no-match refusal, not idempotent-success recognition.
+- **FR-010**: Unchanged old/new text MUST obey FR-003–FR-009, including nonempty-match uniqueness or the complete-empty-source condition as applicable, before a verified unchanged outcome is possible. This includes both strings empty only when the freshly acquired complete source is empty. It MUST cause no source/history/lifecycle effect. A missing nonempty old span with already-present new text MUST remain a no-match refusal, not idempotent-success recognition.
 - **FR-011**: Structured results MUST preserve existing revision/evidence meaning, relevant stages, lifecycle, validation, synchronization, dirty state, history participation, diagnostics and known/partial/unknown effects. New match distinctions MUST be actionable and source-free; no-match suggests checking fresh exact source, ambiguity a larger unique span, and stale state a fresh read/revision. Exact reason identifiers and result schemas belong to planning.
 - **FR-012**: Cancellation, timeout, disconnection, delivery failure and newer work after possible effects MUST retain the existing effect-sensitive semantics. No automatic retry, queue, replay, compensation, rollback guarantee or weaker revision policy is introduced. A response acknowledgment alone MUST NOT count as independently verified success.
 - **FR-013**: Existing disclosure restrictions MUST cover both input fragments, derived complete source and match diagnostics. Unauthorized source, candidate matches, unrelated context, private routing/validation data and raw request bodies MUST NOT leak through errors, logs or catalog text. Existing disclosure precedence MUST remain authoritative even after an earlier failure or possible effects.
@@ -155,9 +157,10 @@ and migration guidance without shell/direct-file editing or private tool knowled
 - **FR-018**: Acceptance MUST follow [TEST_POLICY.md](../../TEST_POLICY.md): new representation/composed behavior and directly affected regressions need evidence; valid unchanged historical evidence is reusable after relevant-input review. No blanket historical GUI campaign or new CI/approval mechanism follows from this feature. Feature 007's completed contracts and evidence MUST remain truthful history, not be retroactively rewritten.
 
 **Draft edit description:** “Replace exact text in a script using its current read
-revision.” Parameter descriptions carry the unique nonempty search and empty-new-text
-deletion rules; existing lifecycle guidance stays concise. Final wording must meet
-FR-015, not reproduce this specification in the tool catalog.
+revision.” Parameter descriptions carry the unique-match rule, the empty-source-only
+meaning of empty `old_string`, and empty-new-text deletion; existing lifecycle guidance
+stays concise. Final wording must meet FR-015, not reproduce this specification in
+the tool catalog.
 
 ### Compatibility and migration decision
 
@@ -186,11 +189,12 @@ edits need not resend the rest. All in-repository current MCP callers, examples 
 acceptance tooling must migrate when implemented; historical Feature 007 artifacts
 remain explicitly Schema 1 history.
 
-**Accepted limitation:** because every empty search is invalid, Schema 2 cannot
-populate an already-empty script, including one emptied by a prior admissible
-deletion. Read still distinguishes empty from unavailable source. The maintainer
-accepted this loss relative to the whole-source input; it must not be masked by an
-empty-search convention, initialization exception, fourth tool or retained mode.
+**Empty-source migration rule:** for an existing script whose freshly acquired
+complete source is empty, callers may supply empty `old_string` to replace that
+complete empty source with `new_string`. This uses the same Schema 2 input shape
+and all existing revision/safety checks. For any nonempty source, empty `old_string`
+is invalid and has no insertion meaning. Unavailable source is not empty, and this
+rule does not create files, add a mode or retain `replacement_source`.
 
 ### External interface evidence
 
@@ -250,9 +254,9 @@ foundation, not a second public edit representation.
 ### Key Entities *(include if feature involves data)*
 
 - **Read revision**: The existing opaque stateless, target/state-bound stale-intent precondition. It is not authentication, a stored edit basis, match position or replay token.
-- **Exact replacement intent**: Explicit project/script/session selectors, current revision, one nonempty old span and its new text, which may be empty.
+- **Exact replacement intent**: Explicit project/script/session selectors, current revision, one old/new text pair. Nonempty old text selects one unique occurrence; empty old text denotes replacement of the freshly acquired complete empty source only. New text may be empty.
 - **Admitted current source**: Fresh trusted source whose identity, lifecycle, applicable authorities and safety state permit the requested edit.
-- **Complete intended source**: The entire admitted source after the one literal replacement; the independently verified result must agree with this, not merely contain the new span.
+- **Complete intended source**: The entire admitted source after the exact replacement; for the complete-empty-source case it is exactly `new_string`. The independently verified result must agree with this, not merely contain the new span.
 - **Edit outcome**: Existing verified-changed/unchanged, refused or effect-sensitive non-success facts, augmented by distinguishable matching refusals and safe next actions.
 - **Public contract version**: The declared tool-surface compatibility boundary, independent of transport negotiation, historical acceptance and implementation delivery state.
 
@@ -260,8 +264,8 @@ foundation, not a second public edit representation.
 
 ### Measurable Outcomes
 
-- **SC-001**: Actual coding agents in both existing supported clients complete read → exact edit → fresh read on each of the three supported lifecycle profiles. Localized replacement and deletion do not require sending unaffected whole-script source, a patch language or a fourth tool. Independent witnesses establish the exact complete intended source, applicable authority agreement and zero agent-caused lifecycle changes.
-- **SC-002**: Multiline/Unicode, whitespace/newline-sensitive, boundary-position, deletion and unchanged-intent cases meet US1/US2 exactly. Every tested zero/multiple/overlapping match or invalid empty search refuses without effects; no tolerance or first-match fallback succeeds accidentally.
+- **SC-001**: Actual coding agents in both existing supported clients complete read → exact edit → fresh read on each of the three supported lifecycle profiles, including replacement of complete empty source with nonempty text. Localized replacement and deletion do not require sending unaffected whole-script source, a patch language or a fourth tool. Independent witnesses establish the exact complete intended source, applicable authority agreement and zero agent-caused lifecycle changes.
+- **SC-002**: Multiline/Unicode, whitespace/newline-sensitive, boundary-position, deletion, complete empty-source replacement and unchanged-intent cases meet US1/US2 exactly. Every tested zero/multiple/overlapping nonempty match or empty search against nonempty source refuses without effects; no tolerance, first-match or empty-search insertion fallback succeeds accidentally.
 - **SC-003**: Every exercised stale, dirty/equal-text-dirty, divergent, missing-evidence, identity/lifecycle, routing, confinement, validation and support failure preserves its required refusal/protection. A stale revision is refused even when old text still matches. There are zero unsafe overwrites, guessed targets or success claims based only on matching.
 - **SC-004**: The revised public interaction demonstrates applicable real-agent A–E and durability on the supported real editor, including genuine Undo/Redo and prior-history preservation for open edits, sequential edits/refusals across all profiles and applicable later Save/reopen/reparse/rescan/runtime agreement. No human reconciliation, synthetic history or invented closed-buffer authority is required.
 - **SC-005**: Every delivered result distinguishes the tested no-match, ambiguous, freshness/safety, invalid-source and interrupted-effect cases sufficiently for the correct safe next action. There are zero false success, rollback, definite-not-applied or authorized-replay claims and zero prohibited fragment/source disclosures.
@@ -279,15 +283,17 @@ foundation, not a second public edit representation.
 
 ### Material clarification review points
 
-Clarification completed on 2026-10-06 with two accepted answers:
+Clarification completed on 2026-10-06 with two answered questions. The maintainer
+subsequently amended the empty-source answer to the rule recorded here:
 
 1. **Compatibility result — resolved:** Schema 2 replaces Schema 1 editing without a dual-mode period. Callers must migrate; no temporary compatibility is required by this feature.
-2. **Empty-source consequence — resolved:** Reject every empty `old_string`, including when the target is already empty. The inability to populate an empty script through this tool is an accepted limitation, not deferred initialization work.
-3. **Exactness edge defaults — clear:** Overlapping occurrences remain ambiguous; identical old/new text may produce a fully checked verified-unchanged outcome. Existing uniqueness and unchanged-intent requirements already settle these cases, so no additional question or behavior change was needed.
+2. **Empty-source behavior — resolved:** `old_string` may be empty only when the freshly acquired complete source is empty, denoting replacement of that complete empty source. For any nonempty source it is invalid and has no insertion meaning. This replaces the earlier blanket rejection; all existing revision, safety, validation and verification requirements still apply.
+3. **Exactness edge defaults — clear:** Overlapping nonempty occurrences remain ambiguous; identical old/new text may produce a fully checked verified-unchanged outcome, including both empty only for complete empty source. The existing unchanged-intent guarantee is retained.
 
-The Clarifications section records only the two actual maintainer answers. No
-material product ambiguity remains; technical choices below belong to planning.
-Clarification completion does not authorize implementation or claim acceptance.
+The Clarifications section records the two current maintainer answers, including
+the explicit empty-source amendment. No material product ambiguity remains;
+technical choices below belong to planning. Clarification completion does not
+authorize implementation or claim acceptance.
 
 ### Decisions reserved for planning
 
