@@ -300,7 +300,7 @@ impl Serialize for EditDiagnostics<'_> {
         seq.end()
     }
 }
-struct Outcome<'a>(&'a EditOutcome);
+struct Outcome<'a>(&'a EditOutcome, Option<ExactMatchError>);
 impl Serialize for Outcome<'_> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let v = self.0;
@@ -317,11 +317,15 @@ impl Serialize for Outcome<'_> {
         };
         fields!(s,{"schema_version"=>v.schema_version(),"operation"=>v.operation(),"request_id"=>v.request_id.as_str(),
             "requested_target"=>requested,"resolved_target"=>v.resolved_target.as_ref().map(target_out),"interval"=>interval(&v.interval),
-            "outcome"=>outcome_name(v.outcome),"reason"=>reason_name(v.reason),"stage"=>stage_name(v.stage),"application"=>application_name(v.application),
+            "outcome"=>if self.1.is_some() {"refused"} else {outcome_name(v.outcome)},
+            "reason"=>self.1.map_or_else(||reason_name(v.reason),|reason|reason.as_str()),
+            "stage"=>if self.1.is_some() {"matching"} else {stage_name(v.stage)},
+            "application"=>application_name(v.application),
             "progress"=>Progress(&v.progress),"expected"=>v.expected.as_ref().map(Expected),"before"=>v.before.as_ref().map(Evidence),
             "after"=>v.after.as_ref().map(Evidence),"persistence"=>v.persistence.as_ref().map(Persistence),"finalization"=>v.finalization.as_ref().map(Finalization),
             "validation"=>Validations(&v.validation),"context_recheck"=>v.context_recheck.as_ref().map(Context),"history"=>history_name(v.history),
-            "diagnostics"=>EditDiagnostics(&v.diagnostics),"selection"=>v.selection.as_ref().map(selection_out),"safe_next_action"=>v.safe_next_action})
+            "diagnostics"=>EditDiagnostics(&v.diagnostics),"selection"=>v.selection.as_ref().map(selection_out),
+            "safe_next_action"=>if self.1.is_some() {"fresh_read"} else {v.safe_next_action}})
     }
 }
 /// Serialize the reducer's bounded evidence without copying it into a JSON value tree.
@@ -329,7 +333,14 @@ impl Serialize for Outcome<'_> {
 /// # Errors
 /// Returns a redacted protocol error if serialization or the result-size bound fails.
 pub fn encode_outcome(value: &EditOutcome) -> Result<Vec<u8>, RoutingFailure> {
-    let bytes = serde_json::to_vec(&Outcome(value))
+    encode_resolved_outcome(value, None)
+}
+/// The revision runner supplies a diagnosis only after checked zero-effect verification.
+pub(crate) fn encode_resolved_outcome(
+    value: &EditOutcome,
+    matching: Option<ExactMatchError>,
+) -> Result<Vec<u8>, RoutingFailure> {
+    let bytes = serde_json::to_vec(&Outcome(value, matching))
         .map_err(|_| bad(crate::observation::Stage::Finalize))?;
     if bytes.len() > RESULT_LIMIT {
         return Err(bad(crate::observation::Stage::Finalize));

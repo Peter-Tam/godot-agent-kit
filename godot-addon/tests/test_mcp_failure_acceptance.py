@@ -13,7 +13,7 @@ class FailureEvidenceTests(unittest.TestCase):
     def make_harness(self, name='failure_partial'):
         harness = failure.McpFailureMixin()
         initial = dict(name='read_script', structuredContent=dict(result=dict(source='old', revision='sr1:old')))
-        edit = dict(name='edit_script', arguments=dict(revision='sr1:old', replacement_source=failure.DESIRED),
+        edit = dict(name='edit_script', arguments=dict(revision='sr1:old', old_string='old', new_string=failure.DESIRED),
                     structuredContent=dict(result=dict(outcome=dict(outcome='applied_unverified'))), delivery='delivered')
         recovery = dict(name='read_script', structuredContent=dict(result=dict(source='survivor', revision=None)))
         target = dict(name=name, project=Path('/owned'), editor=object(), calls=[initial, edit, recovery],
@@ -38,11 +38,30 @@ class FailureEvidenceTests(unittest.TestCase):
         self.assertNotIn('mcp_profiles_verified', harness.summary)
 
     def test_result_consumption_requires_exact_returned_revision_and_intent(self):
-        for field in ('revision', 'replacement_source'):
+        for field in ('revision', 'old_string', 'new_string'):
             harness, target = self.make_harness()
             target['calls'][1]['arguments'][field] = 'substituted'
             with self.subTest(field=field), self.assertRaises(failure.observation.Failure):
                 harness.finalize_targets()
+
+    def test_missing_exact_field_or_legacy_extra_cannot_complete(self):
+        for field in ('revision', 'old_string', 'new_string'):
+            harness, target = self.make_harness()
+            del target['calls'][1]['arguments'][field]
+            with self.subTest(field=field), self.assertRaises(failure.observation.Failure):
+                harness.finalize_targets()
+        harness, target = self.make_harness()
+        target['calls'][1]['arguments']['replacement_source'] = failure.DESIRED
+        with self.assertRaises(failure.observation.Failure):
+            harness.finalize_targets()
+
+    def test_unchecked_edit_cannot_be_ignored_as_baseline_failure(self):
+        harness, target = self.make_harness()
+        bad = copy.deepcopy(target['calls'][1])
+        bad['structuredContent']['result'] = None
+        target['calls'].insert(2, bad)
+        with self.assertRaises(failure.observation.Failure):
+            harness.finalize_targets()
 
     def test_reconnect_requires_loss_and_refused_identical_resend(self):
         harness, target = self.make_harness('failure_reconnect')
@@ -68,9 +87,10 @@ class FailureEvidenceTests(unittest.TestCase):
 
     def test_lost_result_is_distinct_from_model_visible_recovery(self):
         read = dict(name='read_script', profile='failure_reconnect', arguments={'project_root': '/owned'},
-                    structuredContent={'request_id': 'initial', 'result': {'revision': 'opaque-initial'}})
+                    structuredContent={'request_id': 'initial', 'result': {'source': 'actual source', 'revision': 'sr1:' + '1' * 64}})
         lost = dict(name='edit_script', profile='failure_reconnect', delivery='unavailable',
-                    arguments={'project_root': '/owned', 'revision': 'opaque-initial'},
+                    arguments={'project_root': '/owned', 'revision': 'sr1:' + '1' * 64,
+                               'old_string': 'actual source', 'new_string': failure.DESIRED},
                     structuredContent={'request_id': 'lost', 'result': {'outcome': 'verified_changed'}})
         recovered = dict(name='read_script', profile='failure_reconnect', arguments={'project_root': '/owned'},
                          structuredContent={'request_id': 'recovery', 'result': {'revision': 'opaque-after'}})
@@ -83,6 +103,18 @@ class FailureEvidenceTests(unittest.TestCase):
         events.append(dict(kind='model_visible_tool_result', content=lost['structuredContent']))
         with self.assertRaisesRegex(ValueError, 'undelivered'):
             review_client_events(events, [read, lost, recovered])
+
+    def test_claimed_but_unrecorded_exact_call_is_rejected(self):
+        read = dict(name='read_script', profile='failure_reconnect', arguments={'project_root': '/owned'},
+                    structuredContent={'request_id': 'read', 'result': {'source': 'old', 'revision': 'basis'}})
+        actual = dict(name='edit_script', profile='failure_reconnect',
+                      arguments={'project_root': '/owned', 'revision': 'basis', 'old_string': 'old', 'new_string': 'new'},
+                      structuredContent={'request_id': 'edit', 'result': {'outcome': 'refused'}})
+        claimed = dict(actual['arguments'], old_string='fabricated')
+        events = [dict(kind='model_visible_tool_result', content=call['structuredContent']) for call in (read, actual)]
+        events.append(dict(kind='tool_call', name='edit_script', arguments=claimed))
+        with self.assertRaisesRegex(ValueError, 'missing server record'):
+            review_client_events(events, [read, actual])
 
 
 class InterruptedBufferWitnessTests(unittest.TestCase):

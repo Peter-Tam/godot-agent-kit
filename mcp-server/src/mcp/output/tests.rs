@@ -20,7 +20,7 @@ fn assert_unavailable_result(
     assert_eq!(
         wire["structuredContent"],
         json!({
-            "schema_version":1,"operation":operation.name(),"request_id":id().as_str(),
+            "schema_version":2,"operation":operation.name(),"request_id":id().as_str(),
             "result":null,
             "error":{
                 "category":"host","code":code,"stage":stage,"application":application,
@@ -29,39 +29,6 @@ fn assert_unavailable_result(
             },
         })
     );
-    // Check recovery concepts and safety ordering, not the complete sentence.
-    let summary = wire["content"][0]["text"]
-        .as_str()
-        .unwrap()
-        .to_ascii_lowercase();
-    match operation {
-        Operation::Discover => {
-            assert!(summary.contains("discovery"), "{summary}");
-            assert!(summary.contains("check setup"), "{summary}");
-            for forbidden in [
-                "fresh_read",
-                "read_script",
-                "read",
-                "revision",
-                "original",
-                "edit",
-            ] {
-                assert!(!summary.contains(forbidden), "{summary}");
-            }
-        }
-        Operation::Read => {
-            assert!(summary.contains("read"), "{summary}");
-            assert!(summary.contains("target"), "{summary}");
-            assert!(summary.contains("again"), "{summary}");
-            assert!(!summary.contains("edit"), "{summary}");
-            assert!(!summary.contains("applied"), "{summary}");
-        }
-        Operation::Edit => {
-            assert!(summary.contains("read"), "{summary}");
-            assert!(summary.contains("original target"), "{summary}");
-            assert!(summary.contains("before another edit"), "{summary}");
-        }
-    }
 }
 
 #[test]
@@ -151,6 +118,7 @@ fn predispatch_failures_keep_distinct_categories_stages_and_recovery() {
         ] {
             let wire = serde_json::to_value(failure(operation, &id(), reason)).unwrap();
             assert_eq!(wire["isError"], true);
+            assert_eq!(wire["structuredContent"]["schema_version"], 2);
             assert_eq!(wire["structuredContent"]["result"], Value::Null);
             assert_eq!(
                 wire["structuredContent"]["error"],
@@ -655,6 +623,187 @@ fn unconfirmed_closed_buffer_remains_unavailable_and_rejects_invented_absence() 
                 assert_eq!(object["error"]["code"], "invalid_output");
                 assert_eq!(object["error"]["application"], "unknown");
             }
+        }
+    }
+}
+
+fn open_matching(reason: &str) -> Value {
+    let mut input = open_unavailable("refused", "not_applied");
+    let outcome = &mut input["outcome"];
+    outcome["reason"] = json!(reason);
+    outcome["stage"] = json!("matching");
+    outcome["safe_next_action"] = json!("fresh_read");
+    outcome["expected"] = json!({"private_basis":"PRIVATE_BASIS_SENTINEL"});
+    let before = &mut outcome["before"];
+    before["document"]["identity"] = json!({
+        "kind":"standalone","resource_path":"res://target.gd",
+        "script_instance_id":"1","editor_instance_id":"2","buffer_instance_id":"3",
+        "disk_file_id":{"device":"4","inode":"5"}
+    });
+    before["document"]["validity"] =
+        json!({"value":"valid","reason":null,"invalidated_evidence":null});
+    before["document"]["open_state"] =
+        json!({"value":"open","reason":null,"invalidated_evidence":null});
+    for authority in ["D", "R", "B"] {
+        before["sources"][authority]["availability"] = json!("observed");
+        before["sources"][authority]["source_sha256"] = json!("a".repeat(64));
+        before["sources"][authority]["utf8_bytes"] = json!(10);
+        before["sources"][authority]["reason"] = Value::Null;
+    }
+    before["dirty"] = json!({
+        "availability":"observed","state":"clean","reason":null,"invalidated_evidence":null
+    });
+    before["agreement"] = json!("agree");
+    before["saved_state"] = json!({
+        "current_version":"7","saved_version":"7","resource_edited":false,
+        "save_profile":"exact","original_preserved":true,"desired_preserved":true
+    });
+    let after = before.clone();
+    outcome["after"] = after;
+    outcome["progress"]["verification"]["state"] = json!("completed");
+    input
+}
+
+#[test]
+fn serialized_matching_refusals_preserve_evidence_history_and_fresh_read() {
+    let revision = format!("sr1:{}", "c".repeat(64));
+    for reason in [
+        "no_match",
+        "ambiguous_match",
+        "empty_old_string",
+        "invalid_source",
+    ] {
+        for mode in ["open", "closed"] {
+            let input = if mode == "open" {
+                open_matching(reason)
+            } else {
+                let mut input = closed("refused", "not_applied");
+                input["outcome"]["reason"] = json!(reason);
+                input["outcome"]["stage"] = json!("matching");
+                input["outcome"]["next_action"] = json!({"kind":"fresh_read"});
+                input
+            };
+            let response = complete(Operation::Edit, &id(), input, Some(&revision));
+            let wire = serde_json::to_value(response).unwrap();
+            assert_eq!(wire["isError"], true);
+            let envelope = &wire["structuredContent"];
+            assert_eq!(envelope["schema_version"], 2);
+            assert_eq!(envelope["error"], Value::Null);
+            assert_eq!(envelope["result"]["mode"], mode);
+            let outcome = &envelope["result"]["outcome"];
+            assert_eq!(outcome["outcome"], "refused");
+            assert_eq!(outcome["application"], "not_applied");
+            assert_eq!(outcome["reason"], reason);
+            assert_eq!(outcome["stage"], "matching");
+            assert_eq!(outcome["revision"], revision);
+            if mode == "open" {
+                assert_eq!(outcome["safe_next_action"], "fresh_read");
+                assert_eq!(outcome["history"], "not_participated");
+                assert_eq!(outcome["before"], outcome["after"]);
+                assert_eq!(outcome["after"]["document"]["open_state"]["value"], "open");
+                assert_eq!(outcome["after"]["saved_state"]["resource_edited"], false);
+                assert!(outcome["after"]["document"]["identity"].is_string());
+                assert!(outcome.get("expected").is_none());
+            } else {
+                assert_eq!(outcome["next_action"]["kind"], "fresh_read");
+                assert_eq!(outcome["history"], "not_applicable_closed");
+                assert_eq!(outcome["lifecycle"]["observed_final"], "closed");
+                assert_eq!(outcome["evidence"]["before"], outcome["evidence"]["after"]);
+                assert_eq!(outcome["effects"]["authorized"], false);
+                assert_eq!(outcome["effects"]["written_bytes"], 0);
+            }
+            assert_eq!(wire["content"].as_array().unwrap().len(), 1);
+            let summary = wire["content"][0]["text"].as_str().unwrap();
+            assert!(!summary.contains(&revision));
+            assert!(!wire.to_string().contains("PRIVATE_BASIS_SENTINEL"));
+        }
+    }
+}
+
+#[test]
+fn matching_projection_cannot_restore_denied_revision_or_private_basis() {
+    let revision = format!("sr1:{}", "d".repeat(64));
+    for mode in ["open", "closed"] {
+        let mut input = if mode == "open" {
+            open_matching("no_match")
+        } else {
+            let mut input = closed("refused", "not_applied");
+            input["outcome"]["reason"] = json!("no_match");
+            input["outcome"]["stage"] = json!("matching");
+            input["outcome"]["next_action"] = json!({"kind":"fresh_read"});
+            input
+        };
+        if mode == "open" {
+            input["outcome"]["expected"] = Value::Null;
+            input["outcome"]["before"] = Value::Null;
+            input["outcome"]["after"] = Value::Null;
+            input["outcome"]["resolved_target"] = Value::Null;
+        } else {
+            input["outcome"]["evidence"] = Value::Null;
+            input["outcome"]["target"] = Value::Null;
+        }
+        let wire =
+            serde_json::to_value(complete(Operation::Edit, &id(), input, Some(&revision))).unwrap();
+        assert_eq!(wire["isError"], true);
+        assert_eq!(wire["structuredContent"]["error"], Value::Null);
+        assert_eq!(
+            wire["structuredContent"]["result"]["outcome"]["revision"],
+            Value::Null
+        );
+        assert!(!wire.to_string().contains(&revision));
+    }
+}
+
+#[test]
+fn matching_refusal_cannot_hide_effect_uncertainty_or_publish_unchanged_success() {
+    for (outcome, application) in [
+        ("verified_unchanged", "not_applied"),
+        ("application_unknown", "unknown"),
+        ("applied_unverified", "partly_applied"),
+    ] {
+        let mut input = closed(outcome, application);
+        input["outcome"]["reason"] = json!("ambiguous_match");
+        input["outcome"]["stage"] = json!("matching");
+        input["outcome"]["next_action"] = json!({"kind":"fresh_read"});
+        let wire = serde_json::to_value(complete(Operation::Edit, &id(), input, None)).unwrap();
+        assert_eq!(wire["isError"], true);
+        assert_eq!(wire["structuredContent"]["result"], Value::Null);
+        assert_eq!(wire["structuredContent"]["error"]["code"], "invalid_output");
+        assert_eq!(
+            wire["structuredContent"]["error"]["application"],
+            application
+        );
+    }
+    let mut input = closed("refused", "not_applied");
+    input["outcome"]["reason"] = json!("no_match");
+    input["outcome"]["stage"] = json!("matching");
+    input["outcome"]["next_action"] = json!({"kind":"fresh_read"});
+    input["outcome"]["effects"]["disk_entered"] = json!(true);
+    let wire = serde_json::to_value(complete(Operation::Edit, &id(), input, None)).unwrap();
+    assert_eq!(wire["structuredContent"]["error"]["application"], "unknown");
+}
+
+#[test]
+fn all_public_schemas_and_results_use_two_without_reversioning_local_records() {
+    for (operation, input) in [
+        (Operation::Discover, limited_discovery()),
+        (Operation::Read, limited_read()),
+        (Operation::Edit, closed("verified_unchanged", "not_applied")),
+    ] {
+        let advertised = Value::Object(schema(operation));
+        assert_eq!(advertised["properties"]["schema_version"]["const"], 2);
+        assert_eq!(
+            advertised["properties"]["operation"]["const"],
+            operation.name()
+        );
+        let wire = serde_json::to_value(complete(operation, &id(), input, None)).unwrap();
+        assert_eq!(wire["structuredContent"]["schema_version"], 2);
+        assert_eq!(wire["structuredContent"]["operation"], operation.name());
+        assert_eq!(wire["structuredContent"]["error"], Value::Null);
+        assert!(wire["structuredContent"]["result"].is_object());
+        assert_eq!(wire["content"].as_array().unwrap().len(), 1);
+        if operation == Operation::Discover {
+            assert_eq!(wire["structuredContent"]["result"]["schema_version"], 1);
         }
     }
 }

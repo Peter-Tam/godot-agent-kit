@@ -1,7 +1,9 @@
 //! Checked stateless script revisions and source-deduplicated observation projection.
 use crate::bridge::wire;
 use crate::observation::*;
-use crate::script_edit::{ExpectedRevisionBasis, ReplacementSource};
+use crate::script_edit::{
+    ExactMatchError, ExactReplacement, ExpectedRevisionBasis, ReplacementSource,
+};
 use ring::digest::{Context, SHA256};
 
 trait Name {
@@ -198,13 +200,44 @@ fn commitment(basis: &ExpectedRevisionBasis) -> ScriptRevision {
 pub struct ScriptEditRequest {
     pub(crate) request: ObservationRequest,
     pub(crate) revision: ScriptRevision,
-    pub(crate) replacement: ReplacementSource,
+    source: SourceIntent,
 }
+
+#[derive(Debug)]
+pub(crate) enum SourceIntent {
+    Complete(ReplacementSource),
+    Exact(ExactReplacement),
+}
+impl SourceIntent {
+    pub(crate) fn resolve(self, current: &str) -> Result<ReplacementSource, ExactMatchError> {
+        match self {
+            Self::Complete(source) => Ok(source),
+            Self::Exact(exact) => exact.derive(current),
+        }
+    }
+}
+
 impl ScriptEditRequest {
     pub fn new(
         request: ObservationRequest,
         revision: ScriptRevision,
         replacement: ReplacementSource,
+    ) -> Result<Self, EvidenceError> {
+        Self::with_source(request, revision, SourceIntent::Complete(replacement))
+    }
+
+    pub(crate) fn exact(
+        request: ObservationRequest,
+        revision: ScriptRevision,
+        replacement: ExactReplacement,
+    ) -> Result<Self, EvidenceError> {
+        Self::with_source(request, revision, SourceIntent::Exact(replacement))
+    }
+
+    fn with_source(
+        request: ObservationRequest,
+        revision: ScriptRevision,
+        source: SourceIntent,
     ) -> Result<Self, EvidenceError> {
         if request.script_path().kind() != Some(ScriptKind::ExternalGdscript) {
             return Err(EvidenceError::WrongTarget);
@@ -212,8 +245,94 @@ impl ScriptEditRequest {
         Ok(Self {
             request,
             revision,
-            replacement,
+            source,
         })
+    }
+
+    pub(crate) fn into_parts(self) -> (ObservationRequest, ScriptRevision, SourceIntent) {
+        (self.request, self.revision, self.source)
+    }
+}
+
+#[cfg(test)]
+mod edit_intent_tests {
+    use super::*;
+
+    fn request(path: &str) -> ObservationRequest {
+        ObservationRequest::new(
+            RequestId::new("edit-intent").unwrap(),
+            ProjectRoot::new("/fixture/project").unwrap(),
+            None,
+            ResourcePath::new(path).unwrap(),
+        )
+    }
+
+    fn revision() -> ScriptRevision {
+        ScriptRevision::new(format!("sr1:{}", "a".repeat(64))).unwrap()
+    }
+
+    #[test]
+    fn whole_source_constructor_does_not_require_a_matching_span() {
+        let source = String::from("complete replacement");
+        let intent = ScriptEditRequest::new(
+            request("res://subject.gd"),
+            revision(),
+            ReplacementSource::new(source).unwrap(),
+        )
+        .unwrap();
+        let (request, revision, source) = intent.into_parts();
+        assert_eq!(request.script_path().as_str(), "res://subject.gd");
+        assert_eq!(revision, self::revision());
+        assert_eq!(
+            source.resolve("unrelated current").unwrap().as_str(),
+            "complete replacement"
+        );
+    }
+
+    #[test]
+    fn exact_constructor_preserves_selectors_revision_and_checked_intent() {
+        let intent = ScriptEditRequest::exact(
+            request("res://subject.gd"),
+            revision(),
+            ExactReplacement::new("PRIVATE_OLD".into(), "PRIVATE_NEW".into()).unwrap(),
+        )
+        .unwrap();
+        let debug = format!("{intent:?}");
+        assert!(!debug.contains("PRIVATE_OLD"));
+        assert!(!debug.contains("PRIVATE_NEW"));
+        let (request, revision, source) = intent.into_parts();
+        assert_eq!(request.script_path().as_str(), "res://subject.gd");
+        assert_eq!(revision, self::revision());
+        assert_eq!(
+            source
+                .resolve("prefix PRIVATE_OLD suffix")
+                .unwrap()
+                .as_str(),
+            "prefix PRIVATE_NEW suffix"
+        );
+        assert_eq!(
+            SourceIntent::Exact(ExactReplacement::new("missing".into(), "new".into()).unwrap())
+                .resolve("current"),
+            Err(ExactMatchError::NoMatch)
+        );
+    }
+
+    #[test]
+    fn exact_and_whole_source_constructors_share_selector_admission() {
+        for path in ["res://subject.gd", "res://subject.tscn"] {
+            let whole = ScriptEditRequest::new(
+                request(path),
+                revision(),
+                ReplacementSource::new(String::new()).unwrap(),
+            );
+            let exact = ScriptEditRequest::exact(
+                request(path),
+                revision(),
+                ExactReplacement::new(String::new(), String::new()).unwrap(),
+            );
+            assert_eq!(whole.is_ok(), path.ends_with(".gd"));
+            assert_eq!(exact.is_ok(), path.ends_with(".gd"));
+        }
     }
 }
 

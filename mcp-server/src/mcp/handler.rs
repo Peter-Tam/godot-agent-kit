@@ -3,7 +3,7 @@ use super::output;
 use crate::observation::{ObservationRequest, ProjectRoot, RequestId, ResourcePath, SessionId};
 use crate::runner::{self, AttemptClock};
 use crate::script_discovery::DiscoveryRequest;
-use crate::script_edit::ReplacementSource;
+use crate::script_edit::ExactReplacement;
 use crate::script_read::{ScriptEditRequest, ScriptRevision};
 use ring::rand::{SecureRandom, SystemRandom};
 use rmcp::model::CallToolResult;
@@ -102,9 +102,12 @@ fn checked(
         } else {
             let revision =
                 ScriptRevision::new(take_string(&mut args, "revision")?).map_err(|_| ())?;
-            let replacement = ReplacementSource::new(take_string(&mut args, "replacement_source")?)
-                .map_err(|_| ())?;
-            Request::Edit(ScriptEditRequest::new(request, revision, replacement).map_err(|_| ())?)
+            let replacement = ExactReplacement::new(
+                take_string(&mut args, "old_string")?,
+                take_string(&mut args, "new_string")?,
+            )
+            .map_err(|_| ())?;
+            Request::Edit(ScriptEditRequest::exact(request, revision, replacement).map_err(|_| ())?)
         }
     };
     if !args.is_empty() {

@@ -13,6 +13,7 @@ pub(crate) use editor::{
 };
 #[path = "edit/output.rs"]
 mod output;
+pub(crate) use output::encode_resolved_outcome;
 pub use output::{encode_outcome, exit_code};
 
 // Unlike an ordinary serde Option, this accepts explicit null but requires the

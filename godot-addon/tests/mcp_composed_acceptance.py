@@ -44,6 +44,13 @@ def replacement(source, profile, index):
     observation.require(count == 1, 'composed_single_owned_value_function')
     return text
 
+def exact_pair(source, desired):
+    old = re.findall(r'(?m)^\treturn \d+$', source)
+    new = re.findall(r'(?m)^\treturn \d+$', desired)
+    observation.require(len(old) == len(new) == 1 and source.replace(old[0], new[0], 1) == desired,
+                        'composed_localized_pair_from_actual_read')
+    return dict(old_string=old[0], new_string=new[0])
+
 
 class McpComposedMixin:
     def _is_composed(self):
@@ -107,7 +114,7 @@ class McpComposedMixin:
             'Use only godot_agent_kit MCP tools for these projects, not shell/files/other bridges. '
             'Complete targets in listed order. Discover subject.gd, read it, then change only the return '
             'value of value() through each requested value in order, preserving all other text and comments. '
-            'Read after every change and use that latest eligible read for the next change. '
+            'Use old_string/new_string to replace only the exact return line quoted from the read. Read after every change and use that latest eligible read for the next change. '
             'For each target retain the initial read revision; immediately after the first change and its read, '
             'try the first replacement once with that old revision, explain the refusal, then read fresh. '
             'For open only, next the developer performs Undo, Save, Redo, Save: read four times in that order '
@@ -163,7 +170,11 @@ class McpComposedMixin:
             desired = target['first_replacement'] if role == 'stale' else replacement(
                 target['source'], target['name'], index if role == 'change' else index + 1)
             observation.require(isinstance(token, str) and args.get('revision') == token and
-                                args.get('replacement_source') == desired, 'composed_exact_fresh_or_deliberately_stale_intent')
+                                all(args.get(key) == value for key, value in exact_pair(
+                                    target['first_source'] if role == 'stale' else (target['fresh'] or {}).get('source', ''),
+                                    desired).items()) and not (set(args) -
+                                    {'project_root', 'session_id', 'script_path', 'revision', 'old_string', 'new_string'}),
+                                'composed_exact_fresh_or_deliberately_stale_intent')
         before, disks = self.state(target['editor'], target['project'])
         editor = target['editor']
         if role == 'discover':
@@ -287,7 +298,8 @@ class McpComposedMixin:
             observation.require(outcome['outcome'] == expected and outcome['application'] ==
                                 ('applied' if role == 'change' else 'not_applied'), 'composed_required_changed_or_safe_refusal')
             if role == 'change':
-                source = request['params']['arguments']['replacement_source']
+                args = request['params']['arguments']
+                source = target['fresh']['source'].replace(args['old_string'], args['new_string'], 1)
                 state, disks = before
                 observation.require(after['selection'] == state['selection'] and
                                     all(documents(after)[path] == doc for path, doc in documents(state).items()
@@ -338,6 +350,7 @@ class McpComposedMixin:
                 target['fresh'] = result
                 if target['first_revision'] is None:
                     target['first_revision'] = result['revision']
+                    target['first_source'] = result['source']
                 if role == 'durable_read':
                     self._composed_coherent(target, target['source'])
                     target['completed_read'] = content['request_id']
@@ -378,9 +391,11 @@ class McpComposedMixin:
                         if role == 'discover':
                             args.pop('script_path')
                         if role in ('change', 'dirty', 'stale'):
+                            desired = target['first_replacement'] if role == 'stale' else replacement(
+                                target['source'], target['name'], index if role == 'change' else index + 1)
                             args.update(revision=target['first_revision'] if role == 'stale' else target['fresh']['revision'],
-                                        replacement_source=target['first_replacement'] if role == 'stale' else
-                                        replacement(target['source'], target['name'], index if role == 'change' else index + 1))
+                                        **exact_pair(target['first_source'] if role == 'stale' else target['fresh']['source'],
+                                                     desired))
                         request = dict(id='composed-' + target['name'] + '-' + str(target['cursor']), method='tools/call',
                                        params=dict(name=tool_for(role), arguments=args))
                         self.before_composed_call(target, request)

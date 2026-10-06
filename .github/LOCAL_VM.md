@@ -207,6 +207,31 @@ left running or suspended. This removes test-level overlap, not the product's
 concurrent original/desired validation or its 5/10-second bounds. The VM remains
 at four vCPUs; resource allocation is part of the recorded environment identity.
 
+### Schema 2 exact editing
+
+Current MCP calls use [Schema 2](../specs/008-exact-script-edit/contracts/mcp-interface.md).
+Reconnect to refresh `tools/list` and expect root `schema_version: 2` for all three
+tools. After a fresh `read_script`, send its revision with one literal
+`old_string`/`new_string` pair. Remove `replacement_source`; legacy, mixed and
+mode-bearing requests are rejected. Independent local whole-source CLI/private
+interfaces and historical Feature 007 evidence retain their original contracts.
+
+Nonempty old text must occur exactly once, counting overlaps. Empty new text
+deletes the span; empty old text replaces only a freshly read complete empty
+script. After refusal or lost output, read the original target again before a
+separately intended edit. No automatic translation, retry or filesystem fallback.
+
+The existing `workflow` profile now covers localized replacement/deletion and
+complete-empty-source edits on open, cached-R closed and absent-R closed scripts,
+with fresh reads after each edit and native history/durability witnesses.
+`sources` covers exact multiline/tab/Unicode, anchored insertion and empty-source
+cases; `bound` covers the unchanged 512 KiB complete-source limit.
+`preservation-exact-baseline` checks matching refusals and late safety precedence.
+Use the [Feature 008 acceptance guide](../specs/008-exact-script-edit/quickstart.md)
+for current both-client requirements; historical Schema 1 passes do not establish
+Schema 2 compatibility. Keep exact Codex 0.153.4 / OMP 18.5.1 installations and
+their normal approval policies, even if a global client has since been upgraded.
+
 The host terminal remains available; the Tart process is detached and has no
 viewer. Foreground activation by the inner harness targets guest WindowServer.
 

@@ -23,10 +23,104 @@ from run_script_close import TARGET, CURRENT, BACKGROUND, SAFE
 PROFILE_GROUPS = {
     'workflow': ('open', 'cached', 'absent'),
     'known': ('known',),
-    'sources': ('unicode', 'empty', 'empty_desired'),
+    'sources': ('unicode', 'unicode_open', 'unicode_cached', 'empty', 'empty_open', 'empty_cached', 'empty_desired'),
     'bound': ('bound',),
     'observations': ('dirty', 'divergent', 'limited', 'invalidated', 'partial'),
 }
+
+
+def lifecycle_profile(name):
+    if name == 'open' or name.endswith('_open'):
+        return 'open'
+    if name == 'cached' or name.endswith('_cached'):
+        return 'cached'
+    return 'absent'
+
+
+def exact_steps(name, source):
+    """Independent intended spans; localized cases cannot use whole-source substitutes."""
+    steps = []
+    def add(old, new):
+        nonlocal source
+        intended = new if source == old == '' else source.replace(old, new, 1)
+        steps.append(dict(old_string=old, new_string=new, source=intended))
+        source = intended
+    if name.startswith('empty') and name != 'empty_desired':
+        add('', '')
+        add('', CHANGED)
+    elif name == 'bound':
+        add('return 47', 'return 47')
+        add('\treturn 47\n', '\treturn 47\n# ' +
+            'x' * (SOURCE_LIMIT - len(source.encode()) - 3) + '\n')
+    else:
+        add('return 47', 'return 47')
+        if name.startswith('unicode'):
+            add('\t# café 雪 𐐀\n\treturn 47', '\t# naïve 雨 𐐀\n\treturn 83')
+            add('extends RefCounted\n', 'extends RefCounted\n# anchored insertion\n')
+        else:
+            add('return 47', 'return 83')
+        if name in ('open', 'cached', 'absent'):
+            add('# localized deletion witness\n', '')
+            add(source, '')
+            add('', '')
+            add('', CHANGED)
+        elif name == 'empty_desired':
+            add(source, '')
+    return steps
+
+
+def review_exact_sequence(target, calls):
+    """Consume server records, checking intent, fresh basis and complete read state."""
+    steps = target['steps']
+    cursor = 0
+    basis = None
+    awaiting_read = False
+    revision_change = None
+    expected = target['initial_source']
+    lifecycle = lifecycle_profile(target['name'])
+    for call in calls:
+        result = call.get('structuredContent', {}).get('result')
+        if call['name'] == 'edit_script' and not isinstance(result, dict):
+            raise ValueError('edit has no recorded checked operation result')
+        if not isinstance(result, dict):
+            continue
+        if call['name'] == 'read_script':
+            if (result.get('source') != expected or not isinstance(result.get('revision'), str) or
+                    re.fullmatch(r'sr1:[0-9a-f]{64}', result['revision']) is None or
+                    result.get('state', {}).get('document', {}).get('lifecycle') !=
+                    ('open' if lifecycle == 'open' else 'closed')):
+                raise ValueError('incorrect complete source, revision or lifecycle')
+            if revision_change is not None and (result['revision'] != basis) != revision_change:
+                raise ValueError('fresh result read revision contradicts edit outcome')
+            revision_change = None
+            basis = result['revision']
+            awaiting_read = False
+        elif call['name'] == 'edit_script':
+            outcome = result['outcome']['outcome']
+            if outcome == 'refused' and target['name'] == 'known':
+                if result['outcome']['application'] != 'not_applied':
+                    raise ValueError('stale refusal has effects')
+                awaiting_read = True
+                continue
+            if awaiting_read or basis is None or cursor >= len(steps):
+                raise ValueError('missing fresh read before intentional edit')
+            args = call['arguments']
+            step = steps[cursor]
+            if (args.get('revision') != basis or
+                    args.get('old_string') != step['old_string'] or
+                    args.get('new_string') != step['new_string'] or
+                    set(args) - {'project_root', 'session_id', 'script_path', 'revision', 'old_string', 'new_string'}):
+                raise ValueError('incorrect exact intent or read revision')
+            wanted = 'verified_unchanged' if expected == step['source'] else 'verified_changed'
+            revision_change = wanted == 'verified_changed'
+            if outcome != wanted:
+                raise ValueError('exact intent did not establish expected outcome')
+            expected = step['source']
+            cursor += 1
+            awaiting_read = True
+    if cursor != len(steps) or awaiting_read:
+        raise ValueError('missing intentional edit or fresh result read')
+    return expected
 
 
 def target_receipt(name, project, descriptor):
@@ -53,6 +147,13 @@ def review_client_events(events, calls):
         raise ValueError('non-product operation substitution')
     if not calls or not visible or not actions:
         raise ValueError('missing correlated model-visible tool evidence')
+    unmatched = [(call['name'], call['arguments']) for call in calls]
+    for action in actions:
+        if action.get('name') in ('discover_scripts', 'read_script', 'edit_script'):
+            pair = (action['name'], action.get('arguments'))
+            if pair not in unmatched:
+                raise ValueError('claimed tool call missing server record')
+            unmatched.remove(pair)
     first_reads = set()
     undelivered = 0
     for call in calls:
@@ -132,11 +233,15 @@ class McpLifecycleMixin:
                         continue
                     second = tool('read_script', script_path=TARGET)
                     observation.require(first['revision'] == second['revision'], 'MCP_stable_revision')
-                    tool('edit_script', script_path=TARGET, revision=first['revision'], replacement_source=first['source'])
-                    tool('edit_script', script_path=TARGET, revision=first['revision'], replacement_source=target['desired'])
+                    for step in target['steps']:
+                        basis = tool('read_script', script_path=TARGET)
+                        tool('edit_script', script_path=TARGET, revision=basis['revision'],
+                             old_string=step['old_string'], new_string=step['new_string'])
+                        tool('read_script', script_path=TARGET)
                     if target['name'] == 'known':
-                        tool('edit_script', script_path=TARGET, revision=first['revision'], replacement_source=target['desired'])
-                    tool('read_script', script_path=TARGET)
+                        tool('edit_script', script_path=TARGET, revision=first['revision'],
+                             old_string='return 83', new_string='return 83')
+                        tool('read_script', script_path=TARGET)
                 if any(t['name'] in ('cached', 'absent') for t in self.targets.values()):
                     # The reply precedes its independent witness; a later ping
                     # drains that witness before main-thread fixture opening.
@@ -155,7 +260,7 @@ class McpLifecycleMixin:
             if errors:
                 raise errors[0]
             self.finalize_targets()
-            self.summary.update(coverage_scope='T002_actual_MCP_transport_lifecycle', mcp_acceptance=True,
+            self.summary.update(coverage_scope='exact_edit_actual_MCP_transport_lifecycle', mcp_acceptance=True,
                                 real_client_acceptance=False)
 
     def prepare_targets(self, stack, profiles=None):
@@ -166,14 +271,25 @@ class McpLifecycleMixin:
         return [target_receipt(t['name'], t['project'], t['descriptor']) for t in self.targets.values()]
 
     def _prepare_target(self, stack, name):
-        source = '' if name == 'empty' else SAFE
-        if name == 'open':
+        source = '' if name.startswith('empty') and name != 'empty_desired' else SAFE
+        if name.startswith('unicode'):
+            source = source.replace('\treturn 47', '\t# café 雪 𐐀\n\treturn 47')
+        if name in ('open', 'cached', 'absent') and self.args.profile != 'composed':
+            source += '# localized deletion witness\n'
+        profile = lifecycle_profile(name)
+        if profile == 'open':
             fixture = self.close_fixture('mcp-' + name, source=source,
                 paths=[TARGET, CURRENT, BACKGROUND], selected=TARGET)
         else:
-            fixture = self.closed_fixture('mcp-' + name, cached=name in ('cached', 'dirty', 'divergent'),
+            fixture = self.closed_fixture('mcp-' + name, cached=profile == 'cached' or name in ('dirty', 'divergent'),
                                           source=source, faults=name == 'limited')
         project, editor, descriptor = stack.enter_context(fixture)
+        if name == 'open' and self.args.profile != 'composed':
+            self.close_action(editor, 'close_human', path=TARGET, mutation='dirty_equal')
+            self.close_action(editor, 'open_setup', paths=[], path=TARGET, idle=True)
+            saved = self.native_action(editor, 'native_edit_save')
+            observation.require(saved['focused'] and saved['disk_matches'], 'exact_prior_history_saved')
+            source = '# CLOSE_HUMAN_EARLIER\n' + source
         if name in ('dirty', 'divergent'):
             self.close_action(editor, 'closed_resource', mutation=name)
         if name == 'limited':
@@ -185,17 +301,11 @@ class McpLifecycleMixin:
             gap.chmod(0)
             stack.callback(gap.chmod, 0o700)
         before, disks = self.state(editor, project)
-        desired = CHANGED
-        if name == 'unicode':
-            desired += '# café 雪 \U00010400\n'
-        if name == 'empty':
-            desired = SAFE
-        if name == 'empty_desired':
-            desired = ''
-        if name == 'bound':
-            desired = SAFE + '# ' + 'x' * (SOURCE_LIMIT - len(SAFE.encode()) - 3) + '\n'
+        steps = exact_steps(name, source)
+        desired = steps[-1]['source']
         return dict(name=name, project=project, editor=editor, descriptor=descriptor,
-                    before=before, disks=disks, desired=desired, calls=[])
+                    before=before, disks=disks, desired=desired, calls=[],
+                    initial_source=source, steps=steps)
 
     def prepared_intents(self):
         return [dict(name=t['name'], replacement_sha256=hashlib.sha256(t['desired'].encode()).hexdigest(),
@@ -207,24 +317,52 @@ class McpLifecycleMixin:
         targets = []
         for target in self.targets.values():
             item = target_receipt(target['name'], target['project'], target['descriptor'])
-            if target['name'] in ('open', 'cached', 'absent', 'unicode', 'empty', 'empty_desired', 'bound'):
+            if target['name'] != 'known' and target['name'] not in ('dirty', 'divergent', 'limited', 'invalidated', 'partial'):
                 del item['script_path']
                 item['script_hint'] = 'Find the script named subject.gd in the returned inventory.'
-            if target['name'] == 'bound':
-                item['requested_change'] = ('Keep the current source unchanged and append one comment: "# ", '
-                    'enough ASCII x characters to make the complete source exactly 524288 UTF-8 bytes, then one LF.')
+            if target['name'] in ('dirty', 'divergent', 'limited', 'invalidated', 'partial'):
+                item['requested_changes'] = None
+            elif target['name'] == 'bound':
+                item['requested_changes'] = [
+                    'Request an unchanged edit of the return 47 span.',
+                    'Retain the final return line as an anchor and append one comment: "# ", '
+                    'enough ASCII x characters to make the complete source exactly 524288 UTF-8 bytes, then one LF.',
+                ]
+            elif target['name'].startswith('empty') and target['name'] != 'empty_desired':
+                item['requested_changes'] = [
+                    'Request an unchanged edit of the complete empty script.',
+                    'Replace the complete empty script with this exact source: ' + json.dumps(CHANGED),
+                ]
             else:
-                item['replacement_source'] = target['desired'] if target['name'] not in ('dirty', 'divergent', 'limited', 'invalidated', 'partial') else None
+                item['requested_changes'] = ['Request an unchanged edit of the return 47 span.']
+                if target['name'].startswith('unicode'):
+                    item['requested_changes'] += [
+                        'In one multiline replacement, change the tab-indented comment café 雪 𐐀 '
+                        'to naïve 雨 𐐀 and the following return 47 to return 83.',
+                        'Retain the extends line as an anchor and insert "# anchored insertion\\n" immediately after it.',
+                    ]
+                else:
+                    item['requested_changes'].append('Replace only return 47 with return 83.')
+                if target['name'] in ('open', 'cached', 'absent'):
+                    item['requested_changes'] += [
+                        'Delete only the "# localized deletion witness\\n" comment, preserving all other source.',
+                        'Delete the complete source, leaving the existing script empty.',
+                        'Request an unchanged edit of the complete empty script.',
+                        'Replace the complete empty script with this exact source: ' + json.dumps(CHANGED),
+                    ]
+                elif target['name'] == 'empty_desired':
+                    item['requested_changes'].append('Delete the complete source, leaving the existing script empty.')
             targets.append(item)
         return ('Use only the godot_agent_kit MCP tools for project operations; do not use shell, files, '
-                'or other bridges. Only cases present in the target list are in scope; complete each target before starting the next. For open/cached/absent/unicode/empty/empty_desired/bound targets, '
-                'discover, read twice to compare unchanged revisions, submit an already-satisfied edit using '
-                'the exact returned source/revision, edit to the requested replacement, then fresh-read. '
+                'or other bridges. Complete each listed target before the next. For positive targets discover '
+                '(except known), read twice to compare unchanged revisions, then perform every listed requested_change '
+                'in order. Quote exact old text from the latest read, use its revision, and fresh-read after EACH edit. '
+                'Use localized spans unless the requested change explicitly concerns the complete source. Preserve all other bytes. '
                 'For known, read and edit directly without discovery. Discover partial and explain incomplete '
                 'coverage (never infer absence); read it without editing. Read dirty, divergent, limited and invalidated targets, '
                 'explain source_origin, document.lifecycle, dirty, consistency, limitations, invalidated historical evidence and null revision; '
                 'do not edit them. For known only, after changing it intentionally try the original now-stale '
-                'revision once with the same desired source, explain the refusal/next_action, then fresh-read. '
+                'revision once with old_string and new_string both "return 83", explain the refusal/next_action, then fresh-read. '
                 'Explain the source, opaque revisions, lifecycle, and effects you actually observed. '
                 'Keep exact Unicode/empty/bound source without truncation. Targets and requested changes:\n' +
                 json.dumps(targets, ensure_ascii=False) + '\n')
@@ -238,12 +376,13 @@ class McpLifecycleMixin:
             return
         content = response.get('result', {}).get('structuredContent')
         observation.require(isinstance(content, dict), 'actual_MCP_authoritative_structured_result')
+        observation.require(content.get('schema_version') == 2, 'actual_root_Schema_2_result')
         self.case('mcp-' + str(len(self.cases)), operation=name)
         self.last_workflow_request = content['request_id']
         result = content.get('result')
         state, disks = before
         after, now = self.state(target['editor'], target['project'])
-        if not target.get('durability_start') and target['name'] in ('absent', 'known', 'unicode', 'empty', 'empty_desired', 'bound'):
+        if not target.get('durability_start') and lifecycle_profile(target['name']) == 'absent' and target['name'] not in ('dirty', 'divergent', 'limited'):
             observation.require(not state['cached_id'] and not after['cached_id'],
                                 'MCP_confirmed_absent_R_through_actual_call')
         if name in ('read_script', 'discover_scripts'):
@@ -296,13 +435,21 @@ class McpLifecycleMixin:
                 observation.require(result['outcome']['application'] == 'not_applied' and
                                     source_free(state, disks) == source_free(after, now), 'MCP_refusal_independent_no_effect')
             if outcome in ('verified_changed', 'verified_unchanged'):
-                desired = args['replacement_source']
+                old, new = args['old_string'], args['new_string']
+                current = state['target']['B'] if TARGET in state['open_paths'] else disks[TARGET]['text']
+                observation.require((old == current == '') or
+                                    (bool(old) and current.find(old) >= 0 and
+                                     current.find(old, current.find(old) + 1) < 0),
+                                    'MCP_exact_unique_original_span')
+                desired = new if old == current == '' else current.replace(old, new, 1)
                 if TARGET not in state['open_paths']:
                     self.assert_closed_success(target['name'], target['project'], target['editor'], state, disks,
                                                desired, changed=outcome == 'verified_changed')
                 else:
                     observation.require(after['target']['B'] == after['target']['R'] == now[TARGET]['text'] == desired and
                                         documents(state).keys() == documents(after).keys() and
+                                        not after['target']['dirty'] and not after['target']['resource_edited'] and
+                                        after['target']['version'] == after['target']['saved_version'] and
                                         all(state['target'][key] == after['target'][key] for key in
                                             ('script_id', 'editor_id', 'buffer_id')),
                                         'MCP_open_D_R_B_same_document')
@@ -426,6 +573,19 @@ class McpLifecycleMixin:
                                                    capabilities=result.get('capabilities'))
                                 elif 'tools' in result:
                                     control = dict(event='catalog', tools=result['tools'])
+                                    tools = result['tools']
+                                    observation.require([t['name'] for t in tools] ==
+                                                        ['discover_scripts', 'read_script', 'edit_script'],
+                                                        'refreshed_exact_three_tool_catalog')
+                                    observation.require(all(t['outputSchema']['properties']['schema_version']['const'] == 2
+                                                            for t in tools), 'refreshed_root_Schema_2_catalog')
+                                    edit_schema = tools[2]['inputSchema']
+                                    observation.require(set(edit_schema['required']) ==
+                                                        {'project_root', 'script_path', 'revision', 'old_string', 'new_string'} and
+                                                        set(edit_schema['properties']) ==
+                                                        {'project_root', 'session_id', 'script_path', 'revision', 'old_string', 'new_string'} and
+                                                        edit_schema['additionalProperties'] is False,
+                                                        'refreshed_single_exact_edit_shape')
                                 elif 'supportedVersions' in result:
                                     control = dict(event='version_discovery', supported_versions=result['supportedVersions'])
                             if control is not None:
@@ -455,6 +615,63 @@ class McpLifecycleMixin:
                     process.wait(timeout=2)
             process.stdout.close()
             diagnostics.close()
+
+    def exact_history_witness(self, target):
+        """Ordinary native history, never a second edit or fixture-source repair."""
+        editor = target['editor']
+        before, disks = self.state(editor, target['project'])
+        changed = []
+        source = target['initial_source']
+        for step in target['steps']:
+            if step['source'] != source:
+                changed.append((source, step['source']))
+            source = step['source']
+        serial = 0
+        def history(mutation, expected):
+            nonlocal serial
+            prior, prior_disks = self.state(editor, target['project'])
+            self.close_action(editor, 'close_human', path=TARGET, mutation=mutation)
+            state, now = self.state(editor, target['project'])
+            observation.require(state['target']['B'] == expected and
+                                state['target']['has_' + ('redo' if mutation == 'undo' else 'undo')],
+                                'exact_native_' + mutation + '_complete_source')
+            observation.require(now == prior_disks and
+                                (expected == now[TARGET]['text'] or
+                                 (state['target']['dirty'] and
+                                  state['target']['version'] != state['target']['saved_version'])),
+                                'exact_native_history_unsaved_without_disk_write')
+            serial += 1
+            self.record_witness('exact-history-' + str(serial), prior, prior_disks, state, now, editor)
+            return state, now
+        def save(expected):
+            nonlocal serial
+            prior, prior_disks = self.state(editor, target['project'])
+            self.close_action(editor, 'open_setup', paths=[], path=TARGET, idle=True)
+            state, _ = self.state(editor, target['project'])
+            action = 'native_edit_save' if state['target']['dirty'] else 'native_edit_save_clean'
+            saved = self.native_action(editor, action)
+            state, now = self.state(editor, target['project'])
+            observation.require(saved['focused'] and saved['disk_matches'] and
+                                state['target']['B'] == state['target']['R'] == now[TARGET]['text'] == expected and
+                                not state['target']['dirty'] and
+                                state['target']['version'] == state['target']['saved_version'],
+                                'exact_history_Save_complete_D_R_B')
+            serial += 1
+            self.record_witness('exact-history-save-' + str(serial), prior, prior_disks, state, now, editor)
+        history('undo', changed[-1][0])
+        save(changed[-1][0])
+        history('redo', changed[-1][1])
+        save(changed[-1][1])
+        for old, new in reversed(changed):
+            history('undo', old)
+        history('undo', target['initial_source'].replace('# CLOSE_HUMAN_EARLIER\n', '', 1))
+        history('redo', target['initial_source'])
+        for old, new in changed:
+            history('redo', new)
+        save(target['desired'])
+        after, now = self.state(editor, target['project'])
+        self.record_witness('exact-native-history', before, disks, after, now, editor)
+        target['history_witnessed'] = True
 
     def finalize_targets(self, *, primary_only=False):
         for target in self.targets.values():
@@ -486,19 +703,23 @@ class McpLifecycleMixin:
             observation.require('edit_script' in names and (target['name'] == 'known' or 'discover_scripts' in names),
                                 'real_client_positive_sequence_' + target['name'])
             edits = [c for c in calls if c['name'] == 'edit_script']
+            review_exact_sequence(target, primary_calls)
             outcomes = [c['structuredContent']['result']['outcome']['outcome'] for c in edits]
-            observation.require('verified_changed' in outcomes and (target['name'] == 'known' or 'verified_unchanged' in outcomes),
+            observation.require('verified_changed' in outcomes and 'verified_unchanged' in outcomes,
                                 'real_client_changed_and_noop_' + target['name'])
             if target['name'] == 'known':
                 observation.require(any(c['structuredContent']['result']['outcome']['outcome'] == 'refused' and
                                         c['structuredContent']['result']['outcome']['next_action']['kind'] == 'fresh_read'
                                         for c in edits), 'real_client_actionable_stale_refusal')
             reads = [c['structuredContent']['result'] for c in calls if c['name'] == 'read_script']
-            observation.require(reads[-1]['source'] == target['desired'] and reads[-1]['revision'] != reads[0]['revision'],
+            observation.require(reads[-1]['source'] == target['desired'] and
+                                (reads[-1]['revision'] != reads[0]['revision'] or target['desired'] == target['initial_source']),
                                 'real_client_fresh_read_changed_revision')
             if target['name'] != 'known':
                 observation.require(len(reads) >= 3 and reads[0]['revision'] == reads[1]['revision'],
                                     'real_client_unchanged_revision_stability')
+            if target['name'] == 'open' and not target.get('history_witnessed'):
+                self.exact_history_witness(target)
             if target['name'] in ('cached', 'absent') and not primary_only:
                 observation.require(target.get('durability_start') is not None, 'fixture_durability_prepared')
                 later = target['calls'][target['durability_start']:]
@@ -517,6 +738,16 @@ class McpLifecycleMixin:
                 state, disks = self.state(target['editor'], target['project'])
                 observation.require(state['target']['B'] == state['target']['R'] == disks[TARGET]['text'] == CHANGED,
                                     'later_runtime_D_R_B_durability')
+            if target['name'] == 'open' and not primary_only:
+                self.close_action(target['editor'], 'close_human', path=TARGET, mutation='reopen')
+                parsed = self.native_action(target['editor'], 'native_edit_reparse')
+                scanned = self.native_action(target['editor'], 'native_edit_scan')
+                observation.require(parsed['parse_completed'] and parsed['parse_error'] == 0 and scanned['settled'],
+                                    'exact_open_reopen_reparse_rescan')
+                self.native_runtime(target['project'], 83)
+                state, disks = self.state(target['editor'], target['project'])
+                observation.require(state['target']['B'] == state['target']['R'] == disks[TARGET]['text'] == target['desired'],
+                                    'exact_open_fresh_runtime_complete_D_R_B')
         if not primary_only:
             self.summary.setdefault('mcp_profiles_verified', []).extend(t['name'] for t in self.targets.values())
 
