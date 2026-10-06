@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-06
 
-**Status**: Draft — clarification and planning complete; task derivation, analysis and implementation have not run. See [plan.md](plan.md).
+**Status**: Draft — clarification, planning and task derivation complete; consistency analysis and implementation have not run. See [plan.md](plan.md) and [tasks.md](tasks.md).
 
 **Input**: Generated WHAT/WHY description supplied to `/speckit.specify`:
 

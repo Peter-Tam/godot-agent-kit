@@ -4,7 +4,7 @@
 
 **Input:** Clarified Feature 008 specification, including the clean Schema 2 cutover and complete-empty-source replacement amendment. The setup helper returned feature identifier `008-exact-script-edit`; the actual dedicated Git design branch is the branch above.
 
-**Status:** Phase 0 research and Phase 1 design complete. Task derivation, granularity review, consistency analysis and implementation have not run. This is a proposed implementation plan, not product acceptance or authorization to skip the remaining design workflow. Feature 008 is in **Planning**; Phase 3 remains complete and Phase 4 remains pending.
+**Status:** Phase 0 research, Phase 1 design and [task derivation](tasks.md) are complete; the task list records its granularity review. Consistency analysis and implementation have not run. This is a proposed implementation plan, not product acceptance or authorization to skip the remaining design workflow. Feature 008 is in **Planning**; Phase 3 remains complete and Phase 4 remains pending.
 
 ## Summary
 
@@ -83,12 +83,13 @@ specs/008-exact-script-edit/
 ├── research.md
 ├── data-model.md
 ├── quickstart.md
+├── tasks.md
 └── contracts/
     ├── mcp-interface.md
     └── execution.md
 ```
 
-`tasks.md` and `analysis.md` are not generated in this stage. Later task derivation must produce meaningful independently reviewable capability increments with directly required tests/docs, rather than file/symbol-only tasks or a separate migration cleanup task.
+The planning stage generated neither tasks nor analysis. The subsequent [task list](tasks.md) now derives meaningful capability increments with directly required tests/docs and records their granularity review; it does not introduce file/symbol-only tasks or a separate migration cleanup task. `analysis.md` remains absent until the requested consistency-analysis stage actually runs.
 
 ### Implementation ownership in the existing tree
 

@@ -1,6 +1,6 @@
 # Quickstart: Validate Schema 2 Exact Editing
 
-**Status:** Future implementation validation guide. No Schema 2 product/client acceptance has run. Existing commands below are installed infrastructure; their current Schema 1 scenarios must be migrated/extended before their results can prove this feature. This planning stage does not implement those scenarios or generate tasks.
+**Status:** Implementation validation guide; [tasks.md](tasks.md) assigns acceptance ownership. No Schema 2 product/client acceptance has run. Existing commands below are installed infrastructure; their current Schema 1 scenarios must be migrated/extended before their results can prove this feature. Design/task generation does not implement those scenarios.
 
 Use the [public contract](contracts/mcp-interface.md), [data model](data-model.md) and [execution precedence](contracts/execution.md#refusal-precedence) as the oracle. Follow [TEST_POLICY.md](../../TEST_POLICY.md), not a blanket historical campaign.
 
