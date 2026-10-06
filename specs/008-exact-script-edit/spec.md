@@ -4,13 +4,20 @@
 
 **Created**: 2026-10-06
 
-**Status**: Draft — specify-stage requirements; clarification, planning and implementation have not run.
+**Status**: Draft — clarification complete; planning and implementation have not run.
 
 **Input**: Generated WHAT/WHY description supplied to `/speckit.specify`:
 
 > Let coding agents make a small, exact source change to an existing project GDScript without resending the complete replacement script. Evolve the existing edit_script interaction to accept the current read revision and one literal old_string/new_string pair. Require one unambiguous occurrence in freshly acquired admissible current source; refuse missing, ambiguous or stale intent without mutation. Allow deletion through an empty new_string, but give empty old_string no insertion or creation meaning.
 >
 > Keep exactly discover_scripts, read_script and edit_script. Preserve the trusted workflow's authenticated routing, confinement, opaque stateless revisions, human-work protection, source validation, independently verified complete-source postconditions, effect-sensitive outcomes, disclosure restrictions and admitted open/closed lifecycle. Open edits retain native history; both supported closed profiles remain closed. Select a deliberate versioned public-contract migration rather than accumulating modes. Compare current agent interfaces for familiar ergonomics, not mutation authority. This is a new feature after completed Feature 007, not a rewrite of its historical whole-source contract or a start on scene authoring, release work, standalone Save/history or implementation planning.
+
+## Clarifications
+
+### Session 2026-10-06
+
+- Q: Should the revised edit tool replace the old whole-source input immediately, or provide a temporary compatibility period for existing callers? → A: Clean Schema 2 cutover: accept only `old_string`/`new_string`, reject `replacement_source`, and require callers to migrate without a temporary compatibility period.
+- Q: Should an empty `old_string` always be rejected, even when the script itself is empty? → A: Reject every empty `old_string`; accept that existing empty scripts cannot be populated through this tool.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -133,7 +140,7 @@ and migration guidance without shell/direct-file editing or private tool knowled
 - **FR-003**: Every well-formed edit candidate MUST freshly authenticate, resolve and acquire its explicit target using the existing trusted workflow. The supplied revision MUST match fresh admissible state before match evaluation can authorize any transformation. Existing later mutation-boundary guards remain authoritative; neither matching text nor caller-supplied state can replace them.
 - **FR-004**: Matching MUST be literal UTF-8 text comparison, case-sensitive and exact for spaces, tabs, line endings and Unicode spelling. No trimming, normalization, fuzzy/regex matching, similar-code relocation, line guessing or syntax interpretation is permitted.
 - **FR-005**: Exactly one occurrence of nonempty `old_string` MUST exist in the fresh admitted source, counting overlapping occurrences. Zero and multiple matches MUST produce distinguishable structured no-match and ambiguous refusals with no mutation. Callers resolve ambiguity by supplying a larger exact span in a separate intentional request, not by selecting an occurrence number.
-- **FR-006**: Replacing that one occurrence with `new_string` MUST define one complete intended source whose prefix/suffix outside the occurrence remain byte-for-byte unchanged. Empty `new_string` MUST support deletion when the complete result is admissible. Empty `old_string` MUST be rejected without implicit meaning.
+- **FR-006**: Replacing that one occurrence with `new_string` MUST define one complete intended source whose prefix/suffix outside the occurrence remain byte-for-byte unchanged. Empty `new_string` MUST support deletion when the complete result is admissible. Empty `old_string` MUST always be rejected, including for an existing script whose freshly acquired source is empty; no initialization exception or implicit meaning is permitted.
 - **FR-007**: Complete-source admission, required validation, persistence, synchronization and independent postcondition verification MUST remain mandatory. Fragment-only validation or agreement with only the changed span is insufficient. Required validation failure or an exceeded existing bound before effects MUST refuse without mutation; source MUST NOT be truncated or rewritten to fit.
 - **FR-008**: An eligible open edit MUST preserve the same open document, native history, clean/saved success state and independently observed complete intended `D == R == B`. Both supported closed profiles MUST preserve document absence throughout and independently verify intended D and every applicable R. Confirmed absent R MUST not be force-loaded; confirmed absent B/history are not applicable, not invented observations.
 - **FR-009**: Existing dirty/equal-text-dirty, stale/divergent, revision/identity/lifecycle, missing-evidence, unsupported-context, authenticated routing and confinement protections MUST remain enforced. A safety/freshness refusal MUST NOT be replaced by match success or a misleading no-match explanation. No automatic repair, Save, force load, open/close or alternate writer may manufacture eligibility.
@@ -141,7 +148,7 @@ and migration guidance without shell/direct-file editing or private tool knowled
 - **FR-011**: Structured results MUST preserve existing revision/evidence meaning, relevant stages, lifecycle, validation, synchronization, dirty state, history participation, diagnostics and known/partial/unknown effects. New match distinctions MUST be actionable and source-free; no-match suggests checking fresh exact source, ambiguity a larger unique span, and stale state a fresh read/revision. Exact reason identifiers and result schemas belong to planning.
 - **FR-012**: Cancellation, timeout, disconnection, delivery failure and newer work after possible effects MUST retain the existing effect-sensitive semantics. No automatic retry, queue, replay, compensation, rollback guarantee or weaker revision policy is introduced. A response acknowledgment alone MUST NOT count as independently verified success.
 - **FR-013**: Existing disclosure restrictions MUST cover both input fragments, derived complete source and match diagnostics. Unauthorized source, candidate matches, unrelated context, private routing/validation data and raw request bodies MUST NOT leak through errors, logs or catalog text. Existing disclosure precedence MUST remain authoritative even after an earlier failure or possible effects.
-- **FR-014**: This feature MUST deliberately evolve public tool-surface Schema 1 to Schema 2 as defined below. New-schema editing MUST reject `replacement_source` and mixed/unknown forms without mutation, retain the tool names and provide migration documentation. No indefinite dual-mode support, hidden legacy alias or `oneOf` compatibility catalog is permitted without a new evidence-backed product decision.
+- **FR-014**: This feature MUST deliberately evolve public tool-surface Schema 1 to Schema 2 through a clean cutover with no temporary compatibility period. From Schema 2 delivery, editing MUST accept only the new old/new representation, reject `replacement_source` and mixed/unknown forms without mutation, retain the tool names and provide migration documentation. No dual-mode support, hidden legacy alias or `oneOf` compatibility catalog is permitted.
 - **FR-015**: Public descriptions MUST satisfy Constitution Principle IX: concise, task-oriented, stable and non-redundant, sufficient to choose and safely use the tool. Material constraints remain explicit through the input contract and relevant structured outcomes. Safety MUST be implementation-enforced, not dependent on agent instructions; no quantitative token/word/character budget is introduced.
 - **FR-016**: The existing exact engine/platform, source/context, local transport, permission, timing, resource and export-isolation boundaries MUST remain intact. Complete edit processing, including new match work, MUST remain within the existing ten-second supported-condition edit bound; read/discover retain five-second bounds. No broader support, arbitrary-load timing, active-game hot reload or new mutation authority is claimed.
 - **FR-017**: Both existing supported coding-agent clients MUST demonstrate actual use of the revised representation on all three lifecycle profiles. New real-agent MCP-path evidence MUST establish applicable A–E, exact transformation results, matching/refusal semantics, migration and model-visible results, with independent live-editor witnesses. Shell/file/SDK substitutions and model assurances MUST NOT replace that evidence.
@@ -154,7 +161,7 @@ FR-015, not reproduce this specification in the tool catalog.
 
 ### Compatibility and migration decision
 
-**Selected specify-stage result: a clean Schema 2 cutover, not an additive mode.**
+**Clarified migration result: a clean Schema 2 cutover with no compatibility period.**
 The [existing public contract](../007-mcp-script-workflow/contracts/mcp-interface.md#executable-and-compatibility-surface)
 explicitly requires versioning and migration for a breaking schema change. The
 repository has completed Schema 1 client workflows but no stated compatibility
@@ -179,12 +186,11 @@ edits need not resend the rest. All in-repository current MCP callers, examples 
 acceptance tooling must migrate when implemented; historical Feature 007 artifacts
 remain explicitly Schema 1 history.
 
-**Visible limitation:** because an empty search is invalid, Schema 2 cannot populate
-an already-empty script, including one emptied by a prior admissible deletion.
-Read still distinguishes empty from unavailable source. This loss relative to the
-whole-source input is explicit, not masked by an empty-search convention, a fourth
-tool or a retained mode. Compatibility and this consequence are material review
-points for the later clarification stage.
+**Accepted limitation:** because every empty search is invalid, Schema 2 cannot
+populate an already-empty script, including one emptied by a prior admissible
+deletion. Read still distinguishes empty from unavailable source. The maintainer
+accepted this loss relative to the whole-source input; it must not be masked by an
+empty-search convention, initialization exception, fourth tool or retained mode.
 
 ### External interface evidence
 
@@ -269,22 +275,19 @@ foundation, not a second public edit representation.
 - The inherited environment remains official Godot 4.7.2.stable.official.ed1daf0bf on macOS 26.6.2 (25G83) arm64 with the documented four-vCPU/6-GiB profile, local stdio MCP 2025-11-25 and existing Codex CLI 0.153.4 / OMP 18.5.1 compatibility targets. This draft does not claim those clients already support Schema 2.
 - Existing standalone-project-GDScript admission, source/context limitations and [bounds](../007-mcp-script-workflow/data-model.md#2-supported-profile-and-bounds) remain binding: complete source is limited to 512 KiB, with no normalization of rejected NUL/CR/BOM input. Exact matching does not expand supported scripts or make CRLF admissible. Loaded source coherence does not promise cached class or running-game hot reload.
 - The developer still supplies deliberate supported local setup and editor startup. A client can present explicit selectors and consume structured results. No special agent extension, new client-side safety store or configuration framework is assumed.
-- No demonstrated compatibility obligation currently requires simultaneous Schema 1/2 editing. The default is the explicit clean cutover above, not a claim of no external usage.
+- The maintainer selected a clean Schema 2 cutover without a temporary compatibility period. Callers must migrate when Schema 2 is delivered; this is a deliberate breaking change, not a claim of no external usage.
 
 ### Material clarification review points
 
-`/speckit.clarify` has **not** run. The draft chooses explicit defaults rather than
-leaving multiple input modes or undefined matching behavior. The later clarification
-stage must explicitly confirm or revise these material product choices before
-technical commitment:
+Clarification completed on 2026-10-06 with two accepted answers:
 
-1. **Compatibility result:** Schema 2 replaces Schema 1 editing without a dual-mode period. Is there a concrete deployed consumer obligation requiring a different migration result? No such obligation is established by the current repository/release evidence; do not infer one merely to keep both modes.
-2. **Empty-source consequence:** Reject every empty `old_string`, accepting that an already-empty script cannot be populated through Schema 2. If that lost capability is unacceptable, return to this product decision; do not smuggle in a sentinel or fallback mode during planning.
-3. **Exactness edge defaults:** Overlapping occurrences are ambiguous; identical old/new text may produce a fully checked verified-unchanged outcome. These follow uniqueness and existing unchanged-intent semantics, not another tool's implementation. Confirm them explicitly if clarification identifies a differing user need.
+1. **Compatibility result — resolved:** Schema 2 replaces Schema 1 editing without a dual-mode period. Callers must migrate; no temporary compatibility is required by this feature.
+2. **Empty-source consequence — resolved:** Reject every empty `old_string`, including when the target is already empty. The inability to populate an empty script through this tool is an accepted limitation, not deferred initialization work.
+3. **Exactness edge defaults — clear:** Overlapping occurrences remain ambiguous; identical old/new text may produce a fully checked verified-unchanged outcome. Existing uniqueness and unchanged-intent requirements already settle these cases, so no additional question or behavior change was needed.
 
-These are reviewable specify-stage decisions, not recorded maintainer answers or an
-automatic clarification invocation. No unresolved placeholder is needed to describe
-the selected behavior; design approval and acceptance remain separate.
+The Clarifications section records only the two actual maintainer answers. No
+material product ambiguity remains; technical choices below belong to planning.
+Clarification completion does not authorize implementation or claim acceptance.
 
 ### Decisions reserved for planning
 
