@@ -115,7 +115,7 @@ class McpValidationMixin:
                              ("over_bound", source, "#" * (SOURCE_LIMIT + 1), True),
                              ("utf8_over_bound", source, "#" + "é" * (SOURCE_LIMIT // 2), True))
                     if source:
-                        cases += (("valid_fragment_invalid_complete", "47", "extends RefCounted\n", False),
+                        cases += (("valid_fragment_invalid_complete", "47", "extends RefCounted", False),
                                   ("derived_overflow", "47", "#" * SOURCE_LIMIT, False))
                     for name, old, new, input_error in cases:
                         case = label + "_" + name
