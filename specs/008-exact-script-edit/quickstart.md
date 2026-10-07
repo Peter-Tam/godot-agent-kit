@@ -1,6 +1,6 @@
 # Quickstart: Validate Schema 2 Exact Editing
 
-**Status:** Implementation validation guide; [tasks.md](tasks.md) assigns acceptance ownership. No Schema 2 product/client acceptance has run. Existing commands below are installed infrastructure; their current Schema 1 scenarios must be migrated/extended before their results can prove this feature. Design/task generation does not implement those scenarios.
+**Status:** T001 is complete: the Schema 2 implementation, scoped VM safety/history/durability evidence and current acceptance in both Codex CLI 0.153.4 and OMP 18.5.1 are recorded below. Codex uses the accepted private official npm distribution, not the known-failing Homebrew companion route. T002 and T003 remain pending; full-feature acceptance is not claimed.
 
 Use the [public contract](contracts/mcp-interface.md), [data model](data-model.md) and [execution precedence](contracts/execution.md#refusal-precedence) as the oracle. Follow [TEST_POLICY.md](../../TEST_POLICY.md), not a blanket historical campaign.
 
@@ -10,6 +10,7 @@ Use the [public contract](contracts/mcp-interface.md), [data model](data-model.m
 - Test a committed implementation revision in an owned checkout. The [VM setup guide](../../.github/LOCAL_VM.md) provisions the dedicated graphical guest; the wrapper copies committed source, never a mutable human project or host working tree.
 - Retain official Godot `4.7.2.stable.official.ed1daf0bf`, macOS 26.6.2 (25G83) arm64, four vCPUs / 6 GiB and exact engine/native provenance. A different guest is development evidence until support equivalence is deliberately approved. No host-GUI fallback or headless replacement for editor witnesses.
 - Use exact **Codex CLI 0.153.4** and **OMP 18.5.1** installations, normal host model authentication/approval and the accepted `gpt-6-astra` model path. Set `CODEX` and `OMP` to those executable paths; do not assume globally installed commands have those versions. Keep credentials off the guest and out of evidence/publication.
+- For Codex, reuse the [Phase 3 private official npm execution route](../007-mcp-script-workflow/quickstart.md#real-coding-agent-clients), restoring the exact `@openai/codex@0.153.4` private installation if needed. Set `CODEX` to that installation's `node_modules/@openai/codex/bin/codex.js`, not the Homebrew executable. Phase 3 already records the Homebrew companion's pre-`--help` stall; it is not a new product or authorization prerequisite. Do not change global installations, quarantine, Gatekeeper or personal trust to use the private route.
 - Retain source-free startup validator preparation and fresh per-request validation under original budgets. No larger VM or raised timeout is a substitute for the inherited support conditions.
 
 From repository root, inspect versions and the existing wrapper interface without launching a host editor:
@@ -24,7 +25,7 @@ python3 godot-addon/tests/run_in_vm.py --help
 
 Start with the actual new exact-intent unit cases and directly affected runner/projection tests. Permanent tests must assert transformation, precedence, preservation and effect behavior, not source text or copied catalog wording. Existing wording/incidental tests should not be re-pinned.
 
-The current process-test targets are runnable from `mcp-server/` after migrating their expectations:
+The migrated process-test targets are runnable from `mcp-server/`:
 
 ```sh
 cargo test --locked --test mcp_tools
@@ -47,17 +48,18 @@ Run the affected existing Python acceptance-consumer/selection tests when their 
 
 ## Direct VM scenarios
 
-These existing selectors are execution entrypoints, not completed exact-edit tests. Extend their current owners rather than introduce an exact-edit runner:
+Use these existing selectors according to the selected task's ownership. T001 has migrated the current MCP callers and added the focused exact-edit baseline; broader adversarial and composed acceptance remains assigned to T002–T003:
 
 - `transport-workflow`: three-profile public positive edits and fresh reads.
 - `transport-sources`: exact multiline/Unicode/empty/deletion/no-op cases and supported representation distinctions.
 - `transport-bound`: exact source/derived-size bounds and consumed-output timing.
 - `preservation`: stale, dirty/equal-text-dirty, divergence, missing evidence and retained-error precedence.
+- `preservation-exact-baseline`: T001's matching/input refusals, stale/dirty/missing-evidence precedence and late dirty-Resource guard while a match error is retained.
 - `interruption`: affected pre/post-effect cancellation/deadline/output-loss and no-effect diagnostic interruption.
 - `composed`: fixture/protocol check of the stateful sequence; **not** actual-agent A–E proof.
 - `privacy-export`: affected fragment/error disclosure checks; reuse unchanged export evidence after relevant-input review rather than automatically rerunning every export scenario.
 
-Run only task-owned/affected selectors. For example, after migration:
+Run only task-owned/affected selectors. For example:
 
 ```sh
 python3 godot-addon/tests/run_in_vm.py start
@@ -70,7 +72,7 @@ Expected result: independent complete-source/lifecycle assertions pass for posit
 
 ## Real coding-agent workflows
 
-Use a fresh prepared run for each client/profile. The current profiles `workflow`, `sources`, `bound`, `failures`, `reconnect` and `composed` are sufficient ownership locations for extensions; `known`/`observations` remain available when directly affected. The implementation must update their prompts, actual request/result consumers and independent witnesses together. Do not treat an old prompt or a model's claimed use of new fields as proof.
+Use a fresh prepared run for each client/profile. The current profiles `workflow`, `sources`, `bound`, `failures`, `reconnect` and `composed` remain the existing ownership locations; `known`/`observations` are available when directly affected. T001's migrated prompts, request/result consumers and independent witnesses cover the exact-edit positives. Broader recovery and composed scenarios require the extensions and acceptance assigned to T002–T003. Do not treat an old prompt or a model's claimed use of new fields as proof.
 
 From a clean owned repository checkout:
 
@@ -177,6 +179,234 @@ For every inherited guarantee, record newly executed, valid reused, invalidated-
 No whole historical GUI or fresh release campaign is selected. If an actual change invalidates a shared boundary, name the exact behavior, affected suites and reachable failure before broadening. Native rebuild equivalence cannot be inferred from a matching version string.
 
 Implementation completion requires the full mapped valid evidence plus the proportionate implementation-shape/constitutional review. Evidence belongs here or in the owning task PR, with private source-bearing artifacts excluded from Git. Task/feature completion and PR delivery state remain distinct.
+
+## T001 implementation evidence (2026-10-07)
+
+**T001 completion: complete.** Production and acceptance inputs are at
+`6b41fcfd446b14461aafe94303aa2a8eafa0fc98` on
+`task/T001-schema2-exact-edit`; subsequent changes record documentation and
+completion state only. Both selected clients satisfy the atomic cutover
+criterion. No T002/T003 or full-feature completion is claimed.
+
+### Implemented boundary and static checks
+
+The public catalog, strict decoder, output schemas and envelopes now use Schema 2
+and one literal `old_string`/`new_string` pair. Current MCP callers and consumers
+are migrated together. Local whole-source Rust/CLI/private interfaces retain
+their separate contracts. No legacy translator, second mutation engine,
+dependency, native rebuild requirement or protocol revision was added.
+
+The checked core counts overlapping starts with at most two substring searches,
+checks the combined byte cap before constructing the result, and preserves exact
+surroundings. Fresh authenticated acquisition and revision comparison precede
+derivation. A retained match error traverses existing unchanged execution and may
+be exposed only after independently verified zero-effect results; actual safety,
+disclosure, validation, interruption and effect uncertainty take precedence.
+
+Earlier task execution passed Rust formatting, Clippy with warnings denied,
+affected unit/MCP process tests, rustdoc and locked binary/example builds.
+The aggregate Rust run hit the existing opening-timeout assertion in
+`bridge_boundary::late_completion_result_cannot_upgrade_a_delivered_known_partial_timeout`;
+that unchanged case passed in isolation and the remaining targets and doctests
+passed separately. The aggregate failure is not a passing aggregate run.
+Affected Python consumers passed: 56 tests initially, followed by focused
+18-, 4-, 11- and 17-test checks after their respective fixture corrections.
+These overlapping executions are not added into a distinct-test total.
+
+### Direct live-editor evidence
+
+All runs used the fixed wrapper, official Godot
+`4.7.2.stable.official.ed1daf0bf`, macOS 26.6.2 arm64, four vCPUs / 6 GiB.
+Environment identity:
+`5be872888a3eacb7798de40e70d66e1f438d908e00cf714575d65b2632596ced`.
+Private artifact roots below are relative to
+`~/.local/state/godot-agent-kit-vm/artifacts/`; source-bearing records and captures
+are deliberately not committed.
+
+| Selector | Tested source | Passed records | Maximum consumed edit response | Artifact root |
+| --- | --- | ---: | ---: | --- |
+| `transport-workflow` | `38e1d1b878c04f09436f00b5572dac502c380f94` | 71 | 5.924257 s | `schema2-workflow-smoke-1/20261007T000406Z-dcde21c8bb88` |
+| `preservation-exact-baseline` | `a45a8f1ed165bfb922e78e42ddd90d2ac9e630e4` | 42 | 4.718693 s | `schema2-safety-smoke-3/20261007T001251Z-45030e952eb6` |
+| `transport-sources` | `6b41fcfd446b14461aafe94303aa2a8eafa0fc98` | 34 | 6.815210 s | `schema2-sources-smoke-3/20261007T002830Z-c45638ebc06c` |
+| `transport-bound` | `6b41fcfd446b14461aafe94303aa2a8eafa0fc98` | 10 | 6.585374 s | `schema2-bound-smoke-1/20261007T002912Z-460add7442e9` |
+| `privacy-authorized` | `6b41fcfd446b14461aafe94303aa2a8eafa0fc98` | 21 | 6.521613 s | `schema2-privacy-smoke-1/20261007T003003Z-1316080e252a` |
+
+Workflow witnesses cover complete intended D/R/B and saved state on the same
+open document, D/R with continuing B absence for cached closed scripts, and D
+with positive R/B absence for uncached closed scripts. The changed path includes
+localized replacement/deletion, complete-source deletion, empty unchanged and
+empty-to-nonempty edits, real native history/prior-history, and applicable
+Save/reopen/reparse/rescan/fresh-runtime durability. The focused preservation
+run includes matching/input refusals, stale/dirty/missing-evidence precedence,
+invalid complete derived source, and a late dirty-Resource guard overriding a
+retained match error. Privacy checks preserve authorized digest evidence without
+exposing source fragments or match feedback.
+
+### Actual OMP acceptance
+
+OMP **18.5.1**, retained CLI SHA-256
+`fc62b280c50923f779e9af14e0ba12d24cbf3db6b2757106a8ad127b3a3274a9`,
+used `openai-codex/gpt-6-astra`, normal `write` approval and a temporary project
+MCP configuration in an owned detached checkout. `OMP_MCP_TIMEOUT_MS=15000` and
+`OMP_MCP_REQUIRE_READY=1` affect the client relay, not the product's five/ten-second
+bounds. All accepted runs used source
+`6b41fcfd446b14461aafe94303aa2a8eafa0fc98`.
+
+| Profile | Finalizer records | Correlated model-visible results | Maximum consumed edit response | VM artifact root |
+| --- | ---: | ---: | ---: | --- |
+| `workflow`, including later-opening reads | 53 | 47 | 7.554557 s | `schema2-omp-workflow-2/20261007T004848Z-88e9e81278bd` |
+| `sources` | 26 | 25 | 6.123061 s | `schema2-omp-sources-1/20261007T005425Z-23c820119549` |
+| `known` | 9 | 8 | 5.003475 s | `schema2-omp-known-1/20261007T005716Z-90720b62ab98` |
+
+All 80 model-visible results correlate with actual server calls; none was
+delivery-unavailable. Private client launch records, JSONL, normalized carrier
+events and correlation results are under `schema2-t001-_pgpqenm/omp-workflow-2`,
+`omp-sources` and `omp-known`.
+
+OMP refreshed the three-tool Schema 2 catalog, used localized spans and each
+latest read revision, and fresh-read after every edit. Each open/cached/absent
+target completed all six workflow edits without switching lifecycle. Source
+cases preserve multiline/tab/Unicode bytes and anchored insertion; complete
+empty-source and unchanged intent are distinguished from missing text.
+The known-path workflow skipped discovery, intentionally used the original
+stale revision once, consumed `revision_mismatch` / `not_applied` /
+`fresh_read`, then read rather than replaying the rejected request.
+
+Qualitative review found the structured carrier sufficient: OMP distinguished
+`source_origin` from per-surface provenance, open D/R/B agreement from positively
+absent closed surfaces, unchanged from applied results, and source equality from
+loaded-class/runtime refresh. Its later-opening reads consumed the now-open
+buffer evidence. It explicitly retained non-atomic/stability limitations instead
+of inferring unobserved coherence. Model summaries alone were not accepted as
+proof; independent complete-source/lifecycle witnesses and call correlation
+established the observed results.
+
+### Actual Codex acceptance
+
+The private official **Codex CLI 0.153.4** npm distribution used
+**gpt-6-astra**, invocation-scoped untrusted project entries, the read-only shell
+sandbox and ordinary `on-request` approval. All 29 edit requests received
+individual **Allow** decisions, including the intentional stale-revision probe;
+no session-wide or permanent grant was used. Source and VM environment identity
+match the accepted OMP runs.
+
+| Profile | Finalizer records | Correlated client results | Maximum consumed edit response | VM artifact root |
+| --- | ---: | ---: | ---: | --- |
+| `workflow`, including later-opening reads | 54 | 48 | 6.682354 s | `schema2-codex-workflow-2/20261007T050939Z-130a596811e7` |
+| `sources` | 26 | 25 | 6.920724 s | `schema2-codex-sources-1/20261007T052740Z-5500f70c05c1` |
+| `known` | 9 | 8 | 5.245178 s | `schema2-codex-known-1/20261007T053639Z-16c96c7598f5` |
+
+All 81 actual calls/results correlate with the server records; none was
+delivery-unavailable. Selected-thread transcripts, official TUI approval logs,
+launch records, normalized carrier evidence and correlation results are under
+`schema2-t001-_pgpqenm/codex-workflow-2`, `codex-sources` and `codex-known`.
+The refreshed catalog contains exactly the three tools, root output Schema 2
+and only the five required exact-edit fields plus optional `session_id`.
+Codex requested MCP `2025-06-18` and accepted the server's `2025-11-25`.
+
+The workflow completed all six edits on each open/cached/absent target, followed
+by successful later-opening reads. One concurrent read received truthful
+`server_busy` / not-queued information; the client issued a separate read and
+obtained the final state without replaying a mutation. Source cases establish
+multiline/tab/Unicode preservation, anchored insertion and complete-empty-source
+semantics. The known-path conversation skipped discovery, made one intentional
+stale equal-text request, interpreted `revision_mismatch` / `not_applied` /
+`fresh_read`, and then read the unchanged final source.
+
+Carrier review follows the accepted Phase 3 structured-result conversion and
+also checks actual code-mode output. The workflow printed 44 full envelopes;
+four open-edit results were consumed by model-authored code and printed as
+selected outcome/application/history views, with persistence/diagnostics where
+selected. Those views were compared against the complete returned client result
+and server record, together with subsequent exact arguments, fresh reads and
+independent witnesses. Unprinted fields are not claimed as reasoning-context
+text. Source and known runs printed all 25 and eight complete envelopes.
+Neither raw SDK events nor model assurances alone establish these results.
+
+Qualitative review confirmed correct exact-span/current-revision use, empty
+versus unavailable source, changed versus unchanged effects, lifecycle
+preservation, and refusal recovery. Codex distinguished `editor_buffer` source
+origin from disk provenance, reported applicable D/R/B equality after later
+opening, and retained non-atomic/stability and loaded-class limitations.
+Real native-history and closed-lifecycle captures were inspected alongside the
+independent state witnesses. The finalizers passed and the owned VM was stopped.
+
+### Codex execution route and excluded failures
+
+Use the already accepted private official **0.153.4** npm distribution, not
+Homebrew. The retained `t002-codex-0.153.4-7sapgq72/package-lock.json` pins
+`@openai/codex@0.153.4` and the official
+`@openai/codex@0.153.4-darwin-arm64` platform archive with SHA-512 integrity.
+The private installation was restored with `npm ci --ignore-scripts` using that
+lock. It reports `codex-cli 0.153.4`; its companion's `--help` returns normally
+and its signature verifies. No global/Homebrew installation or macOS security
+setting is changed by this accepted route.
+
+Private CLI SHA-256:
+`b973d440acac501fd2594a43e7ca9ce41e0a65b9dfb28d0d7a7837c99e1261e3`.
+Companion SHA-256:
+`d8a2222e017342718d16a5dbe092921c628961f812f62f42036b8d960e1ffe56`,
+matching the previously recorded companion bytes. Package archive integrity,
+signature/version/help observations and exact paths are retained in
+`schema2-t001-_pgpqenm/codex-provenance.json`.
+
+An initial attempt used the wrong, Homebrew execution route and reproduced the
+[already documented limitation](../007-mcp-script-workflow/quickstart.md#real-coding-agent-clients)
+before any project MCP call. Disabling its host and isolating its catalog did
+not provide usable tools. The maintainer-authorized removal of that Homebrew
+helper's quarantine attribute also did not resolve it; no other security change
+was made. This is excluded setup evidence, not a new product, permission or
+acceptance blocker. Only a failure of the accepted private route could establish
+a new execution blocker.
+
+Owned client evidence is under `schema2-t001-_pgpqenm/codex-workflow`.
+Finalization was attempted and retrieved
+`schema2-codex-workflow-1/20261007T011817Z-1ea0f8b2e1a5`, but exited 70 with
+`Owned MCP relay/control failed`; no successful finalization or fixture
+acceptance is claimed for it. The dedicated VM was subsequently stopped.
+
+Earlier failed safety runs exposed fixture disclosure/descriptor assumptions,
+which were corrected before the 42-record pass. Expanded seven-editor source
+fixtures hit validation deadlines; the original three-target source scope was
+restored without changing product bounds, while workflow retained all required
+edits on all three lifecycle profiles. OMP's first workflow disconnected during
+the absent target and remains incomplete; the second run used fresh fixtures
+and passed. Failed/incomplete runs are retained and excluded from all counts.
+
+### Evidence currentness and implementation shape
+
+The direct workflow's later source deltas concern separate preservation/source
+fixture corrections and failure diagnostics, not its accepted workflow path.
+The successful safety run already contains its disclosure and optional-descriptor
+corrections. Source, bound, privacy and OMP results ran at the current code head.
+No production Rust, addon, native, ABI, engine or dependency change followed
+those accepted runs. Documentation/status updates do not invalidate them.
+
+Production and fixture native artifact hashes match the accepted Feature 007
+source `3067fc690f1b08e28bf7a296468c8105c4122ea1` in the same environment.
+The reviewed foundation delta contains only blank-line removal in unchanged
+native execution workers; exact intent and MCP behavior were separately
+exercised above. `schema2-t001-_pgpqenm/native-reuse.json` records that comparison.
+Unchanged confinement/authentication, native/export and local whole-source
+foundations retain their historical meaning; no historical Schema 1 client
+result is promoted to Schema 2 acceptance.
+
+The shape review found no material accidental complexity: checked text/intent
+remain in the existing request module, capture/revision/lifecycle dispatch and
+terminal match reduction stay in the existing read runner, and MCP
+decoding/schema/projection remain at the adapter. New exact-intent declarations
+are crate-private with current callers; there is no speculative public mode,
+state store, hook or generic framework. The nonempty-string `expect` is dominated
+by an explicit empty branch, not used for unavailable safety evidence. Independent
+adapter review found no material correctness, disclosure or shape issue.
+
+This records compliance with Principles I–IV, VII, IX, X and XIII for T001's
+implemented boundary and current both-client acceptance. T002's broader
+qualification, T003's composed completion and a release remain outside this
+task. Approved requirements and remaining task obligations are unchanged:
+the initial exact analysis fingerprints established implementation currentness;
+these later status, checkbox and evidence updates change no remaining obligation.
+No extension configuration was present at pre/post-implementation inspection.
 
 ## Planning validation
 

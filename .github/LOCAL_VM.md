@@ -232,6 +232,12 @@ for current both-client requirements; historical Schema 1 passes do not establis
 Schema 2 compatibility. Keep exact Codex 0.153.4 / OMP 18.5.1 installations and
 their normal approval policies, even if a global client has since been upgraded.
 
+For Codex, reuse the [accepted private official npm 0.153.4 execution
+route](../specs/007-mcp-script-workflow/quickstart.md#real-coding-agent-clients).
+Its known Homebrew companion startup failure is not a new product or
+authorization blocker. Restore an equivalent private pinned installation when
+needed; do not change the global installation or macOS security settings.
+
 The host terminal remains available; the Tart process is detached and has no
 viewer. Foreground activation by the inner harness targets guest WindowServer.
 
