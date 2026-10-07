@@ -14,7 +14,7 @@ import time
 
 import run_observation as observation
 from close_native_acceptance import documents
-from closed_script_acceptance import CHANGED, source_free
+from closed_script_acceptance import SOURCE_LIMIT, source_free
 from mcp_peer import McpPeer, McpAdversarialMixin, selectors
 from mcp_privacy_acceptance import assert_disclosure
 from run_script_close import TARGET, CURRENT, SAFE
@@ -22,9 +22,13 @@ from run_script_edit import sha
 
 PROFILES = ("open", "cached-closed", "absent-closed")
 NEWER = "extends RefCounted\n# CLOSED_NEWER_WORK\n"
-DESIRED = "# MCP_INTERRUPTION_PRIVATE_SOURCE_SENTINEL\n" + CHANGED
+OLD_FRAGMENT = "return 47"
+NEW_FRAGMENT = "return 83 # MCP_INTERRUPTION_PRIVATE_SOURCE_SENTINEL"
+DESIRED = SAFE.replace(OLD_FRAGMENT, NEW_FRAGMENT)
 
 INTERRUPTION_GROUPS = {
+    "interruption-exact-diagnostic": "mcp_interruption_exact_diagnostic",
+    "interruption-exact-effects": "mcp_interruption_exact_effects",
     "interruption-cancellation": "mcp_interruption_cancellation",
     "interruption-original-deadline": "mcp_interruption_deadline",
     "interruption-acquisition-clock": "mcp_interruption_acquisition_clock",
@@ -81,7 +85,7 @@ class McpInterruptionMixin(McpAdversarialMixin):
         basis = self.mcp_read(peer, project, editor, descriptor, label + "-basis", source=SAFE)
         self._interruption_arm(editor, profile, stage)
         call = peer.start("edit_script", dict(selectors(project, descriptor),
-                                             revision=basis["revision"], old_string=basis['source'], new_string=DESIRED))
+                                             revision=basis["revision"], old_string=OLD_FRAGMENT, new_string=NEW_FRAGMENT))
         self.wait_mcp_barrier(editor, "edit:" + stage if profile == "open" else stage, peer, call)
         return call
 
@@ -183,6 +187,68 @@ class McpInterruptionMixin(McpAdversarialMixin):
         # finish consumes output against the original call clock while the real
         # editor barrier stays closed; release occurs only after its terminal result.
         self._interruption_matrix(("deadline",))
+
+    def mcp_interruption_exact_diagnostic(self):
+        """Interrupted unchanged assessment cannot publish its retained match error."""
+        cases = (("no_match", "missing exact interruption span", "x", "cancel", "prepare"),
+                 ("ambiguous_match", "r", "R", "deadline", "verify:unchanged"),
+                 ("empty_old_string", "", "x", "channel-loss", "verify:unchanged"),
+                 ("invalid_source", OLD_FRAGMENT, "#" * SOURCE_LIMIT, "deadline", "prepare"))
+        for profile in PROFILES:
+            for matching, old, new, control, stage in cases:
+                label = "mcp-diagnostic-" + profile + "-" + matching + "-" + control
+                with self._interruption_fixture(label, profile) as (project, editor, descriptor):
+                    with McpPeer(self, label) as peer:
+                        basis = self.mcp_read(peer, project, editor, descriptor, label + "-basis", source=SAFE)
+                        before, disks = self.state(editor, project)
+                        self._interruption_arm(editor, profile, stage)
+                        call = peer.start("edit_script", dict(selectors(project, descriptor),
+                                          revision=basis["revision"], old_string=old, new_string=new))
+                        self.wait_mcp_barrier(editor, "edit:" + stage if profile == "open" else stage, peer, call)
+                        if control == "cancel":
+                            peer.cancel(call)
+                            peer.eof()
+                        elif control == "channel-loss":
+                            self.action(editor, "disable") if profile == "open" else \
+                                self.close_action(editor, "closed_disconnect")
+                        root = peer.finish(call, label, delivery_optional=control == "cancel")
+                        if root is not None:
+                            result = self.mcp_review_edit(root, label,
+                                                          ("refused", "application_unknown", "applied_unverified"))
+                            observation.require(result["outcome"]["reason"] not in
+                                                ("no_match", "ambiguous_match", "empty_old_string", "invalid_source") and
+                                                result["outcome"]["stage"] != "matching",
+                                                "diagnostic_interruption_retains_actual_terminal_" + label)
+                        self._interruption_release(editor, profile)
+                        self._interruption_survivor(project, editor, before, disks, label, no_effect=True)
+                    self._interruption_recover(project, editor, descriptor, label)
+
+    def mcp_interruption_exact_effects(self):
+        """Focused exact-intent coverage of the inherited effect and delivery cuts."""
+        self._interruption_matrix(("cancel", "deadline", "channel-loss"),
+                                  stages=("prepare", "verify:post_change"))
+        for profile in PROFILES:
+            for blocked in (False, True):
+                label = "mcp-exact-" + profile + ("-blocked" if blocked else "-lost")
+                with self._interruption_fixture(label, profile) as (project, editor, descriptor):
+                    with McpPeer(self, label) as peer:
+                        capacity = self._interruption_output_capacity(peer, label) if blocked else None
+                        call = self._interruption_start(peer, project, editor, descriptor, profile,
+                                                       "verify:post_change", label)
+                        before, disks = self.state(editor, project)
+                        observation.require(disks[TARGET]["text"] == DESIRED,
+                                            "exact_effect_independently_precedes_output_loss_" + label)
+                        if blocked:
+                            self._interruption_block_output(peer, capacity)
+                        else:
+                            peer.process.stdout.close()
+                        peer.wait_exit(bound=max(0.01, call["started"] + 11 - time.monotonic()))
+                        self._interruption_release(editor, profile)
+                        self.case(label, operation="edit_script", delivery="unavailable",
+                                  mcp_request_id=call["id"], domain_request_id=call["domain_request_id"],
+                                  performance_claim="none_output_not_consumed", **(capacity or {}))
+                        self._interruption_survivor(project, editor, before, disks, label, no_effect=True)
+                    self._interruption_recover(project, editor, descriptor, label)
 
     def mcp_interruption_acquisition_clock(self):
         for profile in PROFILES:
@@ -466,7 +532,52 @@ class McpInterruptionMixin(McpAdversarialMixin):
                                 self.cases[-1]["callback_evidence"] = label + "-callbacks.json"
                             self._interruption_recover(project, editor, descriptor, label)
 
+    def _interruption_matching_denial(self, profile):
+        label = "mcp-retained-match-late-denial-" + profile
+        missing, proposed = "MCP_LATE_DENIED_OLD", "MCP_LATE_DENIED_NEW"
+        with self._interruption_fixture(label, profile) as (project, editor, descriptor):
+            with McpPeer(self, label) as peer:
+                basis = self.mcp_read(peer, project, editor, descriptor, label + "-basis", source=SAFE)
+                before, disks = self.state(editor, project)
+                target = project / TARGET.removeprefix("res://")
+                mode = target.stat().st_mode
+                self._interruption_arm(editor, profile, "verify:unchanged")
+                call = peer.start("edit_script", dict(selectors(project, descriptor),
+                                  revision=basis["revision"], old_string=missing, new_string=proposed))
+                self.wait_mcp_barrier(editor, "edit:verify:unchanged" if profile == "open" else
+                                      "verify:unchanged", peer, call)
+                with target.open("rb") as retained:
+                    try:
+                        target.chmod(0)
+                        self._interruption_release(editor, profile)
+                        root = peer.finish(call, label)
+                        result = self.mcp_review_edit(root, label, "refused")
+                        observation.require(result["outcome"]["reason"] != "no_match" and
+                                            result["outcome"]["stage"] != "matching",
+                                            "late_denial_wins_over_retained_matching_" + profile)
+                        assert_disclosure(json.loads((self.artifacts / (label + ".json")).read_text()),
+                                          label, secrets=self.secrets,
+                                          sources=(missing, proposed, SAFE, sha(SAFE), basis["revision"]),
+                                          inventory=(CURRENT,))
+                        after = self.close_action(editor, "closed_witness")["state"]
+                        stat = os.fstat(retained.fileno())
+                        raw = retained.read()
+                        observation.require(raw == SAFE.encode() and target.stat().st_mode & 0o777 == 0 and
+                                            str(stat.st_ino) == disks[TARGET]["inode"] and
+                                            str(stat.st_dev) == disks[TARGET]["device"] and
+                                            stat.st_mtime_ns == disks[TARGET]["mtime_ns"] and
+                                            source_free(before, disks) == source_free(after, disks),
+                                            "retained_match_denial_preserves_all_authorities_and_history_" + profile)
+                        denied = dict(disks[TARGET], mode=0, ctime_ns=stat.st_ctime_ns)
+                        self.record_witness(label, before, disks, after,
+                                            dict(disks, **{TARGET: denied}), editor)
+                    finally:
+                        target.chmod(mode)
+            self._interruption_recover(project, editor, descriptor, label)
+
     def mcp_interruption_denial(self):
+        for profile in PROFILES:
+            self._interruption_matching_denial(profile)
         label = "mcp-sticky-denial-open-newer-partial"
         self.source_markers.add(b"HUMAN_CALLBACK_NEWER")
         with self._interruption_fixture(label, "open") as (project, editor, descriptor):
@@ -509,7 +620,7 @@ class McpInterruptionMixin(McpAdversarialMixin):
                                             "open_partial_causal_failure_then_sticky_actual_denial_" + label)
                         assert_disclosure(json.loads((self.artifacts / (label + ".json")).read_text()),
                                           label, secrets=self.secrets, inventory=tuple(p for p in disks if p != TARGET),
-                                          sources=(*self.source_markers, DESIRED, sha(DESIRED),
+                                          sources=(*self.source_markers, OLD_FRAGMENT, NEW_FRAGMENT, DESIRED, sha(DESIRED),
                                                    disks[TARGET]["text"], disks[TARGET]["sha256"],
                                                    callback["human_text"], sha(callback["human_text"])))
                         self.close_action(editor, "close_idle", frames=16)
@@ -553,7 +664,7 @@ class McpInterruptionMixin(McpAdversarialMixin):
                                             "actual_denial_sticky_after_earlier_metadata_failure_" + label)
                         assert_disclosure(json.loads((self.artifacts / (label + ".json")).read_text()),
                                           label, secrets=self.secrets, inventory=tuple(p for p in disks if p != TARGET),
-                                          sources=(*self.source_markers, DESIRED, sha(DESIRED),
+                                          sources=(*self.source_markers, OLD_FRAGMENT, NEW_FRAGMENT, DESIRED, sha(DESIRED),
                                                    disks[TARGET]["text"], disks[TARGET]["sha256"]))
                     finally:
                         target.chmod(mode)

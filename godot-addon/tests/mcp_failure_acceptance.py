@@ -23,6 +23,15 @@ FAILURE_GROUPS = {
 }
 FAILURE_PROFILES = frozenset(name for group in FAILURE_GROUPS.values() for name in group)
 DESIRED = '# MCP_FAILURE_REPLACEMENT\n' + CHANGED
+MATCHING_RECOVERY = (
+    ("return 48", "return 49", "no_match", SAFE),
+    ("return 47", "return 48 # exact recovery", "verified_changed",
+     SAFE.replace("return 47", "return 48 # exact recovery")),
+    ("r", "R", "ambiguous_match",
+     SAFE.replace("return 47", "return 48 # exact recovery")),
+    ("return 48 # exact recovery", "return 49", "verified_changed",
+     SAFE.replace("return 47", "return 49")),
+)
 
 
 class McpFailureMixin:
@@ -51,8 +60,16 @@ class McpFailureMixin:
                    for t in self.targets.values()]
         return ('Use only godot_agent_kit MCP tools for project operations, not shell, files or other bridges. '
                 'Complete one target at a time. Read each explicit target. For failure_limited, explain the '
-                'observed source, unavailable state and revision; do not edit. For each other target, '
-                'if read supplies an edit revision, send its exact complete source as old_string and the listed intended_source as new_string once with that revision. '
+                'observed source, unavailable state and revision; do not edit. For failure_refusal, use a fresh '
+                'read revision before each of these separately intentional requests, in order: '
+                '(1) old_string "return 48", new_string "return 49" (an intentional absent-text probe); '
+                '(2) after reading again, correct the old text to "return 47" and replace it with '
+                '"return 48 # exact recovery"; (3) after reading again, try old_string "r", new_string "R" '
+                '(an intentional ambiguous-text probe); (4) after reading again, use the larger unique span '
+                '"return 48 # exact recovery" and replace it with "return 49". Read after that correction. '
+                'Explain each refusal and why the fresh-read correction is a new intent, not a retry. '
+                'Then, for failure_refusal and each other editable target, '
+                'send the latest read source as old_string and the listed intended_source as new_string once with its revision. '
                 'Interpret the actual structured outcome, target, effect certainty, evidence availability '
                 'and next action. After that attempt, read the same explicit target to inspect surviving '
                 'source and lifecycle, then stop editing it. If delivery fails, report that separately '
@@ -66,6 +83,8 @@ class McpFailureMixin:
         operation = request['params']['name']
         if name == 'failure_limited' and operation == 'read_script':
             self.close_action(target['editor'], 'closed_fault', fault='missing_cache_getters')
+        if name == 'failure_refusal' and sum(c['name'] == 'edit_script' for c in target['calls']) < len(MATCHING_RECOVERY):
+            return
         if operation != 'edit_script' or target['fault_armed']:
             return
         target['fault_armed'] = True
@@ -120,14 +139,38 @@ class McpFailureMixin:
                                     'limited_R_is_not_fabricated_absent_or_editable')
         if name == 'edit_script' and result:
             outcome = result['outcome']
+            recovery_index = sum(c['name'] == 'edit_script' for c in target['calls'])
+            matching_step = (MATCHING_RECOVERY[recovery_index]
+                             if target['name'] == 'failure_refusal' and recovery_index < len(MATCHING_RECOVERY)
+                             else None)
             observation.require(response['result'].get('isError') is True or
+                                (matching_step is not None and matching_step[2] == 'verified_changed') or
                                 (target['name'] == 'failure_reconnect' and not target['delivery_dropped']),
                                 'failure_isError_preserves_structured_facts')
             observation.require(documents(state) == documents(after) and
                                 state['selection'] == after['selection'] and
                                 all(now[path] == value for path, value in disks.items() if path != TARGET) and
                                 TARGET not in after['open_paths'], 'failure_preserves_unrelated_history_and_closed_lifecycle')
-            if target['name'] in ('failure_refusal', 'failure_reconnect') and outcome['outcome'] == 'refused':
+            if matching_step is not None:
+                old, new, expected, intended = matching_step
+                reads = [c for c in target['calls'] if c['name'] == 'read_script']
+                current = reads[-1]['structuredContent']['result'] if reads else {}
+                observation.require(args.get('revision') == current.get('revision') and
+                                    args.get('old_string') == old and args.get('new_string') == new,
+                                    'matching_recovery_uses_actual_fresh_read_and_separate_intent')
+                if expected == 'verified_changed':
+                    observation.require(outcome['outcome'] == expected and
+                                        now[TARGET]['text'] == after['cached_R'] == intended and
+                                        after['cached_id'] == state['cached_id'] and
+                                        after['cached_edited'] is False,
+                                        'matching_correction_complete_source_and_cached_identity')
+                else:
+                    observation.require(outcome['outcome'] == 'refused' and outcome['reason'] == expected and
+                                        outcome['stage'] == 'matching' and outcome['application'] == 'not_applied' and
+                                        outcome['next_action']['kind'] == 'fresh_read' and
+                                        source_free(state, disks) == source_free(after, now),
+                                        'matching_refusal_truthful_zero_effects_and_recovery')
+            elif target['name'] in ('failure_refusal', 'failure_reconnect') and outcome['outcome'] == 'refused':
                 observation.require(outcome['reason'] == 'revision_mismatch' and
                                     outcome['application'] == 'not_applied' and
                                     outcome['next_action']['kind'] == 'fresh_read' and
@@ -175,6 +218,44 @@ class McpFailureMixin:
                                          delivery='unavailable', relay_closed_after_effect=True)) + '\n')
         return True
 
+    @staticmethod
+    def _review_matching_recovery(calls):
+        """Require returned read state between distinct refusals and corrections."""
+        operations = [call for call in calls if call['name'] in ('read_script', 'edit_script')]
+        expected = ('read_script', 'edit_script') * len(MATCHING_RECOVERY) + ('read_script',)
+        observation.require(tuple(call['name'] for call in operations[:len(expected)]) == expected,
+                            'matching_recovery_requires_actual_interleaved_fresh_reads')
+        for index, (old, new, terminal, source) in enumerate(MATCHING_RECOVERY):
+            before, edit, after = operations[index * 2:index * 2 + 3]
+            basis = before['structuredContent']['result']
+            result = edit['structuredContent']['result']
+            recovered = after['structuredContent']['result']
+            arguments = edit['arguments']
+            observation.require(isinstance(basis, dict) and isinstance(basis.get('revision'), str) and
+                                isinstance(result, dict) and isinstance(recovered, dict) and
+                                arguments.get('revision') == basis['revision'] and
+                                arguments.get('old_string') == old and arguments.get('new_string') == new and
+                                not (set(arguments) -
+                                     {'project_root', 'session_id', 'script_path', 'revision', 'old_string', 'new_string'}) and
+                                edit.get('delivery', 'delivered') == 'delivered' and
+                                after.get('delivery', 'delivered') == 'delivered',
+                                'matching_recovery_exact_intent_and_latest_observed_revision')
+            outcome = result['outcome']
+            if terminal == 'verified_changed':
+                observation.require(outcome['outcome'] == terminal and
+                                    basis['source'].count(old) == 1 and
+                                    basis['source'].replace(old, new, 1) == source,
+                                    'matching_recovery_unique_localized_correction')
+            else:
+                observation.require(outcome['outcome'] == 'refused' and outcome['reason'] == terminal and
+                                    outcome['application'] == 'not_applied' and outcome['stage'] == 'matching' and
+                                    outcome['next_action']['kind'] == 'fresh_read',
+                                    'matching_recovery_refusal_not_synthetic_success')
+            observation.require(recovered['source'] == source and
+                                isinstance(recovered.get('revision'), str),
+                                'matching_recovery_observed_complete_source')
+        return operations[len(expected) - 1:]
+
     def finalize_targets(self, primary_only=False):
         if not any(t['name'] in FAILURE_PROFILES for t in self.targets.values()):
             return super().finalize_targets(primary_only=primary_only)
@@ -186,6 +267,9 @@ class McpFailureMixin:
                 observation.require(not any(c['name'] == 'edit_script' for c in calls), 'limited_no_blind_edit')
                 self.assert_no_effect(target['name'], target['project'], target['editor'], target['before'], target['disks'])
                 continue
+            if target['name'] == 'failure_refusal':
+                calls = self._review_matching_recovery(calls)
+                reads = [c for c in calls if c['name'] == 'read_script']
             edits = [c for c in calls if c['name'] == 'edit_script']
             observation.require(all(isinstance(c['structuredContent']['result'], dict) for c in edits),
                                 'failure_no_unchecked_or_legacy_edit_substitute')
@@ -260,6 +344,11 @@ class McpFailureMixin:
                     first = call('tools/call', dict(name='read_script', arguments=args))['structuredContent']['result']
                     if target['name'] == 'failure_limited':
                         continue
+                    if target['name'] == 'failure_refusal':
+                        for old, new, _, _ in MATCHING_RECOVERY:
+                            call('tools/call', dict(name='edit_script', arguments=dict(
+                                args, revision=first['revision'], old_string=old, new_string=new)))
+                            first = call('tools/call', dict(name='read_script', arguments=args))['structuredContent']['result']
                     edit_args = dict(args, revision=first['revision'], old_string=first['source'], new_string=target['desired'])
                     try:
                         call('tools/call', dict(name='edit_script', arguments=edit_args))

@@ -458,7 +458,9 @@ class ClosedScriptAcceptanceMixin:
             old = path.stat()
             raw = path.read_bytes()
             with path.open("r+b") as stream:
-                stream.write(raw)
+                stream.write(raw or b"#")
+                if not raw:
+                    stream.truncate(0)
                 stream.flush()
                 os.fsync(stream.fileno())
             os.utime(path, ns=(old.st_atime_ns, old.st_mtime_ns))

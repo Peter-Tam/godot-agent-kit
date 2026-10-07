@@ -72,6 +72,91 @@ class DisclosureTests(unittest.TestCase):
             with self.subTest(fragment=fragment), self.assertRaises(privacy.observation.Failure):
                 privacy.assert_disclosure(changed, 'matching', sources=(old, new))
 
+    def edit_response(self, outcome='refused', reason='ambiguous_match'):
+        return {'result': {'structuredContent': {
+            'schema_version': 2, 'operation': 'edit_script', 'request_id': 'owned',
+            'error': None, 'result': {'mode': 'closed', 'outcome': {
+                'outcome': outcome, 'application': 'not_applied', 'reason': reason,
+                'stage': 'matching', 'revision': 'sr1:' + 'a' * 64,
+                'validation': {'status': 'valid'}, 'effects': {'written_bytes': False},
+                'lifecycle': {'observed_final': 'closed'},
+                'next_action': {'kind': 'fresh_read'}}}},
+            'content': [{'type': 'text', 'text': 'Read again.'}], 'isError': True}}
+
+    def test_source_free_execution_evidence_is_not_private_match_feedback(self):
+        response = self.edit_response()
+        before = copy.deepcopy(response)
+        privacy.assert_disclosure(response, 'matching', sources=('# secret\n',))
+        self.assertEqual(response, before)
+
+    def test_matching_feedback_and_private_payloads_fail_even_without_source_sentinel(self):
+        feedback = {
+            'candidate_matches': [{'line': 7}], 'candidate_text': 'short excerpt',
+            'candidates': [{'line': 7}], 'count': 2, 'matches': [3, 9],
+            'match_count': 2, 'occurrence_count': 2, 'match_offset': 12,
+            'offset': 12, 'offsets': [12, 20], 'snippet': 'short excerpt',
+            'excerpt': 'short excerpt', 'raw_request': {'arguments': {}},
+            'request_arguments': {}, 'endpoint': '/tmp/private.sock',
+            'token': 'private-token', 'validator_stdout': 'engine diagnostics',
+            'validator_stderr': 'engine diagnostics', 'validator_request': {},
+            'debug': 'ExactEdit { old: <redacted> }', 'old_string': 'x',
+            'new_string': 'y', 'replacement_source': 'x', 'derived_source': 'y',
+        }
+        for key, value in feedback.items():
+            for location in ('outcome', 'nested', 'carrier'):
+                response = self.edit_response()
+                result = response['result']['structuredContent']['result']
+                if location == 'outcome':
+                    result['outcome'][key] = value
+                elif location == 'nested':
+                    result['outcome']['diagnostics'] = [{'details': {key: value}}]
+                else:
+                    response['result']['extra'] = {key: value}
+                with self.subTest(key=key, location=location), self.assertRaises(privacy.observation.Failure):
+                    privacy.assert_disclosure(response, 'matching')
+
+    def test_fragments_derived_source_and_escaped_debug_fail_in_all_carriers(self):
+        old, new = '# OLD_PRIVATE\n', '# NEW_PRIVATE\n'
+        derived = 'extends RefCounted\n' + new
+        for source in (old, new, derived):
+            for location in ('nested', 'key', 'summary', 'error', 'debug'):
+                response = self.edit_response()
+                if location == 'nested':
+                    response['result']['structuredContent']['result']['outcome']['diagnostics'] = [
+                        {'details': {'text': source}}]
+                elif location == 'key':
+                    response['result']['structuredContent']['result']['outcome'][source] = None
+                elif location == 'summary':
+                    response['result']['content'][0]['text'] = source
+                elif location == 'error':
+                    response['result']['structuredContent']['error'] = {'message': source}
+                else:
+                    response['result']['content'][0]['text'] = 'ExactEdit ' + json.dumps(source)
+                with self.subTest(source=source, location=location), self.assertRaises(privacy.observation.Failure):
+                    privacy.assert_disclosure(response, 'matching', sources=(old, new, derived))
+
+    def test_denied_late_failure_cannot_restore_hash_in_key_or_nested_evidence(self):
+        source = 'extends RefCounted\n# DENIED_PRIVATE\n'
+        for location in ('key', 'nested', 'summary'):
+            response = self.edit_response('applied_unverified', 'mtime_restore_failed')
+            outcome = response['result']['structuredContent']['result']['outcome']
+            outcome.update(application='applied', revision=None, evidence=None)
+            if location == 'key':
+                outcome[sha(source)] = None
+            elif location == 'nested':
+                outcome['progress'] = [{'diagnostic': {'source_hash': sha(source)}}]
+            else:
+                response['result']['content'][0]['text'] = sha(source)
+            with self.subTest(location=location), self.assertRaises(privacy.observation.Failure):
+                privacy.assert_disclosure(response, 'denied-late', sources=(source, sha(source)))
+
+    def test_json_rpc_error_rejects_escaped_raw_fragment_without_typed_envelope(self):
+        fragment = '# PRIVATE_UNICODE_é\n'
+        for escaped in (False, True):
+            response = {'error': {'code': -32602, 'message': json.dumps(fragment, ensure_ascii=escaped)}}
+            with self.subTest(escaped=escaped), self.assertRaises(privacy.observation.Failure):
+                privacy.assert_disclosure(response, 'protocol-error', sources=(fragment,))
+
     def test_inventory_grant_is_one_entry_not_all_text_or_candidate_paths(self):
         response = {'result': {'structuredContent': {'result': {'inventory': {
             'entries': ['res://scripts/SELECTED_INVENTORY.gd']}}}}}
@@ -117,6 +202,7 @@ class CompletionTests(unittest.TestCase):
         harness.summary = {}
         harness.cases = []
         harness._privacy_authorized_and_errors = mock.Mock()
+        harness._privacy_exact_disclosure = mock.Mock()
         harness.mcp_preservation_selection_privacy = mock.Mock()
         harness.mcp_interruption_denial = mock.Mock()
         harness.native_export = mock.Mock(side_effect=lambda: harness.cases.extend(exports))

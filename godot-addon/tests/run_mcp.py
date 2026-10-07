@@ -20,7 +20,7 @@ from mcp_preservation_acceptance import McpPreservationAcceptanceMixin, PRESERVA
 from mcp_interruption_acceptance import McpInterruptionMixin, INTERRUPTION_GROUPS
 from mcp_composed_acceptance import McpComposedMixin
 from mcp_privacy_acceptance import McpPrivacyAcceptanceMixin, PRIVACY_GROUPS
-from mcp_validation_acceptance import McpValidationMixin
+from mcp_validation_acceptance import McpValidationMixin, VALIDATION_GROUPS
 
 CLIENT_GROUPS = {**PROFILE_GROUPS, **FAILURE_GROUPS}
 
@@ -31,7 +31,7 @@ SCENARIOS = ("closed-native", "closed-lifecycle", "closed-positives", "closed-re
              "closed-later-durability-and-history", "matched-v6-native4-legacy-preservation",
              "closed-privacy-export", "transport", *("transport-" + name for name in CLIENT_GROUPS),
              "preservation", *PRESERVATION_GROUPS, "interruption", *INTERRUPTION_GROUPS,
-             "composed", "privacy-export", *PRIVACY_GROUPS, "validation-preparation")
+             "composed", "privacy-export", *PRIVACY_GROUPS, "validation-preparation", *VALIDATION_GROUPS)
 
 
 class WorkflowHarness(McpValidationMixin, McpComposedMixin, McpPrivacyAcceptanceMixin, McpFailureMixin,
@@ -82,9 +82,11 @@ class WorkflowHarness(McpValidationMixin, McpComposedMixin, McpPrivacyAcceptance
                                 adversarial_driver_sha256={name: observation.digest(Path(__file__).with_name(name))
                                     for name in ("mcp_peer.py", "mcp_preservation_acceptance.py",
                                                  "mcp_interruption_acceptance.py", "mcp_failure_acceptance.py")})
-        if args.scenario == "preservation-exact-baseline":
+        if args.scenario.startswith(("preservation-exact", "interruption-exact")) or args.scenario in VALIDATION_GROUPS:
             self.summary.update(coverage_scope="exact_intent_safety_and_matching_precedence",
-                                changed_boundary="exact_intent_derivation_and_retained_error_reduction")
+                                changed_boundary="exact_intent_derivation_and_retained_error_qualification",
+                                mcp_acceptance=True, real_client_acceptance=False,
+                                mcp_server_sha256=observation.digest(args.mcp_server))
         if args.scenario in ("composed", "privacy-export", *PRIVACY_GROUPS) or args.profile == "composed":
             self.summary.update(coverage_scope="composed_MCP_acceptance_" + args.scenario,
                                 changed_boundary="composed_and_privacy_acceptance_fixtures",
@@ -152,7 +154,8 @@ def main():
             }
             methods.update(("transport-" + name, harness.mcp_transport) for name in CLIENT_GROUPS)
             methods.update((name, getattr(harness, method)) for name, method in
-                           (*PRESERVATION_GROUPS.items(), *INTERRUPTION_GROUPS.items(), *PRIVACY_GROUPS.items()))
+                           (*PRESERVATION_GROUPS.items(), *INTERRUPTION_GROUPS.items(),
+                            *PRIVACY_GROUPS.items(), *VALIDATION_GROUPS.items()))
             if args.scenario not in ("closed-native", "closed-lifecycle"):
                 harness.compile_window_probe()
             harness.group(args.scenario, methods[args.scenario])

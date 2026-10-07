@@ -117,6 +117,70 @@ class FailureEvidenceTests(unittest.TestCase):
             review_client_events(events, [read, actual])
 
 
+class MatchingRecoveryEvidenceTests(unittest.TestCase):
+    def calls(self):
+        source, revision = failure.SAFE, 'sr1:initial'
+        calls = [dict(name='read_script', structuredContent=dict(
+            result=dict(source=source, revision=revision)))]
+        for index, (old, new, terminal, intended) in enumerate(failure.MATCHING_RECOVERY):
+            outcome = (dict(outcome='verified_changed') if terminal == 'verified_changed' else
+                       dict(outcome='refused', reason=terminal, stage='matching',
+                            application='not_applied', next_action=dict(kind='fresh_read')))
+            calls.append(dict(name='edit_script', arguments=dict(
+                revision=revision, old_string=old, new_string=new),
+                structuredContent=dict(result=dict(outcome=outcome)), delivery='delivered'))
+            source = intended
+            if terminal == 'verified_changed':
+                revision = 'sr1:changed-' + str(index)
+            calls.append(dict(name='read_script', structuredContent=dict(
+                result=dict(source=source, revision=revision)), delivery='delivered'))
+        return calls
+
+    def test_refusals_require_fresh_reads_before_distinct_unique_corrections(self):
+        calls = self.calls()
+        remaining = failure.McpFailureMixin._review_matching_recovery(calls)
+        self.assertEqual(remaining, [calls[-1]])
+        for read_index in (2, 4, 6, 8):
+            missing = copy.deepcopy(calls)
+            del missing[read_index]
+            with self.subTest(read=read_index), self.assertRaises(failure.observation.Failure):
+                failure.McpFailureMixin._review_matching_recovery(missing)
+
+    def test_stale_or_substituted_correction_cannot_complete(self):
+        for edit_index, field, value in (
+                (7, 'revision', 'sr1:initial'),
+                (3, 'revision', 'sr1:invented'),
+                (3, 'old_string', failure.SAFE),
+                (7, 'old_string', 'r'),
+                (7, 'new_string', 'return 99')):
+            calls = self.calls()
+            calls[edit_index]['arguments'][field] = value
+            with self.subTest(edit=edit_index, field=field), self.assertRaises(failure.observation.Failure):
+                failure.McpFailureMixin._review_matching_recovery(calls)
+
+    def test_false_refusal_success_or_unconsumed_recovery_is_rejected(self):
+        for index, field, value in (
+                (1, 'outcome', 'verified_unchanged'),
+                (5, 'reason', 'no_match'),
+                (5, 'application', 'unknown')):
+            calls = self.calls()
+            calls[index]['structuredContent']['result']['outcome'][field] = value
+            with self.subTest(index=index, field=field), self.assertRaises(failure.observation.Failure):
+                failure.McpFailureMixin._review_matching_recovery(calls)
+        for index in (1, 2, 5, 6):
+            calls = self.calls()
+            calls[index]['delivery'] = 'unavailable'
+            with self.subTest(undelivered=index), self.assertRaises(failure.observation.Failure):
+                failure.McpFailureMixin._review_matching_recovery(calls)
+
+    def test_wrong_complete_source_or_missing_revision_is_not_recovery(self):
+        for field, value in (('source', failure.SAFE), ('revision', None)):
+            calls = self.calls()
+            calls[4]['structuredContent']['result'][field] = value
+            with self.subTest(field=field), self.assertRaises(failure.observation.Failure):
+                failure.McpFailureMixin._review_matching_recovery(calls)
+
+
 class InterruptedBufferWitnessTests(unittest.TestCase):
     def test_editor_resource_propagation_cannot_hide_other_changes(self):
         target = dict(path=failure.TARGET, script_id="script", editor_id="editor", buffer_id="buffer",
