@@ -368,11 +368,11 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                 guard = ("resource", "saved", "context", "lifecycle")[index]
                 with self.close_fixture(label, source=source) as (project, editor, descriptor), McpPeer(self, label) as peer:
                     basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=source)
-                    if late:
-                        self.native_action(editor, "native_edit_hold", stage="verify:unchanged")
-                        call = peer.start("edit_script", dict(selectors(project, descriptor),
-                                          revision=basis["revision"], old_string=old, new_string=new))
-                        self.wait_mcp_barrier(editor, "edit:verify:unchanged", peer, call)
+                    stage = "verify:unchanged" if late else "prepare"
+                    self.native_action(editor, "native_edit_hold", stage=stage)
+                    call = peer.start("edit_script", dict(selectors(project, descriptor),
+                                      revision=basis["revision"], old_string=old, new_string=new))
+                    self.wait_mcp_barrier(editor, "edit:" + stage, peer, call)
                     prior, _ = self.state(editor, project)
                     if guard == "resource":
                         self.close_action(editor, "close_human", path=TARGET, mutation="resource_edited")
@@ -397,18 +397,13 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                         observation.require(any(reopened[key] != documents(prior)[TARGET][key]
                                                 for key in ("script_id", "editor_id", "buffer_id")),
                                             "actual_changed_diagnostic_document_lifecycle_" + label)
-                    if late:
-                        before, disks = self.state(editor, project)
-                        self.native_action(editor, "native_edit_release")
-                        root = peer.finish(call, label)
-                        self.mcp_review_edit(root, label, "refused")
-                        self.assert_no_effect(label, project, editor, before, disks)
-                        self.close_action(editor, "close_idle", frames=16)
-                        self.assert_no_effect(label + "_terminal", project, editor, before, disks)
-                    else:
-                        root = self._preservation_refusal(
-                            peer, project, editor, descriptor, basis["revision"], label,
-                            replacement=new, old_string=old)
+                    before, disks = self.state(editor, project)
+                    self.native_action(editor, "native_edit_release")
+                    root = peer.finish(call, label)
+                    self.mcp_review_edit(root, label, "refused")
+                    self.assert_no_effect(label, project, editor, before, disks)
+                    self.close_action(editor, "close_idle", frames=16)
+                    self.assert_no_effect(label + "_terminal", project, editor, before, disks)
                     self._exact_safety_reason(root, label)
 
     def _preservation_dirty_unrelated(self, editor):

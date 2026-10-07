@@ -222,11 +222,17 @@ class McpFailureMixin:
     def _review_matching_recovery(calls):
         """Require returned read state between distinct refusals and corrections."""
         operations = [call for call in calls if call['name'] in ('read_script', 'edit_script')]
-        expected = ('read_script', 'edit_script') * len(MATCHING_RECOVERY) + ('read_script',)
-        observation.require(tuple(call['name'] for call in operations[:len(expected)]) == expected,
-                            'matching_recovery_requires_actual_interleaved_fresh_reads')
-        for index, (old, new, terminal, source) in enumerate(MATCHING_RECOVERY):
-            before, edit, after = operations[index * 2:index * 2 + 3]
+        cursor = 0
+        for old, new, terminal, source in MATCHING_RECOVERY:
+            first_read = cursor
+            while cursor < len(operations) and operations[cursor]['name'] == 'read_script':
+                cursor += 1
+            observation.require(cursor > first_read and cursor + 1 < len(operations) and
+                                operations[cursor]['name'] == 'edit_script' and
+                                operations[cursor + 1]['name'] == 'read_script',
+                                'matching_recovery_requires_actual_interleaved_fresh_reads')
+            before, edit, after = operations[cursor - 1:cursor + 2]
+            cursor += 1
             basis = before['structuredContent']['result']
             result = edit['structuredContent']['result']
             recovered = after['structuredContent']['result']
@@ -237,6 +243,7 @@ class McpFailureMixin:
                                 arguments.get('old_string') == old and arguments.get('new_string') == new and
                                 not (set(arguments) -
                                      {'project_root', 'session_id', 'script_path', 'revision', 'old_string', 'new_string'}) and
+                                before.get('delivery', 'delivered') == 'delivered' and
                                 edit.get('delivery', 'delivered') == 'delivered' and
                                 after.get('delivery', 'delivered') == 'delivered',
                                 'matching_recovery_exact_intent_and_latest_observed_revision')
@@ -254,7 +261,7 @@ class McpFailureMixin:
             observation.require(recovered['source'] == source and
                                 isinstance(recovered.get('revision'), str),
                                 'matching_recovery_observed_complete_source')
-        return operations[len(expected) - 1:]
+        return operations[cursor:]
 
     def finalize_targets(self, primary_only=False):
         if not any(t['name'] in FAILURE_PROFILES for t in self.targets.values()):

@@ -146,6 +146,17 @@ class MatchingRecoveryEvidenceTests(unittest.TestCase):
             with self.subTest(read=read_index), self.assertRaises(failure.observation.Failure):
                 failure.McpFailureMixin._review_matching_recovery(missing)
 
+    def test_additional_read_uses_latest_revision_without_replaying_intent(self):
+        calls = self.calls()
+        extra = copy.deepcopy(calls[2])
+        extra['structuredContent']['result']['revision'] = 'sr1:additional-read'
+        calls.insert(3, extra)
+        calls[4]['arguments']['revision'] = 'sr1:additional-read'
+        self.assertEqual(failure.McpFailureMixin._review_matching_recovery(calls), [calls[-1]])
+        calls[4]['arguments']['revision'] = 'sr1:initial'
+        with self.assertRaises(failure.observation.Failure):
+            failure.McpFailureMixin._review_matching_recovery(calls)
+
     def test_stale_or_substituted_correction_cannot_complete(self):
         for edit_index, field, value in (
                 (7, 'revision', 'sr1:initial'),

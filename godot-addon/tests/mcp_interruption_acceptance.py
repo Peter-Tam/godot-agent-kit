@@ -535,6 +535,7 @@ class McpInterruptionMixin(McpAdversarialMixin):
     def _interruption_matching_denial(self, profile):
         label = "mcp-retained-match-late-denial-" + profile
         missing, proposed = "MCP_LATE_DENIED_OLD", "MCP_LATE_DENIED_NEW"
+        self.source_markers.update((missing.encode(), proposed.encode()))
         with self._interruption_fixture(label, profile) as (project, editor, descriptor):
             with McpPeer(self, label) as peer:
                 basis = self.mcp_read(peer, project, editor, descriptor, label + "-basis", source=SAFE)

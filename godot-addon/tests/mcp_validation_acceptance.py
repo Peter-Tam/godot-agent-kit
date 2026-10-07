@@ -93,7 +93,8 @@ class McpValidationMixin:
                             if name == "derived_overflow":
                                 self._exact_reason(root, "invalid_source", case)
                             else:
-                                observation.require(root["result"]["outcome"]["stage"] != "matching",
+                                observation.require(root["result"]["outcome"]["reason"] == "parse_error" and
+                                                    root["result"]["outcome"]["stage"] != "matching",
                                                     "complete_source_parser_not_fragment_match_" + case)
 
     def mcp_validation_exact_max_near_match(self):
