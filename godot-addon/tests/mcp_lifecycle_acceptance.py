@@ -106,10 +106,18 @@ def review_exact_sequence(target, calls):
                 raise ValueError('missing fresh read before intentional edit')
             args = call['arguments']
             step = steps[cursor]
-            if (args.get('revision') != basis or
-                    args.get('old_string') != step['old_string'] or
-                    args.get('new_string') != step['new_string'] or
+            old, new = args.get('old_string'), args.get('new_string')
+            if (args.get('revision') != basis or not isinstance(old, str) or not isinstance(new, str) or
                     set(args) - {'project_root', 'session_id', 'script_path', 'revision', 'old_string', 'new_string'}):
+                raise ValueError('incorrect exact intent or read revision')
+            if old:
+                start = expected.find(old)
+                unique = start >= 0 and expected.find(old, start + 1) < 0
+            else:
+                unique = expected == ''
+            localized = bool(step['old_string']) and step['old_string'] != expected
+            if (not unique or (localized and old == expected) or
+                    (new if expected == old == '' else expected.replace(old, new, 1)) != step['source']):
                 raise ValueError('incorrect exact intent or read revision')
             wanted = 'verified_unchanged' if expected == step['source'] else 'verified_changed'
             revision_change = wanted == 'verified_changed'

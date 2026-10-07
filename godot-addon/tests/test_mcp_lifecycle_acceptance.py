@@ -204,6 +204,11 @@ class PreparedWorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'fresh result read'):
             lifecycle.review_exact_sequence(target, calls[:-1])
 
+    def test_consumer_accepts_equivalent_unique_localized_context(self):
+        target, calls = sequence_records()
+        calls[5]['arguments'].update(old_string='\treturn 47\n', new_string='\treturn 83\n')
+        self.assertEqual(lifecycle.review_exact_sequence(target, calls), target['desired'])
+
     def test_consumer_rejects_claimed_unrecorded_call(self):
         call = dict(name='read_script', arguments={'project_root': '/owned'},
                     structuredContent={'request_id': 'observed', 'result': None})
