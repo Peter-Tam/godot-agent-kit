@@ -1,6 +1,6 @@
 # Quickstart: Validate Schema 2 Exact Editing
 
-**Status:** T001 is complete: the Schema 2 implementation, scoped VM safety/history/durability evidence and current acceptance in both Codex CLI 0.153.4 and OMP 18.5.1 are recorded below. Codex uses the accepted private official npm distribution, not the known-failing Homebrew companion route. T002 and T003 remain pending; full-feature acceptance is not claimed.
+**Status:** T001 and T002 are complete. The Schema 2 cutover, scoped safety/history/durability foundations, adversarial exact-edit qualification and current Codex CLI 0.153.4 / OMP 18.5.1 evidence are recorded below. Codex uses the accepted private official npm distribution, not the known-failing Homebrew companion route. T003 remains pending and unstarted; full-feature acceptance is not claimed.
 
 Use the [public contract](contracts/mcp-interface.md), [data model](data-model.md) and [execution precedence](contracts/execution.md#refusal-precedence) as the oracle. Follow [TEST_POLICY.md](../../TEST_POLICY.md), not a blanket historical campaign.
 
@@ -465,8 +465,210 @@ check. One allocation-free fixed-size predicate is the smallest correction;
 producer-only validation cannot catch contradictory producer output, while a new
 validation layer would add unnecessary maintenance cost. No new declaration,
 public API, dependency, protocol or operational gate is introduced in production.
-This preserves Principles III, IV, VII, IX, X and XIII. T001 remains complete;
-T002/T003 have not started.
+This preserves Principles III, IV, VII, IX, X and XIII. T001 remains complete.
+At that delivery, T002/T003 had not started.
+
+## T002 implementation evidence (2026-10-07)
+
+**T002 completion: complete.** This task qualifies US2.1–US2.9, the intentional
+no-match/ambiguity recovery in US4.3, recovery guidance in US4.4 and the affected
+US3.4 uncertainty path. T003's composed/cumulative acceptance remains pending.
+Only T002 is delivered on `task/T002-exact-edit-qualification`.
+
+### Changed boundary and checks
+
+The existing preservation, interruption, validation, privacy and client-failure
+fixtures now exercise literal/overlapping matching, same-text and empty-source
+staleness, saved-version/Resource/context guards, complete-source validation,
+UTF-8 byte limits, interrupted effects and sticky disclosure. Independent
+witnesses retain full source, dirty/saved state, identities, native history,
+selection and lifecycle facts rather than accepting reason strings alone.
+No Rust, production addon/native, schema, dependency or transaction change was
+needed. Public guidance was sufficient in both actual clients and is unchanged.
+
+The final affected consumer command passed **65 tests** from
+`godot-addon/tests/`:
+
+```sh
+python3 -m unittest test_mcp_failure_acceptance test_mcp_privacy_acceptance \
+  test_mcp_preservation_acceptance test_mcp_lifecycle_acceptance \
+  test_mcp_composed_acceptance
+```
+
+The displayed `--command sh` parser errors are expected negative CLI cases; the
+unittest result is `OK`. Earlier overlapping consumer runs are not added to this
+count. Changed Python modules parsed. No fresh Rust baseline or historical
+native/export campaign was required for fixture-only changes.
+One redundant copy/unchanged-input assertion was removed during final shape review;
+the real disclosure run supplies the positive evidence and behavioral rejection
+regressions remain. The owned client checkout and diagnostic scratch log were
+removed, and the dedicated VM was stopped after acceptance.
+
+### Direct real-editor qualification
+
+All runs used the owned VM, official Godot `4.7.2.stable.official.ed1daf0bf`,
+macOS 26.6.2 arm64 and the unchanged four-vCPU / 6-GiB profile.
+Environment identity:
+`5be872888a3eacb7798de40e70d66e1f438d908e00cf714575d65b2632596ced`.
+These fifteen groups contain **448 qualified records**, including setup,
+reads, refusals and interrupted outcomes—not 448 successful edits or unique
+requirements. Artifact roots are relative to
+`~/.local/state/godot-agent-kit-vm/artifacts/`. Source abbreviations identify task
+commits; each private `provenance.json` retains its full source and build identity.
+
+| Selector | Tested source | Qualified records | Maximum consumed edit response | Artifact root |
+| --- | --- | ---: | ---: | --- |
+| `preservation-exact-literals` | `bc8477f` | 34 | 4.478628 s | `exact-t002-literals-1/20261007T071135Z-2fc18370c3a1` |
+| `preservation-exact-stale` | `bc8477f` | 37 | 0.633285 s | `exact-t002-stale-1/20261007T071441Z-8af357650749` |
+| `preservation-exact-empty-stale` | `bc8477f` | 24 | 0.629598 s | `exact-t002-empty-stale-1/20261007T071721Z-f4206a69cac6` |
+| `preservation-exact-safety` | `bc8477f` | 31 | 0.656990 s | `exact-t002-safety-1/20261007T072103Z-be420941db21` |
+| `interruption-exact-diagnostic` | `bc8477f` | 37 | 9.515915 s | `exact-t002-diagnostic-interrupt-1/20261007T073406Z-ef06d529a9b1` |
+| `interruption-exact-effects` | `bc8477f` | 73 | 9.514215 s | `exact-t002-effect-interrupt-1/20261007T074529Z-aff3f7f64130` |
+| `privacy-exact` | `bc8477f` | 12 | 6.827380 s | `exact-t002-privacy-1/20261007T074619Z-3ef4ccae12ee` |
+| `preservation-exact-diagnostic-guards` | `6637c14` | 17 | 5.270149 s | `exact-t002-guards-2/20261007T081704Z-b2567e9464b1` |
+| `preservation-source-context` | `6637c14` | 33 | 6.492210 s | `exact-t002-context-1/20261007T082006Z-922579ce37c1` |
+| `preservation-selection-privacy` | `6637c14` | 18 | 0.648626 s | `exact-t002-selection-1/20261007T082104Z-6a7869150fe3` |
+| `preservation-session-replacement` | `6637c14` | 8 | 0.693760 s | `exact-t002-session-1/20261007T082151Z-c630e633b0e5` |
+| `privacy-interrupted` | `e0826ba` | 19 | 4.805147 s | `exact-t002-late-denial-3/20261007T094750Z-0e2087dcfb86` |
+| `preservation-revisions` | `e0826ba` | 19 | 5.868130 s | `exact-t002-revisions-2/20261007T094901Z-98984baa7389` |
+| `validation-exact-max-near-match` | `1044b6f` | 13 | 9.243937 s | `exact-t002-max-match-4/20261007T100435Z-3799d0b6b6cf` |
+| `validation-exact-source-boundaries` | `50f66ab` | 73 | 6.971910 s | `exact-t002-validation-7/20261007T103843Z-1f65e8f5d1d7` |
+
+Literal and stale groups cover US2.1–US2.4; safety/context/selection/session groups
+cover US2.5–US2.6. Source-boundary qualification covers US2.7–US2.8: all twelve
+positive fragment/deletion/whitespace/empty-source edits were `verified_changed`,
+and malformed complete source, oversized fields and oversized derivations refused
+before effects. An exactly 524,288-byte UTF-8 fragment is admitted as an argument
+but rejected as `invalid_source` when its complete derivation exceeds that cap;
+the one-byte-over-limit UTF-8 field is rejected at input. No truncation is accepted.
+Interruption and late-denial groups cover US2.9 and the affected US3.4 behavior.
+
+**Maximum-bound limitation:** The nine repetitive maximum-source diagnostic
+requests all refused without effects under the original clock. Open cases
+returned `validation_unavailable`; cached-closed cases returned `timeout`;
+absent-R cases completed validation and returned the expected two `no_match`
+and one `ambiguous_match`. A matching diagnosis must not override unavailable
+validation or a deadline. Ordinary literal cases still require their exact
+matching reasons. Unknown terminal lifecycle/history is not rewritten as
+preserved-state proof; separate editor witnesses establish the surviving state.
+
+### Actual selected-client recovery
+
+Both retained installations used `gpt-6-astra` and normal approval policies.
+Codex CLI **0.153.4** used the accepted private official npm route,
+`--ask-for-approval on-request --sandbox read-only`; every edit received one
+ordinary `Allow` decision, not session-wide or bypass approval.
+OMP **18.5.1** used `--approval-mode write`; its 15-second timeout applies to the
+owned relay, not the product's original five/ten-second operation bounds.
+
+Client-owned evidence is under `exact-t002-u0a4oqud/`, with launch commands,
+prompts, complete actual client transcripts, normalized model-facing records
+and correlation results. Codex records come from the identified real TUI threads;
+OMP records come from completed model-facing tool-result messages, not merely
+raw server envelopes. Server calls and independent finalizers remain separate.
+
+| Client/profile | Tested source | Qualified records | Model-visible results | Withheld results | VM artifact root |
+| --- | --- | ---: | ---: | ---: | --- |
+| OMP failures | `fe7635e` | 23 | 18 | 0 | `exact-t002-omp-failures-2/20261007T085023Z-9b6d70bbfda4` |
+| OMP reconnect | `e0826ba` | 6 | 3 | 1 | `exact-t002-omp-reconnect-2/20261007T090802Z-a42e22284647` |
+| Codex failures | `e0826ba` | 23 | 18 | 0 | `exact-t002-codex-failures-1/20261007T092023Z-5a5f5f9f9117` |
+| Codex reconnect | `e0826ba` | 5 | 2 | 1 | `exact-t002-codex-reconnect-1/20261007T093535Z-474cf025b415` |
+
+Both clients freshly read before each intentionally missing, corrected,
+ambiguous and larger-unique-span request. Both corrections were independently
+verified changes, not retries. The clients also recognized unavailable revision,
+stale refusal, known partial application and unknown application, then read the
+same explicit target without repairing or replaying uncertain edits.
+
+OMP automatically retransmitted its one model-authored lost-response edit once.
+The original response was withheld; the retransmission was refused by the old
+revision. The model received that refusal, read the surviving intended source
+and did not infer that the refusal proved nothing had happened. The automatic
+resend is neither a fresh read nor another intentional edit.
+
+Codex reported `Transport closed` for the edit and its attempted recovery read.
+That failed read was client-local, not a fabricated server call. Resuming the
+same conversation restored the connection; its only new operation was a read of
+the original target. The model distinguished observed surviving source from the
+still-missing original receipt and continuous-lifecycle evidence. No edit was
+resent. All four independent finalizers passed.
+
+### Corrections, excluded attempts and timing investigation
+
+Review corrected preparation cases that had stopped at revision comparison,
+parser cases that could pass on an unrelated refusal, recovery checks that
+rejected valid additional fresh reads, and missing stderr sentinels for the two
+late-denial fragments. A fragment's extra terminal newline initially triggered
+`save_would_reformat`; removing that fixture newline made the required
+complete-source parser rejection reachable.
+
+The first actual OMP failure run kept four independent editors alive and failed
+during a correction. The fixture now reuses the existing serial-ownership
+pattern: independently finalize/close one editor before preparing the next.
+The accepted client records include singleton live-editor PID witnesses.
+The initial OMP reconnect run then exposed a fixture `TypeError`: the composed
+observer did not accept the unavailable-delivery keyword. Withheld receipts now
+invoke their owning failure observer directly. Both actual reconnect runs
+exercise the correction; production behavior did not change.
+
+The maintainer-requested Phase 3 investigation checked the
+[serial fixture correction](../007-mcp-script-workflow/plan.md#t004-serial-fixture-correction)
+and [prepared native-documentation evidence](../007-mcp-script-workflow/quickstart.md#t004-timing-safe-validation-preparation-2026-10-05).
+Source-free phase probes confirmed that native documentation was prepared before
+protocol input and seeded into fresh preflight, post-change and unchanged
+validators. Preparation was not missing. Probe patches and measurements are
+retained privately; the disposable checkouts and instrumentation were removed,
+and no probe is promoted to task acceptance.
+
+Failed source-boundary attempts `exact-t002-validation-1` through `-6`,
+maximum-match attempts `exact-t002-max-match-1` through `-3`, the first
+late-denial/revision attempts, and the first OMP failure/reconnect attempts remain
+excluded. Some simple positive attempts exhausted validation; their assertions
+and deadlines were not relaxed. The final complete source-boundary run passed.
+The initial direct failure smoke is historical and superseded by the accepted
+serial actual-client runs, not added to the qualified-group total.
+
+An additional whole-buffer maximum-size rewrite experiment reached post-effect
+validation limits, and one attempt reported `protocol_failure` near the deadline.
+These are unverified outcomes, not successful edits. Its proposed permissive
+consumer and tests were removed rather than broadening success acceptance.
+The selected byte-boundary refusal and maximum-source matching tests remain;
+T001's accepted positive-bound evidence is reused. No general successful
+maximum-size Unicode open-buffer rewrite guarantee is newly claimed.
+
+### Evidence currentness and completion review
+
+The delivered production source is unchanged from merged T001 (`468a0fe`).
+Native production/fixture build keys, outputs and generated ABI/header hashes
+match the accepted T001 provenance. The final boundary run's complete Rust and
+native build provenance also matches the accepted T002 Codex run in the same
+environment. T001's documented post-review adapter correction remains the
+justification for reusing its earlier client positives; no historical Schema 1
+result substitutes for Schema 2 acceptance.
+
+Later fixture changes are confined to their affected groups: corrected
+diagnostic-guard setup, boundary oracles, failure-profile ownership and
+lost-delivery observation. Their affected groups were rerun as listed above.
+The nonempty same-text file perturbation is unchanged; the new empty/saved-version
+actions are reached only by the new cases. Existing workflow/source/bound client
+fixtures and actual consumer behavior remain unchanged. Shared harness summary
+labels and an interruption docstring now use durable responsibilities instead
+of historical task numbers; this metadata-only cleanup changes no assertion or
+execution. Unchanged T001 client positives, native history/durability,
+confinement/authentication, local whole-source operations and export foundations
+therefore remain reusable under `TEST_POLICY.md`.
+
+The [implementation-shape and constitutional review](plan.md#t002-implementation-shape-and-constitutional-review)
+records the ownership and complexity decisions. All new declarations have current
+fixture consumers; no production public API, dependency, alternate writer,
+deadline extension or approval gate was added. Principles I–V, VII–X and XIII
+are preserved. Approved remaining obligations and the existing analysis
+attestation are unchanged by these delivery/evidence updates.
+
+No extension configuration was present at pre/post-implementation inspection.
+Only T002 is marked complete; Feature 008 remains in implementation and T003
+remains unstarted. Delivery does not authorize merge, another task, Phase 4 or
+a release.
 
 ## Planning validation
 

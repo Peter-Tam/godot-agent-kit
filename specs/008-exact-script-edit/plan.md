@@ -136,3 +136,46 @@ No constitutional exception is requested; the template's violation table is inap
 The [quickstart](quickstart.md) supplies concrete installed entrypoints, scoped future acceptance, all 25 scenario / 18 FR / 8 SC coverage and evidence-reuse rules. Both actual clients must demonstrate the new representation; SDK fixtures and model assurances cannot replace them. No blanket historical GUI, native rebuild, hosted-CI topology or fresh release campaign follows from this plan.
 
 For this documentation-only stage, validate Markdown rendering/structure, local links/anchors, fenced shell/JSON syntax and complete intended/staged diff/whitespace; check pre/post extension hooks and publish the design-stage delta under [SPECKIT_WORKFLOW.md](../../SPECKIT_WORKFLOW.md). No product tests, native builds, Godot or real-agent campaign is claimed. Publication updates the existing draft design PR but neither marks implementation complete nor starts task derivation automatically.
+
+## T002 implementation-shape and constitutional review
+
+T002 changes acceptance fixtures, witnesses, consumers and selector registration,
+not Rust, production addon/native code, schemas, routing or transaction semantics.
+The existing preservation, interruption, validation, disclosure and client-failure
+owners retain their distinct responsibilities. Shared lifecycle relay changes
+only activate the selected failure fixture before its first request.
+
+The failure profile previously kept four independent editors alive together.
+The actual OMP run reached a validation deadline during a correction. Reusing
+the existing composed fixture's one-editor-at-a-time ownership removes that
+unrelated concurrent workload; increasing VM resources or extending product
+deadlines would change the supported conditions instead. The cost is one current
+target reference and an owned context per visited target, with regression checks
+for ordering, failed review and cleanup. No scheduler, dependency or new runner
+is introduced. A withheld failure receipt goes directly to its failure observer
+rather than through the composed observer's ordinary-delivery signature.
+
+Exact-intent tests use real same-text saved-version/file changes, retain unrelated
+human history and independently observe D/R/B, dirty/saved state, identities and
+document absence. Preparation tests reach the actual preparation barrier rather
+than stopping at the earlier revision comparison. Invalid-complete-source cases
+must reach parser rejection, not merely any refusal. Source/disclosure sentinels
+cover the two fragments, derived source and late denied diagnostics.
+
+Maximum-source matching stress preserves the original clock and requires
+zero-effect refusal even when validation/deadline failure withholds a matching
+diagnosis. The byte-boundary case distinguishes an accepted exactly-at-limit
+UTF-8 fragment from an over-limit complete derivation, requiring refusal before
+effects. All positive cases require verified success. The extra maximum-size
+whole-buffer rewrite and its permissive deadline consumer were removed rather
+than adding allowances for more failure reasons. T001's accepted positive-bound
+evidence is reused; failed stress attempts remain excluded, not upgraded.
+
+No materially changed production module, speculative public API, unsafe block,
+new state store, approval mechanism or generic abstraction requires extraction.
+The larger preservation test module remains a collection of independently
+selectable cases with one preservation-witness responsibility. The additions
+preserve Principles I–V, VII–X and XIII; genuine native history/export foundations
+remain unchanged. Runtime acceptance and relevant-input reuse are recorded in
+[T002's evidence](quickstart.md#t002-implementation-evidence-2026-10-07).
+T003's composed interaction remains outside this task.

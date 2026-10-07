@@ -12,7 +12,7 @@ import subprocess
 from contextlib import ExitStack
 
 import run_observation as observation
-from closed_script_acceptance import CHANGED
+from closed_script_acceptance import CHANGED, source_free
 from mcp_peer import McpAdversarialMixin, McpPeer, selectors
 from run_script_close import TARGET, SAFE
 from run_script_edit import sha
@@ -26,6 +26,7 @@ WORKER_FLAGS = (
 )
 PRIVACY_GROUPS = {
     'privacy-authorized': '_privacy_authorized_and_errors',
+    'privacy-exact': '_privacy_exact_disclosure',
     'privacy-selection': 'mcp_preservation_selection_privacy',
     'privacy-interrupted': 'mcp_interruption_denial',
     'privacy-production-exports': 'native_export',
@@ -35,6 +36,16 @@ READ_TEXT_PATHS = (RESULT + ('source',),) + tuple(
     RESULT + ('state', 'sources', authority, 'text')
     for authority in ('disk', 'loaded_resource', 'editor_buffer'))
 
+# These are forbidden exact-intent/private payloads, not permitted execution
+# evidence (revision, validation status, hashes, effects or lifecycle).
+EDIT_PRIVATE_KEYS = frozenset((
+    'old_string', 'new_string', 'replacement_source', 'derived_source',
+    'candidate_matches', 'candidate_text', 'candidates', 'matches',
+    'count', 'match_count', 'occurrence_count',
+    'match_offset', 'offset', 'offsets', 'snippet', 'excerpt',
+    'raw_request', 'request_arguments', 'endpoint', 'token',
+    'validator_stdout', 'validator_stderr', 'validator_request', 'debug',
+))
 
 def assert_disclosure(response, label, *, secrets=(), sources=(), inventory=(), grants=None):
     """Check exact JSON locations, including keys; do not redact or rewrite evidence.
@@ -45,10 +56,16 @@ def assert_disclosure(response, label, *, secrets=(), sources=(), inventory=(), 
     """
     grants = grants or {}
     protected = tuple(dict.fromkeys((*secrets, *sources, *inventory)))
+    carrier = response.get('result') if isinstance(response, dict) else None
+    envelope = carrier.get('structuredContent', {}) if isinstance(carrier, dict) else {}
+    edit_response = isinstance(envelope, dict) and envelope.get('operation') == 'edit_script'
 
     def visit(value, path):
         if isinstance(value, dict):
             for key, child in value.items():
+                if edit_response:
+                    observation.require(key not in EDIT_PRIVATE_KEYS,
+                                        'MCP_no_private_edit_field_' + label)
                 visit(key, path + ('<key>',))
                 visit(child, path + (key,))
         elif isinstance(value, list):
@@ -57,7 +74,9 @@ def assert_disclosure(response, label, *, secrets=(), sources=(), inventory=(), 
         elif isinstance(value, str):
             for sentinel in protected:
                 text = sentinel.decode('utf-8') if isinstance(sentinel, bytes) else sentinel
-                if text and text in value:
+                forms = (text, json.dumps(text, ensure_ascii=False)[1:-1],
+                         json.dumps(text, ensure_ascii=True)[1:-1])
+                if text and any(form in value for form in forms):
                     observation.require(sentinel not in secrets and path in grants.get(sentinel, ()),
                                         'MCP_no_incidental_disclosure_' + label)
     visit(response, ())
@@ -124,6 +143,119 @@ class McpPrivacyAcceptanceMixin(McpAdversarialMixin):
         observation.require(before == sorted((str(path), observation.digest(path))
                             for path in self.registry.rglob('*.json')),
                             'privacy_help_worker_error_never_change_live_registry')
+
+    def _privacy_exact_disclosure(self):
+        old = '# MCP_PRIVACY_EXACT_OLD\n'
+        new = '# MCP_PRIVACY_EXACT_NEW\n'
+        repeated = '# MCP_PRIVACY_EXACT_REPEATED\n'
+        missing = '# MCP_PRIVACY_EXACT_ABSENT\n'
+        original = SAFE + old + repeated * 2
+        derived = original.replace(old, new)
+        invalid = 'func MCP_PRIVACY_INVALID_DERIVED(\n'
+        sources = (original, derived, old, new, repeated, missing, invalid,
+                   original.replace(old, invalid))
+        self.source_markers.update(text.encode() for text in
+                                   (old.strip(), new.strip(), repeated.strip(), missing.strip(), invalid.strip()))
+        with self.closed_fixture('mcp-privacy-exact', cached=True, source=original) as (
+                project, editor, descriptor), McpPeer(self, 'privacy-exact') as peer:
+            private = (*self.secrets, *(descriptor[key] for key in ('endpoint', 'token')
+                                       if isinstance(descriptor.get(key), str)))
+
+            def check(label, *, denied=False, grants=None):
+                response = json.loads((self.artifacts / (label + '.json')).read_text())
+                assert_disclosure(response, label, secrets=private,
+                                  sources=sources + ((sha(original), sha(derived)) if denied else ()),
+                                  grants=grants)
+
+            def permitted(source, fragment):
+                return {text: READ_TEXT_PATHS for text in (source, fragment, repeated)}
+
+            basis = self.mcp_read(peer, project, editor, descriptor, 'privacy-exact-basis', source=original)
+            check('privacy-exact-basis', grants=permitted(original, old))
+            for fragment, reason in ((missing, 'no_match'), (repeated, 'ambiguous_match')):
+                label = 'privacy-exact-' + reason
+                before, disks = self.state(editor, project)
+                root = peer.call('edit_script', dict(selectors(project, descriptor),
+                                 revision=basis['revision'], old_string=fragment, new_string=new), label)
+                result = self.mcp_review_edit(root, label, 'refused')
+                observation.require(result['outcome']['reason'] == reason and
+                                    result['outcome']['stage'] == 'matching',
+                                    'privacy_exact_matching_reason_' + reason)
+                check(label)
+                self.assert_no_effect(label, project, editor, before, disks)
+            for label, replacement, unknown in (
+                    ('privacy-exact-input-error', new, True),
+                    ('privacy-exact-validation-error', invalid, False)):
+                before, disks = self.state(editor, project)
+                arguments = dict(selectors(project, descriptor), revision=basis['revision'],
+                                 old_string=old, new_string=replacement)
+                if unknown:
+                    arguments['private_source'] = derived
+                root = peer.call('edit_script', arguments, label)
+                if unknown:
+                    observation.require(root['result'] is None and root['error']['code'] == 'invalid_arguments',
+                                        'privacy_exact_input_rejected')
+                else:
+                    result = self.mcp_review_edit(root, label, 'refused')
+                    observation.require(result['outcome']['reason'] == 'parse_error' and
+                                        result['outcome']['stage'] != 'matching',
+                                        'privacy_exact_complete_source_validation')
+                check(label)
+                self.assert_no_effect(label, project, editor, before, disks)
+            # Keep the independent D descriptor open throughout actual denial.
+            target = project / TARGET.removeprefix('res://')
+            before, disks = self.state(editor, project)
+            mode = target.stat().st_mode & 0o777
+            with target.open('rb') as retained:
+                target.chmod(0)
+                denied_stat = os.fstat(retained.fileno())
+                try:
+                    for fragment, intent in ((old, 'unique'), (missing, 'absent'), (repeated, 'ambiguous')):
+                        label = 'privacy-exact-denied-' + intent
+                        root = peer.call('edit_script', dict(selectors(project, descriptor),
+                                         revision=basis['revision'], old_string=fragment, new_string=new), label)
+                        result = self.mcp_review_edit(root, label, 'refused')
+                        observation.require(result['outcome']['reason'] == 'denied_access' and
+                                            result['outcome'].get('revision') is None,
+                                            'privacy_denial_suppresses_matching_facts_' + intent)
+                        check(label, denied=True)
+                    self.close_action(editor, 'close_idle', frames=16)
+                    after = self.close_action(editor, 'closed_witness')['state']
+                    final_stat = os.fstat(retained.fileno())
+                    observation.require(retained.read().decode('utf-8') == original and
+                                        all(getattr(final_stat, key) == getattr(denied_stat, key) for key in
+                                            ('st_dev', 'st_ino', 'st_size', 'st_mtime_ns', 'st_ctime_ns', 'st_mode')) and
+                                        source_free(before, {}) == source_free(after, {}),
+                                        'privacy_exact_denial_independent_preservation')
+                    observed_disks = dict(disks)
+                    observed_disks[TARGET] = dict(disks[TARGET], mode=final_stat.st_mode & 0o777,
+                                                 ctime_ns=final_stat.st_ctime_ns)
+                    observation.json_file(self.artifacts / 'privacy-exact-denied-witness.json',
+                                          dict(before=source_free(before, disks),
+                                               after=source_free(after, observed_disks),
+                                               retained_fd_identity=True, observed_permission=0))
+                    for case in self.cases:
+                        if case['case'].startswith('privacy-exact-denied-'):
+                            case['independent_evidence'] = 'privacy-exact-denied-witness.json'
+                finally:
+                    target.chmod(mode)
+            after, now = self.state(editor, project)
+            observation.require(all(now[path] == disk for path, disk in disks.items() if path != TARGET),
+                                'privacy_exact_denial_unrelated_disk_preservation')
+            self.record_witness('privacy-exact-denied-restored', before, disks, after, now, editor)
+            basis = self.mcp_read(peer, project, editor, descriptor, 'privacy-exact-fresh', source=original)
+            check('privacy-exact-fresh', grants=permitted(original, old))
+            before, disks = self.state(editor, project)
+            root = peer.call('edit_script', dict(selectors(project, descriptor),
+                             revision=basis['revision'], old_string=old, new_string=new),
+                             'privacy-exact-derived-success')
+            self.mcp_review_edit(root, 'privacy-exact-derived-success', 'verified_changed')
+            check('privacy-exact-derived-success')
+            self.assert_closed_success('privacy-exact-derived-success', project, editor, before, disks,
+                                       derived, changed=True)
+            self.mcp_read(peer, project, editor, descriptor, 'privacy-exact-survivor', source=derived)
+            check('privacy-exact-survivor', grants=permitted(derived, new))
+        assert_disclosure(peer.stderr_path.read_text(), 'privacy-exact-stderr', secrets=private, sources=sources)
 
     def _privacy_authorized_and_errors(self):
         selected = SAFE + '# MCP_PRIVACY_SELECTED_SOURCE\n'
@@ -243,6 +375,7 @@ class McpPrivacyAcceptanceMixin(McpAdversarialMixin):
 
     def mcp_privacy_export(self):
         self.group('privacy-authorized-startup-help-worker-error', self._privacy_authorized_and_errors)
+        self.group('privacy-exact', self._privacy_exact_disclosure)
         # These focused existing scenarios keep their raw MCP responses and actual
         # retained-fd, native-history and survivor witnesses. Never replay the full
         # interruption family merely to prove sticky denial after a causal failure.

@@ -1,4 +1,4 @@
-"""T003 public MCP preservation, witnessed independently in isolated editors.
+"""Public MCP exact-edit preservation, witnessed independently in isolated editors.
 
 Setup controls perturb real state; only the executable MCP peer performs the
 operation under test. Raw permitted responses are retained by McpPeer, never
@@ -20,6 +20,11 @@ from run_script_edit import sha
 
 PRESERVATION_GROUPS = {
     "preservation-exact-baseline": "mcp_preservation_exact_baseline",
+    "preservation-exact-literals": "mcp_preservation_exact_literals",
+    "preservation-exact-stale": "mcp_preservation_exact_stale",
+    "preservation-exact-empty-stale": "mcp_preservation_exact_empty_stale",
+    "preservation-exact-safety": "mcp_preservation_exact_safety",
+    "preservation-exact-diagnostic-guards": "mcp_preservation_exact_diagnostic_guards",
     "preservation-open-history": "mcp_preservation_open_history",
     "preservation-prior-native-history": "mcp_preservation_prior_native_history",
     "preservation-revisions": "mcp_preservation_revisions",
@@ -172,6 +177,234 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
             self.assert_no_effect(label, project, editor, before, disks)
             self.close_action(editor, "close_idle", frames=16)
             self.assert_no_effect(label + "_terminal", project, editor, before, disks)
+
+    def _exact_reason(self, root, reason, label):
+        outcome = root["result"]["outcome"]
+        observation.require(outcome["reason"] == reason and outcome["stage"] == "matching",
+                            "literal_matching_refusal_" + label)
+        observation.require(outcome["history"] in ("not_participated", "not_applicable_closed"),
+                            "diagnostic_has_no_history_" + label)
+        if "effects" in outcome:
+            observation.require(not any(outcome["effects"].values()),
+                                "diagnostic_has_zero_effects_" + label)
+
+    def _exact_safety_reason(self, root, label):
+        outcome = root["result"]["outcome"]
+        observation.require(outcome["reason"] not in
+                            ("no_match", "ambiguous_match", "empty_old_string") and
+                            outcome["stage"] != "matching",
+                            "safety_precedes_retained_matching_" + label)
+
+    def mcp_preservation_exact_literals(self):
+        source = SAFE + "# Exact café\n# trailing   \n# repeated repeated\n# aaa\n"
+        cases = (("case", "exact café", "no_match"),
+                 ("space", "#  Exact café", "no_match"),
+                 ("tab", " return 47", "no_match"),
+                 ("indent", "\t\treturn 47", "no_match"),
+                 ("newline", "return 47\n\n", "no_match"),
+                 ("trailing", "# trailing  \n", "no_match"),
+                 ("unicode", "# Exact cafe\u0301", "no_match"),
+                 ("already_new", "# absent old", "no_match"),
+                 ("multiple", "repeated", "ambiguous_match"),
+                 ("overlap", "aa", "ambiguous_match"))
+        for profile in ("open", "cached", "absent"):
+            label = "mcp_exact_literals_" + profile
+            fixture = self.close_fixture if profile == "open" else self.closed_fixture
+            kwargs = {} if profile == "open" else {"cached": profile == "cached"}
+            with fixture(label, source=source, **kwargs) as (project, editor, descriptor), McpPeer(self, label) as peer:
+                basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=source)
+                for name, old, reason in cases:
+                    case = label + "_" + name
+                    root = self._preservation_refusal(
+                        peer, project, editor, descriptor, basis["revision"], case,
+                        replacement="# Exact café", old_string=old)
+                    self._exact_reason(root, reason, case)
+
+    def mcp_preservation_exact_stale(self):
+        source = SAFE + "# repeated repeated\n"
+        # Each retained matching failure and the valid unique span are crossed
+        # with a stale source basis; identity cases below preserve source bytes.
+        cases = (("unique", "return 47"), ("missing", "# absent"),
+                 ("ambiguous", "repeated"), ("empty_old", ""))
+        for profile in ("open", "cached", "absent"):
+            label = "mcp_exact_stale_" + profile
+            fixture = self.close_fixture if profile == "open" else self.closed_fixture
+            kwargs = {} if profile == "open" else {"cached": profile == "cached"}
+            with fixture(label, source=source, **kwargs) as (project, editor, descriptor), McpPeer(self, label) as peer:
+                basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=source)
+                self._preservation_transition(project, editor,
+                                              "open_same_text" if profile == "open" else "same_text")
+                for name, old in cases:
+                    case = label + "_" + name
+                    root = self._preservation_refusal(
+                        peer, project, editor, descriptor, basis["revision"], case,
+                        replacement="# deliberate replacement", old_string=old)
+                    self._exact_safety_reason(root, case)
+        label = "mcp_exact_stale_changed_source"
+        with self.closed_fixture(label, source=source) as (project, editor, descriptor), McpPeer(self, label) as peer:
+            basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=source)
+            changed = source + "# actual newer disk source\n"
+            (project / "scripts/subject.gd").write_text(changed)
+            observation.require(self.state(editor, project)[1][TARGET]["text"] == changed,
+                                "actual_changed_source_with_unique_missing_ambiguous_spans")
+            for name, old in cases:
+                case = label + "_" + name
+                root = self._preservation_refusal(
+                    peer, project, editor, descriptor, basis["revision"], case,
+                    replacement="# deliberate replacement", old_string=old)
+                self._exact_safety_reason(root, case)
+        for mutation, old in (("namespace", "# absent"), ("cache_replace", "repeated"),
+                              ("target_open", "return 47"), ("aba", "# absent"),
+                              ("reconfigure", "repeated"), ("open_reopen", "# absent"),
+                              ("open_replace", "repeated"), ("open_close", "return 47")):
+            label = "mcp_exact_stale_identity_" + mutation
+            opened = mutation.startswith("open_")
+            fixture = self.close_fixture if opened else self.closed_fixture
+            kwargs = {} if opened else {"cached": mutation == "cache_replace"}
+            with fixture(label, source=source, **kwargs) as (project, editor, descriptor), McpPeer(self, label) as peer:
+                basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=source)
+                self._preservation_transition(project, editor, mutation)
+                root = self._preservation_refusal(
+                    peer, project, editor, descriptor, basis["revision"], label,
+                    replacement="# deliberate replacement", old_string=old)
+                self._exact_safety_reason(root, label)
+
+    def mcp_preservation_exact_empty_stale(self):
+        for mutation in ("same_text", "namespace", "cache_replace", "target_open",
+                         "aba", "reconfigure", "open_same_text", "open_reopen",
+                         "open_replace", "open_close"):
+            label = "mcp_exact_empty_stale_" + mutation
+            opened = mutation.startswith("open_")
+            fixture = self.close_fixture if opened else self.closed_fixture
+            kwargs = {} if opened else {"cached": mutation == "cache_replace"}
+            with fixture(label, source="", **kwargs) as (project, editor, descriptor), McpPeer(self, label) as peer:
+                basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source="")
+                self._preservation_transition(project, editor, mutation)
+                root = self._preservation_refusal(
+                    peer, project, editor, descriptor, basis["revision"], label,
+                    replacement=SAFE, old_string="")
+                self._exact_safety_reason(root, label)
+        label = "mcp_exact_empty_stale_session"
+        with self.closed_fixture(label, source="", cached=True) as (project, editor, descriptor), McpPeer(self, label) as peer:
+            basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source="")
+            self.close_action(editor, "close_lifetime", control="disable")
+            self.close_action(editor, "close_lifetime", control="enable")
+            replacement = observation.wait_for(lambda: next(
+                (item for item in self.descriptors(project) if item["session_id"] != descriptor["session_id"]), None),
+                "actual_empty_source_replaced_session")
+            for name, selected in (("ended", descriptor), ("replacement", replacement)):
+                case = label + "_" + name
+                root = self._preservation_refusal(
+                    peer, project, editor, selected, basis["revision"], case,
+                    replacement=SAFE, old_string="")
+                self._exact_safety_reason(root, case)
+
+    def mcp_preservation_exact_safety(self):
+        # Empty D is not authorization to ignore dirty/divergent/unavailable B/R.
+        conditions = (("open_dirty", True, "dirty_equal"),
+                      ("open_equal_dirty", True, "same_text"),
+                      ("open_empty_buffer", True, "empty_buffer"),
+                      ("open_divergent_resource", True, "resource_source"),
+                      ("resource_divergent", False, "divergent"),
+                      ("resource_dirty", False, "dirty"),
+                      ("resource_equal_dirty", False, "equal_dirty"),
+                      ("unavailable", False, "missing_cache_getters"))
+        for source_name, source in (("nonempty", SAFE), ("empty", "")):
+            for condition, opened, mutation in conditions:
+                if condition == "open_empty_buffer" and not source:
+                    continue
+                label = "mcp_exact_safety_" + source_name + "_" + condition
+                fixture = self.close_fixture if opened else self.closed_fixture
+                kwargs = {} if opened else {"cached": True, "faults": condition == "unavailable"}
+                with fixture(label, source=source, **kwargs) as (project, editor, descriptor), McpPeer(self, label) as peer:
+                    basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=source)
+                    if opened:
+                        self.close_action(editor, "close_human", path=TARGET, mutation=mutation)
+                        self.close_action(editor, "open_setup", paths=[], path=TARGET, idle=True)
+                    elif condition == "unavailable":
+                        self.close_action(editor, "closed_fault", fault=mutation)
+                    else:
+                        self.close_action(editor, "closed_resource", mutation=mutation)
+                    state, disks = self.state(editor, project)
+                    observation.require(disks[TARGET]["text"] == source, "unsafe_setup_preserves_D_" + label)
+                    if "divergent" in condition:
+                        observation.require(state["cached_R"] != source,
+                                            "actual_divergent_R_not_empty_authority_" + label)
+                    elif condition == "open_dirty":
+                        doc = documents(state)[TARGET]
+                        observation.require(doc["dirty"] and doc["has_undo"] and doc["B"] != source,
+                                            "actual_human_dirty_B_" + label)
+                    elif condition == "resource_dirty":
+                        observation.require(state["cached_edited"] is True,
+                                            "actual_human_dirty_R_" + label)
+                    if condition == "open_equal_dirty":
+                        doc = documents(state)[TARGET]
+                        observation.require(doc["dirty"] and doc["has_undo"] and doc["B"] == source,
+                                            "actual_equal_source_dirty_B_" + label)
+                    elif condition == "open_empty_buffer":
+                        doc = documents(state)[TARGET]
+                        observation.require(doc["B"] == "" and doc["dirty"] and doc["has_undo"],
+                                            "empty_B_is_not_complete_empty_source_" + label)
+                    elif condition == "resource_equal_dirty":
+                        observation.require(state["cached_edited"] is True and state["cached_R"] == source,
+                                            "actual_equal_source_dirty_R_" + label)
+                    root = self._preservation_refusal(
+                        peer, project, editor, descriptor, basis["revision"], label,
+                        replacement=SAFE, old_string="" if not source else "# absent")
+                    self._exact_safety_reason(root, label)
+
+    def mcp_preservation_exact_diagnostic_guards(self):
+        source = SAFE + "# repeated repeated\n"
+        failures = (("absent", "# absent", "# proposed"),
+                    ("ambiguous", "repeated", "# proposed"),
+                    ("empty_old", "", "# proposed"),
+                    ("overflow", "return 47", "#" * SOURCE_LIMIT))
+        # The four intents reach both preparation-only safety and the actual
+        # unchanged validation boundary. Rotate boundary-equivalent late guards
+        # instead of multiplying every intent by every possible guard.
+        for late in (False, True):
+            for index, (name, old, new) in enumerate(failures):
+                label = "mcp_exact_diagnostic_" + ("late_" if late else "prep_") + name
+                guard = ("resource", "saved", "context", "lifecycle")[index]
+                with self.close_fixture(label, source=source) as (project, editor, descriptor), McpPeer(self, label) as peer:
+                    basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=source)
+                    stage = "verify:unchanged" if late else "prepare"
+                    self.native_action(editor, "native_edit_hold", stage=stage)
+                    call = peer.start("edit_script", dict(selectors(project, descriptor),
+                                      revision=basis["revision"], old_string=old, new_string=new))
+                    self.wait_mcp_barrier(editor, "edit:" + stage, peer, call)
+                    prior, _ = self.state(editor, project)
+                    if guard == "resource":
+                        self.close_action(editor, "close_human", path=TARGET, mutation="resource_edited")
+                        resource, _ = self.state(editor, project)
+                        observation.require(resource["cached_edited"] is True and
+                                            resource["cached_R"] == prior["cached_R"],
+                                            "actual_late_equal_text_dirty_resource_" + label)
+                    elif guard == "saved":
+                        self.close_action(editor, "close_human", path=TARGET, mutation="saved_version_changed")
+                        self.close_action(editor, "open_setup", paths=[], path=TARGET, idle=True)
+                        saved = documents(self.state(editor, project)[0])[TARGET]
+                        observation.require(saved["B"] == source and not saved["dirty"] and
+                                            saved["version"] == saved["saved_version"] and
+                                            saved["saved_version"] != documents(prior)[TARGET]["saved_version"],
+                                            "actual_changed_clean_equal_text_saved_version_" + label)
+                    elif guard == "context":
+                        context = self.native_action(editor, "native_edit_unsupported_warning_context")
+                        observation.require(context["type"] == 4, "actual_unsupported_diagnostic_context_" + label)
+                    else:
+                        self.close_action(editor, "close_human", path=TARGET, mutation="reopen")
+                        reopened = documents(self.state(editor, project)[0])[TARGET]
+                        observation.require(any(reopened[key] != documents(prior)[TARGET][key]
+                                                for key in ("script_id", "editor_id", "buffer_id")),
+                                            "actual_changed_diagnostic_document_lifecycle_" + label)
+                    before, disks = self.state(editor, project)
+                    self.native_action(editor, "native_edit_release")
+                    root = peer.finish(call, label)
+                    self.mcp_review_edit(root, label, "refused")
+                    self.assert_no_effect(label, project, editor, before, disks)
+                    self.close_action(editor, "close_idle", frames=16)
+                    self.assert_no_effect(label + "_terminal", project, editor, before, disks)
+                    self._exact_safety_reason(root, label)
 
     def _preservation_dirty_unrelated(self, editor):
         self.close_action(editor, "close_human", path=CURRENT, mutation="dirty_equal")
@@ -665,6 +898,12 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                 if item["session_id"] != descriptor["session_id"]), None), "actual_replaced_editor_session")
             self._preservation_refusal(peer, project, editor, descriptor, basis["revision"], "old_explicit_session_no_fallback", old_string=basis["source"])
             self._preservation_refusal(peer, project, editor, replacement, basis["revision"], "old_revision_new_session_refused", old_string=basis["source"])
+            for name, old in (("missing", "# absent"), ("ambiguous", "e"), ("empty_old", "")):
+                label = "old_revision_new_session_" + name
+                root = self._preservation_refusal(
+                    peer, project, editor, replacement, basis["revision"], label,
+                    old_string=old)
+                self._exact_safety_reason(root, label)
             self.assert_no_effect("session_replacement_preserves_human_history", project, editor, before, disks)
             fresh = self.mcp_read(peer, project, editor, replacement, "session_replacement_fresh", source=SAFE)
             observation.require(fresh["revision"] != basis["revision"], "same_source_new_session_has_distinct_revision")

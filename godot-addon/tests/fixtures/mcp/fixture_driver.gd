@@ -27,6 +27,21 @@ func _closed_witness_state() -> Dictionary:
 	state.cache_type = cached.get_class() if cached != null else null
 	return state
 
+func _close_human(path: String, mutation: String) -> bool:
+	if mutation not in ["saved_version_changed", "empty_buffer"]: return super._close_human(path, mutation)
+	if mutation == "saved_version_changed" and not super._close_human(path, "same_text"): return false
+	var doc := _close_document(path)
+	if not doc.get("associated", false): return false
+	var buffer := EditorInterface.get_script_editor().get_open_script_editors()[doc.index].get_base_editor() as CodeEdit
+	if mutation == "saved_version_changed":
+		buffer.tag_saved_version()
+	else:
+		buffer.begin_complex_operation()
+		var last := buffer.get_line_count() - 1
+		buffer.remove_text(0, 0, last, buffer.get_line(last).length())
+		buffer.end_complex_operation()
+	return true
+
 func _native_removed(from_line: int, to_line: int) -> void:
 	if _native_remove_mode.is_empty(): return
 	var mode := _native_remove_mode
