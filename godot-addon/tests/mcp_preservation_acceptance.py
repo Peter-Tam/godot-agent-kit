@@ -102,7 +102,8 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                     # digest evidence; the denied-target checker forbids that evidence.
                     response = json.loads((self.artifacts / (label + "_" + name + ".json")).read_text())
                     assert_disclosure(response, label + "_" + name,
-                                      secrets=(*self.secrets, descriptor["endpoint"], descriptor["token"]),
+                                      secrets=(*self.secrets, *(descriptor[key] for key in ("endpoint", "token")
+                                                               if isinstance(descriptor.get(key), str))),
                                       sources=(missing, proposed, *self.source_markers,
                                                *(disk["text"] for disk in disks.values())),
                                       inventory=(CURRENT, BACKGROUND))
