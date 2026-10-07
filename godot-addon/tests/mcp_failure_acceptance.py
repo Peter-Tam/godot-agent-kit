@@ -237,7 +237,8 @@ class McpFailureMixin:
                 request['params']['name'] != 'edit_script' or
                 not isinstance(response.get('result', {}).get('structuredContent', {}).get('result'), dict)):
             return False
-        self.observe_call(request, response, before, delivery='unavailable')
+        # This receipt was never delivered; bypass the ordinary composed observer.
+        McpFailureMixin.observe_call(self, request, response, before, delivery='unavailable')
         target['delivery_dropped'] = True
         self.cases[-1].update(delivery='unavailable', server_result_delivered=False)
         with (self.artifacts / 'delivery.jsonl').open('a') as stream:
