@@ -10,7 +10,7 @@ from unittest import mock
 import mcp_composed_acceptance as composed
 from run_script_close import SAFE, TARGET
 from close_native_acceptance import CURRENT
-from mcp_lifecycle_acceptance import McpLifecycleMixin
+from mcp_lifecycle_acceptance import McpLifecycleMixin, exact_steps
 from closed_script_acceptance import ClosedScriptAcceptanceMixin
 from run_script_edit import sha
 
@@ -431,7 +431,7 @@ class ComposedProtocolTests(unittest.TestCase):
                 h.events.append(('stop', name))
             owner.callback(close)
             return dict(name=name, project=project, editor=editor,
-                        descriptor={'session_id': name}, calls=[])
+                        descriptor={'session_id': name}, calls=[], steps=exact_steps(name, SAFE))
         h._prepare_target = prepare
         return h
 
@@ -443,6 +443,8 @@ class ComposedProtocolTests(unittest.TestCase):
             self.assertEqual([t['name'] for t in h.targets.values() if 'descriptor' in t], ['open'])
             for target in h.targets.values():
                 h.target = target
+                h.before_composed_call(target, h.request('discover'))
+                self.assertEqual(target['pending'], ('owned', 'discover', None))
                 target.update(cursor=len(target['steps']) - 1, successes=composed.COUNTS[target['name']],
                               dirty_refusals=3 if target['name'] == 'open' else 0, stale_refusals=1,
                               no_match_refusals=1, ambiguous_match_refusals=1,

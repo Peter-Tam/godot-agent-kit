@@ -88,7 +88,7 @@ class McpComposedMixin:
         owner = self._composed_stack.enter_context(ExitStack())
         prepared = self._prepare_target(owner, target['name'])
         observation.require(prepared['project'] == target['project'], 'composed_declared_owned_project')
-        target.update(prepared, fixture_owner=owner)
+        target.update(prepared, steps=target['steps'], fixture_owner=owner)
         editor = target['editor']
         observation.require(self.editors == [editor], 'composed_one_live_fixture_editor')
         self.close_action(editor, 'close_human', path=CURRENT, mutation='dirty_equal')
