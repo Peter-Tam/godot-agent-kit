@@ -49,19 +49,19 @@ class McpValidationMixin:
     def mcp_validation_exact_source_boundaries(self):
         # Fragments need not be standalone programs; the derived complete source
         # is the sole validation target. Each success has an independent fixture.
+        line = "# " + "é" * 64 + "\n"
+        lines, remainder = divmod(SOURCE_LIMIT - len(SAFE.encode()), len(line.encode()))
+        bounded = SAFE + line * lines + "#" + "x" * (remainder - 2) + "\n"
         positives = (("fragment", SAFE, "47", "83", SAFE.replace("47", "83")),
                      ("delete_all", SAFE, SAFE, "", ""),
                      ("whitespace", SAFE, SAFE, " \t\n", " \t\n"),
                      ("insert_empty", "", "", SAFE, SAFE),
-                     ("exact_utf8_bound", SAFE, SAFE,
-                      SAFE + "# " + "é" * ((SOURCE_LIMIT - len(SAFE.encode()) - 3) // 2) +
-                      "x" * ((SOURCE_LIMIT - len(SAFE.encode()) - 3) % 2) + "\n", None))
+                     ("exact_utf8_bound", SAFE, SAFE, bounded, bounded))
         for profile in ("open", "cached", "absent"):
             fixture = self.close_fixture if profile == "open" else self.closed_fixture
             kwargs = {} if profile == "open" else {"cached": profile == "cached"}
             for name, source, old, new, desired in positives:
                 label = "mcp_exact_validation_" + profile + "_" + name
-                desired = new if desired is None else desired
                 if name == "exact_utf8_bound":
                     observation.require(len(desired.encode()) == SOURCE_LIMIT,
                                         "fixture_complete_source_exact_byte_limit")
@@ -98,9 +98,10 @@ class McpValidationMixin:
                                                     "complete_source_parser_not_fragment_match_" + case)
 
     def mcp_validation_exact_max_near_match(self):
-        prefix = SAFE + "# "
-        run = "x" * (SOURCE_LIMIT - len(prefix.encode()) - 1)
-        source = prefix + run + "\n"
+        line = "# " + "x" * 126 + "\n"
+        lines, remainder = divmod(SOURCE_LIMIT - len(SAFE.encode()), len(line))
+        run = line * lines + "#" + "x" * (remainder - 2) + "\n"
+        source = SAFE + run
         observation.require(len(source.encode()) == SOURCE_LIMIT, "maximum_repetitive_source_byte_bound")
         for profile in ("open", "cached", "absent"):
             label = "mcp_exact_max_near_match_" + profile
@@ -110,7 +111,7 @@ class McpValidationMixin:
                 basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=source)
                 for name, old, reason in (("near_end", run[:-1] + "y", "no_match"),
                                           ("near_start", "y" + run[1:], "no_match"),
-                                          ("overlapping", run[:-1], "ambiguous_match")):
+                                          ("overlapping", line * (lines - 1), "ambiguous_match")):
                     case = label + "_" + name
                     # McpPeer retains the existing public 10s operation clock;
                     # no performance-specific extension or private execution.
