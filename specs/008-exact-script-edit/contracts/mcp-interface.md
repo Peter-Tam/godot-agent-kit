@@ -1,6 +1,6 @@
 # MCP Interface Contract — Schema 2
 
-**Status:** Selected design, not implemented or client-accepted. Supersedes only the current public Schema 1 tool surface on implementation delivery. [Feature 007's contract](../../007-mcp-script-workflow/contracts/mcp-interface.md) remains historical; its unchanged protocol, carrier, discovery/read semantics, timing and effect/disclosure guarantees are inherited here.
+**Status:** Implemented and accepted through the clean public Schema 2 cutover; [both-client and cumulative evidence](../quickstart.md#t003-composed-and-cumulative-acceptance-2026-10-07) is current. [Feature 007's Schema 1 contract](../../007-mcp-script-workflow/contracts/mcp-interface.md) remains historical; its unchanged protocol, carrier, discovery/read semantics, timing and effect/disclosure guarantees are inherited here.
 
 ## Public catalog
 
