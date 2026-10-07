@@ -1,6 +1,6 @@
 # Data Model: Exact Partial Script Editing
 
-**Status:** Phase 1 design; not implemented or accepted. [Specification](spec.md), [research](research.md), [public contract](contracts/mcp-interface.md) and [execution contract](contracts/execution.md) define the selected behavior.
+**Status:** Implemented and accepted; [cumulative evidence](quickstart.md#t003-composed-and-cumulative-acceptance-2026-10-07) records completion. [Specification](spec.md), [research](research.md), [public contract](contracts/mcp-interface.md) and [execution contract](contracts/execution.md) retain the approved behavior.
 
 ## Ownership and inherited records
 

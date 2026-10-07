@@ -4,7 +4,7 @@
 
 **Input:** Clarified Feature 008 specification, including the clean Schema 2 cutover and complete-empty-source replacement amendment. The setup helper returned feature identifier `008-exact-script-edit`; the actual dedicated Git design branch is the branch above.
 
-**Status:** Phase 0 research, Phase 1 design and [task derivation](tasks.md) are complete; the task list records its granularity review. Consistency analysis and implementation have not run. This is a proposed implementation plan, not product acceptance or authorization to skip the remaining design workflow. Feature 008 is in **Planning**; Phase 3 remains complete and Phase 4 remains pending.
+**Status:** Feature 008 is **Complete**. The approved plan, three-task decomposition and current [consistency analysis](analysis.md) have been implemented and verified; [cumulative acceptance](quickstart.md#t003-composed-and-cumulative-acceptance-2026-10-07) records new and valid reused evidence. Planning-stage decisions below remain the design record. Phase 3 remains complete; no Phase 4 or release work is authorized.
 
 ## Summary
 
@@ -89,7 +89,7 @@ specs/008-exact-script-edit/
     └── execution.md
 ```
 
-The planning stage generated neither tasks nor analysis. The subsequent [task list](tasks.md) now derives meaningful capability increments with directly required tests/docs and records their granularity review; it does not introduce file/symbol-only tasks or a separate migration cleanup task. `analysis.md` remains absent until the requested consistency-analysis stage actually runs.
+The planning stage generated neither tasks nor analysis. Subsequent [task derivation](tasks.md), granularity review and [consistency analysis](analysis.md) established the approved three-increment implementation sequence. All three tasks are now complete; their acceptance and delivery records remain separate from these historical planning decisions.
 
 ### Implementation ownership in the existing tree
 
@@ -179,3 +179,42 @@ preserve Principles I–V, VII–X and XIII; genuine native history/export found
 remain unchanged. Runtime acceptance and relevant-input reuse are recorded in
 [T002's evidence](quickstart.md#t002-implementation-evidence-2026-10-07).
 T003's composed interaction remains outside this task.
+
+## T003 implementation-shape and constitutional review
+
+T003 changes only the existing composed Python fixture/consumer and its behavioral
+regressions, plus completion/evidence documentation. No production Rust, addon,
+native source, ABI, schema, routing, validator, deadline or export boundary changes.
+`mcp_composed_acceptance.py` owns one fixed stateful conversation: intentional
+requests, serial fixture actions and independent sequence acceptance. Its current
+size and related responsibilities do not justify another module or framework.
+
+The concrete new obligation is matching-refusal recovery inside the twenty-edit
+history/durability sequence. Two existing-style refusal roles and counters,
+one exact-intent helper and request-local revision checks are sufficient.
+Independent positive/refusal groups alone cannot prove this interaction. The
+ongoing cost is confined to this fixture and its consumer tests; no new runner,
+state store, public API, dependency, approval mechanism or process gate is added.
+All declarations have current fixture callers. Revision fields record distinct
+changed-source and no-effect recovery facts, not speculative lifecycle flags.
+
+Integration corrected two reachable fixture errors before acceptance: open
+matching outcomes use `safe_next_action`, whereas closed outcomes use
+`next_action.kind`; shared positive-profile preparation must not overwrite the
+composed schedule. Both have failing-before/passing-after regressions. The
+schedule remains owned by the composed fixture rather than changing shared
+positive setup. Consumer tests reject missing/wrong reads, whole-source
+substitutes, false preservation/history, pre-Save source loss, after-opening
+closed proof and uncorrelated results. An incidental plan/count-only test was
+removed rather than re-pinned.
+
+The accepted actual-agent run independently establishes complete D/R/B and
+saved state, human-work protection, real native history, both closed profiles,
+durability and sequential preservation. No setter, alternate writer or lifecycle
+repair was added. Source-free outcome and uncertain-effect semantics remain
+unchanged; a failed `applied_unverified` attempt was excluded rather than made
+successful. This preserves Principles I–X and XII–XIII; existing independently
+developed dependencies and native mechanisms retain Principle XI provenance.
+The [cumulative disposition](quickstart.md#cumulative-requirement-disposition)
+accounts for every scenario, FR and SC, including both supported clients.
+Completion does not authorize merge, a new feature or a release.

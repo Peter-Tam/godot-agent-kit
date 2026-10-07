@@ -1,4 +1,4 @@
-"""T004's fixed composed conversation, witnessed independently in the owned editor.
+"""Fixed composed exact-edit conversation, witnessed independently in the owned editor.
 
 The relay calls before_composed_call before capturing/forwarding a tool request.
 Fixture actions are ordinary human/history/lifecycle actions, never reconciliation.
@@ -18,6 +18,7 @@ from run_script_close import TARGET, CURRENT
 
 COUNTS = {'open': 8, 'cached': 6, 'absent': 6}
 
+EDIT_ROLES = ('change', 'dirty', 'stale', 'no_match', 'ambiguous_match')
 
 def composed_steps(profile):
     steps = [('discover', None), ('read', None)]
@@ -30,12 +31,14 @@ def composed_steps(profile):
                                                       'redo_read', 'redo_saved_read'))
         if profile == 'open' and index in (2, 4, 6):
             steps.extend([('dirty', index), ('dirty_read', None), ('human_saved_read', None)])
+        if index in (2, 4):
+            steps.extend([('no_match' if index == 2 else 'ambiguous_match', index), ('read', None)])
     steps.append(('durable_read', None))
     return steps
 
 
 def tool_for(role):
-    return 'discover_scripts' if role == 'discover' else 'edit_script' if role in ('change', 'dirty', 'stale') else 'read_script'
+    return 'discover_scripts' if role == 'discover' else 'edit_script' if role in EDIT_ROLES else 'read_script'
 
 
 def replacement(source, profile, index):
@@ -50,6 +53,14 @@ def exact_pair(source, desired):
     observation.require(len(old) == len(new) == 1 and source.replace(old[0], new[0], 1) == desired,
                         'composed_localized_pair_from_actual_read')
     return dict(old_string=old[0], new_string=new[0])
+
+def intent_pair(role, source, desired):
+    pair = exact_pair(source, desired)
+    if role in ('no_match', 'ambiguous_match'):
+        pair['old_string'] = '\treturn -1' if role == 'no_match' else '\n'
+        observation.require((pair['old_string'] not in source) if role == 'no_match' else
+                            source.count(pair['old_string']) > 1, 'composed_intentional_matching_challenge')
+    return pair
 
 
 class McpComposedMixin:
@@ -67,7 +78,8 @@ class McpComposedMixin:
             project = self.work / ('close-mcp-' + name)
             self.targets[str(project)] = dict(name=name, project=project,
                 steps=composed_steps(name), cursor=0, pending=None, fresh=None,
-                first_revision=None, successes=0, dirty_refusals=0, stale_refusals=0)
+                first_revision=None, successes=0, dirty_refusals=0, stale_refusals=0,
+                no_match_refusals=0, ambiguous_match_refusals=0)
         self._prepare_composed_target(next(iter(self.targets.values())))
         return self.prepared_intents()
 
@@ -76,7 +88,7 @@ class McpComposedMixin:
         owner = self._composed_stack.enter_context(ExitStack())
         prepared = self._prepare_target(owner, target['name'])
         observation.require(prepared['project'] == target['project'], 'composed_declared_owned_project')
-        target.update(prepared, fixture_owner=owner)
+        target.update(prepared, steps=target['steps'], fixture_owner=owner)
         editor = target['editor']
         observation.require(self.editors == [editor], 'composed_one_live_fixture_editor')
         self.close_action(editor, 'close_human', path=CURRENT, mutation='dirty_equal')
@@ -122,8 +134,14 @@ class McpComposedMixin:
             'After open changes 2, 4 and 6 and their reads, the developer makes unsaved human work '
             '(the middle case has text equal to disk). Attempt the next requested value once with the '
             'just-read revision, explain the safe refusal, read the human work, then read again after the '
-            'developer deliberately saves it. Continue the next intended change from that saved read, '
-            'preserving human comments. After each target\'s final change/read, read once more after the '
+            'developer deliberately saves it. Continue the next intended change from that saved read, preserving human comments. '
+            'For every target, after change 2 and its read (after the open human-work Save/read if applicable), '
+            'intentionally try old_string "\\treturn -1" with the next requested return line as new_string. '
+            'Explain no_match, read fresh, then deliberately correct to the exact current return line for change 3. '
+            'After change 4 and its read (after the open human-work Save/read if applicable), intentionally try '
+            'old_string "\\n" with the next requested return line as new_string. Explain ambiguous_match, '
+            'read fresh, then deliberately choose the larger unique exact return line for change 5. '
+            'After each target\'s final change/read, read once more after the '
             'developer closes/reopens the open target or first opens a closed target and checks persistence. '
             'Do not skip, batch, reorder, force, or retry edits blindly. Report actual observations and '
             'safe next actions, not assumptions about success. Targets:\n' + json.dumps(targets) + '\n')
@@ -165,15 +183,17 @@ class McpComposedMixin:
                             args.get('session_id') in (None, target['descriptor']['session_id']) and
                             (role == 'discover' or args.get('script_path') == TARGET),
                             'composed_exact_next_operation_and_target')
-        if role in ('change', 'dirty', 'stale'):
+        if role in EDIT_ROLES:
+            basis = target.get('first_source') if role == 'stale' else (target['fresh'] or {}).get('source')
             token = target['first_revision'] if role == 'stale' else (target['fresh'] or {}).get('revision')
+            observation.require(isinstance(basis, str) and (role == 'stale' or basis == target['source']),
+                                'composed_exact_current_complete_read_basis')
             desired = target['first_replacement'] if role == 'stale' else replacement(
                 target['source'], target['name'], index if role == 'change' else index + 1)
             observation.require(isinstance(token, str) and args.get('revision') == token and
-                                all(args.get(key) == value for key, value in exact_pair(
-                                    target['first_source'] if role == 'stale' else (target['fresh'] or {}).get('source', ''),
-                                    desired).items()) and not (set(args) -
-                                    {'project_root', 'session_id', 'script_path', 'revision', 'old_string', 'new_string'}),
+                                all(args.get(key) == value for key, value in intent_pair(role, basis, desired).items()) and
+                                not (set(args) - {'project_root', 'session_id', 'script_path', 'revision',
+                                                 'old_string', 'new_string'}),
                                 'composed_exact_fresh_or_deliberately_stale_intent')
         before, disks = self.state(target['editor'], target['project'])
         editor = target['editor']
@@ -292,7 +312,7 @@ class McpComposedMixin:
         result = content['result']
         observation.require(content.get('error') is None and isinstance(result, dict), 'composed_actual_operation_result')
         after, now = self.state(target['editor'], target['project'])
-        if role in ('change', 'dirty', 'stale'):
+        if role in EDIT_ROLES:
             outcome = result['outcome']
             expected = 'verified_changed' if role == 'change' else 'refused'
             observation.require(outcome['outcome'] == expected and outcome['application'] ==
@@ -309,6 +329,7 @@ class McpComposedMixin:
                 target['source'] = source
                 target['successes'] += 1
                 target['fresh'] = None
+                target['changed_revision'] = args['revision']
                 if index == 1:
                     target['first_replacement'] = source
                 if target['name'] == 'open':
@@ -326,10 +347,19 @@ class McpComposedMixin:
             else:
                 observation.require(outcome.get('reason') is not None and
                                     source_free(*before) == source_free(after, now), 'composed_refusal_preserves_every_observed_authority')
-                action = outcome.get('next_action', {}).get('kind')
-                observation.require(action == 'fresh_read' or isinstance(outcome.get('safe_next_action'), str),
-                                    'composed_actionable_refusal_not_blind_retry')
+                if role in ('no_match', 'ambiguous_match'):
+                    action = (outcome.get('safe_next_action') if target['name'] == 'open' else
+                              outcome.get('next_action', {}).get('kind'))
+                    observation.require(outcome['reason'] == role and outcome.get('stage') == 'matching' and
+                                        action == 'fresh_read',
+                                        'composed_exact_matching_refusal_and_fresh_read_correction')
+                    target['recovery_revision'] = request['params']['arguments']['revision']
+                else:
+                    action = outcome.get('next_action', {}).get('kind')
+                    observation.require(action == 'fresh_read' or isinstance(outcome.get('safe_next_action'), str),
+                                        'composed_actionable_refusal_not_blind_retry')
                 target[role + '_refusals'] += 1
+                target['fresh'] = None
         elif role != 'discover':
             unsaved = role in ('undo_read', 'redo_read', 'dirty_read')
             observation.require((result['revision'] is None) == unsaved, 'composed_unsaved_history_not_edit_permission')
@@ -347,6 +377,12 @@ class McpComposedMixin:
             else:
                 observation.require(isinstance(result['revision'], str) and result['source'] == target['source'],
                                     'composed_fresh_eligible_intended_source')
+                observation.require(result['revision'] != target.get('changed_revision'),
+                                    'composed_changed_source_requires_new_read_revision')
+                target.pop('changed_revision', None)
+                observation.require(target.get('recovery_revision') in (None, result['revision']),
+                                    'composed_matching_recovery_reads_exact_unchanged_revision')
+                target.pop('recovery_revision', None)
                 target['fresh'] = result
                 if target['first_revision'] is None:
                     target['first_revision'] = result['revision']
@@ -369,12 +405,14 @@ class McpComposedMixin:
             observation.require(target['pending'] is None and target['cursor'] == len(target['steps']) and
                                 target['successes'] == COUNTS[target['name']] and target['stale_refusals'] == 1 and
                                 target['dirty_refusals'] == (3 if target['name'] == 'open' else 0) and
+                                target['no_match_refusals'] == target['ambiguous_match_refusals'] == 1 and
                                 isinstance(target.get('completed_read'), str),
                                 'composed_no_omitted_skipped_or_unwitnessed_operations')
             observation.require((target['project'] / TARGET.removeprefix('res://')).read_text() == target['source'],
                                 'composed_verified_final_source_survives_owned_editor_shutdown')
-        self.summary.update(coverage_scope='T004_composed_MCP_A_E', mcp_acceptance=True,
+        self.summary.update(coverage_scope='composed_exact_edit_MCP_A_E', mcp_acceptance=True,
                             composed=dict(successful_fresh_read_edits=20, dirty_refusals=3, stale_refusals=3,
+                                          no_match_refusals=3, ambiguous_match_refusals=3,
                                           profiles=COUNTS, history='actual_Undo_Save_Redo_Save_and_prior_reachability',
                                           durability='ordinary_Save_close_reopen_reparse_rescan_fresh_runtime'))
 
@@ -390,12 +428,12 @@ class McpComposedMixin:
                         args = selectors(target['project'], target['descriptor'])
                         if role == 'discover':
                             args.pop('script_path')
-                        if role in ('change', 'dirty', 'stale'):
+                        if role in EDIT_ROLES:
                             desired = target['first_replacement'] if role == 'stale' else replacement(
                                 target['source'], target['name'], index if role == 'change' else index + 1)
                             args.update(revision=target['first_revision'] if role == 'stale' else target['fresh']['revision'],
-                                        **exact_pair(target['first_source'] if role == 'stale' else target['fresh']['source'],
-                                                     desired))
+                                        **intent_pair(role, target['first_source'] if role == 'stale' else target['fresh']['source'],
+                                                      desired))
                         request = dict(id='composed-' + target['name'] + '-' + str(target['cursor']), method='tools/call',
                                        params=dict(name=tool_for(role), arguments=args))
                         self.before_composed_call(target, request)

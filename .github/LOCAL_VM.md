@@ -191,9 +191,10 @@ Relay and fixed continuation/finalization controls share the existing host lock;
 setup/source-changing operations remain exclusive. Finalization can reach an idle
 live relay without waiting for client EOF.
 
-T004's `prepare-mcp --profile composed` supplies one complete real-agent A–E
-conversation across open and both closed profiles, including twenty edits and
-interleaved dirty/stale refusals. Ordinary fixture history and lifecycle actions
+`prepare-mcp --profile composed` supplies one complete real-agent A–E
+conversation across open and both closed profiles, including twenty localized
+Schema 2 edits and interleaved dirty/stale/no-match/ambiguous refusals with
+fresh-read intentional correction. Ordinary fixture history and lifecycle actions
 are coupled to the designated calls; no additional product tool or shell authority
 is exposed. Finalize after the final reads; this profile does not use
 `prepare-durability`. `run mcp --scenario composed` is its direct-protocol regression,

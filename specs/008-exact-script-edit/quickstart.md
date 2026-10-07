@@ -1,6 +1,6 @@
 # Quickstart: Validate Schema 2 Exact Editing
 
-**Status:** T001 and T002 are complete. The Schema 2 cutover, scoped safety/history/durability foundations, adversarial exact-edit qualification and current Codex CLI 0.153.4 / OMP 18.5.1 evidence are recorded below. Codex uses the accepted private official npm distribution, not the known-failing Homebrew companion route. T003 remains pending and unstarted; full-feature acceptance is not claimed.
+**Status:** Feature 008 and T001–T003 are **Complete**. The Schema 2 cutover, both-client interoperability, adversarial qualification and [composed/cumulative acceptance](#t003-composed-and-cumulative-acceptance-2026-10-07) have valid evidence. Codex uses the accepted private official npm distribution, not the known-failing Homebrew companion route. PR delivery is separate from completion; no next feature, Phase 4 work or release is selected.
 
 Use the [public contract](contracts/mcp-interface.md), [data model](data-model.md) and [execution precedence](contracts/execution.md#refusal-precedence) as the oracle. Follow [TEST_POLICY.md](../../TEST_POLICY.md), not a blanket historical campaign.
 
@@ -48,7 +48,7 @@ Run the affected existing Python acceptance-consumer/selection tests when their 
 
 ## Direct VM scenarios
 
-Use these existing selectors according to the selected task's ownership. T001 has migrated the current MCP callers and added the focused exact-edit baseline; broader adversarial and composed acceptance remains assigned to T002–T003:
+Use these existing selectors for affected verification. T001 owns the migrated exact-edit baseline, T002 adversarial qualification and T003 composed/cumulative acceptance; their executed and reused evidence is recorded below:
 
 - `transport-workflow`: three-profile public positive edits and fresh reads.
 - `transport-sources`: exact multiline/Unicode/empty/deletion/no-op cases and supported representation distinctions.
@@ -72,7 +72,7 @@ Expected result: independent complete-source/lifecycle assertions pass for posit
 
 ## Real coding-agent workflows
 
-Use a fresh prepared run for each client/profile. The current profiles `workflow`, `sources`, `bound`, `failures`, `reconnect` and `composed` remain the existing ownership locations; `known`/`observations` are available when directly affected. T001's migrated prompts, request/result consumers and independent witnesses cover the exact-edit positives. Broader recovery and composed scenarios require the extensions and acceptance assigned to T002–T003. Do not treat an old prompt or a model's claimed use of new fields as proof.
+Use a fresh prepared run for each client/profile. The current profiles `workflow`, `sources`, `bound`, `failures`, `reconnect` and `composed` remain the existing ownership locations; `known`/`observations` are available when directly affected. Their prompts, result consumers and independent witnesses implement the exact-edit positive, recovery and composed scenarios. Do not treat an old prompt or a model's claimed use of new fields as proof.
 
 From a clean owned repository checkout:
 
@@ -669,6 +669,185 @@ No extension configuration was present at pre/post-implementation inspection.
 Only T002 is marked complete; Feature 008 remains in implementation and T003
 remains unstarted. Delivery does not authorize merge, another task, Phase 4 or
 a release.
+
+## T003 composed and cumulative acceptance (2026-10-07)
+
+**T003 and Feature 008: complete.** The accepted source is
+`a3d581b0f477071112320781f842ca62a374da25` on
+`task/T003-exact-edit-composed`. Subsequent delivery changes only documentation,
+evidence and completion state. T001 and T002 were already complete and delivered
+in merged PRs #70 and #71; only T003 is completed by this task PR.
+
+### Executed composed acceptance
+
+Actual **OMP 18.5.1**, `openai-codex/gpt-6-astra`, normal `write` approval and the
+fixed VM relay drove `prepare-mcp --profile composed`. The retained CLI SHA-256
+is `fc62b280c50923f779e9af14e0ba12d24cbf3db6b2757106a8ad127b3a3274a9`.
+The private invocation used an owned detached checkout and temporary project
+MCP configuration; credentials remained on the host. No SDK/direct-driver call
+or model assertion substitutes for actual model-visible results.
+
+| Profile | Verified fresh-read edits | Dirty refusals | Stale refusals | No-match refusals | Ambiguous refusals |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Open | 8 | 3 | 1 | 1 | 1 |
+| Cached-R closed | 6 | 0 | 1 | 1 | 1 |
+| Absent-R closed | 6 | 0 | 1 | 1 | 1 |
+
+All **80 model-visible calls/results** exactly correlate with actual server
+arguments and authoritative returned envelopes; no result was withheld. The
+independent guest finalizer passed **87 records**, including setup, operations
+and runtime witnesses—not 87 edits. Its `real_client_acceptance: false` field
+deliberately does not certify the external model; the separately inspected OMP
+transcript, normalized model-facing content and correlation establish that claim.
+Maximum consumed responses were **7.101979 s edit**, **0.717909 s read** and
+**0.177831 s discover**, within unchanged ten/five-second bounds.
+
+The sequence preserved complete intended source and admitted lifecycle, not
+merely the requested return value. Open edits retained the same document,
+independently clean/saved D/R/B and unrelated human work. The equal-text dirty
+case still refused. Genuine native Undo → Save → Redo → Save exposed the exact
+unsaved/persisted source transitions to the model; prior history remained
+reachable and each later open edit reversed to its actual previous source.
+After each matching refusal the client freshly read and deliberately selected
+the corrected unique return line, rather than replaying the failed intent.
+
+Cached closed edits independently retained coherent D/R without a buffer.
+Absent-R edits retained positive R/B absence. Closed success was established
+before later opening. Final ordinary Save, close/reopen or first opening,
+reparse, rescan and fresh runtime preserved the complete intended sources;
+owned editor shutdown retained final disk source. The final open source retained
+all three human comment lines. Reviewed guest captures include unsaved native
+Undo, closed absence and the clean later-opened final script.
+
+Private evidence, relative to `~/.local/state/godot-agent-kit-vm/artifacts/`:
+
+- Guest: `exact-t003-omp-composed-3/20261007T142339Z-87c0268f4087/`,
+  with `provenance.json`, finalizer, all calls/delivery timings and independent
+  native/lifecycle/source witnesses and window captures.
+- Client: `exact-t003-35dy8raz/omp-composed-3/`, with launch/prompt/config receipt,
+  actual `omp.jsonl`, normalized `model-visible.jsonl` and `correlation.json`.
+- Review index: `exact-t003-35dy8raz/accepted-composition.json` and
+  `excluded-runs.json`. Source-bearing artifacts are not committed.
+
+The affected composed/lifecycle/failure consumer command passed **61 tests**:
+`python3 -m unittest test_mcp_composed_acceptance test_mcp_lifecycle_acceptance test_mcp_failure_acceptance`
+from `godot-addon/tests/`. Expected negative CLI parser errors are not test
+failures. After the composed-only schedule correction, its **26 tests** passed
+again; the other 35 tests' inputs were unchanged. These overlapping runs are
+not added into another distinct-test count. Actual-agent acceptance exercised
+the changed fixture/relay path. No new Rust/native baseline or historical GUI
+campaign was needed for these Python-only changes.
+
+### Excluded attempts and retained limitations
+
+The first run, `exact-t003-omp-composed-1`, failed before its first product call:
+shared positive setup overwrote the composed schedule. The corrected regression
+reproduced `ValueError: too many values to unpack`; the composed owner now
+retains its own schedule. Open/closed next-action decoding also received a
+failing-before/passing-after consumer correction before runtime acceptance.
+
+The second run, `exact-t003-omp-composed-2`, stopped at open edit 5 with
+`applied_unverified` / `validation_unavailable`: preflight passed, effects and
+finalization completed, but post-change validation did not complete by the
+9.5-second work cutoff (reported interval **9.505721 s**). The strict fixture
+rejected the non-success and closed its relay. OMP recognized the uncertainty,
+attempted reads and did not replay the edit. This is a failed composed attempt,
+not verified success or rollback. No unique resource/timing cause was established.
+Its 27 delivered results and two client-local failed reads are excluded from
+the accepted run's counts.
+
+After finalizing that failure and restarting the owned desktop through the
+existing readiness check, the fresh third run passed at the same source,
+resources, deadlines and assertions. It used new fixtures and intentional agent
+requests, not product retries or continuation of uncertain edits. Earlier
+T001/T002 failures remain excluded as recorded in their sections.
+
+Support remains official Godot `4.7.2.stable.official.ed1daf0bf`,
+macOS **26.6.2 (25G83) arm64**, four vCPUs / 6 GiB, the existing source/context
+bounds and exact supported clients. No arbitrary-load timing, universally
+successful maximum-size Unicode open rewrite, active-game/cached-class hot
+reload, persistent history after disposal or broader platform support is claimed.
+Closed B/history is inapplicable only with positive absence, never missing evidence.
+T002's lost receipts remain undelivered and its automatic OMP retransmission is
+not new intent or proof of non-application.
+
+### Relevant-input currentness
+
+T003 changes only `mcp_composed_acceptance.py` and its consumer tests; shared
+positive/failure fixtures, production paths, schemas, authentication/routing,
+native/addon/ABI and VM runner inputs are unchanged. The schedule correction is
+confined to composed ownership. It invalidated prior composed proof, which the
+new accepted run replaces, not unrelated positive or interruption evidence.
+
+The accepted T003 **complete Rust, native production and native fixture build
+receipts**, including output hashes, exactly match accepted T002 source-boundary
+run `exact-t002-validation-7/20261007T103843Z-1f65e8f5d1d7`.
+Environment and identity also match:
+`5be872888a3eacb7798de40e70d66e1f438d908e00cf714575d65b2632596ced`.
+MCP executable SHA-256 is
+`df280674c3f3683998ea8d6bc97c766f035cfa26ab3389d2243a6b0f9bd9723f`;
+native production/fixture keys remain `e456ef92…` / `2df62748…`.
+The full receipt retains library, manifest, generated API/ABI/header,
+compiler/SDK and exact engine/template hashes—not just version labels.
+
+Independent cumulative review inspected all six T001 client finalizers and
+correlations, their Schema 2 catalogs and all-profile exact/deletion/empty-source
+server sequences; all fifteen accepted T002 direct summaries; all four actual
+failure/reconnect finalizers and representative source/history/lifecycle
+witnesses. Both Codex 0.153.4 and OMP 18.5.1 positives remain current. The only
+production delta after T001's original client runs is its documented open
+matching-output validator correction; its existing producer-equivalence,
+regressions and recorded-output replay rationale remains applicable.
+
+Native source/ABI/binary receipts match the accepted Feature 007 foundation.
+Reviewed native-history, matched-v6/native4 local-operation and enabled/disabled/
+hook-only export records remain valid: no changed execution path invalidates
+their guarantees. The older export environment identity differs by provisioning
+generation, but its inspected engine/platform/tool/worker/template/native inputs
+match; this is evidence reuse, not checkpoint portability. Local whole-source
+constructors/dispatch remain genuine unchanged consumers. T001's documented
+495-test serial Rust baseline and T002's prior tests are reused, not newly run.
+
+### Cumulative requirement disposition
+
+**New** means the accepted T003 actual-agent composition. **Reused** means accepted
+T001/T002/foundation evidence after the relevant-input review above; no historical
+Schema 1 client pass establishes Schema 2 interoperability.
+
+| Scenarios | Final evidence disposition |
+| --- | --- |
+| US1.1–US1.3 | Reused both-client/all-profile exact workflows; new complete-source/lifecycle composition. |
+| US1.4 | Reused both clients' multiline/tab/Unicode source profiles. |
+| US1.5–US1.6 | Reused localized/all-source deletion, invalid-complete-source refusal, anchored insertion and deterministic boundary matching. |
+| US1.7–US1.8 | Reused checked unchanged and all-profile complete-empty-source replacement; new repeated preservation. |
+| US2.1–US2.3 | Reused exact literal/overlap/Unicode refusals and both-client correction; new no-match/ambiguity recovery on each profile. |
+| US2.4–US2.6 | Reused same-text/empty/session/identity, safety, late-guard, context and confined-selection evidence; new stale/dirty/human-history interleaving. |
+| US2.7–US2.8 | Reused strict malformed/legacy/mode checks, source/UTF-8 boundaries, full-source validation, maximum diagnostic refusals and scoped positive-bound evidence. |
+| US2.9, US3.4 | Reused exact diagnostic/effect interruption, late denied disclosure and both-client failure/reconnect interpretation. Composition adds no new interruption mechanism or interaction. |
+| US3.1–US3.3 | New actual native history/prior-history, durability and twenty-edit composed A–E interaction; reused unchanged native foundations. |
+| US4.1–US4.2 | Reused actual Schema 2 catalogs and strict legacy/mixed/mode refusal; current catalog also observed in the new conversation. |
+| US4.3–US4.4 | Reused both-client positives/corrections/uncertainty; new correlated composed choices, fresh-read corrections and truthful state interpretation. |
+
+| Requirements / criteria | Final evidence disposition |
+| --- | --- |
+| FR-001–FR-002, FR-014–FR-015; SC-001, SC-006–SC-007 | Reused single-shape Schema 2 process/catalog/migration and both-client use; new actual composed interface use and qualitative review. |
+| FR-003–FR-007, FR-009–FR-010; SC-002–SC-003 | Reused bounded exact derivation, validation, freshness/safety and diagnostic precedence; new repeated full-source and human-work preservation. |
+| FR-008; SC-004 | New applicable real-agent A–E, native history and lifecycle/durability, with reused native foundations. |
+| FR-011–FR-013; SC-005 | Reused effect/disclosure/refusal and recovery evidence; new source-free matching results and complete call/result correlation. |
+| FR-016–FR-018; SC-008 | New supported-condition consumed timing, composition and cumulative provenance review; reused unchanged native/export/local boundaries and both-client compatibility. |
+
+This covers all **25 scenarios, 18 FRs and eight SCs**. No required scenario is
+waived; only positively absent closed B/history and explicitly excluded support
+claims are inapplicable. The [shape/constitutional review](plan.md#t003-implementation-shape-and-constitutional-review)
+passes. The original analysis remains current because completion/evidence/status
+updates change no approved obligation. The owned run finalized, its temporary
+client configuration was removed, and the dedicated VM was stopped.
+
+Completion documentation validation rendered eight changed surfaces (104 headings
+and 23 tables), resolved all 82 local links/anchors, parsed fifteen shell fences
+with `bash -n` and one JSON fence, and passed whitespace checks. No extension
+configuration existed at pre/post-implementation checks. The owned client
+checkout and temporary launcher were removed; private evidence remains retained.
 
 ## Planning validation
 
