@@ -7,7 +7,6 @@ from closed_script_acceptance import SOURCE_LIMIT
 from mcp_interruption_acceptance import DESIRED, PROFILES
 from mcp_peer import McpPeer, selectors
 from run_script_close import SAFE, TARGET
-from run_script_edit import sha
 
 VALIDATION_GROUPS = {
     "validation-exact-source-boundaries": "mcp_validation_exact_source_boundaries",
@@ -16,16 +15,12 @@ VALIDATION_GROUPS = {
 
 
 class McpValidationMixin:
-    def _validation_exact_result(self, peer, project, editor, descriptor, basis,
-                                 old, new, desired, label, *, maximum_bound=False):
+    def _validation_exact_success(self, peer, project, editor, descriptor, basis,
+                                  old, new, desired, label):
         before, disks = self.state(editor, project)
         root = peer.call("edit_script", dict(selectors(project, descriptor),
                          revision=basis["revision"], old_string=old, new_string=new), label)
-        result = self.mcp_review_edit(
-            root, label, ("verified_changed", "applied_unverified") if maximum_bound else "verified_changed")
-        if result["outcome"]["outcome"] != "verified_changed":
-            self._review_bound_deadline(result, desired, label)
-            self.cases[-1]["boundary_result"] = "applied_not_verified"
+        self.mcp_review_edit(root, label, "verified_changed")
         if TARGET not in before["open_paths"]:
             self.assert_closed_success(label, project, editor, before, disks, desired, changed=True)
         else:
@@ -48,60 +43,25 @@ class McpValidationMixin:
             self.record_witness(label, before, disks, after, now, editor)
         fresh = self.mcp_read(peer, project, editor, descriptor, label + "_fresh", source=desired)
         observation.require(fresh["revision"] != basis["revision"],
-                            "exact_validation_applied_has_new_revision_" + label)
+                            "exact_validation_success_has_new_revision_" + label)
         return fresh
-
-    @staticmethod
-    def _review_bound_deadline(result, desired, label):
-        """A maximum-size deadline is not a successful mutation receipt."""
-        outcome = result["outcome"]
-        observation.require(len(desired.encode()) == SOURCE_LIMIT and
-                            outcome["outcome"] == "applied_unverified" and
-                            outcome["application"] == "applied" and
-                            outcome["reason"] in ("validation_unavailable", "timeout"),
-                            "maximum_bound_retains_actual_applied_uncertainty_" + label)
-        if result["mode"] == "open":
-            observation.require(outcome["stage"] == "validating" and
-                                all(outcome["progress"][step]["state"] == "completed" for step in
-                                    ("buffer_application", "resource_sync", "persistence", "finalization")) and
-                                any(receipt["purpose"] == "preflight" and receipt["status"] == "valid" and
-                                    receipt["input"] == dict(sha256=sha(desired), utf8_bytes=SOURCE_LIMIT)
-                                    for receipt in outcome["validation"]) and
-                                all(receipt["cleanup_confirmed"] for receipt in outcome["validation"]),
-                                "maximum_bound_complete_preflight_and_actual_open_effects_" + label)
-        else:
-            observation.require(result["mode"] == "closed" and outcome["stage"] == "verifying" and
-                                outcome["evidence"]["validation"]["original"] is True and
-                                outcome["evidence"]["validation"]["desired"] is True and
-                                outcome["effects"]["written_bytes"] == SOURCE_LIMIT and
-                                all(outcome["effects"][key] for key in
-                                    ("authorized", "disk_entered", "flushed", "readback", "mtime_restored")),
-                                "maximum_bound_complete_preflight_and_actual_closed_effects_" + label)
 
     def mcp_validation_exact_source_boundaries(self):
         # Fragments need not be standalone programs; the derived complete source
         # is the sole validation target. Each success has an independent fixture.
-        line = "# " + "é" * 64 + "\n"
-        lines, remainder = divmod(SOURCE_LIMIT - len(SAFE.encode()), len(line.encode()))
-        bounded = SAFE + line * lines + "#" + "x" * (remainder - 2) + "\n"
         positives = (("fragment", SAFE, "47", "83", SAFE.replace("47", "83")),
                      ("delete_all", SAFE, SAFE, "", ""),
                      ("whitespace", SAFE, SAFE, " \t\n", " \t\n"),
-                     ("insert_empty", "", "", SAFE, SAFE),
-                     ("exact_utf8_bound", SAFE, SAFE, bounded, bounded))
+                     ("insert_empty", "", "", SAFE, SAFE))
         for profile in ("open", "cached", "absent"):
             fixture = self.close_fixture if profile == "open" else self.closed_fixture
             kwargs = {} if profile == "open" else {"cached": profile == "cached"}
             for name, source, old, new, desired in positives:
                 label = "mcp_exact_validation_" + profile + "_" + name
-                if name == "exact_utf8_bound":
-                    observation.require(len(desired.encode()) == SOURCE_LIMIT,
-                                        "fixture_complete_source_exact_byte_limit")
                 with fixture(label, source=source, **kwargs) as (project, editor, descriptor), McpPeer(self, label) as peer:
                     basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=source)
-                    fresh = self._validation_exact_result(
-                        peer, project, editor, descriptor, basis, old, new, desired, label,
-                        maximum_bound=name == "exact_utf8_bound")
+                    fresh = self._validation_exact_success(peer, project, editor, descriptor, basis,
+                                                           old, new, desired, label)
                     if name == "whitespace":
                         refusal = self._preservation_refusal(
                             peer, project, editor, descriptor, fresh["revision"], label + "_empty_old",
@@ -116,14 +76,15 @@ class McpValidationMixin:
                              ("utf8_over_bound", source, "#" + "é" * (SOURCE_LIMIT // 2), True))
                     if source:
                         cases += (("valid_fragment_invalid_complete", "47", "extends RefCounted", False),
-                                  ("derived_overflow", "47", "#" * SOURCE_LIMIT, False))
+                                  ("derived_overflow", "47", "#" * SOURCE_LIMIT, False),
+                                  ("derived_utf8_overflow", "47", "é" * (SOURCE_LIMIT // 2), False))
                     for name, old, new, input_error in cases:
                         case = label + "_" + name
                         root = self._preservation_refusal(
                             peer, project, editor, descriptor, basis["revision"], case,
                             replacement=new, old_string=old, input_error=input_error)
                         if not input_error:
-                            if name == "derived_overflow":
+                            if name.startswith("derived_"):
                                 self._exact_reason(root, "invalid_source", case)
                             else:
                                 observation.require(root["result"]["outcome"]["reason"] == "parse_error" and

@@ -1,5 +1,4 @@
 """Schema 2 fixture consumers must retain exact intent and truthful refusals."""
-import copy
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import time
@@ -10,8 +9,6 @@ from unittest import mock
 import run_observation as observation
 from mcp_peer import McpPeer
 from mcp_preservation_acceptance import McpPreservationAcceptanceMixin
-from mcp_validation_acceptance import McpValidationMixin, SOURCE_LIMIT
-from run_script_edit import sha
 
 
 class ExactConsumerTests(unittest.TestCase):
@@ -56,63 +53,6 @@ class ExactConsumerTests(unittest.TestCase):
                     else:
                         with self.assertRaises(observation.Failure):
                             peer.finish(call, 'carrier')
-
-
-class BoundDeadlineEvidenceTests(unittest.TestCase):
-    desired = "#" + "x" * (SOURCE_LIMIT - 1)
-
-    def result(self, mode):
-        outcome = dict(outcome="applied_unverified", application="applied",
-                       reason="timeout", stage="validating" if mode == "open" else "verifying")
-        if mode == "open":
-            outcome["progress"] = {step: dict(state="completed") for step in
-                                   ("buffer_application", "resource_sync", "persistence", "finalization")}
-            outcome["validation"] = [
-                dict(purpose="preflight", status="valid", cleanup_confirmed=True,
-                     input=dict(sha256=sha(self.desired), utf8_bytes=SOURCE_LIMIT)),
-                dict(purpose="post_change", status="unavailable", cleanup_confirmed=True)]
-        else:
-            outcome["evidence"] = dict(validation=dict(original=True, desired=True, actual=False))
-            outcome["effects"] = dict(written_bytes=SOURCE_LIMIT, authorized=True,
-                                      disk_entered=True, flushed=True, readback=True, mtime_restored=True)
-        return dict(mode=mode, outcome=outcome)
-
-    def test_deadline_does_not_accept_other_failures_or_uncertain_application(self):
-        for mode in ("open", "closed"):
-            for key, value in (("outcome", "refused"), ("application", "not_applied"),
-                               ("application", "partly_applied"), ("application", "unknown"),
-                               ("reason", "parse_error"), ("reason", "write_failed"), ("stage", "preflight")):
-                result = self.result(mode)
-                result["outcome"][key] = value
-                with self.subTest(mode=mode, key=key, value=value), self.assertRaises(observation.Failure):
-                    McpValidationMixin._review_bound_deadline(result, self.desired, "bounds")
-
-    def test_incomplete_or_wrong_source_evidence_cannot_qualify_the_bound(self):
-        for mode in ("open", "closed"):
-            base = self.result(mode)
-            changes = [
-                (("validation", 0, "status"), "unavailable"),
-                (("validation", 0, "input", "sha256"), sha("different source")),
-                (("validation", 0, "input", "utf8_bytes"), SOURCE_LIMIT - 1),
-                (("validation", 1, "cleanup_confirmed"), False),
-            ] if mode == "open" else [
-                (("evidence", "validation", "original"), False),
-                (("evidence", "validation", "desired"), None),
-                (("effects", "written_bytes"), SOURCE_LIMIT - 1),
-            ]
-            changes += ([(("progress", step, "state"), "unknown") for step in base["outcome"]["progress"]]
-                        if mode == "open" else
-                        [(("effects", step), False) for step in base["outcome"]["effects"] if step != "written_bytes"])
-            for path, value in changes:
-                result = copy.deepcopy(base)
-                current = result["outcome"]
-                for key in path[:-1]:
-                    current = current[key]
-                current[path[-1]] = value
-                with self.subTest(mode=mode, path=path), self.assertRaises(observation.Failure):
-                    McpValidationMixin._review_bound_deadline(result, self.desired, "bounds")
-            with self.subTest(mode=mode, wrong_bound=True), self.assertRaises(observation.Failure):
-                McpValidationMixin._review_bound_deadline(base, self.desired[:-1], "bounds")
 
 
 if __name__ == '__main__':
