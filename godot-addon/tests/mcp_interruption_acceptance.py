@@ -1,4 +1,4 @@
-"""T003 real-editor MCP interruption evidence; fixture controls are not consumers.
+"""Real-editor MCP interruption evidence; fixture controls are not consumers.
 
 Every recovery addresses the original explicit target.  Missing transport output
 is recorded as unavailable delivery, never converted into an operation outcome.

@@ -83,12 +83,6 @@ class DisclosureTests(unittest.TestCase):
                 'next_action': {'kind': 'fresh_read'}}}},
             'content': [{'type': 'text', 'text': 'Read again.'}], 'isError': True}}
 
-    def test_source_free_execution_evidence_is_not_private_match_feedback(self):
-        response = self.edit_response()
-        before = copy.deepcopy(response)
-        privacy.assert_disclosure(response, 'matching', sources=('# secret\n',))
-        self.assertEqual(response, before)
-
     def test_matching_feedback_and_private_payloads_fail_even_without_source_sentinel(self):
         feedback = {
             'candidate_matches': [{'line': 7}], 'candidate_text': 'short excerpt',

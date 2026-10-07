@@ -71,11 +71,11 @@ class WorkflowHarness(McpValidationMixin, McpComposedMixin, McpPrivacyAcceptance
         self.source_markers.update((b"CLOSED_PRIVATE_TARGET", b"CLOSED_NEWER_WORK",
                                     b"CLOSED_RESOURCE_DIVERGENCE", b"CLOSED_RESOURCE_DIRTY"))
         if args.scenario.startswith("transport"):
-            self.summary.update(coverage_scope="T002_actual_MCP_transport_lifecycle",
+            self.summary.update(coverage_scope="actual_MCP_transport_lifecycle",
                                 mcp_acceptance=True, real_client_acceptance=False)
         if (args.scenario.startswith(("preservation", "interruption")) or
                 args.scenario in ("transport-failures", "transport-reconnect") or args.profile in FAILURE_GROUPS):
-            self.summary.update(coverage_scope="T003_adversarial_MCP_" + args.scenario,
+            self.summary.update(coverage_scope="adversarial_MCP_" + args.scenario,
                                 changed_boundary="MCP_adversarial_fixtures_and_protocol_error_coverage",
                                 mcp_acceptance=True, real_client_acceptance=False,
                                 mcp_server_sha256=observation.digest(args.mcp_server),
