@@ -182,10 +182,11 @@ Implementation completion requires the full mapped valid evidence plus the propo
 
 ## T001 implementation evidence (2026-10-07)
 
-**T001 completion: complete.** Production and acceptance inputs are at
+**T001 completion: complete.** Initial production and acceptance inputs are at
 `6b41fcfd446b14461aafe94303aa2a8eafa0fc98` on
-`task/T001-schema2-exact-edit`; subsequent changes record documentation and
-completion state only. Both selected clients satisfy the atomic cutover
+`task/T001-schema2-exact-edit`. Initial delivery then recorded documentation and
+completion state; the post-review adapter correction and evidence-currentness
+decision are recorded below. Both selected clients satisfy the atomic cutover
 criterion. No T002/T003 or full-feature completion is claimed.
 
 ### Implemented boundary and static checks
@@ -378,9 +379,9 @@ and passed. Failed/incomplete runs are retained and excluded from all counts.
 The direct workflow's later source deltas concern separate preservation/source
 fixture corrections and failure diagnostics, not its accepted workflow path.
 The successful safety run already contains its disclosure and optional-descriptor
-corrections. Source, bound, privacy and OMP results ran at the current code head.
-No production Rust, addon, native, ABI, engine or dependency change followed
-those accepted runs. Documentation/status updates do not invalidate them.
+corrections. Source, bound, privacy and both-client results ran at the initial
+code head. No production change preceded the documentation-only initial delivery.
+The later adapter validation correction is assessed separately below.
 
 Production and fixture native artifact hashes match the accepted Feature 007
 source `3067fc690f1b08e28bf7a296468c8105c4122ea1` in the same environment.
@@ -397,8 +398,8 @@ terminal match reduction stay in the existing read runner, and MCP
 decoding/schema/projection remain at the adapter. New exact-intent declarations
 are crate-private with current callers; there is no speculative public mode,
 state store, hook or generic framework. The nonempty-string `expect` is dominated
-by an explicit empty branch, not used for unavailable safety evidence. Independent
-adapter review found no material correctness, disclosure or shape issue.
+by an explicit empty branch, not used for unavailable safety evidence. Initial
+adapter review reported no material issue; the later finding is corrected below.
 
 This records compliance with Principles I–IV, VII, IX, X and XIII for T001's
 implemented boundary and current both-client acceptance. T002's broader
@@ -407,6 +408,65 @@ task. Approved requirements and remaining task obligations are unchanged:
 the initial exact analysis fingerprints established implementation currentness;
 these later status, checkbox and evidence updates change no remaining obligation.
 No extension configuration was present at pre/post-implementation inspection.
+
+### Post-review correction: open matching output validation
+
+PR #70 review identified that a schema-valid open result labeled
+`matching` / `refused` / `not_applied` could pass adapter validation despite
+history, execution-step or receipt evidence contradicting zero effects.
+T001's matching-refusal projection acceptance and the public matching contract
+require independent adapter rejection, not reliance on the private producer.
+
+`mcp::output::edit::validate_typed()` now requires `not_participated` history,
+`not_started` buffer application, Resource synchronization, persistence and
+finalization, and absent persistence/finalization receipts for open matching
+results. Existing checks continue to require `refused`, `not_applied`, a matching
+reason and `fresh_read`. The producer's `reduce_open_match()`, all closed-path
+validation, mutation execution and valid-output serialization are unchanged.
+
+Three deterministic regressions exercise 29 schema-valid contradictions across
+terminal facts/guidance, history, all four effect steps (entered, completed,
+failed and unknown), and both receipts even without claimed effects. The
+positive serialization case retains all four matching reasons, nonparticipating
+history, zero-effect fields, `isError: true` and `fresh_read`; it permits completed
+validation/verification and does not pin sentence wording. All 26 focused MCP
+output tests passed before the broader Rust checks.
+
+An offline smoke replayed the six recorded open edit results from
+`schema2-codex-workflow-2/20261007T050939Z-130a596811e7/artifacts/mcp-calls.jsonl`
+through the current Rust validator. All original results remained accepted.
+Relabeling only outcome/application/stage/reason/action as matching refusals
+accepted the two zero-effect unchanged results and rejected all four effectful
+results. This is adapter fault-injection evidence from retained records, not
+a new Codex/OMP or VM run. The temporary smoke driver was removed.
+
+Post-review Rust completion checks passed from `mcp-server/`:
+`cargo fmt --all -- --check`,
+`cargo clippy --all-targets --locked -- -D warnings`,
+`cargo test --locked -- --test-threads=1` (495 tests; doctest target also passed),
+`cargo doc --no-deps --locked`, and `cargo build --locked --bins --examples`.
+Serial test execution avoids the previously observed parallel worker-startup
+contention without changing any deadline or assertion. The earlier aggregate
+failure remains historical; this completion run passed without exclusions.
+
+**Currentness decision:** Reuse the accepted Codex 0.153.4, OMP 18.5.1 and VM
+evidence above under `TEST_POLICY.md`. The changed boundary rejects inconsistent
+private output only; the unchanged producer already enforces every added
+predicate before emitting an open matching refusal. Relevant behavior is
+equivalent for accepted outputs, supported by producer review, positive
+serialization regressions and the recorded-output smoke—not a claim of
+byte-identical rebuilt Rust binaries. Native/addon/ABI, schemas/protocol,
+authentication/routing, client/VM fixtures/witnesses/runners, environment and
+acceptance requirements are unchanged. No accepted client/VM evidence was
+invalidated and no campaign was rerun.
+
+**Shape and constitutional review:** The existing DTO validator still owns this
+check. One allocation-free fixed-size predicate is the smallest correction;
+producer-only validation cannot catch contradictory producer output, while a new
+validation layer would add unnecessary maintenance cost. No new declaration,
+public API, dependency, protocol or operational gate is introduced in production.
+This preserves Principles III, IV, VII, IX, X and XIII. T001 remains complete;
+T002/T003 have not started.
 
 ## Planning validation
 

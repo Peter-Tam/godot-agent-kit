@@ -660,6 +660,7 @@ fn open_matching(reason: &str) -> Value {
     });
     let after = before.clone();
     outcome["after"] = after;
+    outcome["progress"]["validation"]["state"] = json!("completed");
     outcome["progress"]["verification"]["state"] = json!("completed");
     input
 }
@@ -699,6 +700,16 @@ fn serialized_matching_refusals_preserve_evidence_history_and_fresh_read() {
             if mode == "open" {
                 assert_eq!(outcome["safe_next_action"], "fresh_read");
                 assert_eq!(outcome["history"], "not_participated");
+                for step in [
+                    "buffer_application",
+                    "resource_sync",
+                    "persistence",
+                    "finalization",
+                ] {
+                    assert_eq!(outcome["progress"][step]["state"], "not_started");
+                }
+                assert_eq!(outcome["persistence"], Value::Null);
+                assert_eq!(outcome["finalization"], Value::Null);
                 assert_eq!(outcome["before"], outcome["after"]);
                 assert_eq!(outcome["after"]["document"]["open_state"]["value"], "open");
                 assert_eq!(outcome["after"]["saved_state"]["resource_edited"], false);
@@ -717,6 +728,98 @@ fn serialized_matching_refusals_preserve_evidence_history_and_fresh_read() {
             assert!(!summary.contains(&revision));
             assert!(!wire.to_string().contains("PRIVATE_BASIS_SENTINEL"));
         }
+    }
+}
+
+fn assert_invalid_open_matching(input: Value) {
+    let mut projected = input.clone();
+    edit::project(&mut projected, None, id().as_str()).unwrap();
+    // These contradictions must reach semantic validation, not fail decoding.
+    edit::OpenOutcome::deserialize(&projected["outcome"]).unwrap();
+    assert_eq!(edit::validate(&projected, id().as_str()), Err(()));
+    let wire = serde_json::to_value(complete(Operation::Edit, &id(), input, None)).unwrap();
+    assert_eq!(wire["isError"], true);
+    assert_eq!(wire["structuredContent"]["result"], Value::Null);
+    assert_eq!(wire["structuredContent"]["error"]["code"], "invalid_output");
+    assert_eq!(
+        wire["structuredContent"]["error"]["next_action"]["kind"],
+        "fresh_read"
+    );
+}
+
+#[test]
+fn open_matching_refusal_rejects_inconsistent_terminal_facts_and_guidance() {
+    for (outcome, application) in [
+        ("verified_unchanged", "not_applied"),
+        ("verified_changed", "applied"),
+        ("applied_unverified", "partly_applied"),
+        ("application_unknown", "unknown"),
+        ("refused", "applied"),
+        ("refused", "partly_applied"),
+        ("refused", "unknown"),
+    ] {
+        let mut input = open_matching("no_match");
+        input["outcome"]["outcome"] = json!(outcome);
+        input["outcome"]["application"] = json!(application);
+        assert_invalid_open_matching(input);
+    }
+    for (field, value) in [
+        ("history", "native_complex_edit"),
+        ("history", "unknown"),
+        ("history", "not_applicable_closed"),
+        ("safe_next_action", "none"),
+    ] {
+        let mut input = open_matching("no_match");
+        input["outcome"][field] = json!(value);
+        assert_invalid_open_matching(input);
+    }
+}
+
+#[test]
+fn open_matching_refusal_rejects_started_or_uncertain_effect_steps() {
+    for step in [
+        "buffer_application",
+        "resource_sync",
+        "persistence",
+        "finalization",
+    ] {
+        for state in ["entered", "completed", "failed", "unknown"] {
+            let mut input = open_matching("no_match");
+            input["outcome"]["progress"][step]["state"] = json!(state);
+            assert_invalid_open_matching(input);
+        }
+    }
+}
+
+#[test]
+fn open_matching_refusal_rejects_receipts_even_without_claimed_effects() {
+    for (field, receipt) in [
+        (
+            "persistence",
+            json!({
+                "intended":{"sha256":"a".repeat(64),"utf8_bytes":10},
+                "write_started":false,"bytes_written":0,"truncated":false,
+                "flushed":false,"readback_matches":false,"attached":false,
+                "descriptor_open":false,"interference":false,
+                "original_mtime":null,"mtime":null,"restore_attempted":false,
+                "restore_errno":null,"restored":false,"reason":null
+            }),
+        ),
+        (
+            "finalization",
+            json!({
+                "status":"not_started","reason":null,
+                "before_source":null,"after_source":null,
+                "before_current":null,"after_current":null,
+                "before_saved":null,"after_saved":null,
+                "before_resource_edited":null,"after_resource_edited":null,
+                "steps":{"resource_edited":false,"saved_version":false}
+            }),
+        ),
+    ] {
+        let mut input = open_matching("no_match");
+        input["outcome"][field] = receipt;
+        assert_invalid_open_matching(input);
     }
 }
 

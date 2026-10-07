@@ -612,6 +612,21 @@ fn validate_typed(result: EditResult<'_>, id: &str) -> Result<bool, ()> {
             }
         }
         EditResult::Open { outcome: o } => {
+            if o.stage == "matching"
+                && (o.history != History::NotParticipated
+                    || [
+                        &o.progress.buffer_application,
+                        &o.progress.resource_sync,
+                        &o.progress.persistence,
+                        &o.progress.finalization,
+                    ]
+                    .iter()
+                    .any(|step| !matches!(step.state, StepState::NotStarted))
+                    || o.persistence.is_some()
+                    || o.finalization.is_some())
+            {
+                return Err(());
+            }
             if success
                 && !o.after.as_ref().is_some_and(|a| {
                     a.document.open_state.value == Some("open")
