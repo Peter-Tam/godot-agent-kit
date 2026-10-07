@@ -23,18 +23,14 @@ from run_script_close import TARGET, CURRENT, BACKGROUND, SAFE
 PROFILE_GROUPS = {
     'workflow': ('open', 'cached', 'absent'),
     'known': ('known',),
-    'sources': ('unicode', 'unicode_open', 'unicode_cached', 'empty', 'empty_open', 'empty_cached', 'empty_desired'),
+    'sources': ('unicode', 'empty', 'empty_desired'),
     'bound': ('bound',),
     'observations': ('dirty', 'divergent', 'limited', 'invalidated', 'partial'),
 }
 
 
 def lifecycle_profile(name):
-    if name == 'open' or name.endswith('_open'):
-        return 'open'
-    if name == 'cached' or name.endswith('_cached'):
-        return 'cached'
-    return 'absent'
+    return name if name in ('open', 'cached') else 'absent'
 
 
 def exact_steps(name, source):
@@ -45,7 +41,7 @@ def exact_steps(name, source):
         intended = new if source == old == '' else source.replace(old, new, 1)
         steps.append(dict(old_string=old, new_string=new, source=intended))
         source = intended
-    if name.startswith('empty') and name != 'empty_desired':
+    if name == 'empty':
         add('', '')
         add('', CHANGED)
     elif name == 'bound':
@@ -54,7 +50,7 @@ def exact_steps(name, source):
             'x' * (SOURCE_LIMIT - len(source.encode()) - 3) + '\n')
     else:
         add('return 47', 'return 47')
-        if name.startswith('unicode'):
+        if name == 'unicode':
             add('\t# café 雪 𐐀\n\treturn 47', '\t# naïve 雨 𐐀\n\treturn 83')
             add('extends RefCounted\n', 'extends RefCounted\n# anchored insertion\n')
         else:
@@ -279,8 +275,8 @@ class McpLifecycleMixin:
         return [target_receipt(t['name'], t['project'], t['descriptor']) for t in self.targets.values()]
 
     def _prepare_target(self, stack, name):
-        source = '' if name.startswith('empty') and name != 'empty_desired' else SAFE
-        if name.startswith('unicode'):
+        source = '' if name == 'empty' else SAFE
+        if name == 'unicode':
             source = source.replace('\treturn 47', '\t# café 雪 𐐀\n\treturn 47')
         if name in ('open', 'cached', 'absent') and self.args.profile != 'composed':
             source += '# localized deletion witness\n'
@@ -336,14 +332,14 @@ class McpLifecycleMixin:
                     'Retain the final return line as an anchor and append one comment: "# ", '
                     'enough ASCII x characters to make the complete source exactly 524288 UTF-8 bytes, then one LF.',
                 ]
-            elif target['name'].startswith('empty') and target['name'] != 'empty_desired':
+            elif target['name'] == 'empty':
                 item['requested_changes'] = [
                     'Request an unchanged edit of the complete empty script.',
                     'Replace the complete empty script with this exact source: ' + json.dumps(CHANGED),
                 ]
             else:
                 item['requested_changes'] = ['Request an unchanged edit of the return 47 span.']
-                if target['name'].startswith('unicode'):
+                if target['name'] == 'unicode':
                     item['requested_changes'] += [
                         'In one multiline replacement, change the tab-indented comment café 雪 𐐀 '
                         'to naïve 雨 𐐀 and the following return 47 to return 83.',
