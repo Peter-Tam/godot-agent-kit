@@ -118,7 +118,21 @@ class McpValidationMixin:
                     root = self._preservation_refusal(
                         peer, project, editor, descriptor, basis["revision"], case,
                         replacement="# intentionally distinct", old_string=old)
-                    self._exact_reason(root, reason, case)
+                    outcome = root["result"]["outcome"]
+                    if root["result"]["mode"] == "open" and outcome["reason"] == "validation_unavailable":
+                        # A retained match error cannot override an unavailable
+                        # complete-source validation under the original clock.
+                        observation.require(outcome["stage"] == "validating" and
+                                            outcome["history"] == "not_participated" and
+                                            all(outcome["progress"][step]["state"] == "not_started" for step in
+                                                ("buffer_application", "resource_sync", "persistence", "finalization")) and
+                                            any(receipt["purpose"] == "unchanged" and
+                                                receipt["status"] == "unavailable" and receipt["cleanup_confirmed"]
+                                                for receipt in outcome["validation"]),
+                                            "maximum_match_preserves_unavailable_unchanged_validation_" + case)
+                        self.cases[-1]["matching_diagnosis"] = "withheld_validation_unavailable"
+                    else:
+                        self._exact_reason(root, reason, case)
 
     def mcp_validation_preparation(self):
         self.summary.update(coverage_scope='prepared_native_documentation_effect_safety',
