@@ -7,6 +7,7 @@ from closed_script_acceptance import SOURCE_LIMIT
 from mcp_interruption_acceptance import DESIRED, PROFILES
 from mcp_peer import McpPeer, selectors
 from run_script_close import SAFE, TARGET
+from run_script_edit import sha
 
 VALIDATION_GROUPS = {
     "validation-exact-source-boundaries": "mcp_validation_exact_source_boundaries",
@@ -15,12 +16,16 @@ VALIDATION_GROUPS = {
 
 
 class McpValidationMixin:
-    def _validation_exact_success(self, peer, project, editor, descriptor, basis,
-                                  old, new, desired, label):
+    def _validation_exact_result(self, peer, project, editor, descriptor, basis,
+                                 old, new, desired, label, *, maximum_bound=False):
         before, disks = self.state(editor, project)
         root = peer.call("edit_script", dict(selectors(project, descriptor),
                          revision=basis["revision"], old_string=old, new_string=new), label)
-        self.mcp_review_edit(root, label, "verified_changed")
+        result = self.mcp_review_edit(
+            root, label, ("verified_changed", "applied_unverified") if maximum_bound else "verified_changed")
+        if result["outcome"]["outcome"] != "verified_changed":
+            self._review_bound_deadline(result, desired, label)
+            self.cases[-1]["boundary_result"] = "applied_not_verified"
         if TARGET not in before["open_paths"]:
             self.assert_closed_success(label, project, editor, before, disks, desired, changed=True)
         else:
@@ -43,8 +48,35 @@ class McpValidationMixin:
             self.record_witness(label, before, disks, after, now, editor)
         fresh = self.mcp_read(peer, project, editor, descriptor, label + "_fresh", source=desired)
         observation.require(fresh["revision"] != basis["revision"],
-                            "exact_validation_success_has_new_revision_" + label)
+                            "exact_validation_applied_has_new_revision_" + label)
         return fresh
+
+    @staticmethod
+    def _review_bound_deadline(result, desired, label):
+        """A maximum-size deadline is not a successful mutation receipt."""
+        outcome = result["outcome"]
+        observation.require(len(desired.encode()) == SOURCE_LIMIT and
+                            outcome["outcome"] == "applied_unverified" and
+                            outcome["application"] == "applied" and
+                            outcome["reason"] in ("validation_unavailable", "timeout"),
+                            "maximum_bound_retains_actual_applied_uncertainty_" + label)
+        if result["mode"] == "open":
+            observation.require(outcome["stage"] == "validating" and
+                                all(outcome["progress"][step]["state"] == "completed" for step in
+                                    ("buffer_application", "resource_sync", "persistence", "finalization")) and
+                                any(receipt["purpose"] == "preflight" and receipt["status"] == "valid" and
+                                    receipt["input"] == dict(sha256=sha(desired), utf8_bytes=SOURCE_LIMIT)
+                                    for receipt in outcome["validation"]) and
+                                all(receipt["cleanup_confirmed"] for receipt in outcome["validation"]),
+                                "maximum_bound_complete_preflight_and_actual_open_effects_" + label)
+        else:
+            observation.require(result["mode"] == "closed" and outcome["stage"] == "verifying" and
+                                outcome["evidence"]["validation"]["original"] is True and
+                                outcome["evidence"]["validation"]["desired"] is True and
+                                outcome["effects"]["written_bytes"] == SOURCE_LIMIT and
+                                all(outcome["effects"][key] for key in
+                                    ("authorized", "disk_entered", "flushed", "readback", "mtime_restored")),
+                                "maximum_bound_complete_preflight_and_actual_closed_effects_" + label)
 
     def mcp_validation_exact_source_boundaries(self):
         # Fragments need not be standalone programs; the derived complete source
@@ -67,8 +99,9 @@ class McpValidationMixin:
                                         "fixture_complete_source_exact_byte_limit")
                 with fixture(label, source=source, **kwargs) as (project, editor, descriptor), McpPeer(self, label) as peer:
                     basis = self.mcp_read(peer, project, editor, descriptor, label + "_basis", source=source)
-                    fresh = self._validation_exact_success(peer, project, editor, descriptor, basis,
-                                                           old, new, desired, label)
+                    fresh = self._validation_exact_result(
+                        peer, project, editor, descriptor, basis, old, new, desired, label,
+                        maximum_bound=name == "exact_utf8_bound")
                     if name == "whitespace":
                         refusal = self._preservation_refusal(
                             peer, project, editor, descriptor, fresh["revision"], label + "_empty_old",
@@ -119,18 +152,26 @@ class McpValidationMixin:
                         peer, project, editor, descriptor, basis["revision"], case,
                         replacement="# intentionally distinct", old_string=old)
                     outcome = root["result"]["outcome"]
-                    if root["result"]["mode"] == "open" and outcome["reason"] == "validation_unavailable":
-                        # A retained match error cannot override an unavailable
-                        # complete-source validation under the original clock.
-                        observation.require(outcome["stage"] == "validating" and
-                                            outcome["history"] == "not_participated" and
-                                            all(outcome["progress"][step]["state"] == "not_started" for step in
-                                                ("buffer_application", "resource_sync", "persistence", "finalization")) and
-                                            any(receipt["purpose"] == "unchanged" and
-                                                receipt["status"] == "unavailable" and receipt["cleanup_confirmed"]
-                                                for receipt in outcome["validation"]),
-                                            "maximum_match_preserves_unavailable_unchanged_validation_" + case)
-                        self.cases[-1]["matching_diagnosis"] = "withheld_validation_unavailable"
+                    if outcome["reason"] in ("validation_unavailable", "timeout"):
+                        # Deadline/validation failure wins on every lifecycle path;
+                        # only a verified unchanged result may expose the match error.
+                        observation.require(outcome["stage"] != "matching" and
+                                            outcome["application"] == "not_applied",
+                                            "maximum_match_retains_pre_effect_failure_" + case)
+                        if root["result"]["mode"] == "open":
+                            observation.require(outcome["history"] == "not_participated" and
+                                                all(outcome["progress"][step]["state"] == "not_started" for step in
+                                                    ("buffer_application", "resource_sync", "persistence", "finalization")),
+                                                "maximum_match_has_no_open_effects_" + case)
+                            if outcome["reason"] == "validation_unavailable":
+                                observation.require(any(receipt["purpose"] == "unchanged" and
+                                                        receipt["status"] == "unavailable" and receipt["cleanup_confirmed"]
+                                                        for receipt in outcome["validation"]),
+                                                    "maximum_match_retains_unavailable_validation_" + case)
+                        else:
+                            observation.require(not any(outcome["effects"].values()),
+                                                "maximum_match_has_no_closed_effects_" + case)
+                        self.cases[-1]["matching_diagnosis"] = "withheld_" + outcome["reason"]
                     else:
                         self._exact_reason(root, reason, case)
 
