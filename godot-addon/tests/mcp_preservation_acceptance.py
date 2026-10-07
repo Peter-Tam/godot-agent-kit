@@ -98,7 +98,14 @@ class McpPreservationAcceptanceMixin(McpAdversarialMixin):
                                             ("authorized", "resource_entered", "resource_changed", "disk_entered",
                                              "written_bytes", "truncated", "flushed", "readback", "mtime_restored")),
                                             "matching_diagnostic_never_authorizes_closed_effects")
-                    self._preservation_private(root, [(before, disks)], [descriptor], label + "_" + name)
+                    # Authorized matching refusals retain the existing source-free
+                    # digest evidence; the denied-target checker forbids that evidence.
+                    response = json.loads((self.artifacts / (label + "_" + name + ".json")).read_text())
+                    assert_disclosure(response, label + "_" + name,
+                                      secrets=(*self.secrets, descriptor["endpoint"], descriptor["token"]),
+                                      sources=(missing, proposed, *self.source_markers,
+                                               *(disk["text"] for disk in disks.values())),
+                                      inventory=(CURRENT, BACKGROUND))
                 invalid = self._preservation_refusal(
                     peer, project, editor, descriptor, basis["revision"], label + "_invalid_combined",
                     replacement="return (", old_string="return 47")
