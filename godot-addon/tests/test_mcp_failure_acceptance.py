@@ -1,6 +1,9 @@
 """Prevent false real-client acceptance from missing recovery or replayed intent."""
 import copy
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -190,6 +193,74 @@ class MatchingRecoveryEvidenceTests(unittest.TestCase):
             calls[4]['structuredContent']['result'][field] = value
             with self.subTest(field=field), self.assertRaises(failure.observation.Failure):
                 failure.McpFailureMixin._review_matching_recovery(calls)
+
+
+class SerialFailureHarness(failure.McpFailureMixin):
+    def __init__(self, work):
+        self.work = Path(work)
+        self.args = SimpleNamespace(profile='failures')
+        self.editors, self.events, self.cases = [], [], []
+        self.summary = {}
+
+    @contextmanager
+    def closed_fixture(self, name, **options):
+        project = self.work / ('close-' + name)
+        (project / 'scripts').mkdir(parents=True)
+        (project / 'scripts/subject.gd').write_text(failure.SAFE)
+        editor = dict(process=SimpleNamespace(pid=len(self.events) + 1))
+        self.editors.append(editor)
+        self.events.append(('start', name, len(self.editors)))
+        try:
+            yield project, editor, dict(session_id=name)
+        finally:
+            self.editors.remove(editor)
+            self.events.append(('stop', name, len(self.editors)))
+
+    def state(self, editor, project):
+        return dict(open_paths=[]), {failure.TARGET: dict(text=(project / 'scripts/subject.gd').read_text())}
+
+    def case(self, name, **facts):
+        self.cases.append(dict(case=name, **facts))
+
+    def assert_no_effect(self, name, project, editor, before, disks):
+        failure.observation.require(self.state(editor, project) == (before, disks), 'fixture_survivor')
+
+
+class SerialFailureFixtureTests(unittest.TestCase):
+    def test_unvisited_profiles_do_not_create_editors_and_abandonment_closes_owner(self):
+        with TemporaryDirectory() as work:
+            harness = SerialFailureHarness(work)
+            with ExitStack() as stack:
+                harness.prepare_targets(stack)
+                self.assertEqual(harness.events, [('start', 'mcp-failure_limited', 1)])
+                self.assertEqual(len(harness.editors), 1)
+            self.assertEqual(harness.events[-1], ('stop', 'mcp-failure_limited', 0))
+            self.assertEqual(harness.editors, [])
+
+    def test_missing_completed_evidence_cannot_close_previous_or_start_next(self):
+        with TemporaryDirectory() as work, ExitStack() as stack:
+            harness = SerialFailureHarness(work)
+            harness.prepare_targets(stack)
+            targets = list(harness.targets.values())
+            with self.assertRaises(failure.observation.Failure):
+                harness.before_failure_call(targets[1])
+            self.assertEqual(harness.events, [('start', 'mcp-failure_limited', 1)])
+            self.assertIs(harness._failure_current, targets[0])
+
+    def test_verified_transition_closes_previous_before_creating_next(self):
+        with TemporaryDirectory() as work, ExitStack() as stack:
+            harness = SerialFailureHarness(work)
+            harness.prepare_targets(stack)
+            targets = list(harness.targets.values())
+            targets[0]['calls'].append(dict(name='read_script', structuredContent=dict(
+                result=dict(source=failure.SAFE, revision=None))))
+            harness.before_failure_call(targets[1])
+            self.assertEqual(harness.events, [('start', 'mcp-failure_limited', 1),
+                                             ('stop', 'mcp-failure_limited', 0),
+                                             ('start', 'mcp-failure_refusal', 1)])
+            with self.assertRaises(failure.observation.Failure):
+                harness.before_failure_call(targets[0])
+            self.assertEqual(len(harness.editors), 1)
 
 
 class InterruptedBufferWitnessTests(unittest.TestCase):

@@ -13,7 +13,6 @@ from contextlib import ExitStack
 import run_observation as observation
 from closed_script_acceptance import CHANGED, source_free
 from close_native_acceptance import documents
-from mcp_lifecycle_acceptance import target_receipt
 from run_script_close import TARGET, SAFE
 
 
@@ -40,26 +39,54 @@ class McpFailureMixin:
         if selected is None or not any(name in FAILURE_PROFILES for name in selected):
             return super().prepare_targets(stack, profiles)
         observation.require(all(name in FAILURE_PROFILES for name in selected), 'fixed_failure_profile_set')
+        self._failure_stack = stack
+        self._failure_current = None
         self.targets = {}
         for name in selected:
-            project, editor, descriptor = stack.enter_context(self.closed_fixture(
-                'mcp-' + name, cached=True, faults=name in ('failure_limited', 'failure_partial')))
-            before, disks = self.state(editor, project)
-            self.targets[str(project)] = dict(name=name, project=project, editor=editor,
-                descriptor=descriptor, before=before, disks=disks, desired=DESIRED, calls=[],
-                fault_armed=False, delivery_dropped=False)
-        self.summary.update(coverage_scope='T003_actual_MCP_failure_interpretation',
+            project = self.work / ('close-mcp-' + name)
+            self.targets[str(project)] = dict(name=name, project=project, desired=DESIRED, calls=[],
+                                             fault_armed=False, delivery_dropped=False)
+        self.before_failure_call(next(iter(self.targets.values())))
+        self.summary.update(coverage_scope='actual_MCP_failure_interpretation',
                             mcp_acceptance=True, real_client_acceptance=False)
-        return [target_receipt(t['name'], t['project'], t['descriptor']) for t in self.targets.values()]
+        return [self._failure_receipt(t) for t in self.targets.values()]
+
+    @staticmethod
+    def _failure_receipt(target):
+        return dict(name=target['name'], project_root=str(target['project']), script_path=TARGET)
+
+    def before_failure_call(self, target):
+        if self._failure_current is target:
+            return
+        current = self._failure_current
+        if current is not None:
+            ordered = list(self.targets.values())
+            index = ordered.index(current)
+            observation.require(index + 1 < len(ordered) and ordered[index + 1] is target,
+                                'failure_targets_follow_requested_order')
+            source = self._review_failure_target(current)
+            current['fixture_owner'].close()
+            current['completed_source'] = source
+        observation.require(not self.editors, 'failure_previous_editor_ended_before_next_fixture')
+        owner = self._failure_stack.enter_context(ExitStack())
+        project, editor, descriptor = owner.enter_context(self.closed_fixture(
+            'mcp-' + target['name'], cached=True,
+            faults=target['name'] in ('failure_limited', 'failure_partial')))
+        observation.require(project == target['project'] and self.editors == [editor],
+                            'failure_one_live_declared_fixture_editor')
+        before, disks = self.state(editor, project)
+        target.update(editor=editor, descriptor=descriptor, before=before, disks=disks, fixture_owner=owner)
+        self._failure_current = target
+        self.case('failure-fixture-' + target['name'], live_editor_pids=[editor['process'].pid])
 
     def prepared_prompt(self):
         if not any(t['name'] in FAILURE_PROFILES for t in self.targets.values()):
             return super().prepared_prompt()
-        targets = [dict(target_receipt(t['name'], t['project'], t['descriptor']),
+        targets = [dict(self._failure_receipt(t),
                         intended_source=None if t['name'] == 'failure_limited' else t['desired'])
                    for t in self.targets.values()]
         return ('Use only godot_agent_kit MCP tools for project operations, not shell, files or other bridges. '
-                'Complete one target at a time. Read each explicit target. For failure_limited, explain the '
+                'Complete targets in listed order, one at a time. Read each explicit target. For failure_limited, explain the '
                 'observed source, unavailable state and revision; do not edit. For failure_refusal, use a fresh '
                 'read revision before each of these separately intentional requests, in order: '
                 '(1) old_string "return 48", new_string "return 49" (an intentional absent-text probe); '
@@ -263,46 +290,54 @@ class McpFailureMixin:
                                 'matching_recovery_observed_complete_source')
         return operations[cursor:]
 
+    def _review_failure_target(self, target):
+        calls = target['calls']
+        reads = [c for c in calls if c['name'] == 'read_script' and c['structuredContent']['result'] is not None]
+        observation.require(bool(reads), 'failure_real_client_read')
+        if target['name'] == 'failure_limited':
+            observation.require(not any(c['name'] == 'edit_script' for c in calls), 'limited_no_blind_edit')
+            self.assert_no_effect(target['name'], target['project'], target['editor'], target['before'], target['disks'])
+            return target['disks'][TARGET]['text']
+        if target['name'] == 'failure_refusal':
+            calls = self._review_matching_recovery(calls)
+            reads = [c for c in calls if c['name'] == 'read_script']
+        edits = [c for c in calls if c['name'] == 'edit_script']
+        observation.require(all(isinstance(c['structuredContent']['result'], dict) for c in edits),
+                            'failure_no_unchecked_or_legacy_edit_substitute')
+        observation.require(bool(edits) and calls.index(reads[0]) < calls.index(edits[0]) < calls.index(reads[-1]),
+                            'failure_fresh_read_before_and_after_intent')
+        initial = reads[0]['structuredContent']['result']
+        observation.require(isinstance(initial.get('source'), str) and isinstance(initial.get('revision'), str) and
+                            edits[0]['arguments'].get('revision') == initial['revision'] and
+                            edits[0]['arguments'].get('old_string') == initial['source'] and
+                            edits[0]['arguments'].get('new_string') == target['desired'] and
+                            not (set(edits[0]['arguments']) -
+                                 {'project_root', 'session_id', 'script_path', 'revision', 'old_string', 'new_string'}),
+                            'failure_model_uses_returned_revision_and_requested_source')
+        if target['name'] != 'failure_reconnect':
+            observation.require(len(edits) == 1, 'no_blind_replay_after_refusal_or_uncertainty')
+        else:
+            observation.require(target['delivery_dropped'], 'actual_reply_delivery_loss')
+            duplicates = edits[1:]
+            observation.require(all(c['arguments'] == edits[0]['arguments'] and
+                                    c['structuredContent']['result']['outcome']['outcome'] == 'refused'
+                                    for c in duplicates), 'client_resend_cannot_inherit_old_intent')
+            self.summary['reconnect_edit_resends'] = len(duplicates)
+            self.summary['reconnect_requires_client_transcript_attribution'] = True
+        final, disks = self.state(target['editor'], target['project'])
+        observation.require(reads[-1]['structuredContent']['result']['source'] == disks[TARGET]['text'] and
+                            TARGET not in final['open_paths'], 'failure_actual_fresh_survivor_read')
+        return disks[TARGET]['text']
+
     def finalize_targets(self, primary_only=False):
         if not any(t['name'] in FAILURE_PROFILES for t in self.targets.values()):
             return super().finalize_targets(primary_only=primary_only)
         for target in self.targets.values():
-            calls = target['calls']
-            reads = [c for c in calls if c['name'] == 'read_script' and c['structuredContent']['result'] is not None]
-            observation.require(bool(reads), 'failure_real_client_read')
-            if target['name'] == 'failure_limited':
-                observation.require(not any(c['name'] == 'edit_script' for c in calls), 'limited_no_blind_edit')
-                self.assert_no_effect(target['name'], target['project'], target['editor'], target['before'], target['disks'])
-                continue
-            if target['name'] == 'failure_refusal':
-                calls = self._review_matching_recovery(calls)
-                reads = [c for c in calls if c['name'] == 'read_script']
-            edits = [c for c in calls if c['name'] == 'edit_script']
-            observation.require(all(isinstance(c['structuredContent']['result'], dict) for c in edits),
-                                'failure_no_unchecked_or_legacy_edit_substitute')
-            observation.require(bool(edits) and calls.index(reads[0]) < calls.index(edits[0]) < calls.index(reads[-1]),
-                                'failure_fresh_read_before_and_after_intent')
-            initial = reads[0]['structuredContent']['result']
-            observation.require(isinstance(initial.get('source'), str) and isinstance(initial.get('revision'), str) and
-                                edits[0]['arguments'].get('revision') == initial['revision'] and
-                                edits[0]['arguments'].get('old_string') == initial['source'] and
-                                edits[0]['arguments'].get('new_string') == target['desired'] and
-                                not (set(edits[0]['arguments']) -
-                                     {'project_root', 'session_id', 'script_path', 'revision', 'old_string', 'new_string'}),
-                                'failure_model_uses_returned_revision_and_requested_source')
-            if target['name'] != 'failure_reconnect':
-                observation.require(len(edits) == 1, 'no_blind_replay_after_refusal_or_uncertainty')
+            if 'completed_source' in target:
+                observation.require((target['project'] / TARGET.removeprefix('res://')).read_text() ==
+                                    target['completed_source'], 'failure_survivor_persists_after_owned_shutdown')
             else:
-                observation.require(target['delivery_dropped'], 'actual_reply_delivery_loss')
-                duplicates = edits[1:]
-                observation.require(all(c['arguments'] == edits[0]['arguments'] and
-                                        c['structuredContent']['result']['outcome']['outcome'] == 'refused'
-                                        for c in duplicates), 'client_resend_cannot_inherit_old_intent')
-                self.summary['reconnect_edit_resends'] = len(duplicates)
-                self.summary['reconnect_requires_client_transcript_attribution'] = True
-            final, disks = self.state(target['editor'], target['project'])
-            observation.require(reads[-1]['structuredContent']['result']['source'] == disks[TARGET]['text'] and
-                                TARGET not in final['open_paths'], 'failure_actual_fresh_survivor_read')
+                self._review_failure_target(target)
         self.summary.setdefault('mcp_profiles_verified', []).extend(t['name'] for t in self.targets.values())
 
     def mcp_transport(self):
@@ -346,7 +381,7 @@ class McpFailureMixin:
             try:
                 initialize()
                 for target in self.targets.values():
-                    args = target_receipt(target['name'], target['project'], target['descriptor'])
+                    args = self._failure_receipt(target)
                     args.pop('name')
                     first = call('tools/call', dict(name='read_script', arguments=args))['structuredContent']['result']
                     if target['name'] == 'failure_limited':

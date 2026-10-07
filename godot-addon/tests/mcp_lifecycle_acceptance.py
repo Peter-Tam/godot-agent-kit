@@ -528,6 +528,8 @@ class McpLifecycleMixin:
                                 target = self.targets.get(project) if isinstance(project, str) else None
                                 if target and self.args.profile == 'composed':
                                     self.before_composed_call(target, value)
+                                if target and target['name'].startswith('failure_'):
+                                    self.before_failure_call(target)
                                 marker = target['project'] / 'scripts/.gdignore' if target else None
                                 if (params['name'] == 'discover_scripts' and target and
                                         target['name'] != 'partial' and marker.exists()):
