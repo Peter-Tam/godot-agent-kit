@@ -162,6 +162,14 @@ def main():
             code = 1
             harness.summary.update(status="failed", stage=str(error) if isinstance(error, observation.Failure)
                                    else type(error).__name__)
+            if isinstance(error, OSError):
+                harness.summary["error_errno"] = error.errno
+                trace = error.__traceback__
+                while trace is not None and trace.tb_next is not None:
+                    trace = trace.tb_next
+                if trace is not None:
+                    harness.summary["error_location"] = {
+                        "function": trace.tb_frame.f_code.co_name, "line": trace.tb_lineno}
         finally:
             try:
                 if not getattr(harness, "prepared_cleanup_complete", False):
