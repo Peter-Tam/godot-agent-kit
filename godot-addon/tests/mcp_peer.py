@@ -150,7 +150,7 @@ class McpPeer:
         content = carrier.get('structuredContent')
         observation.require(isinstance(content, dict) and set(content) ==
                             {'schema_version', 'operation', 'request_id', 'result', 'error'} and
-                            content['schema_version'] == 1 and content['operation'] == call['operation'] and
+                            content['schema_version'] == 2 and content['operation'] == call['operation'] and
                             ((content['result'] is None) != (content['error'] is None)),
                             'MCP_authoritative_typed_envelope_' + label)
         request_id = content['request_id']
@@ -161,6 +161,10 @@ class McpPeer:
             observation.require(request_id == call['domain_request_id'], 'MCP_barrier_domain_owner_' + label)
         if content['error'] is not None:
             observation.require(carrier.get('isError') is True, 'MCP_adapter_error_summary_' + label)
+        if call['operation'] == 'edit_script' and content['result'] is not None:
+            outcome = content['result'].get('outcome', {})
+            if outcome.get('outcome') not in ('verified_changed', 'verified_unchanged'):
+                observation.require(carrier.get('isError') is True, 'MCP_non_success_is_error_' + label)
         raw = json.dumps(response, ensure_ascii=False).encode()
         observation.require(all(secret not in raw for secret in self.harness.secrets),
                             'MCP_no_credential_disclosure_' + label)
@@ -237,9 +241,9 @@ class McpAdversarialMixin:
         self.record_witness(label, before, disks, after, now, editor)
         return result
 
-    def mcp_edit(self, peer, project, descriptor, revision, replacement, label, expected):
-        content = peer.call('edit_script', dict(selectors(project, descriptor), revision=revision,
-                                              replacement_source=replacement), label)
+    def mcp_edit(self, peer, project, descriptor, basis, replacement, label, expected):
+        content = peer.call('edit_script', dict(selectors(project, descriptor), revision=basis['revision'],
+                                              old_string=basis['source'], new_string=replacement), label)
         return self.mcp_review_edit(content, label, expected)
 
     def mcp_review_edit(self, content, label, expected):
@@ -266,6 +270,13 @@ class McpAdversarialMixin:
         observation.require((isinstance(outcome.get('safe_next_action'), str) if result['mode'] == 'open' else
                              isinstance(outcome.get('next_action'), dict) and
                              isinstance(outcome['next_action'].get('kind'), str)), 'MCP_actionable_result_' + label)
+        if outcome.get('reason') in ('no_match', 'ambiguous_match', 'empty_old_string') or (
+                outcome.get('reason') == 'invalid_source' and outcome.get('stage') == 'matching'):
+            observation.require(outcome['outcome'] == 'refused' and outcome['application'] == 'not_applied' and
+                                outcome.get('stage') == 'matching' and
+                                (outcome.get('safe_next_action') == 'fresh_read' if result['mode'] == 'open' else
+                                 outcome.get('next_action', {}).get('kind') == 'fresh_read'),
+                                'MCP_matching_is_safe_refusal_not_unchanged_success_' + label)
         self.last_workflow_edit = result
         self.cases[-1].update(mode=result['mode'], outcome=outcome['outcome'],
                               application=outcome['application'], reason=outcome.get('reason'))

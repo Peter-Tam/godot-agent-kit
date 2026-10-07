@@ -41,7 +41,7 @@ class McpValidationMixin:
                                 stream.seek(0)
                                 stream.write(bytes([first[0] ^ 1]))
                             call = peer.start('edit_script', dict(selectors(project, descriptor),
-                                               revision=basis['revision'], replacement_source=DESIRED))
+                                               revision=basis['revision'], old_string=basis['source'], new_string=DESIRED))
                         root = peer.finish(call, label)
                         result = self.mcp_review_edit(root, label,
                                                      'refused' if boundary == 'before' else 'applied_unverified')

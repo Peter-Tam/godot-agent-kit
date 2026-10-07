@@ -108,6 +108,43 @@ fn negotiation_gating_and_catalog() {
         .collect();
     assert_eq!(names, ["discover_scripts", "read_script", "edit_script"]);
     assert!(response["result"].get("nextCursor").is_none());
+    for tool in response["result"]["tools"].as_array().unwrap() {
+        assert_eq!(tool["inputSchema"]["additionalProperties"], false);
+        assert_eq!(
+            tool["outputSchema"]["properties"]["schema_version"]["const"],
+            2
+        );
+        assert_eq!(
+            tool["outputSchema"]["properties"]["operation"]["const"],
+            tool["name"]
+        );
+        assert_eq!(tool["outputSchema"]["additionalProperties"], false);
+    }
+    let edit = &response["result"]["tools"][2];
+    assert_eq!(
+        edit["inputSchema"]["required"],
+        json!([
+            "project_root",
+            "script_path",
+            "revision",
+            "old_string",
+            "new_string"
+        ])
+    );
+    let properties = edit["inputSchema"]["properties"].as_object().unwrap();
+    assert_eq!(properties.len(), 6);
+    for fragment in ["old_string", "new_string"] {
+        assert_eq!(properties[fragment]["type"], "string");
+        assert!(properties[fragment].get("minLength").is_none());
+        assert!(properties[fragment].get("maxLength").is_none());
+    }
+    for forbidden in ["replacement_source", "mode", "replace_all", "occurrence"] {
+        assert!(!properties.contains_key(forbidden));
+    }
+    assert!(edit["inputSchema"].get("oneOf").is_none());
+    assert_eq!(edit["annotations"]["readOnlyHint"], false);
+    assert_eq!(edit["annotations"]["destructiveHint"], true);
+    assert_eq!(edit["annotations"]["idempotentHint"], false);
     peer.send(json!({"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"cursor":"anything"}}));
     assert_eq!(peer.read()["error"]["code"], -32602);
     peer.send(json!({"jsonrpc":"2.0","id":4,"method":"resources/list"}));
@@ -123,6 +160,11 @@ fn malformed_frames_ids_and_privacy() {
     assert!(parse["id"].is_null());
     peer.raw("{\"jsonrpc\":\"2.0\",\"id\":1,\"id\":2,\"method\":\"ping\"}\n");
     assert_eq!(peer.read()["error"]["code"], -32700);
+    peer.initialize();
+    peer.raw("{\"jsonrpc\":\"2.0\",\"id\":\"duplicate-fragment\",\"method\":\"tools/call\",\"params\":{\"name\":\"edit_script\",\"arguments\":{\"project_root\":\"/tmp/project\",\"script_path\":\"res://target.gd\",\"old_string\":\"PRIVATE_OLD_SENTINEL\",\"old_string\":\"\",\"new_string\":\"PRIVATE_NEW_SENTINEL\"}}}\n");
+    let duplicate = peer.read();
+    assert_eq!(duplicate["error"]["code"], -32700);
+    assert!(!duplicate.to_string().contains("SENTINEL"));
     for id in [
         json!(1.5),
         json!("x".repeat(129)),
@@ -602,7 +644,7 @@ fn interrupted_acquisition(interruption: AcquisitionInterruption) {
         json!({"jsonrpc":"2.0","id":"active","method":"tools/call","params":{
             "name":"edit_script","arguments":{"project_root":project,"session_id":SESSION,
                 "script_path":"res://target.gd","revision":format!("sr1:{}", "a".repeat(64)),
-                "replacement_source":"extends Node\n# must not apply\n"}
+                "old_string":"# original","new_string":"# must not apply"}
         }}),
     );
     started.recv_timeout(Duration::from_secs(3)).unwrap();
@@ -613,7 +655,7 @@ fn interrupted_acquisition(interruption: AcquisitionInterruption) {
             json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{
                 "name":"edit_script","arguments":{"project_root":project,"session_id":SESSION,
                     "script_path":"res://target.gd","revision":format!("sr1:{}", "a".repeat(64)),
-                    "replacement_source":"extends Node\n# rejected private source\n"}
+                    "old_string":"# original","new_string":"# rejected private source"}
             }}),
         );
         let response = peer.read();

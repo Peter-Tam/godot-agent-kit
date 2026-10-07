@@ -238,7 +238,7 @@ pub(super) fn failure(operation: Operation, id: &RequestId, failure: Failure) ->
         }
     };
     let envelope: Envelope<'_, ()> = Envelope {
-        schema_version: 1,
+        schema_version: 2,
         operation: operation.name(),
         request_id: id.as_str(),
         result: None,
@@ -285,9 +285,10 @@ pub(super) fn complete(
             "Current script state returned; only a non-null revision supplies an edit precondition."
         }
         (Operation::Edit, false) => "Edit verified. The admitted document lifecycle was preserved.",
+        (Operation::Edit, true) => edit::guidance(&result),
         (_, true) => "Operation did not succeed. Follow the structured result's next action.",
     };
-    let envelope = json!({"schema_version":1,"operation":operation.name(),"request_id":id.as_str(),"result":result,"error":null});
+    let envelope = json!({"schema_version":2,"operation":operation.name(),"request_id":id.as_str(),"result":result,"error":null});
     if !within_limit(&envelope, 16 * 1024 * 1024) {
         return failure(operation, id, Failure::InvalidOutput(retained));
     }
@@ -340,7 +341,7 @@ pub(super) fn schema(operation: Operation) -> Map<String, Value> {
     };
     schema.remove("title");
     if let Some(properties) = schema.get_mut("properties").and_then(Value::as_object_mut) {
-        properties.insert("schema_version".into(), json!({"const":1}));
+        properties.insert("schema_version".into(), json!({"const":2}));
         properties.insert("operation".into(), json!({"const":operation.name()}));
     }
     schema.insert(

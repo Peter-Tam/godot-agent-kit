@@ -47,12 +47,12 @@ class McpFailureMixin:
         if not any(t['name'] in FAILURE_PROFILES for t in self.targets.values()):
             return super().prepared_prompt()
         targets = [dict(target_receipt(t['name'], t['project'], t['descriptor']),
-                        replacement_source=None if t['name'] == 'failure_limited' else t['desired'])
+                        intended_source=None if t['name'] == 'failure_limited' else t['desired'])
                    for t in self.targets.values()]
         return ('Use only godot_agent_kit MCP tools for project operations, not shell, files or other bridges. '
                 'Complete one target at a time. Read each explicit target. For failure_limited, explain the '
                 'observed source, unavailable state and revision; do not edit. For each other target, '
-                'if read supplies an edit revision, request the listed replacement once with that revision. '
+                'if read supplies an edit revision, send its exact complete source as old_string and the listed intended_source as new_string once with that revision. '
                 'Interpret the actual structured outcome, target, effect certainty, evidence availability '
                 'and next action. After that attempt, read the same explicit target to inspect surviving '
                 'source and lifecycle, then stop editing it. If delivery fails, report that separately '
@@ -186,11 +186,18 @@ class McpFailureMixin:
                 observation.require(not any(c['name'] == 'edit_script' for c in calls), 'limited_no_blind_edit')
                 self.assert_no_effect(target['name'], target['project'], target['editor'], target['before'], target['disks'])
                 continue
-            edits = [c for c in calls if c['name'] == 'edit_script' and c['structuredContent']['result'] is not None]
+            edits = [c for c in calls if c['name'] == 'edit_script']
+            observation.require(all(isinstance(c['structuredContent']['result'], dict) for c in edits),
+                                'failure_no_unchecked_or_legacy_edit_substitute')
             observation.require(bool(edits) and calls.index(reads[0]) < calls.index(edits[0]) < calls.index(reads[-1]),
                                 'failure_fresh_read_before_and_after_intent')
-            observation.require(edits[0]['arguments']['revision'] == reads[0]['structuredContent']['result']['revision'] and
-                                edits[0]['arguments']['replacement_source'] == target['desired'],
+            initial = reads[0]['structuredContent']['result']
+            observation.require(isinstance(initial.get('source'), str) and isinstance(initial.get('revision'), str) and
+                                edits[0]['arguments'].get('revision') == initial['revision'] and
+                                edits[0]['arguments'].get('old_string') == initial['source'] and
+                                edits[0]['arguments'].get('new_string') == target['desired'] and
+                                not (set(edits[0]['arguments']) -
+                                     {'project_root', 'session_id', 'script_path', 'revision', 'old_string', 'new_string'}),
                                 'failure_model_uses_returned_revision_and_requested_source')
             if target['name'] != 'failure_reconnect':
                 observation.require(len(edits) == 1, 'no_blind_replay_after_refusal_or_uncertainty')
@@ -253,7 +260,7 @@ class McpFailureMixin:
                     first = call('tools/call', dict(name='read_script', arguments=args))['structuredContent']['result']
                     if target['name'] == 'failure_limited':
                         continue
-                    edit_args = dict(args, revision=first['revision'], replacement_source=target['desired'])
+                    edit_args = dict(args, revision=first['revision'], old_string=first['source'], new_string=target['desired'])
                     try:
                         call('tools/call', dict(name='edit_script', arguments=edit_args))
                     except EOFError:

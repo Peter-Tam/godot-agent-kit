@@ -34,6 +34,81 @@ impl ReplacementSource {
     }
 }
 
+/// Bounded literal fragments; neither fragment is required to be a complete script.
+pub(crate) struct ExactReplacement {
+    old: String,
+    new: String,
+}
+impl fmt::Debug for ExactReplacement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ExactReplacement([redacted])")
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExactMatchError {
+    NoMatch,
+    AmbiguousMatch,
+    EmptyOldString,
+    InvalidSource,
+}
+impl ExactMatchError {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::NoMatch => "no_match",
+            Self::AmbiguousMatch => "ambiguous_match",
+            Self::EmptyOldString => "empty_old_string",
+            Self::InvalidSource => "invalid_source",
+        }
+    }
+}
+
+impl ExactReplacement {
+    pub(crate) fn new(old: String, new: String) -> Result<Self, EditError> {
+        let old = ReplacementSource::new(old)?.0;
+        let new = ReplacementSource::new(new)?.0;
+        Ok(Self { old, new })
+    }
+
+    /// Resolve against the same complete admitted source used for the expected basis.
+    pub(crate) fn derive(self, current: &str) -> Result<ReplacementSource, ExactMatchError> {
+        if self.old.is_empty() {
+            return if current.is_empty() {
+                Ok(ReplacementSource(self.new))
+            } else {
+                Err(ExactMatchError::EmptyOldString)
+            };
+        }
+        let start = current.find(&self.old).ok_or(ExactMatchError::NoMatch)?;
+        // Advance one code point, not the matched span: overlapping starts count.
+        let next = start
+            + self
+                .old
+                .chars()
+                .next()
+                .expect("nonempty old text")
+                .len_utf8();
+        if current[next..].find(&self.old).is_some() {
+            return Err(ExactMatchError::AmbiguousMatch);
+        }
+        let end = start + self.old.len();
+        let length = current
+            .len()
+            .checked_sub(self.old.len())
+            .and_then(|length| length.checked_add(self.new.len()))
+            .filter(|length| *length <= SOURCE_LIMIT_BYTES)
+            .ok_or(ExactMatchError::InvalidSource)?;
+        if start == 0 && end == current.len() {
+            return Ok(ReplacementSource(self.new));
+        }
+        let mut result = String::with_capacity(length);
+        result.push_str(&current[..start]);
+        result.push_str(&self.new);
+        result.push_str(&current[end..]);
+        ReplacementSource::new(result).map_err(|_| ExactMatchError::InvalidSource)
+    }
+}
+
 /// Digest is a summary, never authority to write or a substitute for exact byte comparison.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SourceDigest {
@@ -248,5 +323,133 @@ impl EditRequest {
     }
     pub fn replacement_source(&self) -> &ReplacementSource {
         &self.replacement_source
+    }
+}
+
+#[cfg(test)]
+mod exact_tests {
+    use super::*;
+
+    fn derive(old: &str, new: &str, current: &str) -> Result<ReplacementSource, ExactMatchError> {
+        ExactReplacement::new(old.into(), new.into())
+            .unwrap()
+            .derive(current)
+    }
+
+    #[test]
+    fn counts_literal_starts_including_overlaps() {
+        for (old, current, expected) in [
+            ("old", "new", ExactMatchError::NoMatch),
+            ("a", "aba", ExactMatchError::AmbiguousMatch),
+            ("aa", "aaa", ExactMatchError::AmbiguousMatch),
+            ("éé", "ééé", ExactMatchError::AmbiguousMatch),
+            ("🦀🦀", "🦀🦀🦀", ExactMatchError::AmbiguousMatch),
+        ] {
+            assert_eq!(derive(old, "new", current), Err(expected));
+        }
+        assert_eq!(derive("aa", "b", "aa").unwrap().as_str(), "b");
+        assert_eq!(derive("éé", "b", "éé").unwrap().as_str(), "b");
+    }
+
+    #[test]
+    fn preserves_exact_surroundings_and_never_rescans_inserted_text() {
+        for (old, new, current, expected) in [
+            ("a", "ab", "abc", "abbc"),
+            ("b", "bb", "abc", "abbc"),
+            ("c", "cc", "abc", "abcc"),
+            ("old", "old old", "before old after", "before old old after"),
+            ("\tλ\n x", "\t🦀\n  y", "A\n\tλ\n x\nZ", "A\n\t🦀\n  y\nZ"),
+            (" ", "\t", "a b", "a\tb"),
+        ] {
+            assert_eq!(derive(old, new, current).unwrap().as_str(), expected);
+        }
+        for (old, current) in [
+            ("Old", "old"),
+            ("a b", "a  b"),
+            ("a\tb", "a b"),
+            ("a\nb", "a b"),
+            ("é", "e\u{301}"),
+            ("e\u{301}", "é"),
+        ] {
+            assert_eq!(derive(old, "x", current), Err(ExactMatchError::NoMatch));
+        }
+    }
+
+    #[test]
+    fn deletion_equal_and_complete_empty_intents_remain_exact() {
+        for (old, new, current, expected) in [
+            ("b", "", "abc", "ac"),
+            ("abc", "", "abc", ""),
+            ("abc", "abc", "abc", "abc"),
+            ("", "new\n", "", "new\n"),
+            ("", "", "", ""),
+            (" \t\n", "", " \t\n", ""),
+        ] {
+            assert_eq!(derive(old, new, current).unwrap().as_str(), expected);
+        }
+        for current in ["a", " ", "\t", "\n", " \t\n"] {
+            assert_eq!(
+                derive("", "x", current),
+                Err(ExactMatchError::EmptyOldString)
+            );
+        }
+        assert_eq!(derive("a", "a", "aa"), Err(ExactMatchError::AmbiguousMatch));
+        assert_eq!(derive("old", "new", "new"), Err(ExactMatchError::NoMatch));
+    }
+
+    #[test]
+    fn fragment_representation_and_utf8_byte_caps_are_checked() {
+        let cap = "é".repeat(SOURCE_LIMIT_BYTES / 2);
+        assert!(ExactReplacement::new(cap.clone(), cap.clone()).is_ok());
+        assert!(ExactReplacement::new(String::new(), String::new()).is_ok());
+        for invalid in [
+            format!("{cap}a"),
+            "\0".into(),
+            "\r".into(),
+            "\u{feff}".into(),
+        ] {
+            assert_eq!(
+                ExactReplacement::new(invalid.clone(), "x".into()).unwrap_err(),
+                EditError::InvalidSource
+            );
+            assert_eq!(
+                ExactReplacement::new("x".into(), invalid).unwrap_err(),
+                EditError::InvalidSource
+            );
+        }
+        // Fragments are text, not independently valid scripts.
+        assert!(ExactReplacement::new(")".into(), "(".into()).is_ok());
+    }
+
+    #[test]
+    fn combined_source_limit_is_checked_before_construction() {
+        let current = format!("a{}", "é".repeat((SOURCE_LIMIT_BYTES - 2) / 2));
+        assert_eq!(
+            derive("a", "ab", &current).unwrap().as_str().len(),
+            SOURCE_LIMIT_BYTES
+        );
+        assert_eq!(
+            derive("a", "abc", &current),
+            Err(ExactMatchError::InvalidSource)
+        );
+        let new = "x".repeat(SOURCE_LIMIT_BYTES);
+        assert_eq!(derive("a", &new, "a").unwrap().as_str(), new);
+        assert_eq!(derive("a", &new, "ab"), Err(ExactMatchError::InvalidSource));
+    }
+
+    #[test]
+    fn diagnostics_never_include_source_or_match_locations() {
+        let intent = ExactReplacement::new("PRIVATE_OLD".into(), "PRIVATE_NEW".into()).unwrap();
+        let debug = format!("{intent:?}");
+        assert!(!debug.contains("PRIVATE_OLD"));
+        assert!(!debug.contains("PRIVATE_NEW"));
+        for (error, reason) in [
+            (ExactMatchError::NoMatch, "no_match"),
+            (ExactMatchError::AmbiguousMatch, "ambiguous_match"),
+            (ExactMatchError::EmptyOldString, "empty_old_string"),
+            (ExactMatchError::InvalidSource, "invalid_source"),
+        ] {
+            assert_eq!(error.as_str(), reason);
+        }
     }
 }

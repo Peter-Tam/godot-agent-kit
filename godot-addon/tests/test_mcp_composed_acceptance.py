@@ -25,7 +25,7 @@ class Harness(composed.McpComposedMixin, WitnessBase):
         self.target = dict(name=profile, project=Path('/owned') / profile,
                            descriptor={'session_id': profile}, editor={}, calls=[],
                            steps=composed.composed_steps(profile), cursor=0, pending=None,
-                           fresh={'source': SAFE, 'revision': 'fresh'}, first_revision='old',
+                           fresh={'source': SAFE, 'revision': 'fresh'}, first_revision='old', first_source=SAFE,
                            first_replacement=composed.replacement(SAFE, profile, 1), source=SAFE,
                            successes=0, dirty_refusals=0, stale_refusals=0)
         self.targets = {str(self.target['project']): self.target}
@@ -40,8 +40,8 @@ class Harness(composed.McpComposedMixin, WitnessBase):
         args = dict(project_root=str(self.target['project']), session_id=self.target['name'], script_path=TARGET)
         if role in ('change', 'dirty', 'stale'):
             args.update(revision='old' if role == 'stale' else 'fresh',
-                        replacement_source=self.target['first_replacement'] if role == 'stale' else
-                        composed.replacement(SAFE, self.target['name'], index if role == 'change' else index + 1))
+                        **composed.exact_pair(SAFE, self.target['first_replacement'] if role == 'stale' else
+                        composed.replacement(SAFE, self.target['name'], index if role == 'change' else index + 1)))
         args.update(overrides)
         return dict(id='owned', params=dict(name=composed.tool_for(role), arguments=args))
 
@@ -83,7 +83,7 @@ class ComposedProtocolTests(unittest.TestCase):
 
     def test_wrong_sequence_wrong_session_or_replacement_cannot_mutate_fixture(self):
         for role, index, overrides in [('change', 1, {}), ('dirty', 2, {'session_id': 'other'}),
-                                       ('dirty', 2, {'replacement_source': SAFE})]:
+                                       ('dirty', 2, {'new_string': SAFE}), ('dirty', 2, {'old_string': SAFE})]:
             h = Harness()
             h.at('dirty', 2)
             with self.assertRaises(composed.observation.Failure):

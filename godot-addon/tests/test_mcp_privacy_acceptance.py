@@ -58,6 +58,20 @@ class DisclosureTests(unittest.TestCase):
         with self.assertRaises(privacy.observation.Failure):
             privacy.assert_disclosure(self.read_response(), 'denied', sources=('SELECTED_SOURCE',))
 
+    def test_matching_error_cannot_disclose_either_exact_fragment(self):
+        old, new = '# PRIVATE_OLD_FRAGMENT\n', '# PRIVATE_NEW_FRAGMENT\n'
+        response = {'result': {'structuredContent': {
+            'schema_version': 2, 'operation': 'edit_script', 'request_id': 'owned', 'error': None,
+            'result': {'mode': 'closed', 'outcome': {
+                'outcome': 'refused', 'application': 'not_applied', 'stage': 'matching', 'reason': 'no_match'}}},
+            'content': [{'type': 'text', 'text': 'Read again.'}], 'isError': True}}
+        privacy.assert_disclosure(response, 'matching', sources=(old, new))
+        for fragment in (old, new):
+            changed = copy.deepcopy(response)
+            changed['result']['structuredContent']['result']['outcome']['diagnostic'] = fragment
+            with self.subTest(fragment=fragment), self.assertRaises(privacy.observation.Failure):
+                privacy.assert_disclosure(changed, 'matching', sources=(old, new))
+
     def test_inventory_grant_is_one_entry_not_all_text_or_candidate_paths(self):
         response = {'result': {'structuredContent': {'result': {'inventory': {
             'entries': ['res://scripts/SELECTED_INVENTORY.gd']}}}}}
@@ -85,7 +99,7 @@ class DisclosureTests(unittest.TestCase):
             h.secrets = {b'credential-secret'}
             h.source_markers = {b'PRIVATE_TARGET'}
             source = SAFE + '# PRIVATE_TARGET\n'
-            body = dict(schema_version=1, operation='read_script', request_id='owned',
+            body = dict(schema_version=2, operation='read_script', request_id='owned',
                         result=None, error={'category': 'selection', 'code': 'ambiguous_session'})
             witnesses = [({'documents': []}, {TARGET: {'text': source, 'sha256': sha(source)},
                                              CURRENT: {'text': SAFE, 'sha256': sha(SAFE)}})]

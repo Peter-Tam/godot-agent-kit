@@ -82,6 +82,9 @@ class WorkflowHarness(McpValidationMixin, McpComposedMixin, McpPrivacyAcceptance
                                 adversarial_driver_sha256={name: observation.digest(Path(__file__).with_name(name))
                                     for name in ("mcp_peer.py", "mcp_preservation_acceptance.py",
                                                  "mcp_interruption_acceptance.py", "mcp_failure_acceptance.py")})
+        if args.scenario == "preservation-exact-baseline":
+            self.summary.update(coverage_scope="exact_intent_safety_and_matching_precedence",
+                                changed_boundary="exact_intent_derivation_and_retained_error_reduction")
         if args.scenario in ("composed", "privacy-export", *PRIVACY_GROUPS) or args.profile == "composed":
             self.summary.update(coverage_scope="composed_MCP_acceptance_" + args.scenario,
                                 changed_boundary="composed_and_privacy_acceptance_fixtures",

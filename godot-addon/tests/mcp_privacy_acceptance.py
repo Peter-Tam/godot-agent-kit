@@ -196,7 +196,7 @@ class McpPrivacyAcceptanceMixin(McpAdversarialMixin):
                     self.assert_no_effect('privacy-nonmutating-paths', root, owner, before, disks)
                 self.present_editor(editor)
                 before, disks = self.state(editor, project)
-                self.mcp_edit(peer, project, descriptor, basis['revision'], proposed,
+                self.mcp_edit(peer, project, descriptor, basis, proposed,
                               'privacy-authorized-edit', 'verified_changed')
                 self._privacy_response('privacy-authorized-edit',
                                        sources=(selected, proposed, unselected,
@@ -210,6 +210,21 @@ class McpPrivacyAcceptanceMixin(McpAdversarialMixin):
                 self._privacy_response('privacy-authorized-survivor', sources=sources, inventory=inventory,
                                        grants={value: READ_TEXT_PATHS for value in
                                                (proposed, 'MCP_PRIVACY_PROPOSED_SOURCE')})
+                missing, new_fragment = '# MCP_PRIVACY_MISSING_FRAGMENT\n', '# MCP_PRIVACY_NEW_FRAGMENT\n'
+                self.source_markers.update((missing.encode(), new_fragment.encode()))
+                before, disks = self.state(editor, project)
+                match_error = peer.call('edit_script', dict(selectors(project, descriptor),
+                                       revision=after_basis['revision'], old_string=missing,
+                                       new_string=new_fragment), 'privacy-matching-error')
+                refusal = self.mcp_review_edit(match_error, 'privacy-matching-error', 'refused')
+                observation.require(refusal['outcome']['reason'] == 'no_match' and
+                                    refusal['outcome']['stage'] == 'matching', 'privacy_actual_matching_refusal')
+                self._privacy_response('privacy-matching-error',
+                                       sources=(selected, proposed, unselected, sha(unselected),
+                                                'MCP_PRIVACY_SELECTED_SOURCE', 'MCP_PRIVACY_PROPOSED_SOURCE',
+                                                'MCP_PRIVACY_UNSELECTED_SOURCE', missing, new_fragment),
+                                       inventory=inventory)
+                self.assert_no_effect('privacy-matching-error', project, editor, before, disks)
                 _, _, other_before, other_disks = witnesses[1]
                 self.assert_no_effect('privacy-unselected-survives-edit', other_project, other_editor,
                                       other_before, other_disks)

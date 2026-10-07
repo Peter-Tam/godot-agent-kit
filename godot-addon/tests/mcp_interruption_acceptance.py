@@ -81,7 +81,7 @@ class McpInterruptionMixin(McpAdversarialMixin):
         basis = self.mcp_read(peer, project, editor, descriptor, label + "-basis", source=SAFE)
         self._interruption_arm(editor, profile, stage)
         call = peer.start("edit_script", dict(selectors(project, descriptor),
-                                             revision=basis["revision"], replacement_source=DESIRED))
+                                             revision=basis["revision"], old_string=basis['source'], new_string=DESIRED))
         self.wait_mcp_barrier(editor, "edit:" + stage if profile == "open" else stage, peer, call)
         return call
 
@@ -196,7 +196,7 @@ class McpInterruptionMixin(McpAdversarialMixin):
                     else:
                         self.close_action(editor, "closed_arm", stage="inspect")
                     call = peer.start("edit_script", dict(selectors(project, descriptor),
-                                                         revision=basis["revision"], replacement_source=DESIRED))
+                                                         revision=basis["revision"], old_string=basis['source'], new_string=DESIRED))
                     if profile == "open":
                         self.wait_barrier(editor, "observe", peer.process)
                     else:
@@ -224,7 +224,7 @@ class McpInterruptionMixin(McpAdversarialMixin):
                     else:
                         self.close_action(editor, "closed_arm", stage="inspect")
                     call = peer.start("edit_script", dict(selectors(project, descriptor),
-                                                         revision=basis["revision"], replacement_source=DESIRED))
+                                                         revision=basis["revision"], old_string=basis['source'], new_string=DESIRED))
                     if profile == "open":
                         self.wait_barrier(editor, "observe", peer.process)
                     else:
@@ -290,7 +290,7 @@ class McpInterruptionMixin(McpAdversarialMixin):
                                             any(d["code"] == "timeout" for d in discovery["result"]["diagnostics"]),
                                             "unresponsive_discovery_five_second_terminal_" + profile)
                         call = peer.start("edit_script", dict(selectors(project, descriptor),
-                                                             revision=basis["revision"], replacement_source=DESIRED))
+                                                             revision=basis["revision"], old_string=basis['source'], new_string=DESIRED))
                         root = peer.finish(call, label)
                         result = self.mcp_review_edit(root, label, "refused")
                         observation.require(result["outcome"]["application"] == "not_applied" and
@@ -441,7 +441,7 @@ class McpInterruptionMixin(McpAdversarialMixin):
                                 combined = action + "_" + interruption
                                 self.close_action(editor, "closed_arm", callback_stage=stage, callback_action=combined)
                                 call = peer.start("edit_script", dict(selectors(project, descriptor),
-                                                                     revision=basis["revision"], replacement_source=DESIRED))
+                                                                     revision=basis["revision"], old_string=basis['source'], new_string=DESIRED))
                                 root = peer.finish(call, label)
                                 result = self.mcp_review_edit(root, label, ("applied_unverified", "application_unknown"))
                                 after, now = self._interruption_survivor(project, editor, before, disks, label,
@@ -737,13 +737,13 @@ class McpInterruptionMixin(McpAdversarialMixin):
                             # corruption only after an independently entered effect.
                             self._interruption_arm(editor, profile, "verify:post_change")
                             call = peer.start("edit_script", dict(selectors(project, descriptor),
-                                                                 revision=basis["revision"], replacement_source=DESIRED))
+                                                                 revision=basis["revision"], old_string=basis['source'], new_string=DESIRED))
                             self.wait_mcp_barrier(editor, "verify:post_change", peer, call)
                             self.close_action(editor, "closed_arm", reply_fault="malformed", reply_fault_kind=kind)
                         else:
                             self.close_action(editor, "closed_arm", reply_fault="malformed", reply_fault_kind=kind)
                             call = peer.start("edit_script", dict(selectors(project, descriptor),
-                                                                 revision=basis["revision"], replacement_source=DESIRED))
+                                                                 revision=basis["revision"], old_string=basis["source"], new_string=DESIRED))
                         root = peer.finish(call, label)
                         if root["error"] is not None:
                             error = root["error"]

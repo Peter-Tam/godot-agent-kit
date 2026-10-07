@@ -466,6 +466,35 @@ struct Context<'a> {
     dependencies: Vec<Dependency<'a>>,
 }
 
+fn matching_reason(reason: &str) -> bool {
+    matches!(
+        reason,
+        "no_match" | "ambiguous_match" | "empty_old_string" | "invalid_source"
+    )
+}
+
+pub(super) fn guidance(result: &Value) -> &'static str {
+    let outcome = &result["outcome"];
+    if outcome["stage"] == "matching" {
+        match outcome["reason"].as_str() {
+            Some("no_match") => {
+                return "No exact match. Read the script again and quote its exact current text.";
+            }
+            Some("ambiguous_match") => {
+                return "Ambiguous match. Read again and use a larger span that occurs once.";
+            }
+            Some("empty_old_string") => {
+                return "The script is not empty. Read again and use a nonempty span.";
+            }
+            Some("invalid_source") => {
+                return "Replacement exceeds supported source bounds. Read again and submit a bounded replacement.";
+            }
+            _ => {}
+        }
+    }
+    "Edit did not succeed. Read the original target before another edit."
+}
+
 fn terminal(outcome: &Outcome, application: Application) -> bool {
     match outcome {
         Outcome::VerifiedChanged => application == Application::Applied,
@@ -531,6 +560,20 @@ fn validate_typed(result: EditResult<'_>, id: &str) -> Result<bool, ()> {
     if *request_id != id || !terminal(outcome, application) {
         return Err(());
     }
+    let (reason, stage, fresh_read) = match &result {
+        EditResult::Open { outcome: o } => (o.reason, o.stage, o.safe_next_action == "fresh_read"),
+        EditResult::Closed { outcome: o } => (
+            o.reason,
+            o.stage,
+            matches!(o.next_action, NextAction::FreshRead),
+        ),
+        EditResult::Undetermined { outcome: o } => (o.reason, o.stage, false),
+    };
+    if stage == "matching"
+        && (!matching_reason(reason) || *outcome != Outcome::Refused || !fresh_read)
+    {
+        return Err(());
+    }
     let success = matches!(
         outcome,
         Outcome::VerifiedChanged | Outcome::VerifiedUnchanged
@@ -545,7 +588,7 @@ fn validate_typed(result: EditResult<'_>, id: &str) -> Result<bool, ()> {
                     && o.evidence
                         .as_ref()
                         .is_some_and(|e| e.buffer == ClosedBuffer::NotApplicableClosed)
-                || o.outcome == Outcome::VerifiedUnchanged
+                || (o.outcome == Outcome::VerifiedUnchanged || o.stage == "matching")
                     && (o.effects.authorized
                         || o.effects.resource_entered
                         || o.effects.resource_changed
@@ -569,6 +612,21 @@ fn validate_typed(result: EditResult<'_>, id: &str) -> Result<bool, ()> {
             }
         }
         EditResult::Open { outcome: o } => {
+            if o.stage == "matching"
+                && (o.history != History::NotParticipated
+                    || [
+                        &o.progress.buffer_application,
+                        &o.progress.resource_sync,
+                        &o.progress.persistence,
+                        &o.progress.finalization,
+                    ]
+                    .iter()
+                    .any(|step| !matches!(step.state, StepState::NotStarted))
+                    || o.persistence.is_some()
+                    || o.finalization.is_some())
+            {
+                return Err(());
+            }
             if success
                 && !o.after.as_ref().is_some_and(|a| {
                     a.document.open_state.value == Some("open")

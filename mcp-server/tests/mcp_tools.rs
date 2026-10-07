@@ -102,27 +102,71 @@ fn malformed_semantic_arguments_are_source_free_tool_errors_without_dispatch() {
 }
 
 #[test]
-fn replacement_and_revision_validation_precede_editor_selection() {
+fn exact_fragments_and_revision_validation_precede_editor_selection() {
     let mut client = Client::new();
-    let base = json!({"project_root":"/tmp/kit-absent-project","script_path":"res://target.gd","revision":format!("sr1:{}", "a".repeat(64)),"replacement_source":""});
-    for replacement in [
-        json!(null),
-        json!("bad\r\n"),
-        json!("bad\0"),
-        json!("\u{feff}"),
-        json!("x".repeat(512 * 1024 + 1)),
+    let base = json!({"project_root":"/tmp/kit-absent-project","script_path":"res://target.gd","revision":format!("sr1:{}", "a".repeat(64)),"old_string":"","new_string":""});
+    let mut cases = Vec::new();
+    for field in [
+        "old_string",
+        "new_string",
+        "revision",
+        "project_root",
+        "script_path",
+    ] {
+        for value in [Value::Null, json!(42), json!(false), json!([]), json!({})] {
+            let mut arguments = base.clone();
+            arguments[field] = value;
+            cases.push(arguments);
+        }
+        let mut missing = base.clone();
+        missing.as_object_mut().unwrap().remove(field);
+        cases.push(missing);
+    }
+    for field in ["old_string", "new_string"] {
+        for value in [
+            "PRIVATE_FRAGMENT_SENTINEL\r\n".to_owned(),
+            "PRIVATE_FRAGMENT_SENTINEL\0".to_owned(),
+            "PRIVATE_FRAGMENT_SENTINEL\u{feff}".to_owned(),
+            "é".repeat(262145),
+            "x".repeat(524289),
+        ] {
+            let mut arguments = base.clone();
+            arguments[field] = json!(value);
+            cases.push(arguments);
+        }
+    }
+    let mut legacy = base.clone();
+    legacy.as_object_mut().unwrap().remove("old_string");
+    legacy.as_object_mut().unwrap().remove("new_string");
+    legacy["replacement_source"] = json!("PRIVATE_LEGACY_SENTINEL");
+    cases.push(legacy);
+    for (field, value) in [
+        ("replacement_source", json!("PRIVATE_LEGACY_SENTINEL")),
+        ("mode", json!("exact")),
+        ("replace_all", json!(true)),
+        ("occurrence", json!(1)),
+        ("extra", json!("PRIVATE_EXTRA_SENTINEL")),
+        ("session_id", Value::Null),
+        ("revision", json!(format!("sr1:{}", "A".repeat(64)))),
     ] {
         let mut arguments = base.clone();
-        arguments["replacement_source"] = replacement;
-        let result = client.call("edit_script", arguments);
-        assert_eq!(result["structuredContent"]["error"]["category"], "input");
+        arguments[field] = value;
+        cases.push(arguments);
     }
-    let mut invalid_revision = base.clone();
-    invalid_revision["revision"] = json!(format!("sr1:{}", "A".repeat(64)));
-    assert_eq!(
-        client.call("edit_script", invalid_revision)["structuredContent"]["error"]["category"],
-        "input"
-    );
+    for arguments in cases {
+        let result = client.call("edit_script", arguments);
+        let object = &result["structuredContent"];
+        assert_eq!(result["isError"], true);
+        assert_eq!(object["schema_version"], 2);
+        assert_eq!(object["result"], Value::Null);
+        assert_eq!(object["error"]["category"], "input");
+        assert_eq!(object["error"]["code"], "invalid_arguments");
+        assert_eq!(object["error"]["stage"], "validate_request");
+        assert_eq!(object["error"]["application"], "not_applied");
+        assert_eq!(object["error"]["next_action"]["kind"], "correct_request");
+        assert_eq!(object["error"]["requested_target"], Value::Null);
+        assert!(!result.to_string().contains("SENTINEL"));
+    }
     let result = client.call("edit_script", base);
     assert_eq!(result["structuredContent"]["error"], Value::Null);
     assert_eq!(
@@ -133,6 +177,36 @@ fn replacement_and_revision_validation_precede_editor_selection() {
         result["structuredContent"]["result"]["outcome"]["application"],
         "not_applied"
     );
+}
+
+#[test]
+fn fragment_byte_cap_and_empty_values_are_admitted_before_target_selection() {
+    let mut client = Client::new();
+    for (old, new) in [
+        ("".to_owned(), "".to_owned()),
+        ("x".repeat(524288), "".to_owned()),
+        ("".to_owned(), "é".repeat(262144)),
+        ("# anchor".to_owned(), "\t# fragment\n".to_owned()),
+    ] {
+        let result = client.call(
+            "edit_script",
+            json!({
+                "project_root":"/tmp/kit-absent-project","script_path":"res://target.gd",
+                "revision":format!("sr1:{}", "a".repeat(64)),
+                "old_string":old,"new_string":new
+            }),
+        );
+        assert_eq!(result["structuredContent"]["schema_version"], 2);
+        assert_eq!(result["structuredContent"]["error"], Value::Null);
+        assert_eq!(
+            result["structuredContent"]["result"]["mode"],
+            "undetermined"
+        );
+        assert_eq!(
+            result["structuredContent"]["result"]["outcome"]["application"],
+            "not_applied"
+        );
+    }
 }
 
 #[test]
@@ -149,7 +223,7 @@ fn real_unavailable_operations_remain_distinct_from_adapter_input_errors() {
     for (name, response) in [("discover_scripts", &discover), ("read_script", &read)] {
         let object = &response["structuredContent"];
         assert_eq!(object["operation"], name);
-        assert_eq!(object["schema_version"], 1);
+        assert_eq!(object["schema_version"], 2);
         assert_eq!(object["error"], Value::Null);
         assert_eq!(response["isError"], true);
         assert_ne!(object["request_id"], "consumer-call");

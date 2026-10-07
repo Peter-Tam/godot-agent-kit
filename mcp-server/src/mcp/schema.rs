@@ -17,7 +17,7 @@ fn tool(operation: Operation) -> Tool {
     let description = match operation {
         Operation::Discover => "Find supported scripts in a project and report discovery coverage.",
         Operation::Read => "Read script source, current editor state and an edit revision without opening the script.",
-        Operation::Edit => "Replace one script using its current read revision. The script stays open or closed as observed.",
+        Operation::Edit => "Replace exact text in a script using its current read revision. The script stays open or closed as observed.",
     };
     let mut properties = Map::new();
     properties.insert(
@@ -33,10 +33,14 @@ fn tool(operation: Operation) -> Tool {
     if operation == Operation::Edit {
         properties.insert("revision".into(), json!({"type":"string","pattern":"^sr1:[0-9a-f]{64}$","description":"Revision returned by read_script for this target."}));
         properties.insert(
-            "replacement_source".into(),
-            json!({"type":"string","description":"Exact replacement GDScript source."}),
+            "old_string".into(),
+            json!({"type":"string","description":"Exact text occurring once, including overlaps. Empty only to replace a completely empty script."}),
         );
-        required.extend(["revision", "replacement_source"]);
+        properties.insert(
+            "new_string".into(),
+            json!({"type":"string","description":"Replacement text; empty deletes the matched text."}),
+        );
+        required.extend(["revision", "old_string", "new_string"]);
     }
     let input = Map::from_iter([
         (

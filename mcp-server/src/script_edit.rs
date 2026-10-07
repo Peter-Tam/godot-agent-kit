@@ -36,6 +36,7 @@ pub use outcome::{
 pub use request::{
     BasisError, EditRequest, ExpectedRevisionBasis, ReplacementSource, SourceDigest,
 };
+pub(crate) use request::{ExactMatchError, ExactReplacement};
 pub use validation::{
     ContextRecheck, DependencyWitness, DiagnosticOrigin, ValidationDiagnostic, ValidationPurpose,
     ValidationResult, ValidationSourceFence, ValidationStatus,
