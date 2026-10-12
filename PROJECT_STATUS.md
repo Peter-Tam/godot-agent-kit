@@ -2,6 +2,20 @@
 
 ## Current
 
+- **Latest completed phase:** 3 — MCP adapter MVP. [Phase 3's exit decision](PHASE_3_EXIT.md) and completed Features 001–005, 007 and 008 remain unchanged; Feature 006 remains assessed, not proceeding.
+- **Selected feature:** [009 — Create and Delete Project GDScripts Through the Trusted Workflow](specs/009-create-delete-gdscript/spec.md) — **Specification draft**. This is one feature containing both existence operations, extending the delivered script workflow without reopening Phase 3 or starting Phase 4.
+- **Specify-stage result:** [Specification](specs/009-create-delete-gdscript/spec.md) and [requirements-quality checklist](specs/009-create-delete-gdscript/checklists/requirements.md) are authored. The review satisfies 12/16 criteria; four remain open for three material product decisions. This is not planning readiness, implementation approval or create/delete support evidence.
+- **Material clarification points:** [C1–C3](specs/009-create-delete-gdscript/spec.md#material-clarification-points) concern deletion's current basis/source eligibility, create/delete lifecycle and Resource postconditions, and additive Schema 2 versus a deliberately versioned successor. No clarification session has run.
+- **Public boundary:** Evaluate exactly `discover_scripts`, `read_script`, `edit_script`, `create_script` and `delete_script` for supported project GDScripts. Existing exact-edit/empty-source semantics remain unchanged; no generic filesystem, reference-repair, recovery or Save/history/open/close surface is selected.
+- **Design delivery:** Dedicated branch `spec/009-create-delete-gdscript`; specify-stage documentation only. GitHub draft/review/merge state is delivery metadata, not feature completion.
+- **Current task and stage boundary:** No implementation task is selected. Clarification, planning, task derivation, analysis and implementation have not started. No merge, release candidate, Phase 4, Feature 006 revival or another feature is authorized by this selection.
+
+## Feature 008 completion
+
+The following records retain Feature 008's closure-time state and evidence.
+Their then-current selection/next-step statements are historical; the Current
+section above identifies Feature 009 without changing completed acceptance.
+
 - **Latest completed phase:** 3 — MCP adapter MVP. [Phase 3's exit decision](PHASE_3_EXIT.md) and Features 001–007 completion records remain unchanged; Feature 006 remains assessed, not proceeding.
 - **Selected feature:** [008 — Exact Partial Editing for Project GDScripts](specs/008-exact-script-edit/spec.md) — **Complete**. All three tasks satisfy acceptance, cumulative evidence and implementation-shape gates. This bounded refinement does not reopen Phase 3 or start Phase 4.
 - **Design-stage result:** Specify, clarification, Phase 0/1 planning and [task derivation](specs/008-exact-script-edit/tasks.md) are complete. The corrected decomposition has three capability-sized tasks: T001 makes the Schema 2 cutover atomic with current Codex and OMP acceptance; T002 qualifies adverse behavior/recovery; T003 owns composed/cumulative completion. The [granularity/constitutional review](specs/008-exact-script-edit/tasks.md#granularity-and-constitutional-review) records the correction's disposition. The [plan](specs/008-exact-script-edit/plan.md), [research](specs/008-exact-script-edit/research.md), [data model](specs/008-exact-script-edit/data-model.md), [contracts](specs/008-exact-script-edit/contracts/mcp-interface.md) and [validation guide](specs/008-exact-script-edit/quickstart.md) retain the selected design. The [quality checklist](specs/008-exact-script-edit/checklists/requirements.md) retains 16/16 requirements-quality results, not product acceptance.
