@@ -33,28 +33,28 @@
 
 ## Notes
 
-**Result: 12/16 criteria satisfied; four remain open for the three explicitly
-recorded material product decisions.** This is a published specify-stage draft,
-ready for a separately requested clarification stage, not ready for planning or
-implementation. The checked measurable-outcomes item means that the specification
-defines assessable outcomes, not that the product has achieved them.
+**Result: 16/16 criteria satisfied.** Clarification is complete; no unresolved
+material clarification remains. Requirements are ready for the separately requested
+planning stage, not implementation approval. The checked measurable-outcomes item
+means that the specification defines assessable outcomes, not that the product has
+achieved them.
 
-### Open findings
+### Resolved clarification findings
 
-- **C1 — Current deletion basis/source eligibility:** FR-006 says “The caller-visible basis and resulting source eligibility are subject to C1.” Existing edit-oriented revision availability may limit deletion of otherwise safely observable source. Resolve the required basis and supported deletion scope; finalize US2.1–2 and SC-001/SC-005 accordingly.
-- **C2 — Lifecycle/Resource eligibility and postconditions:** FR-008 says “C2 MUST define eligible lifecycle profiles and their exact postconditions.” The safe-refusal floor is defined, but the positive create/delete authority-state matrix is not yet selected. Finalize FR-005/FR-008/FR-010, US1.1/3, US2.1/4 and SC-001/SC-004/SC-006 without inferring absence from unavailable evidence or narrowing support silently.
-- **C3 — Public compatibility:** FR-015 says “Public compatibility MUST be deliberate under C3.” Choose additive Schema 2 advertisement or a deliberately versioned successor/migration; finalize US4.4 and SC-007. Existing exact-edit meanings and the five named intents are already fixed.
+- **C1 — Current deletion basis/source eligibility:** Require the existing non-null `read_script` revision for the exact target and match it against freshly acquired trusted state. Missing, unavailable or stale revisions refuse. Existing read source/context eligibility and all deletion-specific safety/verification checks remain mandatory; no alternate deletion basis is added (FR-006, US2.1–2, SC-001/SC-005).
+- **C2 — Lifecycle/Resource eligibility and postconditions:** Creation keeps B absent and independently verifies exact D plus either confirmed absent R or a newly associated R with verified identity and exact source as a necessary creation effect. Deletion supports eligible clean open, clean cached-R closed and absent-R closed scripts; removal of the admitted target document and Resource association is an explicit deletion effect, with independently verified file/document/target-path Resource-association disappearance. Dirty/conflicting state refuses, and no lifecycle workaround manufactures eligibility or success. Physical destruction of every retained Resource instance and reference repair are not promised (FR-005/FR-008/FR-010, US1/US2, SC-001/SC-004/SC-006).
+- **C3 — Public compatibility:** Retain public Schema 2 additively for all five tools, preserving existing discover/read/edit input/result shapes and meanings. Document catalog refresh/reconnection where needed to discover create/delete, without a schema-version migration, parallel compatibility mode, Schema 1 revival or MCP protocol-version change (FR-015, US4, SC-007).
 
-The four unchecked criteria cover these findings only. Questions are retained rather
-than answered because the requested publication ends at specify; no clarification
-session or later design stage has run.
+The four accepted answers in the specification's [Clarifications](../spec.md#clarifications)
+resolve C1–C3. Planning, task derivation, analysis and implementation have not
+started; this prose correction changes no accepted product decision.
 
 ### Reviewed coverage and boundaries
 
 - US1 and SC-001/SC-002/SC-005 cover complete-source creation, occupancy/races, validation, exact/empty source, confinement and no implicit lifecycle changes (FR-001–FR-005).
-- US2 and SC-001/SC-003/SC-005/SC-006 cover current-basis deletion, stale/dirty state, authority disappearance, missing/empty files and dependency limitations (FR-006–FR-010, FR-021), with the C1/C2 positive-state gaps above explicit.
+- US2 and SC-001/SC-003/SC-005/SC-006 cover current-basis deletion, stale/dirty state, authority disappearance, missing/empty files and dependency limitations (FR-006–FR-010, FR-021), including the clarified read-revision requirement and three supported deletion profiles.
 - US3 and SC-004 cover truthful effects, independent verification, interrupted delivery, newer human work and no automatic recovery/replay (FR-011–FR-013).
-- US4 and SC-007 cover five distinct tools, unchanged Feature 008 empty-source/text-removal behavior, lean descriptions and compatibility (FR-014–FR-016), subject to C3's version decision.
+- US4 and SC-007 cover five distinct tools, unchanged Feature 008 empty-source/text-removal behavior, lean descriptions and additive Schema 2 compatibility (FR-014–FR-016).
 - SC-006/SC-008 and the assumptions retain applicable real-editor/durability, timing, support, privacy/export and relevant-input evidence obligations (FR-017–FR-020). These are acceptance requirements, not executed product checks.
 - GDScript, MCP, D/R/B and tool names identify the requested product domain and observable authorities, not a selected implementation API or new infrastructure. No native/filesystem primitive, module layout, new dependency, framework, approval gate or CI topology is prescribed.
 - The feature includes both create and delete. It does not start Phase 4, reopen completed phase exits, revive Feature 006, rewrite Features 001–008, or add generic filesystem, reference-repair, recovery or lifecycle/history scope.
