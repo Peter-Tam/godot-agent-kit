@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-12
 
-**Status**: Draft — clarification complete. Four accepted answers resolve the deletion basis, create/delete lifecycle/Resource postconditions and additive Schema 2 compatibility. No plan, tasks, analysis or implementation has started.
+**Status**: Draft — clarification and [Phase 0/1 planning](plan.md) complete. Four accepted answers resolve the deletion basis, create/delete lifecycle/Resource postconditions and additive Schema 2 compatibility. Task derivation, analysis and product implementation have not started.
 
 **Input**: Generated WHAT/WHY description supplied to `/speckit.specify`:
 
@@ -266,9 +266,11 @@ not unresolved clarification questions or permission to weaken these outcomes.
 
 ### Stage boundary
 
-This clarification stage updates the draft specification, its [quality checklist](checklists/requirements.md),
-truthful project status and the existing draft design PR. Four accepted answers
-resolve C1–C3; no material clarification remains. Planning is the next stage, not
-started or approved by this publication. No plan, research experiment, data model,
-contract artifact, task derivation, granularity review, consistency analysis,
-implementation, merge, release, Phase 4 or another feature has started.
+Specify and clarification are complete; the four accepted answers resolve C1–C3
+without changing the accepted product scope. The separately
+requested [planning stage](plan.md) has produced research, a data model, contracts
+and a validation guide. Those artifacts record a selected design and bounded
+mechanics evidence, not product acceptance or implementation approval.
+The [quality checklist](checklists/requirements.md), project status and existing
+draft design PR reflect this state. Task derivation, granularity review, consistency
+analysis, implementation, merge, release, Phase 4 and another feature have not started.

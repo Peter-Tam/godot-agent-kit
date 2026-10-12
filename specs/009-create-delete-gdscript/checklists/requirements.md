@@ -34,8 +34,8 @@
 ## Notes
 
 **Result: 16/16 criteria satisfied.** Clarification is complete; no unresolved
-material clarification remains. Requirements are ready for the separately requested
-planning stage, not implementation approval. The checked measurable-outcomes item
+material clarification remains. The separately requested [Phase 0/1 plan](../plan.md)
+is complete, not implementation approval. The checked measurable-outcomes item
 means that the specification defines assessable outcomes, not that the product has
 achieved them.
 
@@ -46,8 +46,8 @@ achieved them.
 - **C3 — Public compatibility:** Retain public Schema 2 additively for all five tools, preserving existing discover/read/edit input/result shapes and meanings. Document catalog refresh/reconnection where needed to discover create/delete, without a schema-version migration, parallel compatibility mode, Schema 1 revival or MCP protocol-version change (FR-015, US4, SC-007).
 
 The four accepted answers in the specification's [Clarifications](../spec.md#clarifications)
-resolve C1–C3. Planning, task derivation, analysis and implementation have not
-started; this prose correction changes no accepted product decision.
+resolve C1–C3 and remain unchanged. Phase 0 research and Phase 1 design are complete;
+task derivation, analysis and product implementation have not started.
 
 ### Reviewed coverage and boundaries
 
